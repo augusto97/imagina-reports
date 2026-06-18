@@ -7,34 +7,43 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 3 — P3·3 (Upsell-opportunity detector) DONE.** A second `ReportGenerated` listener,
-`DetectUpsellOpportunities`, runs the new `UpsellDetector` (pure, config-driven from `config/upsell.php`):
-traffic-growth (`ga4.sessions`), sales-growth (`woocommerce.revenue`), security-hardening (high total
-`cloudflare`/`crowdsec` attack volume), and coverage-gap signals (no uptime source / no security source
-connected — derived from the site's `DataSource` rows). Each opportunity → internal `Log::info` alert + an
-`upsell.detected` webhook (internal-only, never shown to the client). Shared bag-reading helpers
-(`metricValue`/`changePercent`) were extracted into a `ReadsMetricBags` trait now used by both detectors.
-**148 PHP tests green, PHPStan max clean, Pint clean.**
-**Next action: Phase 3 (§13) — advanced comparisons + multi-client trends dashboard** (last Phase 3 item).
-⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API doesn't exist yet). ⚠️ Confirm the
-`upsell.detected` webhook event name with the owner (extends §8's three named events — see Open Questions).
-Frontend polish (low priority): admin "System → Updates" screen (§11.1) consuming the update API.
+**🎉 PHASE 3 COMPLETE (P3·1…P3·4), except the DEFERRED Imagina Audit connector.** Last item done:
+**advanced comparisons + multi-client trends dashboard.** Backend: `App\Reports\AgencyTrends` aggregates
+already-generated reports (`ir_reports` — frozen, tenant-scoped, no live APIs) into a per-site health-score
+history (last 12 periods) + an at-a-glance comparison (worst health first) + agency summary; served at
+`GET /api/v1/trends` (`TrendsController`). Frontend: admin "Tendencias" screen (`TrendsScreen.tsx`) — summary
+cards, a Recharts multi-site health line chart (merged across periods), and a client-comparison table; new nav
+entry + `useTrends` hook + `AgencyTrends`/`SiteTrend` types. **151 PHP tests green, PHPStan max clean, Pint
+clean; TS typecheck/lint/build clean.**
+**Next action:** Phases 1–3 are functionally complete. Remaining work is owner-gated / polish:
+(1) ⚠️ **Imagina Audit connector** — DEFERRED until its API exists (owner). (2) ⚠️ Confirm the `upsell.detected`
+webhook event name (extends §8's three named events — Open Questions). (3) Validate every connector's real API
+shapes against live accounts (Open Questions). (4) Low-priority FE polish: admin "System → Updates" screen
+(§11.1) consuming the update API; surface anomaly/upsell signals in the admin UI. (5) Owner deploy steps
+(Chromium path, GA4/GSC service-account readers).
 
 ---
 
 ## Current phase
-**Phase 3 — Intelligence & differentiation** (Phases 1 & 2 complete)
+**Phase 3 — Intelligence & differentiation: COMPLETE** (Phases 1, 2 & 3 done; only the DEFERRED Imagina
+Audit connector remains). No active build task — see "Where I left off" for owner-gated / polish items.
 
 ## Current task
-**Phase 3 · Advanced comparisons + multi-client trends dashboard** (next + last Phase 3 item, CLAUDE.md §13).
-Cross-period / multi-site comparison views for the agency (e.g. health-score and key-KPI trends across all of
-an agency's sites). _(Imagina Audit connector DEFERRED — owner: that API doesn't exist yet, will build it
-later.)_
+_None in progress._ Phases 1–3 are functionally complete. Next work is owner-gated (Imagina Audit API,
+connector shape validation, `upsell.detected` confirmation) or low-priority FE polish (see "Where I left off").
 
 ## Phase 3 — progress
 - [x] (2026-06-18) **P3·1 — Database / CSV / endpoint connector** (`DatabaseConnector` + `EndpointConnector`, config-driven, aggregate-at-source). — 59b9d3b
 - [x] (2026-06-18) **P3·2 — Anomaly detection + outbound webhooks** (`AnomalyDetector` + report lifecycle events/listeners + `WebhookDispatcher`). — f321d27
 - [x] (2026-06-18) **P3·3 — Upsell-opportunity detector** (`UpsellDetector` + `DetectUpsellOpportunities` listener + `upsell.detected` webhook). — f9cc34e
+- [x] (2026-06-18) **P3·4 — Advanced comparisons + multi-client trends dashboard** (`AgencyTrends` + `GET /trends` + admin "Tendencias" screen). — 7c9497b
+- [ ] **(DEFERRED)** Imagina Audit + WPVulnerability connector + `AuditSection` — owner: API doesn't exist yet.
+
+### P3·4 — Advanced comparisons + multi-client trends dashboard ✅ DONE (2026-06-18)
+- [x] `App\Reports\AgencyTrends`: aggregates frozen `ir_reports` (tenant-scoped) into per-site health-score series (last 12 periods) + worst-first comparison + agency summary (sites/reports/avg health).
+- [x] `GET /api/v1/trends` (`TrendsController`, auth + tenant); returns the aggregate JSON.
+- [x] Admin "Tendencias" screen (`TrendsScreen.tsx`): summary cards + Recharts multi-site health line chart (merged across periods) + client-comparison `DataTable`; nav entry + `useTrends` + `AgencyTrends`/`SiteTrend` types.
+- [x] Tests: trends API (per-site series worst-first + averages, tenant isolation, auth). 151 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean.
 
 ### P3·3 — Upsell-opportunity detector ✅ DONE (2026-06-18)
 - [x] `UpsellDetector` (pure, config-driven `config/upsell.php`): traffic-growth, sales-growth, security-hardening (attack-volume), and coverage-gap (missing uptime/security source) signals; `UpsellOpportunity` VO + `UpsellType` enum.

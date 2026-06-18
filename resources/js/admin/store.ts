@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type AdminView = 'clients' | 'sites' | 'data-sources' | 'reports' | 'editor';
+export type AdminView = 'clients' | 'sites' | 'data-sources' | 'reports' | 'editor' | 'trends';
 
 /** UI/navigation state for the admin SPA (CLAUDE.md §11.1 — Zustand for UI state). */
 interface AdminUiState {

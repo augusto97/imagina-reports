@@ -5,6 +5,7 @@ import { api } from '@shared/lib/api';
 import type { Block } from '@shared/blocks/types';
 
 import type {
+    AgencyTrends,
     CatalogEntry,
     Client,
     Connector,
@@ -111,6 +112,12 @@ export function useCreateReportDefinition() {
 
 export function useReports() {
     return useQuery({ queryKey: ['reports'], queryFn: () => get<ReportSummary[]>('/reports') });
+}
+
+/* --------------------------------- trends ---------------------------------- */
+
+export function useTrends() {
+    return useQuery({ queryKey: ['trends'], queryFn: () => get<AgencyTrends>('/trends') });
 }
 
 /* ------------------------------ editor: catalog ---------------------------- */

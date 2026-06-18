@@ -1,4 +1,4 @@
-import { Database, FileBarChart, Globe, LayoutDashboard, PencilRuler, Users } from 'lucide-react';
+import { Database, FileBarChart, Globe, LayoutDashboard, PencilRuler, TrendingUp, Users } from 'lucide-react';
 import { type ReactElement } from 'react';
 
 import { cn } from '@shared/lib/utils';
@@ -8,6 +8,7 @@ import { ClientsScreen } from './screens/ClientsScreen';
 import { DataSourcesScreen } from './screens/DataSourcesScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SitesScreen } from './screens/SitesScreen';
+import { TrendsScreen } from './screens/TrendsScreen';
 import { type AdminView, useAdminUi } from './store';
 
 const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
@@ -16,6 +17,7 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: 'data-sources', label: 'Fuentes', icon: Database },
     { view: 'editor', label: 'Editor', icon: PencilRuler },
     { view: 'reports', label: 'Reportes', icon: FileBarChart },
+    { view: 'trends', label: 'Tendencias', icon: TrendingUp },
 ];
 
 function Screen({ view }: { view: AdminView }): ReactElement {
@@ -30,6 +32,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <EditorScreen />;
         case 'reports':
             return <ReportsScreen />;
+        case 'trends':
+            return <TrendsScreen />;
     }
 }
 

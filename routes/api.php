@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
+use App\Http\Controllers\Api\V1\TrendsController;
 use App\Http\Controllers\Api\V1\WorkLogController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,6 +77,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     Route::get('schedules', [ScheduleController::class, 'index'])->name('api.schedules.index');
     Route::post('schedules', [ScheduleController::class, 'store'])->name('api.schedules.store');
+
+    // Agency-wide trends + multi-client comparisons (CLAUDE.md §13).
+    Route::get('trends', [TrendsController::class, 'index'])->name('api.trends.index');
 
     Route::get('reports', [ReportController::class, 'index'])->name('api.reports.index');
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');

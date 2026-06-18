@@ -77,3 +77,26 @@ export interface ReportTemplateDto {
     is_default: boolean;
     locale: string;
 }
+
+export interface HealthPoint {
+    period_end: string;
+    health_score: number | null;
+}
+
+export interface SiteTrend {
+    site_id: number;
+    site_name: string;
+    client_name: string | null;
+    latest_health_score: number | null;
+    reports_count: number;
+    health_series: HealthPoint[];
+}
+
+export interface AgencyTrends {
+    summary: {
+        sites_count: number;
+        reports_count: number;
+        average_health_score: number | null;
+    };
+    sites: SiteTrend[];
+}
