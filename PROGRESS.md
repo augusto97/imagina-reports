@@ -7,18 +7,17 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 complete; Phase 2 underway — block EDITOR (P2·1) + AiReportBuilder (P2·2) are DONE.**
-The **AI builder** (CLAUDE.md §10.6): `App\Ai\AiClient` interface (default `AnthropicAiClient` → Claude
-Messages API, `config('services.anthropic')`), `App\Reports\AiReportBuilder` with `assembleTemplate(Site,
-?prompt)` and `narrative(metrics, locale)`. Template assembly feeds the AI the site's metric catalog,
-parses the JSON it returns, validates it through `BlocksValidator`, AND **drops any block bound to a metric
-not in the real catalog** (can't invent data, §10.6); bad/unparseable output → `AiReportException`.
-Endpoint `POST /api/v1/sites/{site}/ai-template` (`AiTemplateController`, 422 on AI failure); the editor's
-**"Generar con IA"** button loads the draft into the canvas. Tests fake the `AiClient` (no live API).
-**95 PHP tests green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
-**Next action: Phase 2 · remaining connectors** — Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce
-(reuse the `DataSourceConnector` contract; defensive `fetch()`, register in `ConnectorServiceProvider`,
-`Http::fake` tests). Then scheduling+email, white-label/i18n, portal interactivity, self-updater.
+**Phase 1 complete; Phase 2 underway — editor (P2·1), AI builder (P2·2) and ALL remaining connectors (P2·3) DONE.**
+The eight Phase-1+2 connectors are now implemented and registered: MainWP, GA4, GSC + **Cloudflare**
+(GraphQL Analytics), **CrowdSec** (Console/LAPI), **Better Stack** (uptime SLA), **Virusdie** (via the MainWP
+Virusdie extension — same dashboard_url+token), **WooCommerce** (consumer key/secret, `/wc/v3/reports`). Each
+uses the shared `App\Connectors\Support\ParsesValues` trait (defensive coercion), aggregates at source,
+catches its own errors → failed set, and exposes a `<key>.*` `MetricCatalog`. **101 PHP tests green, PHPStan
+max clean, Pint clean.** ⚠️ Exact API shapes for these (like MainWP) are documented assumptions to validate —
+see Open Questions. **Next action: Phase 2 · Scheduling + recurring generation + branded email delivery**
+(`ir_schedules`, `ir_report_deliveries`; a scheduled command that enqueues `GenerateReportJob` per due
+schedule, then a `DeliverReportJob` emailing the branded report + PDF link). Then white-label/i18n, portal
+interactivity, self-updater.
 
 ---
 
@@ -26,22 +25,28 @@ Endpoint `POST /api/v1/sites/{site}/ai-template` (`AiTemplateController`, 422 on
 **Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
 
 ## Current task
-**Phase 2 · Remaining connectors** (not started): **Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce**
-(CLAUDE.md §9). Each implements `DataSourceConnector` (auth/config per §9), exposes a `<key>.*` `MetricCatalog`,
-fetches aggregated-at-source, catches its own errors → partial/failed, and is registered in
-`ConnectorServiceProvider`. Note: **VirusDie comes via the MainWP Virusdie extension** (no separate API).
-Tests with `Http::fake` only. Several have unspecified exact API shapes (like MainWP) → parse defensively and
-log assumptions in Open Questions. WooCommerce: consumer key/secret, `/wc/v3/reports`. Cloudflare: GraphQL
-Analytics. CrowdSec: Console API. Better Stack: Bearer, monitors.
+**Phase 2 · Scheduling + recurring generation + branded email** (not started, CLAUDE.md §5/§8/§13).
+`ir_schedules` (+ `Schedule` model: `report_definition_id`, `cadence` monthly/weekly, `next_run_at`) and
+`ir_report_deliveries` (+ `ReportDelivery`). A scheduler command (registered in `routes/console.php`,
+run by the single cron) finds due schedules, enqueues `GenerateReportJob` for the right period, advances
+`next_run_at`. A `DeliverReportJob` renders the PDF (`ReportPdfService`) and sends a **branded email**
+(summary + PDF + portal link) to the definition's recipients, recording `ir_report_deliveries`. Use Laravel
+Mailable + `Mail::fake()` in tests; queue-safe + tenant-bound like the other jobs. Emit `report.generated` /
+`report.sent` webhooks behind a `WebhookDispatcher` (§8) — optional this slice.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
 - [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — 77e9b53
-- [ ] **(current)** Connectors: Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce.
-- [ ] Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
+- [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — _commit pending_
+- [ ] **(current)** Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
 - [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
 - [ ] Client portal interactivity (period selector, drill-down).
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### P2·3 — Remaining connectors ✅ DONE (2026-06-18)
+- [x] `Cloudflare` (GraphQL), `CrowdSec` (alerts/decisions), `BetterUptime` (SLA), `Virusdie` (via MainWP ext.), `WooCommerce` (`/wc/v3/reports`).
+- [x] Shared `App\Connectors\Support\ParsesValues` trait; all registered in `ConnectorServiceProvider`.
+- [x] Tests: one `Http::fake` happy path each + a failed-HTTP case + registration covers all 8. 101 tests green; PHPStan max + Pint clean.
 
 ### P2·2 — AiReportBuilder ✅ DONE (2026-06-18)
 - [x] `App\Ai\AiClient` + `AnthropicAiClient` (Claude Messages API, `config('services.anthropic')`); bound in `AppServiceProvider`.
@@ -332,6 +337,13 @@ Analytics. CrowdSec: Console API. Better Stack: Bearer, monitors.
   (fallback flat `plugin_upgrades`/`theme_upgrades`/`wp_upgrades`), `abandoned_plugins`, and `ssl.expires_at`. Confirm the
   real endpoint paths + field names (and whether dedicated endpoints exist for updates/abandoned/SSL) against a live MainWP
   dashboard, then adjust the parser. Also confirm the precise "updates applied" definition (count reduction vs inventory diff).
+- **New connectors' exact API shapes (validate before production, like MainWP):** assumptions baked into each `fetch()` —
+  **WooCommerce** `/wp-json/wc/v3/reports/sales` (`[{total_sales,total_orders}]`) + `/reports/top_sellers` (`[{name,quantity}]`),
+  basic-auth ck/cs; **Cloudflare** GraphQL `viewer.zones[0].httpRequests1dGroups[].sum.{requests,cachedRequests,threats,bytes}`;
+  **CrowdSec** `GET {api_url}/alerts` → list of `{scenario, decisions:[…]}` (Console API vs per-VPS LAPI base/auth TBC);
+  **Better Stack** `GET /monitors/{id}/sla` → `data.attributes.{availability,number_of_incidents}`; **Virusdie** via the MainWP
+  ext. `GET {dashboard_url}/wp-json/mainwp/v2/virusdie/summary` → `{malware_found,infected_sites,firewall_active}`. Parsing is
+  tolerant (missing → 0); confirm real endpoints/fields + auth against live accounts and adjust.
 - ~~`gpt.imagina.cloud` contract~~ **RESOLVED (2026-06-18):** owner confirmed that service is NOT used. AI builder
   now uses the **Claude API (Anthropic)** — env `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`),
   `config('services.anthropic')`. Implement `AiReportBuilder` behind an `AiClient` interface (Phase 2).

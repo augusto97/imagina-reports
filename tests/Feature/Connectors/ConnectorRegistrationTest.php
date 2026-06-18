@@ -17,5 +17,10 @@ class ConnectorRegistrationTest extends TestCase
         $this->assertTrue($registry->has(DataSourceType::MainWp->value));
         $this->assertTrue($registry->has(DataSourceType::Ga4->value));
         $this->assertTrue($registry->has(DataSourceType::Gsc->value));
+        $this->assertTrue($registry->has(DataSourceType::Cloudflare->value));
+        $this->assertTrue($registry->has(DataSourceType::CrowdSec->value));
+        $this->assertTrue($registry->has(DataSourceType::BetterUptime->value));
+        $this->assertTrue($registry->has(DataSourceType::Virusdie->value));
+        $this->assertTrue($registry->has(DataSourceType::WooCommerce->value));
     }
 }

@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Connectors\BetterUptime\BetterUptimeConnector;
+use App\Connectors\Cloudflare\CloudflareConnector;
 use App\Connectors\ConnectorRegistry;
+use App\Connectors\CrowdSec\CrowdSecConnector;
 use App\Connectors\Ga4\Ga4Connector;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\Google\ServiceAccountTokenProvider;
 use App\Connectors\Gsc\GscConnector;
 use App\Connectors\MainWp\MainWpConnector;
+use App\Connectors\Virusdie\VirusdieConnector;
+use App\Connectors\WooCommerce\WooCommerceConnector;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
@@ -34,6 +39,11 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             $registry->register(new MainWpConnector);
             $registry->register(new Ga4Connector($google));
             $registry->register(new GscConnector($google));
+            $registry->register(new CloudflareConnector);
+            $registry->register(new CrowdSecConnector);
+            $registry->register(new BetterUptimeConnector);
+            $registry->register(new VirusdieConnector);
+            $registry->register(new WooCommerceConnector);
 
             return $registry;
         });
