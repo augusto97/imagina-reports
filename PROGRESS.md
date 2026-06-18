@@ -135,7 +135,7 @@ this env). The public report data endpoint (`GET /api/v1/public/reports/{public_
       63 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean. — 417779f
 - [x] (2026-06-18) **Phase 1 · Task 9 — ReportGenerator + HealthScoreCalculator.** `ir_sites`/report tables + models;
       `ReportGenerator` (resolve, graceful hide, delta-wired `updates_applied`) + `HealthScoreCalculator` (re-weighting).
-      70 tests green; PHPStan max + Pint clean. — _commit pending_
+      70 tests green; PHPStan max + Pint clean. — 06f490b
 
 ---
 
