@@ -57,7 +57,7 @@ keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open ques
 ## Completed
 - [x] (2026-06-18) **Phase 1 · Task 1 — Project skeleton & tooling baseline.** Laravel 11 + Sanctum/API v1,
       Horizon, Browsershot, laravel-permission, google/apiclient; PHPStan max + Pint clean; 3 tests green;
-      two Vite 5/React 18 SPAs (admin+portal) with the locked stack; CI workflow building both SPAs. — _commit pending_
+      two Vite 5/React 18 SPAs (admin+portal) with the locked stack; CI workflow building both SPAs. — 99135e8
 
 ---
 
