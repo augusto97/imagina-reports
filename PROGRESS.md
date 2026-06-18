@@ -7,17 +7,19 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 complete; Phase 2 underway — editor (P2·1), AI builder (P2·2) and ALL remaining connectors (P2·3) DONE.**
-The eight Phase-1+2 connectors are now implemented and registered: MainWP, GA4, GSC + **Cloudflare**
-(GraphQL Analytics), **CrowdSec** (Console/LAPI), **Better Stack** (uptime SLA), **Virusdie** (via the MainWP
-Virusdie extension — same dashboard_url+token), **WooCommerce** (consumer key/secret, `/wc/v3/reports`). Each
-uses the shared `App\Connectors\Support\ParsesValues` trait (defensive coercion), aggregates at source,
-catches its own errors → failed set, and exposes a `<key>.*` `MetricCatalog`. **101 PHP tests green, PHPStan
-max clean, Pint clean.** ⚠️ Exact API shapes for these (like MainWP) are documented assumptions to validate —
-see Open Questions. **Next action: Phase 2 · Scheduling + recurring generation + branded email delivery**
-(`ir_schedules`, `ir_report_deliveries`; a scheduled command that enqueues `GenerateReportJob` per due
-schedule, then a `DeliverReportJob` emailing the branded report + PDF link). Then white-label/i18n, portal
-interactivity, self-updater.
+**Phase 1 complete; Phase 2 underway — P2·1…P2·4 DONE.** Editor (1), AI builder (2), all connectors (3),
+and now **scheduling + recurring generation + branded email** (4). `ir_schedules`/`Schedule` (cadence
+monthly/weekly + `next_run_at`, with `ScheduleCadence::periodFor/nextRun`) and `ir_report_deliveries`/
+`ReportDelivery`. The `reports:run-schedules` command (wired hourly in `routes/console.php`) → `ScheduleRunner`
+finds due schedules, dispatches `RunScheduledReportJob` (generates the just-ended period's report via
+`ReportGenerator`, then queues delivery) and advances `next_run_at`. `DeliverReportJob` → `DeliveryService`
+renders the PDF (`ReportPdfService`) and emails the branded `ReportReadyMail` (summary + PDF + portal link)
+to the definition's recipients, recording each attempt. Schedules API (`GET/POST /api/v1/schedules`). All
+queue-safe + tenant-bound. **107 PHP tests green** (delivery via `Mail::fake`+`FakePdfRenderer`, runner,
+command, API isolation), **PHPStan max clean, Pint clean.**
+**Next action: Phase 2 · White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive**
+(`ir_report_work_logs`; agency branding into the report page/email; localization; reports list/archive).
+Then portal interactivity, self-updater.
 
 ---
 
@@ -25,23 +27,28 @@ interactivity, self-updater.
 **Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
 
 ## Current task
-**Phase 2 · Scheduling + recurring generation + branded email** (not started, CLAUDE.md §5/§8/§13).
-`ir_schedules` (+ `Schedule` model: `report_definition_id`, `cadence` monthly/weekly, `next_run_at`) and
-`ir_report_deliveries` (+ `ReportDelivery`). A scheduler command (registered in `routes/console.php`,
-run by the single cron) finds due schedules, enqueues `GenerateReportJob` for the right period, advances
-`next_run_at`. A `DeliverReportJob` renders the PDF (`ReportPdfService`) and sends a **branded email**
-(summary + PDF + portal link) to the definition's recipients, recording `ir_report_deliveries`. Use Laravel
-Mailable + `Mail::fake()` in tests; queue-safe + tenant-bound like the other jobs. Emit `report.generated` /
-`report.sent` webhooks behind a `WebhookDispatcher` (§8) — optional this slice.
+**Phase 2 · White-label + i18n + work logs + historical archive** (not started, CLAUDE.md §5/§6/§11.5).
+`ir_report_work_logs` (+ `WorkLog` model + `POST /api/v1/reports/{report}/work-logs`, §8) feeding the
+`worklog_timeline` block. Agency white-label: pass `brand_color`/`logo_path` through to the report page
+(`ReportResource` already exposes `agency`) and the email; render the accent. i18n: app + report content
+localized (ES default; EN, PT-BR) via Laravel localization + the report's locale. Historical archive:
+reports list/filtering already exists (`GET /api/v1/reports`) — add period filters / an archive view.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
 - [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — 77e9b53
 - [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
-- [ ] **(current)** Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
+- [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — _commit pending_
+- [ ] **(current)** White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
 - [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
 - [ ] Client portal interactivity (period selector, drill-down).
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### P2·4 — Scheduling + recurring generation + branded email ✅ DONE (2026-06-18)
+- [x] `ir_schedules`/`Schedule` (+ `ScheduleCadence` period/next), `ir_report_deliveries`/`ReportDelivery` (+ `DeliveryChannel`/`DeliveryStatus`); factory.
+- [x] `reports:run-schedules` command (hourly via `routes/console.php`) → `ScheduleRunner::dispatchDue` → `RunScheduledReportJob` → generate + `DeliverReportJob`.
+- [x] `DeliveryService` (PDF + branded `ReportReadyMail` + records) ; `GET/POST /api/v1/schedules` (`ScheduleController`).
+- [x] Tests: delivery (Mail::fake + FakePdfRenderer), runner due/not-due, command, schedule API + isolation. 107 tests green; PHPStan max + Pint clean.
 
 ### P2·3 — Remaining connectors ✅ DONE (2026-06-18)
 - [x] `Cloudflare` (GraphQL), `CrowdSec` (alerts/decisions), `BetterUptime` (SLA), `Virusdie` (via MainWP ext.), `WooCommerce` (`/wc/v3/reports`).

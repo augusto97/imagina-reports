@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
+use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,6 +69,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('report-definitions', [ReportDefinitionController::class, 'store'])->name('api.report-definitions.store');
     Route::get('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'show'])->name('api.report-definitions.show');
     Route::put('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'update'])->name('api.report-definitions.update');
+
+    Route::get('schedules', [ScheduleController::class, 'index'])->name('api.schedules.index');
+    Route::post('schedules', [ScheduleController::class, 'store'])->name('api.schedules.store');
 
     Route::get('reports', [ReportController::class, 'index'])->name('api.reports.index');
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');
