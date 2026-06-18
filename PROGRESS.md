@@ -40,7 +40,7 @@ aggregate-at-source queries) or **anomaly detection** instead. Other connectors 
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
 - [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — a952423
 - [x] (2026-06-18) **P2·6 — Client portal interactivity** (period selector + brand accent + interactive BlockList). — fe713b1
-- [x] (2026-06-18) **P2·7 — Self-updater** (`UpdateManager` + `Deployer` + API + release.yml + deploy.sh). — _commit pending_
+- [x] (2026-06-18) **P2·7 — Self-updater** (`UpdateManager` + `Deployer` + API + release.yml + deploy.sh). — 37ae970
 
 ### P2·7 — Self-updater ✅ DONE (2026-06-18)
 - [x] `ir_app_releases`/`AppRelease` (+ factory); `UpdateManager` (status/update/rollback) over a `Deployer` interface.
