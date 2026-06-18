@@ -8,6 +8,7 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
@@ -29,7 +30,9 @@ final class Ga4Connector implements DataSourceConnector
 {
     private const API_BASE = 'https://analyticsdata.googleapis.com/v1beta';
 
-    public function __construct(private readonly Ga4TokenProvider $tokenProvider) {}
+    private const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+
+    public function __construct(private readonly GoogleTokenProvider $tokenProvider) {}
 
     public function key(): string
     {
@@ -58,7 +61,7 @@ final class Ga4Connector implements DataSourceConnector
         }
 
         try {
-            $token = $this->tokenProvider->accessToken($source->credentials ?? []);
+            $token = $this->tokenProvider->accessToken($source->credentials ?? [], self::SCOPE);
         } catch (Throwable $e) {
             return ConnectionResult::failure('GA4 authentication failed: '.$e->getMessage());
         }
@@ -100,7 +103,7 @@ final class Ga4Connector implements DataSourceConnector
         }
 
         try {
-            $token = $this->tokenProvider->accessToken($source->credentials ?? []);
+            $token = $this->tokenProvider->accessToken($source->credentials ?? [], self::SCOPE);
         } catch (Throwable $e) {
             return MetricSet::failed('GA4 authentication failed: '.$e->getMessage());
         }

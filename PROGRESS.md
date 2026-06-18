@@ -7,19 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–6 are DONE.** Baseline (1) + multi-tenancy (2) + connector contracts (3) +
-snapshot pipeline (4) + **MainWP** (5) + the **GA4 connector** (6). `App\Connectors\Ga4\Ga4Connector`
-authenticates via a service-account JSON (the `Ga4TokenProvider` interface; default impl
-`GoogleServiceAccountTokenProvider` uses `google/auth`) and calls the Analytics Data API `runReport`
-(server-side aggregation, §3.3). It exposes `ga4.*` metrics (scalar sessions/users/conversions/page_views,
-the `ga4.sessions_by_date` series, and `ga4.top_pages`/`ga4.traffic_sources` tables) via an internal
-spec→GA4-name map; `fetch()` issues one `runReport` per requested metric, parses defensively, and returns
-ok/partial/failed. Registered in `ConnectorServiceProvider` (token provider bound). **49 tests green**
-(GA4 via `FakeGa4TokenProvider` + `Http::fake`: scalar/series/table parse, partial failure, missing
-property_id, auth failure — no live APIs), **PHPStan max clean, Pint clean**.
-**Next action: Phase 1 · Task 7 — Search Console (GSC) connector** (Service Account JSON,
-`searchanalytics.query`: clicks, impressions, CTR, avg position, top queries/pages; reuses the GA4
-token-provider pattern). Note: no MariaDB/Redis in this env — tests use sqlite/array/sync, never live APIs.
+**Phase 1 · Tasks 1–7 are DONE — all three Phase-1 connectors land.** Baseline (1) + multi-tenancy (2)
++ connector contracts (3) + snapshot pipeline (4) + **MainWP** (5) + **GA4** (6) + the **GSC connector** (7).
+Google auth is now a shared, scope-parameterized `App\Connectors\Google\GoogleTokenProvider` (default impl
+`ServiceAccountTokenProvider`, `google/auth`); GA4 was refactored onto it. `App\Connectors\Gsc\GscConnector`
+reads clicks/impressions/CTR/position (one no-dimension totals query) + `gsc.top_queries`/`gsc.top_pages`
+tables via Search Console `searchanalytics.query`, defensively parsed, ok/partial/failed. All three
+connectors are registered in `ConnectorServiceProvider`. **55 tests green** (GA4 + GSC via
+`FakeGoogleTokenProvider` + `Http::fake`, no live APIs), **PHPStan max clean, Pint clean**.
+**Next action: Phase 1 · Task 8 — Block model + shared BlockRenderer (React) + default narrative template
+(§11.5)**: define the block schema/types (header, kpi, chart, table, narrative, healthscore, security_shield,
+worklog_timeline, image, divider, sales_summary, custom), a React `BlockRenderer` library (single source of
+truth for portal + PDF), and the default template. Note: no MariaDB/Redis in this env — tests use sqlite/array/sync.
 
 ---
 
@@ -27,18 +26,23 @@ token-provider pattern). Note: no MariaDB/Redis in this env — tests use sqlite
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 7 — Search Console (GSC) connector** (not started).
-`App\Connectors\Gsc\GscConnector implements DataSourceConnector`. Auth: Service Account JSON (reuse the
-`Ga4TokenProvider` pattern, scope `webmasters.readonly`); config: site_url. Calls the Search Console API
-`searchanalytics.query` (`https://searchconsole.googleapis.com/webmasters/v3/sites/{siteUrl}/searchAnalytics/query`)
-— clicks, impressions, CTR, avg position (scalar totals) + top queries/pages (tables). Aggregated at source.
-`fetch()` catches its own errors → partial/failed. Register in `ConnectorServiceProvider`. Tests mock the
-token provider + `Http::fake`, never live APIs (§14). Confirm SA email added as a GSC property user (Open questions).
+**Phase 1 · Task 8 — Block model + BlockRenderer + default template** (not started).
+Define the block schema (PHP side: a `Block` value object / validator for the `blocks` json on
+`ir_report_templates`/`ir_report_definitions`; types per §10.3: header, kpi, chart line/bar/area/donut,
+table, narrative, healthscore, security_shield, worklog_timeline, image, divider, sales_summary, custom).
+Build the React `BlockRenderer` component library in `resources/js` (single source of truth for the
+portal + the Chromium-printed PDF, §10.7/§11.4) with a renderer per block type, and ship the **default
+narrative template** (§11.5) as ready blocks JSON. Tests: block validation (PHP) + a render smoke test.
+This task spans PHP + React; keep the binding resolution (blocks → snapshot metrics) for Task 9
+(`ReportGenerator`).
+
+### Task 7 — Search Console (GSC) connector ✅ DONE (2026-06-18)
+- [x] Generalized Google auth to `App\Connectors\Google\GoogleTokenProvider` (+ `ServiceAccountTokenProvider`); refactored GA4 onto it.
+- [x] `GscConnector`: `gsc.*` catalog; totals (clicks/impressions/ctr/position) in one query + top_queries/top_pages tables; defensive parse, ok/partial/failed; registered.
+- [x] Tests: catalog, totals single-query, table parse, partial failure, missing site_url, auth failure + registration. 55 tests green; PHPStan max + Pint clean.
 
 ### Task 6 — GA4 connector ✅ DONE (2026-06-18)
-- [x] `Ga4Connector` (Service Account via `Ga4TokenProvider`/`GoogleServiceAccountTokenProvider`); `ga4.*` catalog (scalar/series/table); `runReport` per metric, defensive parse, ok/partial/failed.
-- [x] Registered in `ConnectorServiceProvider` (token provider bound; deferred singleton).
-- [x] Tests: catalog, scalar/series/table parse, partial failure, missing property_id, auth failure (FakeGa4TokenProvider + Http::fake) + registration test. 49 tests green; PHPStan max + Pint clean.
+- [x] `Ga4Connector` (Service Account via the shared `GoogleTokenProvider`); `ga4.*` catalog (scalar/series/table); `runReport` per metric, defensive parse, ok/partial/failed; registered.
 
 ### Task 5 — MainWP connector ✅ DONE (2026-06-18)
 - [x] `MainWpConnector` (configSchema dashboard_url+token, `mainwp.*` catalog, defensive aggregated `fetch()`, testConnection) registered in `ConnectorServiceProvider`.
@@ -79,7 +83,8 @@ token provider + `Http::fake`, never live APIs (§14). Confirm SA email added as
 3. ~~Snapshot pipeline: `ir_metric_snapshots` + `MetricSnapshot`, `SyncSourceJob`, `SyncService`~~ ✅ done (Task 4).
 4. ~~Connector: **MainWP** (+ `MaintenanceDeltaCalculator`)~~ ✅ done (Task 5).
 5. ~~Connector: **GA4** (Service Account; catalog-driven, aggregated)~~ ✅ done (Task 6).
-6. **(current)** Connector: **Search Console** (Service Account; catalog-driven).
+6. ~~Connector: **Search Console**~~ ✅ done (Task 7).
+7. **(current)** Block model + `BlockRenderer` React library + default narrative template (§11.5).
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -109,6 +114,9 @@ token provider + `Http::fake`, never live APIs (§14). Confirm SA email added as
 - [x] (2026-06-18) **Phase 1 · Task 6 — GA4 connector.** `Ga4Connector` (Service Account via `Ga4TokenProvider`),
       `ga4.*` catalog (scalar/series/table), `runReport` defensive parse, ok/partial/failed; registered in the provider.
       49 tests green; PHPStan max + Pint clean. — 7095021
+- [x] (2026-06-18) **Phase 1 · Task 7 — GSC connector.** Generalized Google auth to `GoogleTokenProvider`
+      (+ `ServiceAccountTokenProvider`), refactored GA4 onto it; `GscConnector` (`gsc.*`: totals + top queries/pages).
+      55 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -191,6 +199,12 @@ token provider + `Http::fake`, never live APIs (§14). Confirm SA email added as
 - (2026-06-18) **The `ga4.*` catalog/metric mapping is connector-defined** (sessions→`sessions`, users→`totalUsers`,
   conversions→`conversions`, page_views→`screenPageViews`; series by `date`; tables by `pagePath`/`sessionDefaultChannelGroup`).
   This set is reasonable but not enumerated in the spec — extend as report needs grow.
+- (2026-06-18) **Google auth is shared & scope-parameterized** (`App\Connectors\Google\GoogleTokenProvider`,
+  default `ServiceAccountTokenProvider`). GA4 was refactored onto it (was a GA4-specific provider). GSC reuses it with the
+  `webmasters.readonly` scope. Tests stub it via `FakeGoogleTokenProvider` (no Google network).
+- (2026-06-18) **GSC fetches the four totals (clicks/impressions/CTR/position) in a single no-dimension
+  `searchanalytics.query`** (efficient), and one query per table (`gsc.top_queries` by `query`, `gsc.top_pages` by `page`).
+  clicks/impressions are ints; ctr/position are floats. The `gsc.*` catalog is connector-defined (not enumerated in spec).
 
 ---
 

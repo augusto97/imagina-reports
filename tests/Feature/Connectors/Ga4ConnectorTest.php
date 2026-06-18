@@ -10,16 +10,16 @@ use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
-use Tests\Support\Connectors\FakeGa4TokenProvider;
+use Tests\Support\Connectors\FakeGoogleTokenProvider;
 use Tests\TestCase;
 
 class Ga4ConnectorTest extends TestCase
 {
     private const RUN_REPORT = 'analyticsdata.googleapis.com/*';
 
-    private function connector(?FakeGa4TokenProvider $tokens = null): Ga4Connector
+    private function connector(?FakeGoogleTokenProvider $tokens = null): Ga4Connector
     {
-        return new Ga4Connector($tokens ?? new FakeGa4TokenProvider);
+        return new Ga4Connector($tokens ?? new FakeGoogleTokenProvider);
     }
 
     private function source(): DataSource
@@ -127,7 +127,7 @@ class Ga4ConnectorTest extends TestCase
     public function test_auth_failure_yields_a_failed_set(): void
     {
         Http::fake();
-        $tokens = new FakeGa4TokenProvider(throws: new RuntimeException('bad key'));
+        $tokens = new FakeGoogleTokenProvider(throws: new RuntimeException('bad key'));
 
         $set = $this->connector($tokens)->fetch($this->source(), $this->period(), ['ga4.sessions']);
 

@@ -6,8 +6,9 @@ namespace App\Providers;
 
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\Ga4\Ga4Connector;
-use App\Connectors\Ga4\Ga4TokenProvider;
-use App\Connectors\Ga4\GoogleServiceAccountTokenProvider;
+use App\Connectors\Google\GoogleTokenProvider;
+use App\Connectors\Google\ServiceAccountTokenProvider;
+use App\Connectors\Gsc\GscConnector;
 use App\Connectors\MainWp\MainWpConnector;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Support\DeferrableProvider;
@@ -22,14 +23,17 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
 {
     public function register(): void
     {
-        $this->app->bind(Ga4TokenProvider::class, GoogleServiceAccountTokenProvider::class);
+        $this->app->bind(GoogleTokenProvider::class, ServiceAccountTokenProvider::class);
 
         $this->app->singleton(ConnectorRegistry::class, function (Application $app): ConnectorRegistry {
             $registry = new ConnectorRegistry;
 
+            $google = $app->make(GoogleTokenProvider::class);
+
             // Concrete connectors register here as they are implemented.
             $registry->register(new MainWpConnector);
-            $registry->register(new Ga4Connector($app->make(Ga4TokenProvider::class)));
+            $registry->register(new Ga4Connector($google));
+            $registry->register(new GscConnector($google));
 
             return $registry;
         });
@@ -40,6 +44,6 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
      */
     public function provides(): array
     {
-        return [ConnectorRegistry::class, Ga4TokenProvider::class];
+        return [ConnectorRegistry::class, GoogleTokenProvider::class];
     }
 }

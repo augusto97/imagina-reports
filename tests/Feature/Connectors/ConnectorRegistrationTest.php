@@ -16,5 +16,6 @@ class ConnectorRegistrationTest extends TestCase
 
         $this->assertTrue($registry->has(DataSourceType::MainWp->value));
         $this->assertTrue($registry->has(DataSourceType::Ga4->value));
+        $this->assertTrue($registry->has(DataSourceType::Gsc->value));
     }
 }
