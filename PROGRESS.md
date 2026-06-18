@@ -7,19 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 3 — P3·2 (Anomaly detection + outbound webhooks) DONE.** Report generation now fires an
-`App\Events\ReportGenerated` event (delivery fires `ReportSent`). Two listeners react: `DetectReportAnomalies`
-compares the report's period vs the previous one (snapshots only, no live APIs) via the new
-`AnomalyDetector` (pure, config-driven from `config/anomalies.php` — traffic-drop on `ga4.sessions`,
-attack-spike on `cloudflare.threats_blocked`/`crowdsec.attacks_blocked`) and raises an internal `Log::warning`
-alert + an `anomaly.detected` webhook per anomaly; `ReportWebhookSubscriber` emits `report.generated` /
-`report.sent`. Webhooks go through the `WebhookDispatcher` interface (→ `HttpWebhookDispatcher`, reads
-`ir_agencies.settings.webhook_urls`/`webhook_secret`, queues one `SendWebhookJob` per endpoint — async,
-retryable, HMAC-SHA256 signed). Snapshot bag-loading was extracted from `ReportGenerator` into a shared
-`MetricBagLoader`. **141 PHP tests green, PHPStan max clean, Pint clean.**
-**Next action: Phase 3 (§13) — upsell-opportunity detector.** Then: advanced comparisons + multi-client trends
-dashboard. ⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API doesn't exist yet). Frontend polish
-(low priority): admin "System → Updates" screen (§11.1) consuming the update API.
+**Phase 3 — P3·3 (Upsell-opportunity detector) DONE.** A second `ReportGenerated` listener,
+`DetectUpsellOpportunities`, runs the new `UpsellDetector` (pure, config-driven from `config/upsell.php`):
+traffic-growth (`ga4.sessions`), sales-growth (`woocommerce.revenue`), security-hardening (high total
+`cloudflare`/`crowdsec` attack volume), and coverage-gap signals (no uptime source / no security source
+connected — derived from the site's `DataSource` rows). Each opportunity → internal `Log::info` alert + an
+`upsell.detected` webhook (internal-only, never shown to the client). Shared bag-reading helpers
+(`metricValue`/`changePercent`) were extracted into a `ReadsMetricBags` trait now used by both detectors.
+**148 PHP tests green, PHPStan max clean, Pint clean.**
+**Next action: Phase 3 (§13) — advanced comparisons + multi-client trends dashboard** (last Phase 3 item).
+⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API doesn't exist yet). ⚠️ Confirm the
+`upsell.detected` webhook event name with the owner (extends §8's three named events — see Open Questions).
+Frontend polish (low priority): admin "System → Updates" screen (§11.1) consuming the update API.
 
 ---
 
@@ -27,14 +26,21 @@ dashboard. ⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API 
 **Phase 3 — Intelligence & differentiation** (Phases 1 & 2 complete)
 
 ## Current task
-**Phase 3 · Upsell-opportunity detector** (next, CLAUDE.md §13). Surface signals from the resolved metrics
-that justify proposing a plan upgrade / new service (e.g. traffic growth needing more capacity, repeated
-attacks needing hardening, no backup/uptime source connected). _(Imagina Audit connector DEFERRED — owner:
-that API doesn't exist yet, will build it later.)_
+**Phase 3 · Advanced comparisons + multi-client trends dashboard** (next + last Phase 3 item, CLAUDE.md §13).
+Cross-period / multi-site comparison views for the agency (e.g. health-score and key-KPI trends across all of
+an agency's sites). _(Imagina Audit connector DEFERRED — owner: that API doesn't exist yet, will build it
+later.)_
 
 ## Phase 3 — progress
 - [x] (2026-06-18) **P3·1 — Database / CSV / endpoint connector** (`DatabaseConnector` + `EndpointConnector`, config-driven, aggregate-at-source). — 59b9d3b
 - [x] (2026-06-18) **P3·2 — Anomaly detection + outbound webhooks** (`AnomalyDetector` + report lifecycle events/listeners + `WebhookDispatcher`). — f321d27
+- [x] (2026-06-18) **P3·3 — Upsell-opportunity detector** (`UpsellDetector` + `DetectUpsellOpportunities` listener + `upsell.detected` webhook). — f9cc34e
+
+### P3·3 — Upsell-opportunity detector ✅ DONE (2026-06-18)
+- [x] `UpsellDetector` (pure, config-driven `config/upsell.php`): traffic-growth, sales-growth, security-hardening (attack-volume), and coverage-gap (missing uptime/security source) signals; `UpsellOpportunity` VO + `UpsellType` enum.
+- [x] `ReadsMetricBags` trait extracted (shared `metricValue`/`changePercent`) — now used by both `AnomalyDetector` and `UpsellDetector`.
+- [x] `DetectUpsellOpportunities` listener on `ReportGenerated`: loads current/previous bags + connected `DataSource` types → internal `Log::info` alert + `upsell.detected` webhook per opportunity (internal-only).
+- [x] Tests: detector unit (growth/security/coverage-gap/none), report→`upsell.detected` wiring (Queue::fake). 148 tests green; PHPStan max + Pint clean.
 
 ### P3·2 — Anomaly detection + outbound webhooks ✅ DONE (2026-06-18)
 - [x] `AnomalyDetector` (pure, config-driven `config/anomalies.php`): traffic-drop + attack-spike rules comparing a period vs `Period::previous()`; `Anomaly` VO + `AnomalyType` enum.
@@ -250,6 +256,11 @@ that API doesn't exist yet, will build it later.)_
   cookie for own SPAs, API tokens for third parties.
 - (2026-06-18) **Two React 18 SPAs** (admin + interactive client portal), built in GitHub Actions; **Node.js
   NOT installed on the server**. Rationale: reuse owner's React stack; portal gives Looker-parity interactivity.
+- (2026-06-18) **Upsell signals surfaced via internal log + `upsell.detected` webhook (P3·3).** Rationale:
+  upsell opportunities are an *internal/commercial* signal for the agency, not client-facing — so they reuse the
+  anomaly pattern (internal alert + webhook) rather than appearing in client-visible report blocks. No schema
+  change (no `ir_` table invented). The `upsell.detected` event name extends §8's list and is flagged for owner
+  confirmation (Open Questions).
 - (2026-06-18) **Redis + persistent worker + Horizon** (available in all ServerAvatar stacks).
 - (2026-06-18) **PDF via headless Chromium (Browsershot)** printing the same React report page → single source
   of truth (one `BlockRenderer` for editor, portal, and PDF). VPS isolation contains Chromium RAM spikes.
@@ -396,6 +407,11 @@ that API doesn't exist yet, will build it later.)_
   will be built later. Skip the `imagina_audit` connector + `AuditSection` until then (the `DataSourceType`
   enum case already exists, so it slots in with no schema change). Phase 3 proceeds with the other items.
 - **GA4/GSC Service Account:** owner must add the SA email as a reader in each GA4 property and GSC property.
+- **`upsell.detected` webhook event (P3·3) — confirm with owner.** §8 names three outbound events
+  (`report.generated`, `report.sent`, `anomaly.detected`). The upsell detector emits a 4th, `upsell.detected`,
+  through the same extensible `WebhookDispatcher` mechanism ("for integrations / commercialization", §8). It's a
+  natural extension, not in the original list — confirm the event name (and whether upsell signals should also
+  surface in the admin UI / on the report, not just as a webhook + log).
 
 ---
 

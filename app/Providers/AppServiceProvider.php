@@ -8,6 +8,7 @@ use App\Ai\AiClient;
 use App\Ai\AnthropicAiClient;
 use App\Events\ReportGenerated;
 use App\Listeners\DetectReportAnomalies;
+use App\Listeners\DetectUpsellOpportunities;
 use App\Listeners\ReportWebhookSubscriber;
 use App\Services\Pdf\BrowsershotPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
@@ -52,8 +53,9 @@ class AppServiceProvider extends ServiceProvider
         // shape the SPAs consume directly.
         JsonResource::withoutWrapping();
 
-        // Report lifecycle → webhooks + anomaly detection (CLAUDE.md §8/§13).
+        // Report lifecycle → webhooks + anomaly/upsell detection (CLAUDE.md §8/§13).
         Event::listen(ReportGenerated::class, DetectReportAnomalies::class);
+        Event::listen(ReportGenerated::class, DetectUpsellOpportunities::class);
         Event::subscribe(ReportWebhookSubscriber::class);
     }
 }
