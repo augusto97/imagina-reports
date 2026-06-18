@@ -155,7 +155,7 @@ May need to expose connector `configSchema()`/catalog via an API endpoint for th
       `PdfRenderer`/`BrowsershotPdfRenderer`/`ReportPdfService`. 73 tests green; PHPStan max + Pint clean; TS clean. — f59d185
 - [x] (2026-06-18) **Phase 1 · Task 11 — API v1 CRUD + manual generation.** Client/Site/DataSource/ReportDefinition/Report
       controllers + FormRequests + flat resources; `GenerateReportJob`; **BindTenant before SubstituteBindings** (binding isolation).
-      83 tests green; PHPStan max + Pint clean. — _commit pending_
+      83 tests green; PHPStan max + Pint clean. — 623841b
 
 ---
 
