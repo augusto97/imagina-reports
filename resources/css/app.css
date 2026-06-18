@@ -1,0 +1,52 @@
+/* Inter is loaded locally (no Google CDN) per CLAUDE.md §6. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Linear/Vercel-flavoured design tokens. The accent (--ir-primary) is overridden
+   per agency at runtime from ir_agencies.brand_color (white-label). */
+@layer base {
+    :root {
+        --ir-background: 0 0% 100%;
+        --ir-foreground: 240 10% 4%;
+        --ir-card: 0 0% 100%;
+        --ir-card-foreground: 240 10% 4%;
+        --ir-primary: 240 6% 10%;
+        --ir-primary-foreground: 0 0% 98%;
+        --ir-muted: 240 5% 96%;
+        --ir-muted-foreground: 240 4% 46%;
+        --ir-border: 240 6% 90%;
+        --ir-input: 240 6% 90%;
+        --ir-ring: 240 6% 10%;
+        --ir-radius: 0.5rem;
+    }
+
+    .ir-dark {
+        --ir-background: 240 10% 4%;
+        --ir-foreground: 0 0% 98%;
+        --ir-card: 240 10% 6%;
+        --ir-card-foreground: 0 0% 98%;
+        --ir-primary: 0 0% 98%;
+        --ir-primary-foreground: 240 6% 10%;
+        --ir-muted: 240 4% 16%;
+        --ir-muted-foreground: 240 5% 65%;
+        --ir-border: 240 4% 16%;
+        --ir-input: 240 4% 16%;
+        --ir-ring: 240 5% 84%;
+    }
+
+    * {
+        @apply ir-border-border;
+    }
+
+    body {
+        @apply ir-bg-background ir-text-foreground;
+        font-feature-settings: 'cv11', 'ss01';
+        -webkit-font-smoothing: antialiased;
+    }
+}

@@ -7,9 +7,16 @@
 ---
 
 ## Where I left off (read me first)
-**Nothing has been built yet — this is the kickoff.** The full spec lives in `CLAUDE.md`. The next
-action is **Phase 1 · Task 1**: scaffold the Laravel 11 project and the tooling baseline. Do not skip
-ahead; build Phase 1 in order. After each task, check it off here, log decisions, and update this note.
+**Phase 1 · Task 1 (Project skeleton & tooling baseline) is DONE.** The repo is now a working Laravel 11
+app (PHP pinned `^8.3`, strict types everywhere via Pint) with Sanctum + API v1 (`/api/v1`, `apiPrefix`
+in `bootstrap/app.php`), Horizon, Browsershot, spatie/laravel-permission and google/apiclient installed.
+PHPStan runs at **level max** (`composer run stan`, clean), Pint is clean, and the test suite is green
+(3 tests; sqlite in-memory via `phpunit.xml`). Both React 18 + TS SPAs (`resources/js/admin`,
+`resources/js/portal`) build with Vite 5 + the locked stack (TanStack Query/Table, Zustand, RHF+Zod,
+Lucide, Framer Motion, Inter loaded locally, Tailwind prefix `ir-`). A `.github/workflows/ci.yml`
+lints/tests the backend and builds both SPAs. **Next action: Phase 1 · Task 2 — multi-tenant scaffolding**
+(`ir_agencies`, agency global scope, `ir_users` + Sanctum auth, base migrations). Note: this environment
+has no MariaDB/Redis running — `.env` targets them for production, but tests use sqlite/array/sync.
 
 ---
 
@@ -17,22 +24,24 @@ ahead; build Phase 1 in order. After each task, check it off here, log decisions
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 1 — Project skeleton & tooling baseline**
+**Phase 1 · Task 2 — Multi-tenant scaffolding** (not started).
+`ir_agencies` table + `Agency` model, an `agency_id` global scope applied to all tenant-scoped models,
+`ir_users` (extend the default `User` with `agency_id` + `role` owner/admin/collaborator) wired to Sanctum,
+and the base migrations. Add the tenant-isolation feature test (agency A can never read agency B's data,
+`CLAUDE.md` §14). Wire spatie/laravel-permission (publish/run its migration) if roles use it, otherwise
+keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open questions).
 
-Sub-steps:
-- [ ] `composer create-project laravel/laravel` (Laravel 11, PHP 8.3, `strict_types`).
-- [ ] Install & configure: Sanctum, Larastan/PHPStan (max level), Pint, Horizon, Spatie Browsershot,
-      Spatie laravel-permission, google/apiclient.
-- [ ] Configure `.env` for MariaDB + Redis (queue/cache/sessions = redis).
-- [ ] Set up `composer run stan` + Pint scripts and a passing CI lint/test baseline.
-- [ ] Scaffold the two Vite + React 18 + TS SPAs (`resources/js/admin`, `resources/js/portal`) with the
-      locked frontend stack (TanStack Query/Table, Zustand, RHF+Zod, shadcn/ui local, Tailwind prefix `ir-`,
-      Lucide, Framer Motion, Inter local).
-- [ ] Add a GitHub Actions workflow that builds both SPAs (so the server never needs Node).
-- [ ] Commit. Update this file.
+### Task 1 — Project skeleton & tooling baseline ✅ DONE (2026-06-18)
+- [x] Laravel 11 (11.54) scaffolded; PHP pinned `^8.3`; `declare(strict_types=1)` enforced by Pint.
+- [x] Installed: Sanctum (+`install:api`, `/api/v1` prefix), Horizon, Browsershot, spatie/laravel-permission,
+      google/apiclient, Larastan (dev). PHPStan **level max** clean; Pint clean.
+- [x] `.env`/`.env.example` target MariaDB + Redis (queue/cache/sessions = redis); tests use sqlite/array/sync.
+- [x] `composer run stan` / `composer pint` / `composer test` scripts; `.github/workflows/ci.yml` (PHP lint+stan+test, Node typecheck+lint+build both SPAs).
+- [x] Two Vite 5 + React 18 + TS SPAs (`admin`, `portal`) with locked stack; Tailwind prefix `ir-`; Inter local; `cn()` util + design tokens. `npm run build` produces both bundles.
+- [x] `/api/v1/health` liveness route (+ feature test) for the updater health check.
 
 ## Next up (Phase 1, in order)
-1. Multi-tenant scaffolding: `ir_agencies`, agency global scope, `ir_users` + Sanctum auth, base migrations.
+1. **(current)** Multi-tenant scaffolding: `ir_agencies`, agency global scope, `ir_users` + Sanctum auth, base migrations.
 2. `DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet` (metric bag).
 3. Snapshot pipeline: `ir_data_sources`, `ir_metric_snapshots`, `SyncSourceJob`, `SyncService` (idempotent, aggregate-at-source).
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
@@ -46,7 +55,9 @@ Sub-steps:
 12. Phase 1 Definition of Done: tests green, PHPStan max clean, end-to-end demo of a manual report.
 
 ## Completed
-- _(none yet)_
+- [x] (2026-06-18) **Phase 1 · Task 1 — Project skeleton & tooling baseline.** Laravel 11 + Sanctum/API v1,
+      Horizon, Browsershot, laravel-permission, google/apiclient; PHPStan max + Pint clean; 3 tests green;
+      two Vite 5/React 18 SPAs (admin+portal) with the locked stack; CI workflow building both SPAs. — _commit pending_
 
 ---
 
@@ -80,10 +91,25 @@ Sub-steps:
   MainWP snapshots (its REST API exposes current state, not a historical work log).
 - (2026-06-18) **VirusDie via the MainWP Virusdie extension**, not VirusDie's partner API (avoids the contract).
 - (2026-06-18) **Spec language: English** (for Claude Code). Client-facing report content is localized (ES default).
+- (2026-06-18) **Dev env runs PHP 8.4, but `composer.json` pins `^8.3`** (the locked target). 8.4 is backward-compatible for local work.
+- (2026-06-18) **Vite pinned to 5** (`^5.4`) to honor the locked frontend stack, even though `laravel new` shipped Vite 6.
+- (2026-06-18) **PHPStan analyses `app`/`bootstrap/app.php`/`database`/`routes` at level max; `config/` is excluded.**
+  Rationale: the framework's `config/*.php` are declarative `env()`-based defaults (typed `bool|string`) that produce
+  only false positives, not domain signal. `checkModelProperties` left off for now (it rewrites Factory return types
+  and fights Laravel's factories); revisit once models/factories exist.
+- (2026-06-18) **API prefix is `/api/v1`** via `withRouting(apiPrefix: 'api/v1')`; added `/api/v1/health` as the
+  updater's liveness probe (CLAUDE.md §12.5), separate from Laravel's `/up`.
+- (2026-06-18) **Tests run on sqlite in-memory + array cache/session + sync queue** (`phpunit.xml`); production `.env`
+  targets MariaDB + Redis. Keeps CI/tests hermetic without external services.
 
 ---
 
 ## Open questions / blockers
+- **Roles: `ir_users.role` enum vs spatie/laravel-permission (needed for Task 2).** `CLAUDE.md` §5 defines a
+  simple `role` enum on `ir_users` (owner/admin/collaborator), but §13 Task 1 also lists installing
+  spatie/laravel-permission. Both are now available. Question: use the simple enum column for the three
+  fixed roles and reserve spatie/permission for finer-grained per-agency permissions later, or model the
+  three roles through spatie/permission from the start? Defaulting to the **enum column** (per §5) unless told otherwise.
 - **`gpt.imagina.cloud` contract:** confirm the request/response shape and auth for the AI endpoint before
   building `AiReportBuilder` (Phase 2). Add env vars `GPT_IMAGINA_ENDPOINT` / `GPT_IMAGINA_KEY`.
 - **Chromium path on the VPS:** verify the real binary path when installing on ServerAvatar/OLS; set
