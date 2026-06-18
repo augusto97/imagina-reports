@@ -143,6 +143,18 @@ export function useCreateReportTemplate() {
     });
 }
 
+export interface AiTemplateResult {
+    blocks: Block[];
+    narrative: string;
+}
+
+export function useAiTemplate(siteId: number) {
+    return useMutation({
+        mutationFn: (prompt: string) =>
+            api.post<AiTemplateResult>(`/sites/${siteId}/ai-template`, { prompt }).then((r) => r.data),
+    });
+}
+
 export function useGenerateReport() {
     const queryClient = useQueryClient();
 

@@ -7,20 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 complete; Phase 2 underway — the block EDITOR (P2·1) is DONE.** Backend for the editor:
-`report-templates` CRUD (`ReportTemplateController`, server-side block validation via the `ValidatesBlocks`
-FormRequest trait → 422 on a bad layout), `PUT report-definitions/{id}` (edit blocks), and
-`GET /api/v1/sites/{site}/metric-catalog` (`MetricCatalogController`) — the combined `MetricCatalog` of a
-site's data sources that drives the binding picker (returns `{source, metric, key, label, type, …}`).
-Frontend (`resources/js/admin/editor`): a **dnd-kit** sortable block canvas + palette, per-block config
-(binding picker from the catalog for data blocks, **Tiptap** rich text for `narrative`, title/label inputs),
-a **live preview** via the shared `BlockList`, and "Save as template" (surfaces block-validation errors).
-Added to the admin nav. **90 PHP tests green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
-**Next action: Phase 2 · AiReportBuilder** — AI template assembly (validated blocks JSON, constrained to the
-real catalog) + per-period narrative via the **Claude API** (decided), behind an `AiClient` interface
-(`config('services.anthropic')`, default model `claude-sonnet-4-6`). Needs `ANTHROPIC_API_KEY` on the VPS;
-in tests, fake the `AiClient` (no live calls). Then the remaining connectors, scheduling+email, white-label/i18n,
-portal interactivity, self-updater.
+**Phase 1 complete; Phase 2 underway — block EDITOR (P2·1) + AiReportBuilder (P2·2) are DONE.**
+The **AI builder** (CLAUDE.md §10.6): `App\Ai\AiClient` interface (default `AnthropicAiClient` → Claude
+Messages API, `config('services.anthropic')`), `App\Reports\AiReportBuilder` with `assembleTemplate(Site,
+?prompt)` and `narrative(metrics, locale)`. Template assembly feeds the AI the site's metric catalog,
+parses the JSON it returns, validates it through `BlocksValidator`, AND **drops any block bound to a metric
+not in the real catalog** (can't invent data, §10.6); bad/unparseable output → `AiReportException`.
+Endpoint `POST /api/v1/sites/{site}/ai-template` (`AiTemplateController`, 422 on AI failure); the editor's
+**"Generar con IA"** button loads the draft into the canvas. Tests fake the `AiClient` (no live API).
+**95 PHP tests green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
+**Next action: Phase 2 · remaining connectors** — Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce
+(reuse the `DataSourceConnector` contract; defensive `fetch()`, register in `ConnectorServiceProvider`,
+`Http::fake` tests). Then scheduling+email, white-label/i18n, portal interactivity, self-updater.
 
 ---
 
@@ -28,23 +26,28 @@ portal interactivity, self-updater.
 **Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
 
 ## Current task
-**Phase 2 · AiReportBuilder** (not started).
-`AiReportBuilder` with two modes (CLAUDE.md §10.6), both via the **Claude API** behind an `AiClient`
-interface (default impl calls Anthropic; `config('services.anthropic')`): (1) **template assembly** — input =
-client/site context + the site's `MetricCatalog` (+ optional prompt) → output = **validated blocks JSON**
-(run through `BlocksValidator`; AI cannot invent metrics — bindings checked against the real catalog) + a
-narrative; (2) **per-period narrative** — regenerate `narrative`/summary text from resolved data, in the
-report's locale, always editable. Wire an admin "Generate with AI" action that opens the draft in the editor.
-Tests fake the `AiClient` (no live API). **Resolve nothing else first — provider is decided (Claude API).**
+**Phase 2 · Remaining connectors** (not started): **Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce**
+(CLAUDE.md §9). Each implements `DataSourceConnector` (auth/config per §9), exposes a `<key>.*` `MetricCatalog`,
+fetches aggregated-at-source, catches its own errors → partial/failed, and is registered in
+`ConnectorServiceProvider`. Note: **VirusDie comes via the MainWP Virusdie extension** (no separate API).
+Tests with `Http::fake` only. Several have unspecified exact API shapes (like MainWP) → parse defensively and
+log assumptions in Open Questions. WooCommerce: consumer key/secret, `/wc/v3/reports`. Cloudflare: GraphQL
+Analytics. CrowdSec: Console API. Better Stack: Bearer, monitors.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
-- [ ] **(current)** `AiReportBuilder` (Claude API, validated against catalog) + per-period narrative.
-- [ ] Connectors: Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce.
+- [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — _commit pending_
+- [ ] **(current)** Connectors: Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce.
 - [ ] Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
 - [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
 - [ ] Client portal interactivity (period selector, drill-down).
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### P2·2 — AiReportBuilder ✅ DONE (2026-06-18)
+- [x] `App\Ai\AiClient` + `AnthropicAiClient` (Claude Messages API, `config('services.anthropic')`); bound in `AppServiceProvider`.
+- [x] `AiReportBuilder::assembleTemplate` (catalog-constrained, validated, drops invented bindings → `AiReportException`) + `narrative()`.
+- [x] `POST /api/v1/sites/{site}/ai-template` (`AiTemplateController`, 422 on failure); editor "Generar con IA" button loads the draft.
+- [x] Tests (FakeAiClient, no live API): catalog drop, unparseable→throw, invalid layout→throw, endpoint 200/422. 95 tests green; PHPStan max + Pint clean; TS clean.
 
 ### P2·1 — Block editor ✅ DONE (2026-06-18)
 - [x] `report-templates` CRUD (`ReportTemplateController`) + `ValidatesBlocks` FormRequest trait (server-side block validation → 422).
@@ -317,6 +320,9 @@ Tests fake the `AiClient` (no live API). **Resolve nothing else first — provid
   `MetricCatalog` of the site's sources; binding stores `{source, metric}`, the short name; full key = `{source}.{metric}`).
 - (2026-06-18) **`@dnd-kit/*` + `@tiptap/*` added** to the frontend (locked stack §10.2/§11.3). Admin bundle grows (~507 kB) — code-splitting
   the editor/report bundles is a later optimization.
+- (2026-06-18) **AI is behind an `AiClient` interface** (`AnthropicAiClient` in prod, `FakeAiClient` in tests; bound in `AppServiceProvider`).
+  `AiReportBuilder` always runs the AI's JSON through `BlocksValidator` and **drops blocks bound to metrics absent from the site's catalog**
+  — the AI can never invent data (§10.6). Unparseable/invalid output → `AiReportException` → 422 at the endpoint.
 
 ---
 

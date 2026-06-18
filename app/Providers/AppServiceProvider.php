@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Ai\AiClient;
+use App\Ai\AnthropicAiClient;
 use App\Services\Pdf\BrowsershotPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
 use App\Support\Tenancy\TenantContext;
@@ -22,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Headless-Chromium PDF rendering (CLAUDE.md §10.7); faked in tests.
         $this->app->bind(PdfRenderer::class, BrowsershotPdfRenderer::class);
+
+        // AI report builder backend (CLAUDE.md §10.6, Claude API); faked in tests.
+        $this->app->bind(AiClient::class, AnthropicAiClient::class);
     }
 
     /**

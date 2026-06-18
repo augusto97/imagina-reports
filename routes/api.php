@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
@@ -55,6 +56,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
+    Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
 
     Route::get('report-templates', [ReportTemplateController::class, 'index'])->name('api.report-templates.index');

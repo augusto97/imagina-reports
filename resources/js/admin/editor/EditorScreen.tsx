@@ -1,11 +1,12 @@
 import { type DragEndEvent, DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { Sparkles } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
 import type { Block, BlockType } from '@shared/blocks/types';
 
-import { useCreateReportTemplate, useMetricCatalog, useSites } from '../api';
+import { useAiTemplate, useCreateReportTemplate, useMetricCatalog, useSites } from '../api';
 import { Button, Card, Field, Input } from '../components/ui';
 import { makeBlock, PALETTE, sampleData } from './blockFactory';
 import { SortableBlock } from './SortableBlock';
@@ -27,10 +28,22 @@ export function EditorScreen(): ReactElement {
     const [siteId, setSiteId] = useState<number | null>(null);
     const { data: catalog = [] } = useMetricCatalog(siteId);
     const create = useCreateReportTemplate();
+    const ai = useAiTemplate(siteId ?? 0);
 
     const [name, setName] = useState('');
+    const [aiPrompt, setAiPrompt] = useState('');
     const [blocks, setBlocks] = useState<Block[]>([makeBlock('header')]);
     const [errors, setErrors] = useState<string[]>([]);
+
+    const generateWithAi = (): void => {
+        ai.mutate(aiPrompt, {
+            onSuccess: (result) => {
+                setBlocks(result.blocks.length > 0 ? result.blocks : [makeBlock('header')]);
+                setErrors([]);
+            },
+            onError: () => setErrors(['La IA no pudo generar un borrador válido.']),
+        });
+    };
 
     const sensors = useSensors(useSensor(PointerSensor));
 
@@ -86,6 +99,23 @@ export function EditorScreen(): ReactElement {
                                     </option>
                                 ))}
                             </select>
+                        </Field>
+                        <Field label="Generar con IA (opcional: enfoque)">
+                            <div className="ir-flex ir-gap-2">
+                                <Input
+                                    placeholder="p. ej. enfoque en SEO y seguridad"
+                                    value={aiPrompt}
+                                    onChange={(event) => setAiPrompt(event.target.value)}
+                                />
+                                <Button
+                                    variant="ghost"
+                                    onClick={generateWithAi}
+                                    disabled={siteId === null || ai.isPending}
+                                >
+                                    <Sparkles className="ir-size-4" />
+                                    IA
+                                </Button>
+                            </div>
                         </Field>
                         <div className="ir-flex ir-flex-wrap ir-gap-2">
                             {PALETTE.map((item) => (
