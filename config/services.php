@@ -41,4 +41,10 @@ return [
         'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
     ],
 
+    // AI report builder (CLAUDE.md §10.6). Uses the Claude API.
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+    ],
+
 ];

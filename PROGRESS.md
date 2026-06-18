@@ -29,8 +29,8 @@ remaining connectors (Cloudflare/CrowdSec/Better Stack/VirusDie/WooCommerce), sc
 **Phase 1 DoD live check, then Phase 2 kickoff.** Phase 1 is code/test-complete. Remaining: an operator
 runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then begin **Phase 2** (§13):
 - Block-based report **editor** (dnd-kit + Tiptap) + reusable templates UI; binding picker from `MetricCatalog`.
-- **`AiReportBuilder`** (validated blocks JSON via `gpt.imagina.cloud`) + per-period narrative. (Resolve the
-  `gpt.imagina.cloud` Open Question first.)
+- **`AiReportBuilder`** (validated blocks JSON via the **Claude API**) + per-period narrative, behind an
+  `AiClient` interface (model from `services.anthropic.model`). Needs `ANTHROPIC_API_KEY` set on the VPS.
 - Connectors: **Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce** (reuse the connector contract).
 - Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
 - White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
@@ -191,7 +191,7 @@ runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then be
   from Imagina Signatures/Proposals). Reports are blocks bound to metrics, not fixed sections.
 - (2026-06-18) **Metrics are NOT hardcoded** — connectors expose a `MetricCatalog`; editor + AI pick freely.
 - (2026-06-18) **`AiReportBuilder`** creates a full draft (validated block JSON, constrained to the real
-  catalog — cannot invent data) + per-period narrative, via `gpt.imagina.cloud`. "Create a report in seconds."
+  catalog — cannot invent data) + per-period narrative, via the **Claude API** (see override entry below). "Create a report in seconds."
 - (2026-06-18) **Performance golden rule: aggregate at the source, never pull raw rows.** This is why GA4's
   millions of visits never touch the app — GA4/GSC/Cloudflare/Woo aggregate server-side. The `database`
   connector must `GROUP BY` on the client's DB. NOT a BI engine; do not try to replicate Power BI.
@@ -201,6 +201,10 @@ runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then be
   MainWP snapshots (its REST API exposes current state, not a historical work log).
 - (2026-06-18) **VirusDie via the MainWP Virusdie extension**, not VirusDie's partner API (avoids the contract).
 - (2026-06-18) **Spec language: English** (for Claude Code). Client-facing report content is localized (ES default).
+- (2026-06-18) **AI provider = Claude API (Anthropic)** — OWNER OVERRIDE of CLAUDE.md §2/§10.6/§16, which named
+  `gpt.imagina.cloud` (owner confirmed that service is not used in this project). Env `ANTHROPIC_API_KEY` /
+  `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`, configurable), `config('services.anthropic')`. `AiReportBuilder`
+  (Phase 2) will sit behind an `AiClient` interface. CLAUDE.md §2/§10.6/§16 updated to match.
 - (2026-06-18) **Dev env runs PHP 8.4, but `composer.json` pins `^8.3`** (the locked target). 8.4 is backward-compatible for local work.
 - (2026-06-18) **Vite pinned to 5** (`^5.4`) to honor the locked frontend stack, even though `laravel new` shipped Vite 6.
 - (2026-06-18) **PHPStan analyses `app`/`bootstrap/app.php`/`database`/`routes` at level max; `config/` is excluded.**
@@ -302,8 +306,9 @@ runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then be
   (fallback flat `plugin_upgrades`/`theme_upgrades`/`wp_upgrades`), `abandoned_plugins`, and `ssl.expires_at`. Confirm the
   real endpoint paths + field names (and whether dedicated endpoints exist for updates/abandoned/SSL) against a live MainWP
   dashboard, then adjust the parser. Also confirm the precise "updates applied" definition (count reduction vs inventory diff).
-- **`gpt.imagina.cloud` contract:** confirm the request/response shape and auth for the AI endpoint before
-  building `AiReportBuilder` (Phase 2). Add env vars `GPT_IMAGINA_ENDPOINT` / `GPT_IMAGINA_KEY`.
+- ~~`gpt.imagina.cloud` contract~~ **RESOLVED (2026-06-18):** owner confirmed that service is NOT used. AI builder
+  now uses the **Claude API (Anthropic)** — env `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`),
+  `config('services.anthropic')`. Implement `AiReportBuilder` behind an `AiClient` interface (Phase 2).
 - **Chromium path on the VPS:** verify the real binary path when installing on ServerAvatar/OLS; set
   `BROWSERSHOT_CHROME_PATH` accordingly.
 - **Imagina Audit API (Phase 3):** confirm it exposes its 7-module metrics + WPVulnerability data as a
