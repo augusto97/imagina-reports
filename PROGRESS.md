@@ -167,7 +167,7 @@ runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then be
       83 tests green; PHPStan max + Pint clean. — 623841b
 - [x] (2026-06-18) **Phase 1 · Task 12 — Admin SPA.** `GET /api/v1/connectors` endpoint; admin SPA (Zustand nav, TanStack
       Query/Table, RHF+Zod) — Clients/Sites/DataSources(configSchema-driven + test)/Reports(generate + preview).
-      85 tests green; PHPStan max + Pint clean; TS clean. — _commit pending_
+      85 tests green; PHPStan max + Pint clean; TS clean. — 5e06106
 
 ---
 
