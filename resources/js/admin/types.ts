@@ -59,3 +59,21 @@ export interface ReportSummary {
     public_token: string;
     pdf_path: string | null;
 }
+
+export interface CatalogEntry {
+    source: string;
+    metric: string;
+    key: string;
+    label: string;
+    type: string;
+    unit: string | null;
+    dimensions: string[];
+}
+
+export interface ReportTemplateDto {
+    id: number;
+    name: string;
+    blocks: unknown[];
+    is_default: boolean;
+    locale: string;
+}

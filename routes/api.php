@@ -5,9 +5,11 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
+use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
+use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\SiteController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,11 +54,18 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
+    Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
+
+    Route::get('report-templates', [ReportTemplateController::class, 'index'])->name('api.report-templates.index');
+    Route::post('report-templates', [ReportTemplateController::class, 'store'])->name('api.report-templates.store');
+    Route::get('report-templates/{reportTemplate}', [ReportTemplateController::class, 'show'])->name('api.report-templates.show');
+    Route::put('report-templates/{reportTemplate}', [ReportTemplateController::class, 'update'])->name('api.report-templates.update');
 
     Route::get('report-definitions', [ReportDefinitionController::class, 'index'])->name('api.report-definitions.index');
     Route::post('report-definitions', [ReportDefinitionController::class, 'store'])->name('api.report-definitions.store');
     Route::get('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'show'])->name('api.report-definitions.show');
+    Route::put('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'update'])->name('api.report-definitions.update');
 
     Route::get('reports', [ReportController::class, 'index'])->name('api.reports.index');
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');

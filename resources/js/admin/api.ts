@@ -2,12 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@shared/lib/api';
 
+import type { Block } from '@shared/blocks/types';
+
 import type {
+    CatalogEntry,
     Client,
     Connector,
     DataSourceDto,
     ReportDefinitionDto,
     ReportSummary,
+    ReportTemplateDto,
     Site,
 } from './types';
 
@@ -107,6 +111,36 @@ export function useCreateReportDefinition() {
 
 export function useReports() {
     return useQuery({ queryKey: ['reports'], queryFn: () => get<ReportSummary[]>('/reports') });
+}
+
+/* ------------------------------ editor: catalog ---------------------------- */
+
+export function useMetricCatalog(siteId: number | null) {
+    return useQuery({
+        queryKey: ['metric-catalog', siteId],
+        queryFn: () => get<CatalogEntry[]>(`/sites/${siteId}/metric-catalog`),
+        enabled: siteId !== null,
+    });
+}
+
+/* ----------------------------- editor: templates --------------------------- */
+
+export function useReportTemplates() {
+    return useQuery({ queryKey: ['report-templates'], queryFn: () => get<ReportTemplateDto[]>('/report-templates') });
+}
+
+export interface TemplateValidationErrors {
+    blocks?: string[];
+}
+
+export function useCreateReportTemplate() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+            api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
+    });
 }
 
 export function useGenerateReport() {

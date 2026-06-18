@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreReportDefinitionRequest;
+use App\Http\Requests\UpdateReportDefinitionRequest;
 use App\Http\Resources\ReportDefinitionResource;
 use App\Models\ReportDefinition;
 use App\Models\Site;
@@ -33,6 +34,13 @@ final class ReportDefinitionController extends Controller
 
     public function show(ReportDefinition $reportDefinition): ReportDefinitionResource
     {
+        return new ReportDefinitionResource($reportDefinition);
+    }
+
+    public function update(UpdateReportDefinitionRequest $request, ReportDefinition $reportDefinition): ReportDefinitionResource
+    {
+        $reportDefinition->update($request->validated());
+
         return new ReportDefinitionResource($reportDefinition);
     }
 }

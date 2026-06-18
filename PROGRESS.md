@@ -7,35 +7,50 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 is FEATURE-COMPLETE (Tasks 1–12 done).** The full SYNC → GENERATE → DELIVER path plus the
-admin SPA and API v1 are in place. Task 12 added: a connectors metadata endpoint `GET /api/v1/connectors`
-(key/label/config_schema, drives the data-source form), and the **admin SPA** (`resources/js/admin`):
-sidebar nav (Zustand) over Clients, Sites, Data Sources and Reports screens; TanStack Query data hooks +
-a generic TanStack-Table `DataTable`; RHF+Zod create forms; the data-source form is **driven by each
-connector's `configSchema()`** with a "Test connection" action; the Reports screen creates definitions,
-**generates manually** (`POST /reports/generate`) and links each report to its public page. **85 PHP tests
-green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean** (admin/portal/report bundles).
-**Next action: Phase 1 DoD live check + start Phase 2.** The remaining DoD item is a live end-to-end demo
-(configure source → sync → generate → preview/PDF), which needs the real environment (MariaDB/Redis/Chromium)
-— an operator step on the VPS. Code/tests DoD is met. Phase 2 (§13): block editor, AiReportBuilder, the
-remaining connectors (Cloudflare/CrowdSec/Better Stack/VirusDie/WooCommerce), scheduling+email, self-updater.
+**Phase 1 complete; Phase 2 underway — the block EDITOR (P2·1) is DONE.** Backend for the editor:
+`report-templates` CRUD (`ReportTemplateController`, server-side block validation via the `ValidatesBlocks`
+FormRequest trait → 422 on a bad layout), `PUT report-definitions/{id}` (edit blocks), and
+`GET /api/v1/sites/{site}/metric-catalog` (`MetricCatalogController`) — the combined `MetricCatalog` of a
+site's data sources that drives the binding picker (returns `{source, metric, key, label, type, …}`).
+Frontend (`resources/js/admin/editor`): a **dnd-kit** sortable block canvas + palette, per-block config
+(binding picker from the catalog for data blocks, **Tiptap** rich text for `narrative`, title/label inputs),
+a **live preview** via the shared `BlockList`, and "Save as template" (surfaces block-validation errors).
+Added to the admin nav. **90 PHP tests green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
+**Next action: Phase 2 · AiReportBuilder** — AI template assembly (validated blocks JSON, constrained to the
+real catalog) + per-period narrative via the **Claude API** (decided), behind an `AiClient` interface
+(`config('services.anthropic')`, default model `claude-sonnet-4-6`). Needs `ANTHROPIC_API_KEY` on the VPS;
+in tests, fake the `AiClient` (no live calls). Then the remaining connectors, scheduling+email, white-label/i18n,
+portal interactivity, self-updater.
 
 ---
 
 ## Current phase
-**Phase 1 — Core engine + immediate value**
+**Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
 
 ## Current task
-**Phase 1 DoD live check, then Phase 2 kickoff.** Phase 1 is code/test-complete. Remaining: an operator
-runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then begin **Phase 2** (§13):
-- Block-based report **editor** (dnd-kit + Tiptap) + reusable templates UI; binding picker from `MetricCatalog`.
-- **`AiReportBuilder`** (validated blocks JSON via the **Claude API**) + per-period narrative, behind an
-  `AiClient` interface (model from `services.anthropic.model`). Needs `ANTHROPIC_API_KEY` set on the VPS.
-- Connectors: **Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce** (reuse the connector contract).
-- Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
-- White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
-- Client portal interactivity (period selector, drill-down).
-- Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+**Phase 2 · AiReportBuilder** (not started).
+`AiReportBuilder` with two modes (CLAUDE.md §10.6), both via the **Claude API** behind an `AiClient`
+interface (default impl calls Anthropic; `config('services.anthropic')`): (1) **template assembly** — input =
+client/site context + the site's `MetricCatalog` (+ optional prompt) → output = **validated blocks JSON**
+(run through `BlocksValidator`; AI cannot invent metrics — bindings checked against the real catalog) + a
+narrative; (2) **per-period narrative** — regenerate `narrative`/summary text from resolved data, in the
+report's locale, always editable. Wire an admin "Generate with AI" action that opens the draft in the editor.
+Tests fake the `AiClient` (no live API). **Resolve nothing else first — provider is decided (Claude API).**
+
+## Phase 2 — progress
+- [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — _commit pending_
+- [ ] **(current)** `AiReportBuilder` (Claude API, validated against catalog) + per-period narrative.
+- [ ] Connectors: Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce.
+- [ ] Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
+- [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
+- [ ] Client portal interactivity (period selector, drill-down).
+- [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### P2·1 — Block editor ✅ DONE (2026-06-18)
+- [x] `report-templates` CRUD (`ReportTemplateController`) + `ValidatesBlocks` FormRequest trait (server-side block validation → 422).
+- [x] `PUT report-definitions/{id}` (edit blocks); `GET sites/{site}/metric-catalog` (`MetricCatalogController`) for the binding picker.
+- [x] Editor frontend (`resources/js/admin/editor`): dnd-kit sortable canvas + palette, binding picker, Tiptap narrative, live `BlockList` preview, save-as-template.
+- [x] Tests: template store valid/invalid(422)/update/isolation + metric-catalog. 90 tests green; PHPStan max + Pint clean; TS clean.
 
 ### Task 12 — Admin SPA ✅ DONE (2026-06-18)
 - [x] `GET /api/v1/connectors` (key/label/config_schema) to drive the data-source form; feature test.
@@ -297,6 +312,11 @@ runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then be
 - (2026-06-18) **Admin SPA uses a lightweight Zustand view-switcher for navigation** (no router added — react-router is not in the
   locked stack). Data-source config form is generated from `GET /api/v1/connectors` `config_schema` (secret fields → credentials,
   others → config). Frontend remains gated by typecheck+lint+build (no JS unit runner yet — candidate for Phase 2: add Vitest).
+- (2026-06-18) **Block layouts are validated server-side on save** via the `ValidatesBlocks` FormRequest trait (runs `BlocksValidator`,
+  surfaces errors under `blocks` → 422). The editor's binding picker is fed by `GET sites/{site}/metric-catalog` (combined
+  `MetricCatalog` of the site's sources; binding stores `{source, metric}`, the short name; full key = `{source}.{metric}`).
+- (2026-06-18) **`@dnd-kit/*` + `@tiptap/*` added** to the frontend (locked stack §10.2/§11.3). Admin bundle grows (~507 kB) — code-splitting
+  the editor/report bundles is a later optimization.
 
 ---
 

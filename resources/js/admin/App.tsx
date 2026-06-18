@@ -1,8 +1,9 @@
-import { Database, FileBarChart, Globe, LayoutDashboard, Users } from 'lucide-react';
+import { Database, FileBarChart, Globe, LayoutDashboard, PencilRuler, Users } from 'lucide-react';
 import { type ReactElement } from 'react';
 
 import { cn } from '@shared/lib/utils';
 
+import { EditorScreen } from './editor/EditorScreen';
 import { ClientsScreen } from './screens/ClientsScreen';
 import { DataSourcesScreen } from './screens/DataSourcesScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
@@ -13,6 +14,7 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: 'clients', label: 'Clientes', icon: Users },
     { view: 'sites', label: 'Sitios', icon: Globe },
     { view: 'data-sources', label: 'Fuentes', icon: Database },
+    { view: 'editor', label: 'Editor', icon: PencilRuler },
     { view: 'reports', label: 'Reportes', icon: FileBarChart },
 ];
 
@@ -24,6 +26,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <SitesScreen />;
         case 'data-sources':
             return <DataSourcesScreen />;
+        case 'editor':
+            return <EditorScreen />;
         case 'reports':
             return <ReportsScreen />;
     }
