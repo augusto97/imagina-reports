@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Connectors\ConnectorRegistry;
+use App\Connectors\MainWp\MainWpConnector;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,8 +21,8 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
         $this->app->singleton(ConnectorRegistry::class, function (): ConnectorRegistry {
             $registry = new ConnectorRegistry;
 
-            // Concrete connectors are registered here as they are implemented:
-            // $registry->register(new MainWpConnector(...));
+            // Concrete connectors register here as they are implemented.
+            $registry->register(new MainWpConnector);
 
             return $registry;
         });

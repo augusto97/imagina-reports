@@ -7,20 +7,19 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–4 are DONE.** Baseline (1) + multi-tenancy (2) + connector contracts (3) +
-the **snapshot pipeline** (4). The SYNC stage (`CLAUDE.md` §3.1) is implemented: `ir_metric_snapshots`
-+ `MetricSnapshot` model (agency-scoped, `belongsTo` DataSource, `payload` json = `MetricSet::toArray()`,
-`status` cast to `MetricSetStatus`, unique on `(data_source_id, period_start, period_end)`).
-`App\Services\SyncService` resolves a source's connector from the registry, calls `fetch()`, and
-**upserts** the normalized snapshot (idempotent), then records the source's `status`/`last_synced_at`/
-`last_error`. `App\Jobs\SyncSourceJob` loads the source without the AgencyScope and runs the sync inside
-its agency's tenant context (`TenantContext::actingAs`). **31 tests green** (incl. idempotent re-sync +
-failed-fetch paths, no live APIs), **PHPStan max clean, Pint clean**.
-**Next action: Phase 1 · Task 5 — MainWP connector** (`App\Connectors\MainWp\MainWpConnector`): real
-`metricCatalog()`/`fetch()` aggregated at source, registered in `ConnectorServiceProvider`, plus the
-`MaintenanceDeltaCalculator` that diffs earliest/latest snapshots in a period for the "X updates applied"
-work-done deltas (§9). Tests with mocked HTTP only (`Http::fake`), never live APIs (§14). Note: no
-MariaDB/Redis in this env — tests use sqlite/array/sync.
+**Phase 1 · Tasks 1–5 are DONE.** Baseline (1) + multi-tenancy (2) + connector contracts (3) +
+snapshot pipeline (4) + the **MainWP connector** (5). `App\Connectors\MainWp\MainWpConnector` implements
+the contract: `configSchema()` (dashboard_url + Bearer token), a `mainwp.*` `metricCatalog()`, and
+`fetch()` that calls the MainWP **v2 REST API** (`/wp-json/mainwp/v2/sites`), aggregates updates/inventory/
+abandoned-plugins/SSL **at the source**, parses defensively, and returns a normalized `MetricSet` (catching
+its own errors → failed). Registered in `ConnectorServiceProvider`. `App\Reports\MaintenanceDeltaCalculator`
+(+ `MaintenanceDelta` VO) diffs the earliest vs latest snapshot in a period for "X updates applied" (§9 —
+replaces MainWP Pro Reports). **41 tests green** (MainWP via `Http::fake`, delta calc, no live APIs),
+**PHPStan max clean, Pint clean**.
+**⚠️ Open question logged:** the exact MainWP v2 endpoint paths and JSON field names are an assumption to
+validate against a real dashboard (see Open questions). **Next action: Phase 1 · Task 6 — GA4 connector**
+(Service Account JSON auth, `google/apiclient`, catalog-driven, aggregated via Analytics Data API
+`runReport`). Note: no MariaDB/Redis in this env — tests use sqlite/array/sync, never live APIs.
 
 ---
 
@@ -28,15 +27,18 @@ MariaDB/Redis in this env — tests use sqlite/array/sync.
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 5 — MainWP connector** (not started).
-`MainWpConnector implements DataSourceConnector` (auth: Bearer v2 or consumer key/secret v1; config:
-dashboard_url, token). `metricCatalog()` exposes the MainWP metrics (sites, available updates,
-plugin/theme/core inventory, abandoned plugins, SSL monitor — §9); `fetch()` calls the MainWP REST API
-**aggregated** and returns a normalized `MetricSet`, catching its own errors → partial/failed. Register
-it in `ConnectorServiceProvider`. Add `MaintenanceDeltaCalculator` (App\Reports) that diffs the
-earliest vs latest snapshot in the period to compute "X updates applied this month" (§9 — MainWP exposes
-current state, not history). Tests: `Http::fake` happy + failed/partial paths; delta calc unit tests.
-Never hit live APIs (§14).
+**Phase 1 · Task 6 — GA4 connector** (not started).
+`App\Connectors\Ga4\Ga4Connector implements DataSourceConnector`. Auth: Service Account JSON; config:
+property_id. Uses `google/apiclient` (Analytics Data API `runReport`) to fetch sessions, users, traffic
+sources, conversions, top pages — **aggregated server-side** (§3.3). `metricCatalog()` exposes `ga4.*`
+metrics (scalar + series + table). `fetch()` catches its own errors → partial/failed. Register in
+`ConnectorServiceProvider`. Tests must mock the Google client / HTTP, never hit live APIs (§14). Confirm
+SA email is added as a reader on the GA4 property (Open questions, operator action).
+
+### Task 5 — MainWP connector ✅ DONE (2026-06-18)
+- [x] `MainWpConnector` (configSchema dashboard_url+token, `mainwp.*` catalog, defensive aggregated `fetch()`, testConnection) registered in `ConnectorServiceProvider`.
+- [x] `MaintenanceDeltaCalculator` + `MaintenanceDelta` VO: earliest-vs-latest snapshot diff, "updates applied" = clamped reduction in pending updates (§9).
+- [x] Tests: MainWP via `Http::fake` (aggregate, requested-metrics filter, failed HTTP, testConnection) + delta calc (between, clamp, forDataSource boundary, null<2). 41 tests green; PHPStan max + Pint clean.
 
 ### Task 4 — Snapshot pipeline ✅ DONE (2026-06-18)
 - [x] `ir_metric_snapshots` migration + `MetricSnapshot` model (agency-scoped, `belongsTo` DataSource, unique per source+period).
@@ -70,7 +72,8 @@ Never hit live APIs (§14).
 1. ~~Multi-tenant scaffolding~~ ✅ done (Task 2).
 2. ~~`DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet`~~ ✅ done (Task 3); `ir_data_sources` + `DataSource` model also landed here.
 3. ~~Snapshot pipeline: `ir_metric_snapshots` + `MetricSnapshot`, `SyncSourceJob`, `SyncService`~~ ✅ done (Task 4).
-4. **(current)** Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
+4. ~~Connector: **MainWP** (+ `MaintenanceDeltaCalculator`)~~ ✅ done (Task 5).
+5. **(current)** Connector: **GA4** (Service Account; catalog-driven, aggregated).
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -94,6 +97,9 @@ Never hit live APIs (§14).
       `DataSource` model + `ir_data_sources` (encrypted credentials). 26 tests green; PHPStan max + Pint clean. — 4dc1689
 - [x] (2026-06-18) **Phase 1 · Task 4 — Snapshot pipeline.** `ir_metric_snapshots` + `MetricSnapshot` model;
       `SyncService` (idempotent upsert) + `SyncSourceJob` (queue-safe, tenant-bound). 31 tests green; PHPStan max + Pint clean. — 4a5bd82
+- [x] (2026-06-18) **Phase 1 · Task 5 — MainWP connector.** `MainWpConnector` (v2 Bearer, aggregated defensive
+      `fetch()`) registered in the provider; `MaintenanceDeltaCalculator` + `MaintenanceDelta` for work-done deltas.
+      41 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -164,10 +170,21 @@ Never hit live APIs (§14).
   + `updateOrCreate`. `SyncService` sets `agency_id` explicitly from the source (robust whether or not a tenant is bound).
 - (2026-06-18) **`SyncSourceJob` is queue-safe**: it loads the `DataSource` with `withoutGlobalScope(AgencyScope)` (no tenant on
   the worker) and wraps the sync in `TenantContext::actingAs($source->agency_id, …)`, restoring the previous context after.
+- (2026-06-18) **MainWP connector targets the v2 REST API with a Bearer token** (owner-chosen), matching the
+  `dashboard_url + token` config. `fetch()` parses **defensively** (tolerant of missing keys → 0) and aggregates at the
+  source. The exact v2 endpoint paths/field names are an assumption to validate against a live dashboard (Open questions).
+- (2026-06-18) **"Updates applied" is a proxy = `max(0, pending_before − pending_after)`** (reduction in pending updates between
+  the period's earliest and latest snapshots). Precise per-item inventory diffing is a future refinement (Open questions).
+  Note this implies snapshots are captured at a finer cadence (e.g. daily) so a report period contains ≥2 boundary snapshots.
 
 ---
 
 ## Open questions / blockers
+- **MainWP v2 REST API contract (validate before production):** `MainWpConnector` assumes
+  `GET {dashboard_url}/wp-json/mainwp/v2/sites` returns a list of sites, each with `update_counts.{plugins,themes,wp}`
+  (fallback flat `plugin_upgrades`/`theme_upgrades`/`wp_upgrades`), `abandoned_plugins`, and `ssl.expires_at`. Confirm the
+  real endpoint paths + field names (and whether dedicated endpoints exist for updates/abandoned/SSL) against a live MainWP
+  dashboard, then adjust the parser. Also confirm the precise "updates applied" definition (count reduction vs inventory diff).
 - **`gpt.imagina.cloud` contract:** confirm the request/response shape and auth for the AI endpoint before
   building `AiReportBuilder` (Phase 2). Add env vars `GPT_IMAGINA_ENDPOINT` / `GPT_IMAGINA_KEY`.
 - **Chromium path on the VPS:** verify the real binary path when installing on ServerAvatar/OLS; set
