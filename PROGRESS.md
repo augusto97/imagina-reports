@@ -108,7 +108,7 @@ token provider + `Http::fake`, never live APIs (§14). Confirm SA email added as
       41 tests green; PHPStan max + Pint clean. — 1f66951
 - [x] (2026-06-18) **Phase 1 · Task 6 — GA4 connector.** `Ga4Connector` (Service Account via `Ga4TokenProvider`),
       `ga4.*` catalog (scalar/series/table), `runReport` defensive parse, ok/partial/failed; registered in the provider.
-      49 tests green; PHPStan max + Pint clean. — _commit pending_
+      49 tests green; PHPStan max + Pint clean. — 7095021
 
 ---
 
