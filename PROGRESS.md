@@ -116,7 +116,7 @@ This task spans PHP + React; keep the binding resolution (blocks → snapshot me
       49 tests green; PHPStan max + Pint clean. — 7095021
 - [x] (2026-06-18) **Phase 1 · Task 7 — GSC connector.** Generalized Google auth to `GoogleTokenProvider`
       (+ `ServiceAccountTokenProvider`), refactored GA4 onto it; `GscConnector` (`gsc.*`: totals + top queries/pages).
-      55 tests green; PHPStan max + Pint clean. — _commit pending_
+      55 tests green; PHPStan max + Pint clean. — f9adb53
 
 ---
 
