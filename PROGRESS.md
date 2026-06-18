@@ -101,15 +101,12 @@ keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open ques
   updater's liveness probe (CLAUDE.md §12.5), separate from Laravel's `/up`.
 - (2026-06-18) **Tests run on sqlite in-memory + array cache/session + sync queue** (`phpunit.xml`); production `.env`
   targets MariaDB + Redis. Keeps CI/tests hermetic without external services.
+- (2026-06-18) **Roles: simple `role` enum on `ir_users`** (owner/admin/collaborator) per §5 — owner-confirmed.
+  spatie/laravel-permission stays installed but reserved for finer-grained per-agency permissions later, not the 3 base roles.
 
 ---
 
 ## Open questions / blockers
-- **Roles: `ir_users.role` enum vs spatie/laravel-permission (needed for Task 2).** `CLAUDE.md` §5 defines a
-  simple `role` enum on `ir_users` (owner/admin/collaborator), but §13 Task 1 also lists installing
-  spatie/laravel-permission. Both are now available. Question: use the simple enum column for the three
-  fixed roles and reserve spatie/permission for finer-grained per-agency permissions later, or model the
-  three roles through spatie/permission from the start? Defaulting to the **enum column** (per §5) unless told otherwise.
 - **`gpt.imagina.cloud` contract:** confirm the request/response shape and auth for the AI endpoint before
   building `AiReportBuilder` (Phase 2). Add env vars `GPT_IMAGINA_ENDPOINT` / `GPT_IMAGINA_KEY`.
 - **Chromium path on the VPS:** verify the real binary path when installing on ServerAvatar/OLS; set
