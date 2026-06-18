@@ -40,7 +40,6 @@ reports list/filtering already exists (`GET /api/v1/reports`) — add period fil
 - [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
 - [ ] **(current)** White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
-- [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
 - [ ] Client portal interactivity (period selector, drill-down).
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
 
