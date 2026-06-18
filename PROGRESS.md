@@ -39,7 +39,7 @@ them behind interfaces and fake in tests; never actually swap symlinks in CI.
 - [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
 - [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — a952423
-- [x] (2026-06-18) **P2·6 — Client portal interactivity** (period selector + brand accent + interactive BlockList). — _commit pending_
+- [x] (2026-06-18) **P2·6 — Client portal interactivity** (period selector + brand accent + interactive BlockList). — fe713b1
 - [ ] **(current)** Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
 
 ### P2·6 — Client portal interactivity ✅ DONE (2026-06-18)
