@@ -7,18 +7,20 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–7 are DONE — all three Phase-1 connectors land.** Baseline (1) + multi-tenancy (2)
-+ connector contracts (3) + snapshot pipeline (4) + **MainWP** (5) + **GA4** (6) + the **GSC connector** (7).
-Google auth is now a shared, scope-parameterized `App\Connectors\Google\GoogleTokenProvider` (default impl
-`ServiceAccountTokenProvider`, `google/auth`); GA4 was refactored onto it. `App\Connectors\Gsc\GscConnector`
-reads clicks/impressions/CTR/position (one no-dimension totals query) + `gsc.top_queries`/`gsc.top_pages`
-tables via Search Console `searchanalytics.query`, defensively parsed, ok/partial/failed. All three
-connectors are registered in `ConnectorServiceProvider`. **55 tests green** (GA4 + GSC via
-`FakeGoogleTokenProvider` + `Http::fake`, no live APIs), **PHPStan max clean, Pint clean**.
-**Next action: Phase 1 · Task 8 — Block model + shared BlockRenderer (React) + default narrative template
-(§11.5)**: define the block schema/types (header, kpi, chart, table, narrative, healthscore, security_shield,
-worklog_timeline, image, divider, sales_summary, custom), a React `BlockRenderer` library (single source of
-truth for portal + PDF), and the default template. Note: no MariaDB/Redis in this env — tests use sqlite/array/sync.
+**Phase 1 · Tasks 1–8 are DONE.** Connectors (5–7) + the **block model & renderer** (8). PHP side
+(`App\Reports\Blocks`): `BlockType` enum (§10.3), the `Block` value object, and `BlocksValidator` (validates
+the `blocks` JSON: list shape, unique string ids, known types, required metric bindings for data blocks
+kpi/chart/table/sales_summary) throwing `BlockValidationException` with collected errors — the AI builder's
+output will validate through here too (§10.6). `App\Reports\Templates\DefaultTemplate` ships the §11.5
+narrative layout as valid blocks JSON. React side (`resources/js/shared/blocks`): `types.ts` + the
+`BlockRenderer`/`BlockList` library (a renderer per block type, charts via Recharts) — the **single source of
+truth** for the portal and the Chromium PDF (§11.4). **63 PHP tests green** (validator + default template),
+**PHPStan max clean, Pint clean, TS typecheck + lint + build clean**.
+**Next action: Phase 1 · Task 9 — `ReportGenerator` + `HealthScoreCalculator`**: resolve a definition's
+block bindings against the period's snapshots → `ir_reports.resolved_blocks` (create `ir_reports` +
+`ir_report_definitions`/`ir_report_templates` as needed), gracefully hiding data-less blocks (§10.4), and
+compute the 0–100 health score with missing-signal re-weighting (§10.5). Note: no MariaDB/Redis in this env —
+tests use sqlite/array/sync.
 
 ---
 
@@ -26,15 +28,19 @@ truth for portal + PDF), and the default template. Note: no MariaDB/Redis in thi
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 8 — Block model + BlockRenderer + default template** (not started).
-Define the block schema (PHP side: a `Block` value object / validator for the `blocks` json on
-`ir_report_templates`/`ir_report_definitions`; types per §10.3: header, kpi, chart line/bar/area/donut,
-table, narrative, healthscore, security_shield, worklog_timeline, image, divider, sales_summary, custom).
-Build the React `BlockRenderer` component library in `resources/js` (single source of truth for the
-portal + the Chromium-printed PDF, §10.7/§11.4) with a renderer per block type, and ship the **default
-narrative template** (§11.5) as ready blocks JSON. Tests: block validation (PHP) + a render smoke test.
-This task spans PHP + React; keep the binding resolution (blocks → snapshot metrics) for Task 9
-(`ReportGenerator`).
+**Phase 1 · Task 9 — `ReportGenerator` + `HealthScoreCalculator`** (not started).
+Create the report tables/models as needed (`ir_report_definitions`, `ir_report_templates`, `ir_reports`).
+`ReportGenerator`: for a definition + period, resolve each block's binding against the period's snapshots
+(read the metric bag, apply `compare: prev_period` via the prior snapshot), produce a `resolved_blocks`
+map keyed by block id (the data the `BlockList` consumes), **gracefully hiding** blocks whose bound metric
+has no data (§10.4). Wire the `MaintenanceDeltaCalculator` for the "updates applied" KPI. `HealthScoreCalculator`:
+0–100 from uptime/security/updates-current/performance, **re-weighting when a signal is missing** (§10.5).
+Tests with seeded snapshots (no live APIs). Keep AI narrative (`narrative` blocks) for Phase 2.
+
+### Task 8 — Block model + BlockRenderer + default template ✅ DONE (2026-06-18)
+- [x] PHP: `BlockType` enum, `Block` VO, `BlocksValidator` (+ `BlockValidationException`); `DefaultTemplate` (§11.5 layout as valid blocks JSON).
+- [x] React (`resources/js/shared/blocks`): `types.ts` + `BlockRenderer`/`BlockList` (renderer per type, Recharts charts) — single source of truth for portal + PDF.
+- [x] Tests: `BlocksValidator` (valid parse, error collection, data-block binding rule) + `DefaultTemplate` (validates, order, unique ids). 63 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean.
 
 ### Task 7 — Search Console (GSC) connector ✅ DONE (2026-06-18)
 - [x] Generalized Google auth to `App\Connectors\Google\GoogleTokenProvider` (+ `ServiceAccountTokenProvider`); refactored GA4 onto it.
@@ -84,7 +90,8 @@ This task spans PHP + React; keep the binding resolution (blocks → snapshot me
 4. ~~Connector: **MainWP** (+ `MaintenanceDeltaCalculator`)~~ ✅ done (Task 5).
 5. ~~Connector: **GA4** (Service Account; catalog-driven, aggregated)~~ ✅ done (Task 6).
 6. ~~Connector: **Search Console**~~ ✅ done (Task 7).
-7. **(current)** Block model + `BlockRenderer` React library + default narrative template (§11.5).
+7. ~~Block model + `BlockRenderer` React library + default narrative template (§11.5)~~ ✅ done (Task 8).
+8. **(current)** `ReportGenerator` (resolve blocks against snapshots) + `HealthScoreCalculator`.
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -117,6 +124,9 @@ This task spans PHP + React; keep the binding resolution (blocks → snapshot me
 - [x] (2026-06-18) **Phase 1 · Task 7 — GSC connector.** Generalized Google auth to `GoogleTokenProvider`
       (+ `ServiceAccountTokenProvider`), refactored GA4 onto it; `GscConnector` (`gsc.*`: totals + top queries/pages).
       55 tests green; PHPStan max + Pint clean. — f9adb53
+- [x] (2026-06-18) **Phase 1 · Task 8 — Block model + BlockRenderer + default template.** PHP `BlockType`/`Block`/
+      `BlocksValidator` + `DefaultTemplate` (§11.5); React `BlockRenderer`/`BlockList` (Recharts), single source of truth.
+      63 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean. — _commit pending_
 
 ---
 
@@ -205,6 +215,14 @@ This task spans PHP + React; keep the binding resolution (blocks → snapshot me
 - (2026-06-18) **GSC fetches the four totals (clicks/impressions/CTR/position) in a single no-dimension
   `searchanalytics.query`** (efficient), and one query per table (`gsc.top_queries` by `query`, `gsc.top_pages` by `page`).
   clicks/impressions are ints; ctr/position are floats. The `gsc.*` catalog is connector-defined (not enumerated in spec).
+- (2026-06-18) **Block schema is connector-of-the-frontend's contract**: a block is `{id, type, binding?, props, style}`.
+  `BlocksValidator` enforces list shape, unique non-empty string ids, known `BlockType`, and a metric binding
+  (`source`+`metric`) for data blocks (kpi/chart/table/sales_summary); other types' bindings are optional. The exact
+  per-type `props` shape is left flexible for now (validated loosely) — tighten per block as the editor (Phase 2) lands.
+- (2026-06-18) **One shared React `BlockRenderer`/`BlockList`** in `resources/js/shared/blocks` (Recharts for charts) is the
+  single source of truth for the portal and the Chromium PDF (§11.4). It takes a `Block` + resolved `data` (by block id);
+  binding→data resolution is the ReportGenerator's job (Task 9). Frontend gate stays typecheck+lint+build (no JS unit runner yet).
+- (2026-06-18) **`recharts` added** to the frontend deps for charts (locked stack §11.4).
 
 ---
 
