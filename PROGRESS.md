@@ -7,31 +7,31 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 complete; Phase 2 underway — P2·1…P2·6 DONE.** Editor (1), AI builder (2), connectors (3),
-scheduling+email (4), white-label/i18n/work-logs (5), and now the **interactive client portal** (6). New
-public endpoint `GET /api/v1/public/reports/{token}/periods` (sibling reports of the same definition, for the
-selector). Shared `resources/js/shared/lib/publicReport.ts` (`usePublicReport`, `useReportPeriods`,
-`applyBrandAccent`) — the report SPA was refactored onto it. The portal SPA (`resources/js/portal`,
-`PortalApp`) is now the Looker-parity view: opened via `public_token` (web route `/portal/{token}` →
-data-token), period selector switching between reports, brand accent, interactive Recharts via the shared
-`BlockList`. **114 PHP tests green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
-**Next action: Phase 2 (final item) · Self-updater** (`UpdateManager`, CLAUDE.md §12): atomic releases
-(symlink swap), in-app Update/Rollback, `/health`, `ir_app_releases`, `RunUpdateJob`, plus the GitHub Actions
-release pipeline (self-contained ZIP) and `deploy.sh`. After that, Phase 2 is complete → Phase 3.
+**🎉 PHASE 2 COMPLETE (P2·1…P2·7).** Editor (1), AI builder (2), all connectors (3), scheduling+email (4),
+white-label/i18n/work-logs (5), interactive portal (6), and the **self-updater** (7). Updater: `ir_app_releases`/
+`AppRelease`; `App\Services\Update\UpdateManager` (status/update/rollback — pure logic) delegating destructive
+work to a `Deployer` interface (`SymlinkDeployer` in prod = atomic symlink swap + auto-rollback on a failed
+`/health`; `FakeDeployer` in tests, so CI never swaps real symlinks); `RunUpdateJob`; API
+`GET /system/update/status` + `POST /system/update/{run,rollback}` (privileged-only). `.github/workflows/release.yml`
+builds the self-contained ZIP (vendor + compiled assets) on a `v*` tag; `deploy.sh` mirrors the atomic-deploy
+steps. **123 PHP tests green, PHPStan max clean, Pint clean; TS clean.**
+**Next action: Phase 3 (§13) — Intelligence & differentiation.** First: the **Imagina Audit + WPVulnerability
+connector** + `AuditSection`. ⚠️ Open question: confirm Imagina Audit exposes its 7-module metrics + CVE data
+as a readable REST API before building it. Remaining frontend polish (low priority): an admin "System → Updates"
+screen (§11.1) consuming the update API.
 
 ---
 
 ## Current phase
-**Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
+**Phase 3 — Intelligence & differentiation** (Phases 1 & 2 complete)
 
 ## Current task
-**Phase 2 (final) · Self-updater + release pipeline + rollback** (not started, CLAUDE.md §12).
-`ir_app_releases` (+ model); `UpdateManager` flow (pre-flight, mysqldump backup, download+checksum, extract
-to `releases/<ts>`, symlink shared, migrate, caches, flip `current` symlink, queue:restart, `/health` check,
-auto-rollback on failure); `RunUpdateJob`; API `GET /system/update/status`, `POST /system/update/run`,
-`POST /system/update/rollback` (§8) restricted to owner/admin. GitHub Actions release workflow building the
-self-contained ZIP (vendor + compiled assets) on a tag, + `deploy.sh`. Filesystem ops are destructive — put
-them behind interfaces and fake in tests; never actually swap symlinks in CI.
+**Phase 3 · Imagina Audit + WPVulnerability connector + AuditSection** (not started, CLAUDE.md §9/§13).
+A new `imagina_audit` connector (new `DataSourceType` value already exists) reading the 7-module audit metrics
++ WPVulnerability CVEs from the Imagina Audit REST API; an `AuditSection`/audit blocks. **BLOCKED on the Open
+Question:** confirm Imagina Audit exposes a readable REST API (endpoints/auth/shape) before building `fetch()`.
+If unconfirmed, start Phase 3 with the **database/CSV/endpoint connector** (`type = 'database'`, §13/§3.3 —
+aggregate-at-source queries) or **anomaly detection** instead. Other connectors stay defensive + `Http::fake` tested.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
@@ -40,7 +40,13 @@ them behind interfaces and fake in tests; never actually swap symlinks in CI.
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
 - [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — a952423
 - [x] (2026-06-18) **P2·6 — Client portal interactivity** (period selector + brand accent + interactive BlockList). — fe713b1
-- [ ] **(current)** Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+- [x] (2026-06-18) **P2·7 — Self-updater** (`UpdateManager` + `Deployer` + API + release.yml + deploy.sh). — _commit pending_
+
+### P2·7 — Self-updater ✅ DONE (2026-06-18)
+- [x] `ir_app_releases`/`AppRelease` (+ factory); `UpdateManager` (status/update/rollback) over a `Deployer` interface.
+- [x] `SymlinkDeployer` (prod, atomic swap + health-check auto-rollback), `FakeDeployer` (tests); `RunUpdateJob`.
+- [x] API `GET /system/update/status` + `POST /system/update/{run,rollback}` (privileged-only); `release.yml` + `deploy.sh`.
+- [x] Tests: manager status/update/rollback (FakeDeployer) + API status/403/202/rollback. 123 tests green; PHPStan max + Pint clean.
 
 ### P2·6 — Client portal interactivity ✅ DONE (2026-06-18)
 - [x] `GET /api/v1/public/reports/{token}/periods` (sibling reports for the selector) + test.

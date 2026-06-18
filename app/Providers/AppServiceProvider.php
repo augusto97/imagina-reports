@@ -8,6 +8,8 @@ use App\Ai\AiClient;
 use App\Ai\AnthropicAiClient;
 use App\Services\Pdf\BrowsershotPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
+use App\Services\Update\Deployer;
+use App\Services\Update\SymlinkDeployer;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +29,9 @@ class AppServiceProvider extends ServiceProvider
 
         // AI report builder backend (CLAUDE.md §10.6, Claude API); faked in tests.
         $this->app->bind(AiClient::class, AnthropicAiClient::class);
+
+        // Self-updater deployer (CLAUDE.md §12); faked in tests — never swaps real symlinks in CI.
+        $this->app->bind(Deployer::class, SymlinkDeployer::class);
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\WorkLogController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -82,4 +83,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
+
+    // Self-updater (CLAUDE.md §8/§12); privileged users only (checked in the controller).
+    Route::get('system/update/status', [SystemUpdateController::class, 'status'])->name('api.system.update.status');
+    Route::post('system/update/run', [SystemUpdateController::class, 'run'])->name('api.system.update.run');
+    Route::post('system/update/rollback', [SystemUpdateController::class, 'rollback'])->name('api.system.update.rollback');
 });

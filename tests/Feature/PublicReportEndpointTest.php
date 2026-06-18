@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Agency;
 use App\Models\Report;
+use App\Models\ReportDefinition;
 use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -41,7 +42,7 @@ class PublicReportEndpointTest extends TestCase
     public function test_it_lists_sibling_periods_for_the_selector(): void
     {
         $agency = Agency::factory()->create();
-        $definition = \App\Models\ReportDefinition::factory()->create(['agency_id' => $agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id]);
 
         $current = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
         Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
