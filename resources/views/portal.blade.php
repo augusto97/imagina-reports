@@ -7,6 +7,6 @@
     @vite('resources/js/portal/main.tsx')
 </head>
 <body>
-    <div id="ir-portal-root"></div>
+    <div id="ir-portal-root" data-token="{{ $token ?? '' }}"></div>
 </body>
 </html>

@@ -7,18 +7,17 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 complete; Phase 2 underway — P2·1…P2·5 DONE.** Editor (1), AI builder (2), connectors (3),
-scheduling+email (4), and now **white-label + i18n + work logs + archive** (5). Work logs:
-`ir_report_work_logs`/`WorkLog` + `GET/POST /api/v1/reports/{report}/work-logs` (`WorkLogController`);
-`Report::workLogs()`; the public `ReportResource` **overlays live work logs** onto any `worklog_timeline`
-block (frozen layout, current "what we did" list). White-label: `ReportResource` exposes the agency's
-`brand_color`/`logo_path`; the report SPA applies `brand_color` as the accent (`hexToHslString` → `--ir-primary`)
-and shows the logo. i18n: `SetLocale` middleware (Accept-Language → es/en/pt_BR, appended to the api group) +
-`lang/{es,en,pt_BR}/report.php`. Archive = the existing `GET /api/v1/reports` list. **113 PHP tests green,
-PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
-**Next action: Phase 2 · Client portal interactivity** (`resources/js/portal`, §11.2): the interactive
-dashboard opened via public token — period selector + drill-down + interactive Recharts, reusing the public
-report endpoint/BlockList. Then the self-updater (`UpdateManager`) + release pipeline + rollback.
+**Phase 1 complete; Phase 2 underway — P2·1…P2·6 DONE.** Editor (1), AI builder (2), connectors (3),
+scheduling+email (4), white-label/i18n/work-logs (5), and now the **interactive client portal** (6). New
+public endpoint `GET /api/v1/public/reports/{token}/periods` (sibling reports of the same definition, for the
+selector). Shared `resources/js/shared/lib/publicReport.ts` (`usePublicReport`, `useReportPeriods`,
+`applyBrandAccent`) — the report SPA was refactored onto it. The portal SPA (`resources/js/portal`,
+`PortalApp`) is now the Looker-parity view: opened via `public_token` (web route `/portal/{token}` →
+data-token), period selector switching between reports, brand accent, interactive Recharts via the shared
+`BlockList`. **114 PHP tests green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
+**Next action: Phase 2 (final item) · Self-updater** (`UpdateManager`, CLAUDE.md §12): atomic releases
+(symlink swap), in-app Update/Rollback, `/health`, `ir_app_releases`, `RunUpdateJob`, plus the GitHub Actions
+release pipeline (self-contained ZIP) and `deploy.sh`. After that, Phase 2 is complete → Phase 3.
 
 ---
 
@@ -26,12 +25,13 @@ report endpoint/BlockList. Then the self-updater (`UpdateManager`) + release pip
 **Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
 
 ## Current task
-**Phase 2 · Client portal interactivity** (not started, CLAUDE.md §11.2/§11.4).
-The interactive client dashboard (`resources/js/portal`), opened via a signed `public_token`: a period
-selector, drill-down, and interactive Recharts — reusing the public report endpoint + the shared `BlockList`.
-The portal SPA is currently a stub; build it into the Looker-parity view (the same data the report page
-renders, plus interactivity). Frontend-only slice (gate: typecheck/lint/build); may add a public endpoint to
-list a site's available report periods for the selector.
+**Phase 2 (final) · Self-updater + release pipeline + rollback** (not started, CLAUDE.md §12).
+`ir_app_releases` (+ model); `UpdateManager` flow (pre-flight, mysqldump backup, download+checksum, extract
+to `releases/<ts>`, symlink shared, migrate, caches, flip `current` symlink, queue:restart, `/health` check,
+auto-rollback on failure); `RunUpdateJob`; API `GET /system/update/status`, `POST /system/update/run`,
+`POST /system/update/rollback` (§8) restricted to owner/admin. GitHub Actions release workflow building the
+self-contained ZIP (vendor + compiled assets) on a tag, + `deploy.sh`. Filesystem ops are destructive — put
+them behind interfaces and fake in tests; never actually swap symlinks in CI.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
@@ -39,8 +39,13 @@ list a site's available report periods for the selector.
 - [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
 - [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — a952423
-- [ ] **(current)** Client portal interactivity (period selector, drill-down).
-- [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+- [x] (2026-06-18) **P2·6 — Client portal interactivity** (period selector + brand accent + interactive BlockList). — _commit pending_
+- [ ] **(current)** Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### P2·6 — Client portal interactivity ✅ DONE (2026-06-18)
+- [x] `GET /api/v1/public/reports/{token}/periods` (sibling reports for the selector) + test.
+- [x] Shared `publicReport.ts` (`usePublicReport`/`useReportPeriods`/`applyBrandAccent`); report SPA refactored onto it.
+- [x] `PortalApp` (period selector, brand accent, interactive `BlockList`); web `/portal/{token}` passes the token. 114 tests green; PHPStan max + Pint clean; TS clean.
 
 ### P2·5 — White-label + i18n + work logs + archive ✅ DONE (2026-06-18)
 - [x] `ir_report_work_logs`/`WorkLog` (+ factory); `Report::workLogs()`; `GET/POST /reports/{report}/work-logs` (`WorkLogController`).

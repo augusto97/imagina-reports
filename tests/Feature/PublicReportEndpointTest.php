@@ -38,6 +38,22 @@ class PublicReportEndpointTest extends TestCase
         $this->getJson('/api/v1/public/reports/does-not-exist')->assertNotFound();
     }
 
+    public function test_it_lists_sibling_periods_for_the_selector(): void
+    {
+        $agency = Agency::factory()->create();
+        $definition = \App\Models\ReportDefinition::factory()->create(['agency_id' => $agency->id]);
+
+        $current = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+        Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+        // A report from a different definition must NOT appear.
+        Report::factory()->create(['agency_id' => $agency->id]);
+
+        $this->getJson("/api/v1/public/reports/{$current->public_token}/periods")
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonStructure([['public_token', 'period_start', 'period_end']]);
+    }
+
     public function test_it_overlays_live_work_logs_onto_the_worklog_block(): void
     {
         $agency = Agency::factory()->create();

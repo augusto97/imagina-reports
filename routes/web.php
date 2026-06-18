@@ -18,6 +18,5 @@ Route::view('/admin/{any?}', 'admin')
     ->name('admin');
 
 // Interactive client portal SPA (CLAUDE.md §11.2), opened via a signed public token.
-Route::view('/portal/{any?}', 'portal')
-    ->where('any', '.*')
+Route::get('/portal/{token}', static fn (string $token): View => view('portal', ['token' => $token]))
     ->name('portal');

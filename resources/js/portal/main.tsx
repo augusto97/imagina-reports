@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 
 import { createQueryClient } from '@shared/lib/queryClient';
 
-import { App } from './App';
+import { PortalApp } from './PortalApp';
 
 const queryClient = createQueryClient();
 
@@ -16,10 +16,12 @@ if (container === null) {
     throw new Error('Portal SPA mount point #ir-portal-root not found.');
 }
 
+const token = container.dataset.token ?? '';
+
 createRoot(container).render(
     <StrictMode>
         <QueryClientProvider client={queryClient}>
-            <App />
+            <PortalApp token={token} />
         </QueryClientProvider>
     </StrictMode>,
 );

@@ -38,6 +38,8 @@ Route::get('/health', static fn (): JsonResponse => response()->json([
 // Public, signed-token report data for the portal + PDF (no auth, CLAUDE.md §8).
 Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
     ->name('api.public.reports.show');
+Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
+    ->name('api.public.reports.periods');
 
 // Authenticated, tenant-bound routes. `tenant` runs after `auth:sanctum` so the
 // AgencyScope is active for everything inside (CLAUDE.md §5). Resource endpoints
