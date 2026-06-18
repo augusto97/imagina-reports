@@ -34,6 +34,15 @@ class DataSource extends Model
     protected $table = 'ir_data_sources';
 
     /**
+     * In-memory default so a freshly-created source has a status before reload.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => DataSourceStatus::Pending->value,
+    ];
+
+    /**
      * @var list<string>
      */
     protected $fillable = [

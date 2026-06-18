@@ -7,19 +7,17 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–10 are DONE.** Report engine (9) + the **report page, public endpoint & PDF** (10).
-Public data endpoint `GET /api/v1/public/reports/{token}` (`PublicReportController` + `ReportResource`,
-no auth, bypasses AgencyScope — the token is the capability). API resources return a **flat top-level
-object** (`JsonResource::withoutWrapping()`). A React `report` SPA entry (`resources/js/report`) fetches
-that endpoint and renders `resolved_blocks` with the shared `BlockList`, setting `window.reportReady`.
-Web route `GET /reports/{token}` (`report.public`) serves the page — the same URL Browsershot prints. PDF
-pipeline: `PdfRenderer` interface + `BrowsershotPdfRenderer` (waits `window.reportReady`) + `ReportPdfService`
-(stores to `ir_reports.pdf_path`); faked in tests via `FakePdfRenderer`. **73 PHP tests green**
-(public endpoint + PDF service), **PHPStan max clean, Pint clean, TS typecheck/lint/build clean** (admin +
-portal + report bundles). **Next action: Phase 1 · Task 11 — API v1 CRUD + manual generation** (the data
-interface the admin SPA consumes; API-first §2): clients, sites, data-sources (+ test connection),
-report-definitions, reports, `POST /reports/generate` (enqueue), approve/send stubs. Note: no
-MariaDB/Redis/Chromium in this env — tests use sqlite/array/sync; PDF/connectors are faked.
+**Phase 1 · Tasks 1–11 are DONE.** Report delivery (10) + the **API v1** (11). All under
+`auth:sanctum`+`tenant`: clients (index/store/show), sites, `sites/{site}/data-sources` (index/store) +
+`POST /data-sources/{ds}/test` (runs the connector's `testConnection`), report-definitions, reports
+(index/show), `POST /reports/generate` (enqueues `GenerateReportJob` → `ReportGenerator`, 202),
+`POST /reports/{report}/approve`. `FormRequest` validation, `JsonResource` output (flat, no credentials).
+**Hardened a tenant-isolation gap**: `BindTenant` now runs before `SubstituteBindings` (middleware priority)
+so route-model binding is agency-scoped — a cross-agency `{model}` 404s instead of leaking. **83 PHP tests
+green** (CRUD, auth, §14 isolation across bound routes, connection test via `Http::fake`, generate→report),
+**PHPStan max clean, Pint clean**. **Next action: Phase 1 · Task 12 — Admin SPA** (`resources/js/admin`):
+clients/sites management, data-source config driven by each connector's `configSchema()`, manual report
+generation + preview — consuming the v1 API (TanStack Query/Table, RHF+Zod). Then Phase 1 DoD (end-to-end demo).
 
 ---
 
@@ -27,13 +25,21 @@ MariaDB/Redis/Chromium in this env — tests use sqlite/array/sync; PDF/connecto
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 11 — API v1 CRUD + manual generation** (not started).
-The versioned REST interface the admin SPA consumes (API-first, §2/§8), all under `auth:sanctum`+`tenant`:
-clients, sites, `sites/{site}/data-sources` (configure + `POST /data-sources/{ds}/test` via the connector's
-`testConnection`), report-definitions, reports (list/show), and `POST /reports/generate` (enqueue a
-`GenerateReportJob` wrapping `ReportGenerator`), plus approve/send. Use `FormRequest` validation +
-`JsonResource` output (flat). Feature tests per endpoint incl. **tenant isolation** (§14). The admin SPA
-(roadmap item 10) follows — it needs this API first (locked API-first decision §2).
+**Phase 1 · Task 12 — Admin SPA** (`resources/js/admin`, not started).
+Build the admin panel screens against the v1 API: clients + sites management (TanStack Query + Table),
+data-source configuration **driven by each connector's `configSchema()`** with a "Test connection" action
+(`POST /data-sources/{ds}/test`), report-definitions, and **manual report generation + preview**
+(`POST /reports/generate`, then show the report via the public token / BlockList). Use the locked stack
+(TanStack Query/Table, Zustand, RHF+Zod, shadcn/ui local). Frontend gate stays typecheck+lint+build.
+May need to expose connector `configSchema()`/catalog via an API endpoint for the config UI. After this,
+**Phase 1 DoD**: end-to-end demo (configure source → sync → generate → preview/PDF), all green.
+
+### Task 11 — API v1 CRUD + manual generation ✅ DONE (2026-06-18)
+- [x] Controllers (Api/V1): Client/Site/DataSource/ReportDefinition/Report; `FormRequest`s; resources (flat, credentials hidden).
+- [x] Routes under `auth:sanctum`+`tenant`: clients, sites, sites/{site}/data-sources, data-sources/{ds}/test, report-definitions, reports, reports/generate, reports/{report}/approve.
+- [x] `GenerateReportJob` (queue-safe, tenant-bound) wrapping `ReportGenerator`.
+- [x] **Middleware priority**: `BindTenant` before `SubstituteBindings` (route-model binding is agency-scoped). `DataSource` default `status` attribute.
+- [x] Tests: auth, CRUD, §14 isolation across bound routes, test-connection (Http::fake), generate→report, approve. 83 tests green; PHPStan max + Pint clean.
 
 ### Task 10 — Report page + public endpoint + PDF ✅ DONE (2026-06-18)
 - [x] `GET /api/v1/public/reports/{token}` (`PublicReportController` + `ReportResource`, no auth, scope-bypassing); `JsonResource::withoutWrapping()`.
@@ -103,8 +109,9 @@ clients, sites, `sites/{site}/data-sources` (configure + `POST /data-sources/{ds
 7. ~~Block model + `BlockRenderer` React library + default narrative template (§11.5)~~ ✅ done (Task 8).
 8. ~~`ReportGenerator` (resolve blocks against snapshots) + `HealthScoreCalculator`~~ ✅ done (Task 9).
 9. ~~Report React page + portal route + Browsershot PDF~~ ✅ done (Task 10).
-10. **(current)** API v1 endpoints (CRUD + manual generation). _(Brought before the admin SPA — the SPA consumes it; API-first §2.)_
-11. Admin SPA: clients/sites, data-source config (driven by `configSchema()`), manual generation + preview.
+10. ~~API v1 endpoints (CRUD + manual generation)~~ ✅ done (Task 11).
+11. **(current)** Admin SPA: clients/sites, data-source config (driven by `configSchema()`), manual generation + preview.
+12. Phase 1 Definition of Done: tests green, PHPStan max clean, end-to-end demo of a manual report.
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -146,6 +153,9 @@ clients, sites, `sites/{site}/data-sources` (configure + `POST /data-sources/{ds
 - [x] (2026-06-18) **Phase 1 · Task 10 — Report page + public endpoint + PDF.** `PublicReportController`/`ReportResource`
       (`GET /api/v1/public/reports/{token}`), React `report` SPA (BlockList + `window.reportReady`), `report.public` web route,
       `PdfRenderer`/`BrowsershotPdfRenderer`/`ReportPdfService`. 73 tests green; PHPStan max + Pint clean; TS clean. — f59d185
+- [x] (2026-06-18) **Phase 1 · Task 11 — API v1 CRUD + manual generation.** Client/Site/DataSource/ReportDefinition/Report
+      controllers + FormRequests + flat resources; `GenerateReportJob`; **BindTenant before SubstituteBindings** (binding isolation).
+      83 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -261,6 +271,13 @@ clients, sites, `sites/{site}/data-sources` (configure + `POST /data-sources/{ds
 - (2026-06-18) **Frontend now has 3 entries** (admin, portal, **report**) in `vite.config.ts`. The report page sets
   `window.reportReady = true` on data load (success OR error) so Browsershot never hangs on an empty/failed report.
 - (2026-06-18) **API built before the admin SPA** (roadmap lists SPA first): the SPA consumes the API, and API-first is locked (§2).
+- (2026-06-18) **Middleware priority puts `BindTenant` before `SubstituteBindings`** (`bootstrap/app.php`). Without it, route-model
+  binding resolved `{model}` with no tenant bound → cross-agency leak (a test caught it). Now bound models are agency-scoped → 404.
+- (2026-06-18) **API conventions:** controllers thin; `FormRequest` validation; ownership of FK targets enforced via scoped
+  `findOrFail` (cross-agency → 404); resources never expose `credentials`; `store` returns 201; `reports/generate` enqueues
+  (`GenerateReportJob`) and returns 202; unwrapped collections (assert root-level `0.id`, `assertJsonCount`).
+- (2026-06-18) **`DataSource` has an in-memory default `status = pending`** (`$attributes`) so a freshly-created (not-yet-reloaded)
+  model has a status enum for resources (DB default only applies on reload).
 
 ---
 
