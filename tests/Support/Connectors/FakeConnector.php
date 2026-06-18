@@ -23,6 +23,7 @@ final class FakeConnector implements DataSourceConnector
     public function __construct(
         private readonly string $key = 'fake',
         private readonly string $label = 'Fake',
+        private readonly ?MetricSet $result = null,
     ) {}
 
     public function key(): string
@@ -56,6 +57,6 @@ final class FakeConnector implements DataSourceConnector
 
     public function fetch(DataSource $source, Period $period, array $requestedMetrics): MetricSet
     {
-        return MetricSet::ok(['fake.visits' => 42]);
+        return $this->result ?? MetricSet::ok(['fake.visits' => 42]);
     }
 }

@@ -7,20 +7,20 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1, 2 & 3 are DONE.** On top of the baseline (Task 1) and multi-tenancy (Task 2),
-the **connector contracts** are in place (Task 3, `CLAUDE.md` §7/§10.1): the `DataSourceConnector`
-interface (`App\Connectors\Contracts`), `ConnectorRegistry` (key → connector, bound singleton via
-`ConnectorServiceProvider`), and the value objects `MetricCatalog`/`MetricDefinition`/`MetricType`,
-`MetricSet`/`MetricSetStatus` (the normalized metric bag with ok/partial/failed factories),
-`ConnectionResult`, `Period` (immutable, with `previous()` for vs-prev-period), `ConfigField`/
-`ConfigFieldType`. Enums `DataSourceType` (extensible source list) + `DataSourceStatus`. The
-`DataSource` model + `ir_data_sources` migration were pulled forward here (the interface type-hints
-the model): agency-scoped, **encrypted `credentials` cast**, `config` json, `type`/`status` enum casts;
-`site_id` is a nullable column with no FK yet (added when `ir_sites` lands). **No concrete connectors
-yet** (MainWP/GA4/GSC are the next tasks). **26 tests green, PHPStan max clean, Pint clean**.
-**Next action: Phase 1 · Task 4 — snapshot pipeline**: `ir_metric_snapshots` migration + `MetricSnapshot`
-model, `SyncService` + `SyncSourceJob` (idempotent, aggregate-at-source per §3.3) writing normalized
-`MetricSet` payloads as snapshots. Note: no MariaDB/Redis in this env — tests use sqlite/array/sync.
+**Phase 1 · Tasks 1–4 are DONE.** Baseline (1) + multi-tenancy (2) + connector contracts (3) +
+the **snapshot pipeline** (4). The SYNC stage (`CLAUDE.md` §3.1) is implemented: `ir_metric_snapshots`
++ `MetricSnapshot` model (agency-scoped, `belongsTo` DataSource, `payload` json = `MetricSet::toArray()`,
+`status` cast to `MetricSetStatus`, unique on `(data_source_id, period_start, period_end)`).
+`App\Services\SyncService` resolves a source's connector from the registry, calls `fetch()`, and
+**upserts** the normalized snapshot (idempotent), then records the source's `status`/`last_synced_at`/
+`last_error`. `App\Jobs\SyncSourceJob` loads the source without the AgencyScope and runs the sync inside
+its agency's tenant context (`TenantContext::actingAs`). **31 tests green** (incl. idempotent re-sync +
+failed-fetch paths, no live APIs), **PHPStan max clean, Pint clean**.
+**Next action: Phase 1 · Task 5 — MainWP connector** (`App\Connectors\MainWp\MainWpConnector`): real
+`metricCatalog()`/`fetch()` aggregated at source, registered in `ConnectorServiceProvider`, plus the
+`MaintenanceDeltaCalculator` that diffs earliest/latest snapshots in a period for the "X updates applied"
+work-done deltas (§9). Tests with mocked HTTP only (`Http::fake`), never live APIs (§14). Note: no
+MariaDB/Redis in this env — tests use sqlite/array/sync.
 
 ---
 
@@ -28,14 +28,21 @@ model, `SyncService` + `SyncSourceJob` (idempotent, aggregate-at-source per §3.
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 4 — Snapshot pipeline** (not started).
-`ir_metric_snapshots` migration (`agency_id`, `data_source_id`, `period_start`, `period_end`,
-`payload` json normalized, `status` ok/partial/failed, `captured_at`) + `MetricSnapshot` model
-(agency-scoped, `belongsTo` DataSource). `SyncService` + `SyncSourceJob`: for a DataSource + Period,
-resolve its connector from the registry, fetch ONLY the metrics referenced by active report
-definitions (aggregate-at-source, §3.3), and persist the normalized `MetricSet` as a snapshot.
-**Must be idempotent** (re-running a sync upserts the snapshot, not duplicates). Unit/feature tests
-with a fake connector (no live APIs). See `CLAUDE.md` §3.1, §3.3, §5, §7.
+**Phase 1 · Task 5 — MainWP connector** (not started).
+`MainWpConnector implements DataSourceConnector` (auth: Bearer v2 or consumer key/secret v1; config:
+dashboard_url, token). `metricCatalog()` exposes the MainWP metrics (sites, available updates,
+plugin/theme/core inventory, abandoned plugins, SSL monitor — §9); `fetch()` calls the MainWP REST API
+**aggregated** and returns a normalized `MetricSet`, catching its own errors → partial/failed. Register
+it in `ConnectorServiceProvider`. Add `MaintenanceDeltaCalculator` (App\Reports) that diffs the
+earliest vs latest snapshot in the period to compute "X updates applied this month" (§9 — MainWP exposes
+current state, not history). Tests: `Http::fake` happy + failed/partial paths; delta calc unit tests.
+Never hit live APIs (§14).
+
+### Task 4 — Snapshot pipeline ✅ DONE (2026-06-18)
+- [x] `ir_metric_snapshots` migration + `MetricSnapshot` model (agency-scoped, `belongsTo` DataSource, unique per source+period).
+- [x] `SyncService` (resolve connector → fetch → upsert snapshot, idempotent; records source status/last_synced_at/last_error).
+- [x] `SyncSourceJob` (loads source w/o AgencyScope, runs inside `TenantContext::actingAs` — queue-safe).
+- [x] Feature tests: persist+ok, idempotent re-sync, failed-fetch→error, job sync w/o pre-bound tenant. 31 tests green; PHPStan max + Pint clean.
 
 ### Task 3 — Connector contracts ✅ DONE (2026-06-18)
 - [x] `DataSourceConnector` interface (§7) + `ConnectorRegistry` (singleton via `ConnectorServiceProvider`).
@@ -62,7 +69,8 @@ with a fake connector (no live APIs). See `CLAUDE.md` §3.1, §3.3, §5, §7.
 ## Next up (Phase 1, in order)
 1. ~~Multi-tenant scaffolding~~ ✅ done (Task 2).
 2. ~~`DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet`~~ ✅ done (Task 3); `ir_data_sources` + `DataSource` model also landed here.
-3. **(current)** Snapshot pipeline: `ir_metric_snapshots` + `MetricSnapshot`, `SyncSourceJob`, `SyncService` (idempotent, aggregate-at-source). (`ir_data_sources` already created in Task 3.)
+3. ~~Snapshot pipeline: `ir_metric_snapshots` + `MetricSnapshot`, `SyncSourceJob`, `SyncService`~~ ✅ done (Task 4).
+4. **(current)** Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -84,6 +92,8 @@ with a fake connector (no live APIs). See `CLAUDE.md` §3.1, §3.3, §5, §7.
       (+ `ConnectorServiceProvider`); `MetricCatalog`/`MetricDefinition`/`MetricType`, `MetricSet`/`MetricSetStatus`,
       `ConnectionResult`, `Period`, `ConfigField`/`ConfigFieldType`; `DataSourceType`/`DataSourceStatus` enums;
       `DataSource` model + `ir_data_sources` (encrypted credentials). 26 tests green; PHPStan max + Pint clean. — 4dc1689
+- [x] (2026-06-18) **Phase 1 · Task 4 — Snapshot pipeline.** `ir_metric_snapshots` + `MetricSnapshot` model;
+      `SyncService` (idempotent upsert) + `SyncSourceJob` (queue-safe, tenant-bound). 31 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -149,6 +159,11 @@ with a fake connector (no live APIs). See `CLAUDE.md` §3.1, §3.3, §5, §7.
   `DataSource.credentials` uses the `encrypted:array` cast and is in `$hidden` — never logged (§6).
 - (2026-06-18) **`ConnectorRegistry` is a deferred singleton** (`ConnectorServiceProvider`); concrete connectors will register
   themselves there as they are implemented (Tasks 5–7+).
+- (2026-06-18) **Snapshot payload = `MetricSet::toArray()`** (`{status, error, metrics}`); the snapshot also has a `status`
+  column (cast to `MetricSetStatus`) for querying. Idempotency via a **unique index `(data_source_id, period_start, period_end)`**
+  + `updateOrCreate`. `SyncService` sets `agency_id` explicitly from the source (robust whether or not a tenant is bound).
+- (2026-06-18) **`SyncSourceJob` is queue-safe**: it loads the `DataSource` with `withoutGlobalScope(AgencyScope)` (no tenant on
+  the worker) and wraps the sync in `TenantContext::actingAs($source->agency_id, …)`, restoring the previous context after.
 
 ---
 
