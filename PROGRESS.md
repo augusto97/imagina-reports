@@ -36,7 +36,7 @@ Analytics. CrowdSec: Console API. Better Stack: Bearer, monitors.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
-- [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — _commit pending_
+- [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — 77e9b53
 - [ ] **(current)** Connectors: Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce.
 - [ ] Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
 - [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
