@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\ClientController;
+use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportController;
@@ -38,6 +39,8 @@ Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
 // are added phase by phase per §8.
 Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('/user', static fn (Request $request) => $request->user())->name('api.user');
+
+    Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
 
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');

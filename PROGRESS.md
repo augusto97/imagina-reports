@@ -7,17 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–11 are DONE.** Report delivery (10) + the **API v1** (11). All under
-`auth:sanctum`+`tenant`: clients (index/store/show), sites, `sites/{site}/data-sources` (index/store) +
-`POST /data-sources/{ds}/test` (runs the connector's `testConnection`), report-definitions, reports
-(index/show), `POST /reports/generate` (enqueues `GenerateReportJob` → `ReportGenerator`, 202),
-`POST /reports/{report}/approve`. `FormRequest` validation, `JsonResource` output (flat, no credentials).
-**Hardened a tenant-isolation gap**: `BindTenant` now runs before `SubstituteBindings` (middleware priority)
-so route-model binding is agency-scoped — a cross-agency `{model}` 404s instead of leaking. **83 PHP tests
-green** (CRUD, auth, §14 isolation across bound routes, connection test via `Http::fake`, generate→report),
-**PHPStan max clean, Pint clean**. **Next action: Phase 1 · Task 12 — Admin SPA** (`resources/js/admin`):
-clients/sites management, data-source config driven by each connector's `configSchema()`, manual report
-generation + preview — consuming the v1 API (TanStack Query/Table, RHF+Zod). Then Phase 1 DoD (end-to-end demo).
+**Phase 1 is FEATURE-COMPLETE (Tasks 1–12 done).** The full SYNC → GENERATE → DELIVER path plus the
+admin SPA and API v1 are in place. Task 12 added: a connectors metadata endpoint `GET /api/v1/connectors`
+(key/label/config_schema, drives the data-source form), and the **admin SPA** (`resources/js/admin`):
+sidebar nav (Zustand) over Clients, Sites, Data Sources and Reports screens; TanStack Query data hooks +
+a generic TanStack-Table `DataTable`; RHF+Zod create forms; the data-source form is **driven by each
+connector's `configSchema()`** with a "Test connection" action; the Reports screen creates definitions,
+**generates manually** (`POST /reports/generate`) and links each report to its public page. **85 PHP tests
+green, PHPStan max clean, Pint clean; TS typecheck/lint/build clean** (admin/portal/report bundles).
+**Next action: Phase 1 DoD live check + start Phase 2.** The remaining DoD item is a live end-to-end demo
+(configure source → sync → generate → preview/PDF), which needs the real environment (MariaDB/Redis/Chromium)
+— an operator step on the VPS. Code/tests DoD is met. Phase 2 (§13): block editor, AiReportBuilder, the
+remaining connectors (Cloudflare/CrowdSec/Better Stack/VirusDie/WooCommerce), scheduling+email, self-updater.
 
 ---
 
@@ -25,14 +26,22 @@ generation + preview — consuming the v1 API (TanStack Query/Table, RHF+Zod). T
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 12 — Admin SPA** (`resources/js/admin`, not started).
-Build the admin panel screens against the v1 API: clients + sites management (TanStack Query + Table),
-data-source configuration **driven by each connector's `configSchema()`** with a "Test connection" action
-(`POST /data-sources/{ds}/test`), report-definitions, and **manual report generation + preview**
-(`POST /reports/generate`, then show the report via the public token / BlockList). Use the locked stack
-(TanStack Query/Table, Zustand, RHF+Zod, shadcn/ui local). Frontend gate stays typecheck+lint+build.
-May need to expose connector `configSchema()`/catalog via an API endpoint for the config UI. After this,
-**Phase 1 DoD**: end-to-end demo (configure source → sync → generate → preview/PDF), all green.
+**Phase 1 DoD live check, then Phase 2 kickoff.** Phase 1 is code/test-complete. Remaining: an operator
+runs the live end-to-end demo on the VPS (needs MariaDB/Redis/Chromium). Then begin **Phase 2** (§13):
+- Block-based report **editor** (dnd-kit + Tiptap) + reusable templates UI; binding picker from `MetricCatalog`.
+- **`AiReportBuilder`** (validated blocks JSON via `gpt.imagina.cloud`) + per-period narrative. (Resolve the
+  `gpt.imagina.cloud` Open Question first.)
+- Connectors: **Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce** (reuse the connector contract).
+- Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
+- White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
+- Client portal interactivity (period selector, drill-down).
+- Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### Task 12 — Admin SPA ✅ DONE (2026-06-18)
+- [x] `GET /api/v1/connectors` (key/label/config_schema) to drive the data-source form; feature test.
+- [x] Admin SPA (`resources/js/admin`): Zustand nav; TanStack Query hooks; generic TanStack-Table `DataTable`; RHF+Zod forms; UI primitives.
+- [x] Screens: Clients, Sites (→ pick site), Data Sources (configSchema-driven form + Test connection), Reports (definition create + generate + public preview link).
+- [x] 85 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean.
 
 ### Task 11 — API v1 CRUD + manual generation ✅ DONE (2026-06-18)
 - [x] Controllers (Api/V1): Client/Site/DataSource/ReportDefinition/Report; `FormRequest`s; resources (flat, credentials hidden).
@@ -110,8 +119,8 @@ May need to expose connector `configSchema()`/catalog via an API endpoint for th
 8. ~~`ReportGenerator` (resolve blocks against snapshots) + `HealthScoreCalculator`~~ ✅ done (Task 9).
 9. ~~Report React page + portal route + Browsershot PDF~~ ✅ done (Task 10).
 10. ~~API v1 endpoints (CRUD + manual generation)~~ ✅ done (Task 11).
-11. **(current)** Admin SPA: clients/sites, data-source config (driven by `configSchema()`), manual generation + preview.
-12. Phase 1 Definition of Done: tests green, PHPStan max clean, end-to-end demo of a manual report.
+11. ~~Admin SPA: clients/sites, data-source config, manual generation + preview~~ ✅ done (Task 12).
+12. **Phase 1 DoD:** tests green ✅, PHPStan max clean ✅, end-to-end demo of a manual report — _live demo pending operator env (MariaDB/Redis/Chromium)._
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -156,6 +165,9 @@ May need to expose connector `configSchema()`/catalog via an API endpoint for th
 - [x] (2026-06-18) **Phase 1 · Task 11 — API v1 CRUD + manual generation.** Client/Site/DataSource/ReportDefinition/Report
       controllers + FormRequests + flat resources; `GenerateReportJob`; **BindTenant before SubstituteBindings** (binding isolation).
       83 tests green; PHPStan max + Pint clean. — 623841b
+- [x] (2026-06-18) **Phase 1 · Task 12 — Admin SPA.** `GET /api/v1/connectors` endpoint; admin SPA (Zustand nav, TanStack
+      Query/Table, RHF+Zod) — Clients/Sites/DataSources(configSchema-driven + test)/Reports(generate + preview).
+      85 tests green; PHPStan max + Pint clean; TS clean. — _commit pending_
 
 ---
 
@@ -278,6 +290,9 @@ May need to expose connector `configSchema()`/catalog via an API endpoint for th
   (`GenerateReportJob`) and returns 202; unwrapped collections (assert root-level `0.id`, `assertJsonCount`).
 - (2026-06-18) **`DataSource` has an in-memory default `status = pending`** (`$attributes`) so a freshly-created (not-yet-reloaded)
   model has a status enum for resources (DB default only applies on reload).
+- (2026-06-18) **Admin SPA uses a lightweight Zustand view-switcher for navigation** (no router added — react-router is not in the
+  locked stack). Data-source config form is generated from `GET /api/v1/connectors` `config_schema` (secret fields → credentials,
+  others → config). Frontend remains gated by typecheck+lint+build (no JS unit runner yet — candidate for Phase 2: add Vitest).
 
 ---
 

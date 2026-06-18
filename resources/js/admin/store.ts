@@ -1,12 +1,18 @@
 import { create } from 'zustand';
 
-/** UI-only state for the admin SPA (CLAUDE.md §11.1 — Zustand for UI state). */
+export type AdminView = 'clients' | 'sites' | 'data-sources' | 'reports';
+
+/** UI/navigation state for the admin SPA (CLAUDE.md §11.1 — Zustand for UI state). */
 interface AdminUiState {
-    sidebarOpen: boolean;
-    toggleSidebar: () => void;
+    view: AdminView;
+    selectedSiteId: number | null;
+    setView: (view: AdminView) => void;
+    selectSite: (siteId: number) => void;
 }
 
 export const useAdminUi = create<AdminUiState>((set) => ({
-    sidebarOpen: true,
-    toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+    view: 'clients',
+    selectedSiteId: null,
+    setView: (view) => set({ view }),
+    selectSite: (siteId) => set({ selectedSiteId: siteId, view: 'data-sources' }),
 }));
