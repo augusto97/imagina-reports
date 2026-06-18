@@ -12,6 +12,7 @@ export default defineConfig({
             input: [
                 'resources/js/admin/main.tsx',
                 'resources/js/portal/main.tsx',
+                'resources/js/report/main.tsx',
             ],
             refresh: true,
         }),

@@ -7,20 +7,19 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–9 are DONE.** Block model (8) + the **report engine** (9). New tables/models:
-`ir_sites` (`Site`), `ir_report_templates` (`ReportTemplate`), `ir_report_definitions` (`ReportDefinition`),
-`ir_reports` (`Report`, `ReportStatus` enum), all agency-scoped with factories. `App\Reports\ReportGenerator`
-(GENERATE stage, §3.1): for a definition + period it loads the site's data sources' snapshots into a
-source→metric-bag map, resolves each block's binding (`bags[source]["{source}.{metric}"]`) into
-`resolved_blocks = {blocks, data}`, **gracefully hides** data-less blocks (§10.4), wires
-`MaintenanceDeltaCalculator` to inject a computed `mainwp.updates_applied`, and persists a draft `Report`
-with a `public_token`. `App\Reports\HealthScoreCalculator` (§10.5): 0–100 from uptime/updates/security/
-performance signals, **re-weighting over only the present signals** (100 when none). **70 tests green**
-(report generator resolve+hide, health re-weighting, delta-wired KPI), **PHPStan max clean, Pint clean**.
-**Next action: Phase 1 · Task 10 — Report React page + portal route + Browsershot PDF** (§10.7/§11.4): a
-report page that renders `resolved_blocks` via the shared `BlockList`, sets `window.reportReady = true`,
-served at the public portal route; the PDF is Chromium (Browsershot) printing that same page. Note: no
-MariaDB/Redis/Chromium in this env — keep PDF generation behind an interface that tests can fake.
+**Phase 1 · Tasks 1–10 are DONE.** Report engine (9) + the **report page, public endpoint & PDF** (10).
+Public data endpoint `GET /api/v1/public/reports/{token}` (`PublicReportController` + `ReportResource`,
+no auth, bypasses AgencyScope — the token is the capability). API resources return a **flat top-level
+object** (`JsonResource::withoutWrapping()`). A React `report` SPA entry (`resources/js/report`) fetches
+that endpoint and renders `resolved_blocks` with the shared `BlockList`, setting `window.reportReady`.
+Web route `GET /reports/{token}` (`report.public`) serves the page — the same URL Browsershot prints. PDF
+pipeline: `PdfRenderer` interface + `BrowsershotPdfRenderer` (waits `window.reportReady`) + `ReportPdfService`
+(stores to `ir_reports.pdf_path`); faked in tests via `FakePdfRenderer`. **73 PHP tests green**
+(public endpoint + PDF service), **PHPStan max clean, Pint clean, TS typecheck/lint/build clean** (admin +
+portal + report bundles). **Next action: Phase 1 · Task 11 — API v1 CRUD + manual generation** (the data
+interface the admin SPA consumes; API-first §2): clients, sites, data-sources (+ test connection),
+report-definitions, reports, `POST /reports/generate` (enqueue), approve/send stubs. Note: no
+MariaDB/Redis/Chromium in this env — tests use sqlite/array/sync; PDF/connectors are faked.
 
 ---
 
@@ -28,13 +27,19 @@ MariaDB/Redis/Chromium in this env — keep PDF generation behind an interface t
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 10 — Report React page + portal route + Browsershot PDF** (not started).
-A React report page (`resources/js/...` or a `report` entry) that fetches a report's `resolved_blocks`
-(public token endpoint) and renders them with the shared `BlockList`, setting `window.reportReady = true`
-when done (§11.4). Wire the public portal route to it. Implement PDF generation via Spatie Browsershot
-loading an internal print route (one-time token), waiting on `window.reportReady`, storing to
-`ir_reports.pdf_path` (§10.7) — put it behind a `PdfRenderer` interface so tests fake it (no Chromium in
-this env). The public report data endpoint (`GET /api/v1/public/reports/{public_token}`) likely lands here too.
+**Phase 1 · Task 11 — API v1 CRUD + manual generation** (not started).
+The versioned REST interface the admin SPA consumes (API-first, §2/§8), all under `auth:sanctum`+`tenant`:
+clients, sites, `sites/{site}/data-sources` (configure + `POST /data-sources/{ds}/test` via the connector's
+`testConnection`), report-definitions, reports (list/show), and `POST /reports/generate` (enqueue a
+`GenerateReportJob` wrapping `ReportGenerator`), plus approve/send. Use `FormRequest` validation +
+`JsonResource` output (flat). Feature tests per endpoint incl. **tenant isolation** (§14). The admin SPA
+(roadmap item 10) follows — it needs this API first (locked API-first decision §2).
+
+### Task 10 — Report page + public endpoint + PDF ✅ DONE (2026-06-18)
+- [x] `GET /api/v1/public/reports/{token}` (`PublicReportController` + `ReportResource`, no auth, scope-bypassing); `JsonResource::withoutWrapping()`.
+- [x] React `report` entry renders `resolved_blocks` via shared `BlockList`, sets `window.reportReady`; web route `report.public` serves it.
+- [x] `PdfRenderer` interface + `BrowsershotPdfRenderer` + `ReportPdfService` (→ `pdf_path`); `FakePdfRenderer` for tests.
+- [x] Tests: public endpoint (found/404/no-auth) + PDF service (renders public URL, stores). 73 tests green; PHPStan max + Pint clean; TS clean.
 
 ### Task 9 — ReportGenerator + HealthScoreCalculator ✅ DONE (2026-06-18)
 - [x] Tables/models: `ir_sites`/`Site`, `ir_report_templates`/`ReportTemplate`, `ir_report_definitions`/`ReportDefinition`, `ir_reports`/`Report` (+ `ReportStatus`); factories.
@@ -97,7 +102,9 @@ this env). The public report data endpoint (`GET /api/v1/public/reports/{public_
 6. ~~Connector: **Search Console**~~ ✅ done (Task 7).
 7. ~~Block model + `BlockRenderer` React library + default narrative template (§11.5)~~ ✅ done (Task 8).
 8. ~~`ReportGenerator` (resolve blocks against snapshots) + `HealthScoreCalculator`~~ ✅ done (Task 9).
-9. **(current)** Report React page + portal route + Browsershot PDF (single source of truth).
+9. ~~Report React page + portal route + Browsershot PDF~~ ✅ done (Task 10).
+10. **(current)** API v1 endpoints (CRUD + manual generation). _(Brought before the admin SPA — the SPA consumes it; API-first §2.)_
+11. Admin SPA: clients/sites, data-source config (driven by `configSchema()`), manual generation + preview.
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -136,6 +143,9 @@ this env). The public report data endpoint (`GET /api/v1/public/reports/{public_
 - [x] (2026-06-18) **Phase 1 · Task 9 — ReportGenerator + HealthScoreCalculator.** `ir_sites`/report tables + models;
       `ReportGenerator` (resolve, graceful hide, delta-wired `updates_applied`) + `HealthScoreCalculator` (re-weighting).
       70 tests green; PHPStan max + Pint clean. — 06f490b
+- [x] (2026-06-18) **Phase 1 · Task 10 — Report page + public endpoint + PDF.** `PublicReportController`/`ReportResource`
+      (`GET /api/v1/public/reports/{token}`), React `report` SPA (BlockList + `window.reportReady`), `report.public` web route,
+      `PdfRenderer`/`BrowsershotPdfRenderer`/`ReportPdfService`. 73 tests green; PHPStan max + Pint clean; TS clean. — _commit pending_
 
 ---
 
@@ -243,6 +253,14 @@ this env). The public report data endpoint (`GET /api/v1/public/reports/{public_
   catalog (the connector can't fetch it). Needs ≥2 mainwp snapshots in the period, else the KPI hides.
 - (2026-06-18) **Health score weights** (re-weighted over present signals): uptime .30, updates .25, security .25,
   performance .20. Heuristics: each pending update −5; expiring SSL → security 60; cloudflare cache ratio ×100. No signals → 100.
+- (2026-06-18) **API resources are unwrapped** (`JsonResource::withoutWrapping()` in `AppServiceProvider::boot`) — responses are a
+  flat top-level object, which is what the SPAs (axios `response.data`) consume directly. Assert top-level paths in tests.
+- (2026-06-18) **PDF is behind a `PdfRenderer` interface** (`BrowsershotPdfRenderer` in prod, `FakePdfRenderer` in tests; bound in
+  `AppServiceProvider`). `ReportPdfService` renders the report's own `report.public` URL (single source of truth) and stores to
+  `pdf_path`. The public report endpoint bypasses the AgencyScope (`withoutGlobalScopes`) — the signed `public_token` is the capability.
+- (2026-06-18) **Frontend now has 3 entries** (admin, portal, **report**) in `vite.config.ts`. The report page sets
+  `window.reportReady = true` on data load (success OR error) so Browsershot never hangs on an empty/failed report.
+- (2026-06-18) **API built before the admin SPA** (roadmap lists SPA first): the SPA consumes the API, and API-first is locked (§2).
 
 ---
 
