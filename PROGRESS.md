@@ -38,7 +38,7 @@ list a site's available report periods for the selector.
 - [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — 77e9b53
 - [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
-- [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — _commit pending_
+- [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — a952423
 - [ ] **(current)** Client portal interactivity (period selector, drill-down).
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
 
