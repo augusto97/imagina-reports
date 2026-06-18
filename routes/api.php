@@ -23,6 +23,9 @@ Route::get('/health', static fn (): JsonResponse => response()->json([
     'time' => now()->toIso8601String(),
 ]))->name('api.health');
 
-Route::get('/user', static fn (Request $request) => $request->user())
-    ->middleware('auth:sanctum')
-    ->name('api.user');
+// Authenticated, tenant-bound routes. `tenant` runs after `auth:sanctum` so the
+// AgencyScope is active for everything inside (CLAUDE.md §5). Resource endpoints
+// are added phase by phase per §8.
+Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
+    Route::get('/user', static fn (Request $request) => $request->user())->name('api.user');
+});

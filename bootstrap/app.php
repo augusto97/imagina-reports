@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\BindTenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,7 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Resolve the tenant from the authenticated user; apply after auth:sanctum.
+        $middleware->alias([
+            'tenant' => BindTenant::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

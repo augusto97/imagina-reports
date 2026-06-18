@@ -7,16 +7,20 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Task 1 (Project skeleton & tooling baseline) is DONE.** The repo is now a working Laravel 11
-app (PHP pinned `^8.3`, strict types everywhere via Pint) with Sanctum + API v1 (`/api/v1`, `apiPrefix`
-in `bootstrap/app.php`), Horizon, Browsershot, spatie/laravel-permission and google/apiclient installed.
-PHPStan runs at **level max** (`composer run stan`, clean), Pint is clean, and the test suite is green
-(3 tests; sqlite in-memory via `phpunit.xml`). Both React 18 + TS SPAs (`resources/js/admin`,
-`resources/js/portal`) build with Vite 5 + the locked stack (TanStack Query/Table, Zustand, RHF+Zod,
-Lucide, Framer Motion, Inter loaded locally, Tailwind prefix `ir-`). A `.github/workflows/ci.yml`
-lints/tests the backend and builds both SPAs. **Next action: Phase 1 · Task 2 — multi-tenant scaffolding**
-(`ir_agencies`, agency global scope, `ir_users` + Sanctum auth, base migrations). Note: this environment
-has no MariaDB/Redis running — `.env` targets them for production, but tests use sqlite/array/sync.
+**Phase 1 · Tasks 1 & 2 are DONE.** On top of the Laravel 11 + dual-SPA baseline (Task 1), the
+multi-tenancy layer is in place (Task 2): `ir_agencies` (tenant root, `Agency` model), `ir_users`
+(`User` now on table `ir_users` with `agency_id` FK + a `role` enum `App\Enums\UserRole`
+owner/admin/collaborator, `HasApiTokens` for dual auth), and `ir_clients` (`Client` — the first
+agency-scoped domain model). Tenant isolation is enforced by a **global scope**: `TenantContext`
+(singleton) holds the active agency; `AgencyScope` filters every query on models using the
+`BelongsToAgency` trait (which also auto-stamps `agency_id` on create); the `BindTenant` middleware
+(alias `tenant`, applied after `auth:sanctum`) binds the tenant from the authed user. `User` is
+deliberately NOT auto-scoped so auth can resolve users before a tenant exists. **9 tests green**
+(incl. the §14 isolation test: agency A can't read agency B), **PHPStan max clean, Pint clean**.
+**Next action: Phase 1 · Task 3 — snapshot pipeline & connector contracts** (`DataSourceConnector`
+interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet`; `ir_data_sources` + `ir_metric_snapshots`;
+`SyncSourceJob` + `SyncService`, idempotent + aggregate-at-source). Note: no MariaDB/Redis in this
+env — tests use sqlite in-memory / array / sync.
 
 ---
 
@@ -24,12 +28,18 @@ has no MariaDB/Redis running — `.env` targets them for production, but tests u
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 2 — Multi-tenant scaffolding** (not started).
-`ir_agencies` table + `Agency` model, an `agency_id` global scope applied to all tenant-scoped models,
-`ir_users` (extend the default `User` with `agency_id` + `role` owner/admin/collaborator) wired to Sanctum,
-and the base migrations. Add the tenant-isolation feature test (agency A can never read agency B's data,
-`CLAUDE.md` §14). Wire spatie/laravel-permission (publish/run its migration) if roles use it, otherwise
-keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open questions).
+**Phase 1 · Task 3 — Connector contracts** (not started).
+`DataSourceConnector` interface + `ConnectorRegistry` (type → connector) + `MetricCatalog` +
+`MetricSet` (normalized metric bag), plus the value objects they need (`ConnectionResult`, `Period`,
+`MetricSet`). No concrete connectors yet (MainWP/GA4/GSC are later tasks) — this task defines the
+contracts and the registry only, with unit tests. See `CLAUDE.md` §7 and §10.1.
+
+### Task 2 — Multi-tenant scaffolding ✅ DONE (2026-06-18)
+- [x] `ir_agencies` (+ `Agency` model, tenant root) migration owning the first migration slot for FK order.
+- [x] `ir_users`: `User` moved to table `ir_users`, `agency_id` FK + `role` enum (`App\Enums\UserRole`), `HasApiTokens`.
+- [x] `ir_clients` (+ `Client` model) as the first agency-scoped domain entity.
+- [x] Tenancy mechanism: `TenantContext` singleton, `AgencyScope` global scope, `BelongsToAgency` trait (auto-stamps `agency_id`), `BindTenant` middleware (alias `tenant`, after `auth:sanctum`).
+- [x] §14 tenant-isolation feature test (A can't read B) + middleware test + auto-stamp test. 9 tests green; PHPStan max + Pint clean.
 
 ### Task 1 — Project skeleton & tooling baseline ✅ DONE (2026-06-18)
 - [x] Laravel 11 (11.54) scaffolded; PHP pinned `^8.3`; `declare(strict_types=1)` enforced by Pint.
@@ -41,8 +51,8 @@ keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open ques
 - [x] `/api/v1/health` liveness route (+ feature test) for the updater health check.
 
 ## Next up (Phase 1, in order)
-1. **(current)** Multi-tenant scaffolding: `ir_agencies`, agency global scope, `ir_users` + Sanctum auth, base migrations.
-2. `DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet` (metric bag).
+1. ~~Multi-tenant scaffolding~~ ✅ done (Task 2).
+2. **(current)** `DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet` (metric bag).
 3. Snapshot pipeline: `ir_data_sources`, `ir_metric_snapshots`, `SyncSourceJob`, `SyncService` (idempotent, aggregate-at-source).
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
@@ -58,6 +68,9 @@ keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open ques
 - [x] (2026-06-18) **Phase 1 · Task 1 — Project skeleton & tooling baseline.** Laravel 11 + Sanctum/API v1,
       Horizon, Browsershot, laravel-permission, google/apiclient; PHPStan max + Pint clean; 3 tests green;
       two Vite 5/React 18 SPAs (admin+portal) with the locked stack; CI workflow building both SPAs. — 99135e8
+- [x] (2026-06-18) **Phase 1 · Task 2 — Multi-tenant scaffolding.** `ir_agencies`/`ir_users`/`ir_clients`
+      migrations + `Agency`/`User`/`Client` models; `UserRole` enum; `TenantContext` + `AgencyScope` +
+      `BelongsToAgency` trait + `BindTenant` middleware; §14 isolation test. 9 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -103,6 +116,18 @@ keep the simple `role` enum per `CLAUDE.md` §5 — confirm which (see Open ques
   targets MariaDB + Redis. Keeps CI/tests hermetic without external services.
 - (2026-06-18) **Roles: simple `role` enum on `ir_users`** (owner/admin/collaborator) per §5 — owner-confirmed.
   spatie/laravel-permission stays installed but reserved for finer-grained per-agency permissions later, not the 3 base roles.
+- (2026-06-18) **The default `users` table is renamed to `ir_users`** (all domain tables are `ir_`-prefixed, §5). The
+  default users migration was renamed to `0001_01_01_000100_create_ir_users_table.php` and a new
+  `0001_01_01_000000_create_ir_agencies_table.php` owns the first slot so the `agency_id` FK resolves in order.
+  Framework tables `password_reset_tokens`/`sessions` keep their names (not domain tables).
+- (2026-06-18) **Tenancy = TenantContext singleton + AgencyScope global scope + `BelongsToAgency` trait + `BindTenant`
+  middleware.** The scope is a no-op until a tenant is bound, so framework boot / auth / CLI / seeders run unscoped.
+  The trait auto-stamps `agency_id` on create. `BindTenant` (alias `tenant`) binds the tenant from the authed user and
+  MUST run after `auth:sanctum`. **`User` is intentionally NOT auto-scoped** (the auth guard must resolve users before a
+  tenant is bound); user listings are scoped explicitly in controllers later.
+- (2026-06-18) **`Client` (`ir_clients`) is the first agency-scoped domain model**, added now as the canonical example
+  to validate tenant isolation (§14). Sites/data-sources/reports hang off it in later tasks.
+- (2026-06-18) **`User` gained `HasApiTokens`** (Sanctum) for the dual-auth model (§2: cookie for SPAs, API tokens for third parties).
 
 ---
 

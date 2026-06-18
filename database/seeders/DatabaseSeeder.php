@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\UserRole;
+use App\Models\Agency;
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -15,11 +16,16 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $agency = Agency::factory()->create([
+            'name' => 'Imagina WP',
+            'slug' => 'imagina-wp',
+        ]);
 
         User::factory()->create([
+            'agency_id' => $agency->id,
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'role' => UserRole::Owner,
         ]);
     }
 }
