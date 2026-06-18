@@ -126,7 +126,7 @@ Tests with seeded snapshots (no live APIs). Keep AI narrative (`narrative` block
       55 tests green; PHPStan max + Pint clean. — f9adb53
 - [x] (2026-06-18) **Phase 1 · Task 8 — Block model + BlockRenderer + default template.** PHP `BlockType`/`Block`/
       `BlocksValidator` + `DefaultTemplate` (§11.5); React `BlockRenderer`/`BlockList` (Recharts), single source of truth.
-      63 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean. — _commit pending_
+      63 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean. — 417779f
 
 ---
 
