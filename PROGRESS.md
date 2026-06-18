@@ -99,7 +99,7 @@ SA email is added as a reader on the GA4 property (Open questions, operator acti
       `SyncService` (idempotent upsert) + `SyncSourceJob` (queue-safe, tenant-bound). 31 tests green; PHPStan max + Pint clean. — 4a5bd82
 - [x] (2026-06-18) **Phase 1 · Task 5 — MainWP connector.** `MainWpConnector` (v2 Bearer, aggregated defensive
       `fetch()`) registered in the provider; `MaintenanceDeltaCalculator` + `MaintenanceDelta` for work-done deltas.
-      41 tests green; PHPStan max + Pint clean. — _commit pending_
+      41 tests green; PHPStan max + Pint clean. — 1f66951
 
 ---
 
