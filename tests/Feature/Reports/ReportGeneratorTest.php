@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Reports;
+
+use App\Connectors\Period;
+use App\Enums\DataSourceType;
+use App\Enums\ReportStatus;
+use App\Models\Agency;
+use App\Models\Client;
+use App\Models\DataSource;
+use App\Models\MetricSnapshot;
+use App\Models\Report;
+use App\Models\ReportDefinition;
+use App\Models\Site;
+use App\Reports\ReportGenerator;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ReportGeneratorTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Agency $agency;
+
+    private Site $site;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->agency = Agency::factory()->create();
+        app(TenantContext::class)->set($this->agency->id);
+
+        $client = Client::factory()->create(['agency_id' => $this->agency->id]);
+        $this->site = Site::factory()->create(['agency_id' => $this->agency->id, 'client_id' => $client->id]);
+    }
+
+    private function dataSource(DataSourceType $type): DataSource
+    {
+        return DataSource::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'type' => $type,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $metrics
+     */
+    private function snapshot(DataSource $source, string $start, string $end, array $metrics): void
+    {
+        MetricSnapshot::factory()->create([
+            'agency_id' => $this->agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => $start,
+            'period_end' => $end,
+            'payload' => ['metrics' => $metrics],
+            'captured_at' => $start,
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function visibleIds(Report $report): array
+    {
+        $blocks = $report->resolved_blocks['blocks'] ?? [];
+
+        return array_map(static fn (array $block): string => (string) $block['id'], is_array($blocks) ? $blocks : []);
+    }
+
+    public function test_it_resolves_bound_blocks_and_hides_data_less_ones(): void
+    {
+        $ga4 = $this->dataSource(DataSourceType::Ga4);
+        $mainwp = $this->dataSource(DataSourceType::MainWp);
+        $period = Period::make('2026-06-01', '2026-06-30');
+
+        $this->snapshot($ga4, '2026-06-15 00:00:00', '2026-06-15 23:59:59', [
+            'ga4.sessions' => 1500,
+            'ga4.sessions_by_date' => [['date' => '20260601', 'value' => 40]],
+            'ga4.top_pages' => [['label' => '/', 'value' => 10]],
+        ]);
+        // Two MainWP snapshots → maintenance delta of 7 applied updates.
+        $this->snapshot($mainwp, '2026-06-01 00:00:00', '2026-06-01 23:59:59', ['mainwp.updates_available' => 10, 'mainwp.ssl_expiring' => 0]);
+        $this->snapshot($mainwp, '2026-06-28 00:00:00', '2026-06-28 23:59:59', ['mainwp.updates_available' => 3, 'mainwp.ssl_expiring' => 0]);
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, $period);
+
+        $data = $report->resolved_blocks['data'] ?? [];
+        $this->assertIsArray($data);
+
+        // Bound GA4 + computed MainWP delta resolved.
+        $this->assertSame(1500, $data['kpi_visits']);
+        $this->assertSame(7, $data['kpi_updates']);
+
+        // Health score: updates(3→85) + security(100) re-weighted ≈ 93; also on the block.
+        $this->assertSame(93, $report->health_score);
+        $this->assertSame(93, $data['health']);
+
+        $visible = $this->visibleIds($report);
+        $this->assertContains('header', $visible);
+        $this->assertContains('kpi_visits', $visible);
+        $this->assertContains('traffic_chart', $visible);
+        $this->assertContains('top_pages', $visible);
+
+        // No Woo / Better Stack / CrowdSec / GSC data → those blocks are hidden (§10.4).
+        $this->assertNotContains('kpi_sales', $visible);
+        $this->assertNotContains('kpi_uptime', $visible);
+        $this->assertNotContains('kpi_attacks', $visible);
+        $this->assertNotContains('top_queries', $visible);
+
+        $this->assertSame(ReportStatus::Draft, $report->status);
+        $this->assertNotEmpty($report->public_token);
+    }
+
+    public function test_with_no_snapshots_data_blocks_hide_but_static_blocks_remain(): void
+    {
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $visible = $this->visibleIds($report);
+        $this->assertContains('header', $visible);
+        $this->assertContains('worklog', $visible);
+        $this->assertContains('footer', $visible);
+        $this->assertNotContains('kpi_visits', $visible);
+        $this->assertSame(100, $report->health_score);
+    }
+}

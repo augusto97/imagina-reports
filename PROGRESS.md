@@ -7,20 +7,20 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1–8 are DONE.** Connectors (5–7) + the **block model & renderer** (8). PHP side
-(`App\Reports\Blocks`): `BlockType` enum (§10.3), the `Block` value object, and `BlocksValidator` (validates
-the `blocks` JSON: list shape, unique string ids, known types, required metric bindings for data blocks
-kpi/chart/table/sales_summary) throwing `BlockValidationException` with collected errors — the AI builder's
-output will validate through here too (§10.6). `App\Reports\Templates\DefaultTemplate` ships the §11.5
-narrative layout as valid blocks JSON. React side (`resources/js/shared/blocks`): `types.ts` + the
-`BlockRenderer`/`BlockList` library (a renderer per block type, charts via Recharts) — the **single source of
-truth** for the portal and the Chromium PDF (§11.4). **63 PHP tests green** (validator + default template),
-**PHPStan max clean, Pint clean, TS typecheck + lint + build clean**.
-**Next action: Phase 1 · Task 9 — `ReportGenerator` + `HealthScoreCalculator`**: resolve a definition's
-block bindings against the period's snapshots → `ir_reports.resolved_blocks` (create `ir_reports` +
-`ir_report_definitions`/`ir_report_templates` as needed), gracefully hiding data-less blocks (§10.4), and
-compute the 0–100 health score with missing-signal re-weighting (§10.5). Note: no MariaDB/Redis in this env —
-tests use sqlite/array/sync.
+**Phase 1 · Tasks 1–9 are DONE.** Block model (8) + the **report engine** (9). New tables/models:
+`ir_sites` (`Site`), `ir_report_templates` (`ReportTemplate`), `ir_report_definitions` (`ReportDefinition`),
+`ir_reports` (`Report`, `ReportStatus` enum), all agency-scoped with factories. `App\Reports\ReportGenerator`
+(GENERATE stage, §3.1): for a definition + period it loads the site's data sources' snapshots into a
+source→metric-bag map, resolves each block's binding (`bags[source]["{source}.{metric}"]`) into
+`resolved_blocks = {blocks, data}`, **gracefully hides** data-less blocks (§10.4), wires
+`MaintenanceDeltaCalculator` to inject a computed `mainwp.updates_applied`, and persists a draft `Report`
+with a `public_token`. `App\Reports\HealthScoreCalculator` (§10.5): 0–100 from uptime/updates/security/
+performance signals, **re-weighting over only the present signals** (100 when none). **70 tests green**
+(report generator resolve+hide, health re-weighting, delta-wired KPI), **PHPStan max clean, Pint clean**.
+**Next action: Phase 1 · Task 10 — Report React page + portal route + Browsershot PDF** (§10.7/§11.4): a
+report page that renders `resolved_blocks` via the shared `BlockList`, sets `window.reportReady = true`,
+served at the public portal route; the PDF is Chromium (Browsershot) printing that same page. Note: no
+MariaDB/Redis/Chromium in this env — keep PDF generation behind an interface that tests can fake.
 
 ---
 
@@ -28,14 +28,19 @@ tests use sqlite/array/sync.
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 9 — `ReportGenerator` + `HealthScoreCalculator`** (not started).
-Create the report tables/models as needed (`ir_report_definitions`, `ir_report_templates`, `ir_reports`).
-`ReportGenerator`: for a definition + period, resolve each block's binding against the period's snapshots
-(read the metric bag, apply `compare: prev_period` via the prior snapshot), produce a `resolved_blocks`
-map keyed by block id (the data the `BlockList` consumes), **gracefully hiding** blocks whose bound metric
-has no data (§10.4). Wire the `MaintenanceDeltaCalculator` for the "updates applied" KPI. `HealthScoreCalculator`:
-0–100 from uptime/security/updates-current/performance, **re-weighting when a signal is missing** (§10.5).
-Tests with seeded snapshots (no live APIs). Keep AI narrative (`narrative` blocks) for Phase 2.
+**Phase 1 · Task 10 — Report React page + portal route + Browsershot PDF** (not started).
+A React report page (`resources/js/...` or a `report` entry) that fetches a report's `resolved_blocks`
+(public token endpoint) and renders them with the shared `BlockList`, setting `window.reportReady = true`
+when done (§11.4). Wire the public portal route to it. Implement PDF generation via Spatie Browsershot
+loading an internal print route (one-time token), waiting on `window.reportReady`, storing to
+`ir_reports.pdf_path` (§10.7) — put it behind a `PdfRenderer` interface so tests fake it (no Chromium in
+this env). The public report data endpoint (`GET /api/v1/public/reports/{public_token}`) likely lands here too.
+
+### Task 9 — ReportGenerator + HealthScoreCalculator ✅ DONE (2026-06-18)
+- [x] Tables/models: `ir_sites`/`Site`, `ir_report_templates`/`ReportTemplate`, `ir_report_definitions`/`ReportDefinition`, `ir_reports`/`Report` (+ `ReportStatus`); factories.
+- [x] `ReportGenerator`: snapshot→bag resolution, graceful hide (§10.4), maintenance-delta `updates_applied`, persists draft `Report` with `public_token`.
+- [x] `HealthScoreCalculator`: weighted uptime/updates/security/performance with missing-signal re-weighting (§10.5).
+- [x] Tests: generator resolve+hide + delta KPI + health on block; health calc re-weighting. 70 tests green; PHPStan max + Pint clean.
 
 ### Task 8 — Block model + BlockRenderer + default template ✅ DONE (2026-06-18)
 - [x] PHP: `BlockType` enum, `Block` VO, `BlocksValidator` (+ `BlockValidationException`); `DefaultTemplate` (§11.5 layout as valid blocks JSON).
@@ -91,7 +96,8 @@ Tests with seeded snapshots (no live APIs). Keep AI narrative (`narrative` block
 5. ~~Connector: **GA4** (Service Account; catalog-driven, aggregated)~~ ✅ done (Task 6).
 6. ~~Connector: **Search Console**~~ ✅ done (Task 7).
 7. ~~Block model + `BlockRenderer` React library + default narrative template (§11.5)~~ ✅ done (Task 8).
-8. **(current)** `ReportGenerator` (resolve blocks against snapshots) + `HealthScoreCalculator`.
+8. ~~`ReportGenerator` (resolve blocks against snapshots) + `HealthScoreCalculator`~~ ✅ done (Task 9).
+9. **(current)** Report React page + portal route + Browsershot PDF (single source of truth).
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -127,6 +133,9 @@ Tests with seeded snapshots (no live APIs). Keep AI narrative (`narrative` block
 - [x] (2026-06-18) **Phase 1 · Task 8 — Block model + BlockRenderer + default template.** PHP `BlockType`/`Block`/
       `BlocksValidator` + `DefaultTemplate` (§11.5); React `BlockRenderer`/`BlockList` (Recharts), single source of truth.
       63 tests green; PHPStan max + Pint clean; TS typecheck/lint/build clean. — 417779f
+- [x] (2026-06-18) **Phase 1 · Task 9 — ReportGenerator + HealthScoreCalculator.** `ir_sites`/report tables + models;
+      `ReportGenerator` (resolve, graceful hide, delta-wired `updates_applied`) + `HealthScoreCalculator` (re-weighting).
+      70 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -223,6 +232,17 @@ Tests with seeded snapshots (no live APIs). Keep AI narrative (`narrative` block
   single source of truth for the portal and the Chromium PDF (§11.4). It takes a `Block` + resolved `data` (by block id);
   binding→data resolution is the ReportGenerator's job (Task 9). Frontend gate stays typecheck+lint+build (no JS unit runner yet).
 - (2026-06-18) **`recharts` added** to the frontend deps for charts (locked stack §11.4).
+- (2026-06-18) **`ir_sites` was created in Task 9** (overdue): `Site` (agency-scoped, belongsTo Client, hasMany DataSource).
+  `ir_data_sources.site_id` stays a plain nullable column with **no DB-level FK** (sqlite can't ALTER-ADD a FK; the column
+  predates the table). Report definitions target a site; the generator finds a site's data sources by `site_id`.
+- (2026-06-18) **Block binding resolution convention:** a binding `{source, metric}` resolves to the metric bag key
+  `"{source}.{metric}"` (e.g. source `ga4` + metric `sessions` → `ga4.sessions`). `resolved_blocks` is stored as
+  `{blocks: [...visible...], data: {blockId: value}}` — exactly the `BlockList` props.
+- (2026-06-18) **`mainwp.updates_applied` is a generator-computed metric** (from `MaintenanceDeltaCalculator`), injected into
+  the mainwp bag at GENERATE time; the default template's "updates applied" KPI binds to it. It is NOT in the connector
+  catalog (the connector can't fetch it). Needs ≥2 mainwp snapshots in the period, else the KPI hides.
+- (2026-06-18) **Health score weights** (re-weighted over present signals): uptime .30, updates .25, security .25,
+  performance .20. Heuristics: each pending update −5; expiring SSL → security 60; cloudflare cache ratio ×100. No signals → 100.
 
 ---
 

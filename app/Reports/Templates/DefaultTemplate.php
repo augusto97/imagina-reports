@@ -26,7 +26,7 @@ final class DefaultTemplate
 
             self::kpi('kpi_uptime', 'betteruptime', 'uptime_percent', 'Disponibilidad', 'percent'),
             self::kpi('kpi_attacks', 'crowdsec', 'attacks_blocked', 'Ataques bloqueados', 'count'),
-            self::kpi('kpi_updates', 'mainwp', 'updates_available', 'Actualizaciones', 'count'),
+            self::kpi('kpi_updates', 'mainwp', 'updates_applied', 'Actualizaciones aplicadas', 'count'),
             self::kpi('kpi_visits', 'ga4', 'sessions', 'Visitas', 'count'),
             self::kpi('kpi_sales', 'woocommerce', 'revenue', 'Ventas', 'currency'),
 
