@@ -7,20 +7,20 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 · Tasks 1 & 2 are DONE.** On top of the Laravel 11 + dual-SPA baseline (Task 1), the
-multi-tenancy layer is in place (Task 2): `ir_agencies` (tenant root, `Agency` model), `ir_users`
-(`User` now on table `ir_users` with `agency_id` FK + a `role` enum `App\Enums\UserRole`
-owner/admin/collaborator, `HasApiTokens` for dual auth), and `ir_clients` (`Client` — the first
-agency-scoped domain model). Tenant isolation is enforced by a **global scope**: `TenantContext`
-(singleton) holds the active agency; `AgencyScope` filters every query on models using the
-`BelongsToAgency` trait (which also auto-stamps `agency_id` on create); the `BindTenant` middleware
-(alias `tenant`, applied after `auth:sanctum`) binds the tenant from the authed user. `User` is
-deliberately NOT auto-scoped so auth can resolve users before a tenant exists. **9 tests green**
-(incl. the §14 isolation test: agency A can't read agency B), **PHPStan max clean, Pint clean**.
-**Next action: Phase 1 · Task 3 — snapshot pipeline & connector contracts** (`DataSourceConnector`
-interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet`; `ir_data_sources` + `ir_metric_snapshots`;
-`SyncSourceJob` + `SyncService`, idempotent + aggregate-at-source). Note: no MariaDB/Redis in this
-env — tests use sqlite in-memory / array / sync.
+**Phase 1 · Tasks 1, 2 & 3 are DONE.** On top of the baseline (Task 1) and multi-tenancy (Task 2),
+the **connector contracts** are in place (Task 3, `CLAUDE.md` §7/§10.1): the `DataSourceConnector`
+interface (`App\Connectors\Contracts`), `ConnectorRegistry` (key → connector, bound singleton via
+`ConnectorServiceProvider`), and the value objects `MetricCatalog`/`MetricDefinition`/`MetricType`,
+`MetricSet`/`MetricSetStatus` (the normalized metric bag with ok/partial/failed factories),
+`ConnectionResult`, `Period` (immutable, with `previous()` for vs-prev-period), `ConfigField`/
+`ConfigFieldType`. Enums `DataSourceType` (extensible source list) + `DataSourceStatus`. The
+`DataSource` model + `ir_data_sources` migration were pulled forward here (the interface type-hints
+the model): agency-scoped, **encrypted `credentials` cast**, `config` json, `type`/`status` enum casts;
+`site_id` is a nullable column with no FK yet (added when `ir_sites` lands). **No concrete connectors
+yet** (MainWP/GA4/GSC are the next tasks). **26 tests green, PHPStan max clean, Pint clean**.
+**Next action: Phase 1 · Task 4 — snapshot pipeline**: `ir_metric_snapshots` migration + `MetricSnapshot`
+model, `SyncService` + `SyncSourceJob` (idempotent, aggregate-at-source per §3.3) writing normalized
+`MetricSet` payloads as snapshots. Note: no MariaDB/Redis in this env — tests use sqlite/array/sync.
 
 ---
 
@@ -28,11 +28,20 @@ env — tests use sqlite in-memory / array / sync.
 **Phase 1 — Core engine + immediate value**
 
 ## Current task
-**Phase 1 · Task 3 — Connector contracts** (not started).
-`DataSourceConnector` interface + `ConnectorRegistry` (type → connector) + `MetricCatalog` +
-`MetricSet` (normalized metric bag), plus the value objects they need (`ConnectionResult`, `Period`,
-`MetricSet`). No concrete connectors yet (MainWP/GA4/GSC are later tasks) — this task defines the
-contracts and the registry only, with unit tests. See `CLAUDE.md` §7 and §10.1.
+**Phase 1 · Task 4 — Snapshot pipeline** (not started).
+`ir_metric_snapshots` migration (`agency_id`, `data_source_id`, `period_start`, `period_end`,
+`payload` json normalized, `status` ok/partial/failed, `captured_at`) + `MetricSnapshot` model
+(agency-scoped, `belongsTo` DataSource). `SyncService` + `SyncSourceJob`: for a DataSource + Period,
+resolve its connector from the registry, fetch ONLY the metrics referenced by active report
+definitions (aggregate-at-source, §3.3), and persist the normalized `MetricSet` as a snapshot.
+**Must be idempotent** (re-running a sync upserts the snapshot, not duplicates). Unit/feature tests
+with a fake connector (no live APIs). See `CLAUDE.md` §3.1, §3.3, §5, §7.
+
+### Task 3 — Connector contracts ✅ DONE (2026-06-18)
+- [x] `DataSourceConnector` interface (§7) + `ConnectorRegistry` (singleton via `ConnectorServiceProvider`).
+- [x] Value objects: `MetricCatalog`/`MetricDefinition`/`MetricType`, `MetricSet`/`MetricSetStatus`, `ConnectionResult`, `Period`, `ConfigField`/`ConfigFieldType`.
+- [x] Enums `DataSourceType` (extensible) + `DataSourceStatus`; `DataSource` model + `ir_data_sources` migration (encrypted credentials, agency-scoped; `site_id` nullable, FK deferred).
+- [x] Unit tests (Period, MetricCatalog, MetricSet, ConnectorRegistry w/ FakeConnector) + DataSource feature test (encryption + scope + registry resolve). 26 tests green; PHPStan max + Pint clean.
 
 ### Task 2 — Multi-tenant scaffolding ✅ DONE (2026-06-18)
 - [x] `ir_agencies` (+ `Agency` model, tenant root) migration owning the first migration slot for FK order.
@@ -52,8 +61,8 @@ contracts and the registry only, with unit tests. See `CLAUDE.md` §7 and §10.1
 
 ## Next up (Phase 1, in order)
 1. ~~Multi-tenant scaffolding~~ ✅ done (Task 2).
-2. **(current)** `DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet` (metric bag).
-3. Snapshot pipeline: `ir_data_sources`, `ir_metric_snapshots`, `SyncSourceJob`, `SyncService` (idempotent, aggregate-at-source).
+2. ~~`DataSourceConnector` interface + `ConnectorRegistry` + `MetricCatalog` + `MetricSet`~~ ✅ done (Task 3); `ir_data_sources` + `DataSource` model also landed here.
+3. **(current)** Snapshot pipeline: `ir_metric_snapshots` + `MetricSnapshot`, `SyncSourceJob`, `SyncService` (idempotent, aggregate-at-source). (`ir_data_sources` already created in Task 3.)
 4. Connector: **MainWP** (+ `MaintenanceDeltaCalculator` for "work done" deltas).
 5. Connector: **GA4** (Service Account; catalog-driven, aggregated).
 6. Connector: **Search Console** (Service Account; catalog-driven).
@@ -71,6 +80,10 @@ contracts and the registry only, with unit tests. See `CLAUDE.md` §7 and §10.1
 - [x] (2026-06-18) **Phase 1 · Task 2 — Multi-tenant scaffolding.** `ir_agencies`/`ir_users`/`ir_clients`
       migrations + `Agency`/`User`/`Client` models; `UserRole` enum; `TenantContext` + `AgencyScope` +
       `BelongsToAgency` trait + `BindTenant` middleware; §14 isolation test. 9 tests green; PHPStan max + Pint clean. — 4d27d0b
+- [x] (2026-06-18) **Phase 1 · Task 3 — Connector contracts.** `DataSourceConnector` interface + `ConnectorRegistry`
+      (+ `ConnectorServiceProvider`); `MetricCatalog`/`MetricDefinition`/`MetricType`, `MetricSet`/`MetricSetStatus`,
+      `ConnectionResult`, `Period`, `ConfigField`/`ConfigFieldType`; `DataSourceType`/`DataSourceStatus` enums;
+      `DataSource` model + `ir_data_sources` (encrypted credentials). 26 tests green; PHPStan max + Pint clean. — _commit pending_
 
 ---
 
@@ -128,6 +141,14 @@ contracts and the registry only, with unit tests. See `CLAUDE.md` §7 and §10.1
 - (2026-06-18) **`Client` (`ir_clients`) is the first agency-scoped domain model**, added now as the canonical example
   to validate tenant isolation (§14). Sites/data-sources/reports hang off it in later tasks.
 - (2026-06-18) **`User` gained `HasApiTokens`** (Sanctum) for the dual-auth model (§2: cookie for SPAs, API tokens for third parties).
+- (2026-06-18) **`ir_data_sources` + `DataSource` model were pulled forward into Task 3** (connector contracts), because the
+  `DataSourceConnector` interface type-hints the model. Schema is straight from §5 (not invented). `ir_metric_snapshots` +
+  `SyncSourceJob` + `SyncService` remain in the next task. **`site_id` is a nullable column with no FK** until `ir_sites` exists.
+- (2026-06-18) **Connector value objects live in `App\Connectors`** (per §4 layout); the interface in `App\Connectors\Contracts`.
+  `MetricSet` is the normalized metric bag with `ok()/partial()/failed()` factories so connectors never throw on API errors (§7).
+  `DataSource.credentials` uses the `encrypted:array` cast and is in `$hidden` — never logged (§6).
+- (2026-06-18) **`ConnectorRegistry` is a deferred singleton** (`ConnectorServiceProvider`); concrete connectors will register
+  themselves there as they are implemented (Tasks 5–7+).
 
 ---
 
