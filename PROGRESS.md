@@ -38,7 +38,7 @@ report's locale, always editable. Wire an admin "Generate with AI" action that o
 Tests fake the `AiClient` (no live API). **Resolve nothing else first — provider is decided (Claude API).**
 
 ## Phase 2 — progress
-- [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — _commit pending_
+- [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
 - [ ] **(current)** `AiReportBuilder` (Claude API, validated against catalog) + per-period narrative.
 - [ ] Connectors: Cloudflare, CrowdSec, Better Stack, VirusDie, WooCommerce.
 - [ ] Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
