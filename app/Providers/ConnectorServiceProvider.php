@@ -8,6 +8,8 @@ use App\Connectors\BetterUptime\BetterUptimeConnector;
 use App\Connectors\Cloudflare\CloudflareConnector;
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\CrowdSec\CrowdSecConnector;
+use App\Connectors\Database\DatabaseConnector;
+use App\Connectors\Endpoint\EndpointConnector;
 use App\Connectors\Ga4\Ga4Connector;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\Google\ServiceAccountTokenProvider;
@@ -44,6 +46,8 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             $registry->register(new BetterUptimeConnector);
             $registry->register(new VirusdieConnector);
             $registry->register(new WooCommerceConnector);
+            $registry->register(new DatabaseConnector);
+            $registry->register(new EndpointConnector);
 
             return $registry;
         });

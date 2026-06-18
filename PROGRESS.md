@@ -7,18 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**🎉 PHASE 2 COMPLETE (P2·1…P2·7).** Editor (1), AI builder (2), all connectors (3), scheduling+email (4),
-white-label/i18n/work-logs (5), interactive portal (6), and the **self-updater** (7). Updater: `ir_app_releases`/
-`AppRelease`; `App\Services\Update\UpdateManager` (status/update/rollback — pure logic) delegating destructive
-work to a `Deployer` interface (`SymlinkDeployer` in prod = atomic symlink swap + auto-rollback on a failed
-`/health`; `FakeDeployer` in tests, so CI never swaps real symlinks); `RunUpdateJob`; API
-`GET /system/update/status` + `POST /system/update/{run,rollback}` (privileged-only). `.github/workflows/release.yml`
-builds the self-contained ZIP (vendor + compiled assets) on a `v*` tag; `deploy.sh` mirrors the atomic-deploy
-steps. **123 PHP tests green, PHPStan max clean, Pint clean; TS clean.**
-**Next action: Phase 3 (§13) — Intelligence & differentiation.** First: the **Imagina Audit + WPVulnerability
-connector** + `AuditSection`. ⚠️ Open question: confirm Imagina Audit exposes its 7-module metrics + CVE data
-as a readable REST API before building it. Remaining frontend polish (low priority): an admin "System → Updates"
-screen (§11.1) consuming the update API.
+**Phase 3 started — P3·1 (Database / CSV / endpoint connector) DONE.** Two config-driven connectors,
+both registered in `ConnectorServiceProvider`: `DatabaseConnector` (`type = database`) runs operator-defined
+aggregate `SELECT`/`WITH` queries on the client's own DB via `DB::build()` (read-only — non-`SELECT`/`WITH`
+SQL is rejected; **never pulls raw rows**, §3.3) and shapes each result as scalar/series/table; metrics come
+from config so the `MetricCatalog` is dynamic. `EndpointConnector` (`type = endpoint`) GETs a JSON/CSV URL
+(optional Bearer token) and maps values per config — JSON via dot-`path`, CSV parsed into header-keyed rows;
+scalar/series/table shaping shared with the DB connector via a new `ParsesValues::toNumber()` helper. Both
+defensive (return `failed`/`partial`, never throw). **130 PHP tests green, PHPStan max clean, Pint clean.**
+**Next action: Phase 3 (§13) — anomaly detection** (traffic drop / attack spike → internal alerts + outbound
+webhooks via a `WebhookDispatcher`, §8). Then: upsell-opportunity detector; advanced comparisons + multi-client
+trends dashboard. ⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API doesn't exist yet). Frontend
+polish (low priority): admin "System → Updates" screen (§11.1) consuming the update API.
 
 ---
 
@@ -26,12 +26,23 @@ screen (§11.1) consuming the update API.
 **Phase 3 — Intelligence & differentiation** (Phases 1 & 2 complete)
 
 ## Current task
-**Phase 3 · Imagina Audit + WPVulnerability connector + AuditSection** (not started, CLAUDE.md §9/§13).
-A new `imagina_audit` connector (new `DataSourceType` value already exists) reading the 7-module audit metrics
-+ WPVulnerability CVEs from the Imagina Audit REST API; an `AuditSection`/audit blocks. **BLOCKED on the Open
-Question:** confirm Imagina Audit exposes a readable REST API (endpoints/auth/shape) before building `fetch()`.
-If unconfirmed, start Phase 3 with the **database/CSV/endpoint connector** (`type = 'database'`, §13/§3.3 —
-aggregate-at-source queries) or **anomaly detection** instead. Other connectors stay defensive + `Http::fake` tested.
+**Phase 3 · Anomaly detection** (next, CLAUDE.md §13/§8). Detect traffic drops / attack spikes from the
+resolved snapshots and raise internal alerts + emit outbound webhooks (`report.generated`, `report.sent`,
+`anomaly.detected`) via a `WebhookDispatcher`. _(Imagina Audit connector DEFERRED — owner: that API doesn't
+exist yet, will build it later.)_
+
+## Phase 3 — progress
+- [x] (2026-06-18) **P3·1 — Database / CSV / endpoint connector** (`DatabaseConnector` + `EndpointConnector`, config-driven, aggregate-at-source). — 59b9d3b
+
+### P3·1 — Database / CSV / endpoint connector ✅ DONE (2026-06-18)
+- [x] `DatabaseConnector` (`type = database`): `DB::build()` a connection from config + encrypted password; runs
+      each config metric's SQL **only if `SELECT`/`WITH`** (read-only guard) and shapes scalar/series/table;
+      **never pulls raw rows** (§3.3) — the operator's SQL aggregates at the source. Dynamic `MetricCatalog`.
+- [x] `EndpointConnector` (`type = endpoint`): GET JSON/CSV URL (optional Bearer); JSON mapped by dot-`path`,
+      CSV parsed into header-keyed rows; scalar/series/table shaping. Defensive (`failed` on HTTP error).
+- [x] Shared `ParsesValues::toNumber()` (int/float-preserving coercion); both registered in `ConnectorServiceProvider`.
+- [x] Tests: DB connector vs a temp sqlite DB (aggregate scalar/series/table, read-only rejection, partial),
+      Endpoint connector via `Http::fake` (JSON paths + Bearer header, CSV rows, HTTP-failure). 130 tests green; PHPStan max + Pint clean.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
@@ -372,8 +383,9 @@ aggregate-at-source queries) or **anomaly detection** instead. Other connectors 
   `config('services.anthropic')`. Implement `AiReportBuilder` behind an `AiClient` interface (Phase 2).
 - **Chromium path on the VPS:** verify the real binary path when installing on ServerAvatar/OLS; set
   `BROWSERSHOT_CHROME_PATH` accordingly.
-- **Imagina Audit API (Phase 3):** confirm it exposes its 7-module metrics + WPVulnerability data as a
-  readable REST API before building the `imagina_audit` connector.
+- **Imagina Audit API (Phase 3): DEFERRED (2026-06-18).** Owner confirmed that API does not exist yet and
+  will be built later. Skip the `imagina_audit` connector + `AuditSection` until then (the `DataSourceType`
+  enum case already exists, so it slots in with no schema change). Phase 3 proceeds with the other items.
 - **GA4/GSC Service Account:** owner must add the SA email as a reader in each GA4 property and GSC property.
 
 ---
