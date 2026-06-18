@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\WorkLogController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -77,4 +78,6 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('api.reports.show');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
+    Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
+    Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 });

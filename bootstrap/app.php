@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\BindTenant;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Contracts\Session\Middleware\AuthenticatesSessions;
@@ -31,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => BindTenant::class,
         ]);
+
+        // Negotiate the request locale for the API (CLAUDE.md §6).
+        $middleware->appendToGroup('api', SetLocale::class);
 
         // BindTenant must run before SubstituteBindings so route-model binding is
         // already agency-scoped (a cross-agency {model} then 404s, not leaks).

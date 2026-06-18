@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { BlockList } from '@shared/blocks/BlockRenderer';
 import type { Block } from '@shared/blocks/types';
 import { api } from '@shared/lib/api';
+import { hexToHslString } from '@shared/lib/color';
 
 interface PublicReport {
     period_start: string;
@@ -12,7 +13,7 @@ interface PublicReport {
     status: string;
     blocks: Block[];
     data: Record<string, unknown>;
-    agency: { name: string; brand_color: string | null; logo_path: string | null } | null;
+    agency: { name: string; brand_color: string | null; logo_path: string | null; locale: string } | null;
 }
 
 /**
@@ -31,6 +32,16 @@ export function ReportApp({ token }: { token: string }): React.ReactElement {
     });
 
     useEffect(() => {
+        // White-label: apply the agency's brand colour as the accent (CLAUDE.md §11.5).
+        const brand = data?.agency?.brand_color;
+        if (typeof brand === 'string') {
+            const hsl = hexToHslString(brand);
+            if (hsl !== null) {
+                document.documentElement.style.setProperty('--ir-primary', hsl);
+                document.documentElement.style.setProperty('--ir-ring', hsl);
+            }
+        }
+
         if (data !== undefined || isError) {
             // Signal the PDF renderer that the page is fully painted (success or empty).
             window.reportReady = true;
@@ -48,9 +59,14 @@ export function ReportApp({ token }: { token: string }): React.ReactElement {
     return (
         <div className="ir-mx-auto ir-max-w-3xl ir-bg-background ir-p-8 ir-text-foreground">
             {data.agency !== null && (
-                <p className="ir-mb-6 ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">
-                    {data.agency.name}
-                </p>
+                <div className="ir-mb-6 ir-flex ir-items-center ir-gap-3">
+                    {data.agency.logo_path !== null && (
+                        <img src={data.agency.logo_path} alt={data.agency.name} className="ir-h-8" />
+                    )}
+                    <span className="ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">
+                        {data.agency.name}
+                    </span>
+                </div>
             )}
             <BlockList blocks={data.blocks} data={data.data} />
         </div>

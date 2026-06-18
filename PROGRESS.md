@@ -7,19 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 1 complete; Phase 2 underway — P2·1…P2·4 DONE.** Editor (1), AI builder (2), all connectors (3),
-and now **scheduling + recurring generation + branded email** (4). `ir_schedules`/`Schedule` (cadence
-monthly/weekly + `next_run_at`, with `ScheduleCadence::periodFor/nextRun`) and `ir_report_deliveries`/
-`ReportDelivery`. The `reports:run-schedules` command (wired hourly in `routes/console.php`) → `ScheduleRunner`
-finds due schedules, dispatches `RunScheduledReportJob` (generates the just-ended period's report via
-`ReportGenerator`, then queues delivery) and advances `next_run_at`. `DeliverReportJob` → `DeliveryService`
-renders the PDF (`ReportPdfService`) and emails the branded `ReportReadyMail` (summary + PDF + portal link)
-to the definition's recipients, recording each attempt. Schedules API (`GET/POST /api/v1/schedules`). All
-queue-safe + tenant-bound. **107 PHP tests green** (delivery via `Mail::fake`+`FakePdfRenderer`, runner,
-command, API isolation), **PHPStan max clean, Pint clean.**
-**Next action: Phase 2 · White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive**
-(`ir_report_work_logs`; agency branding into the report page/email; localization; reports list/archive).
-Then portal interactivity, self-updater.
+**Phase 1 complete; Phase 2 underway — P2·1…P2·5 DONE.** Editor (1), AI builder (2), connectors (3),
+scheduling+email (4), and now **white-label + i18n + work logs + archive** (5). Work logs:
+`ir_report_work_logs`/`WorkLog` + `GET/POST /api/v1/reports/{report}/work-logs` (`WorkLogController`);
+`Report::workLogs()`; the public `ReportResource` **overlays live work logs** onto any `worklog_timeline`
+block (frozen layout, current "what we did" list). White-label: `ReportResource` exposes the agency's
+`brand_color`/`logo_path`; the report SPA applies `brand_color` as the accent (`hexToHslString` → `--ir-primary`)
+and shows the logo. i18n: `SetLocale` middleware (Accept-Language → es/en/pt_BR, appended to the api group) +
+`lang/{es,en,pt_BR}/report.php`. Archive = the existing `GET /api/v1/reports` list. **113 PHP tests green,
+PHPStan max clean, Pint clean; TS typecheck/lint/build clean.**
+**Next action: Phase 2 · Client portal interactivity** (`resources/js/portal`, §11.2): the interactive
+dashboard opened via public token — period selector + drill-down + interactive Recharts, reusing the public
+report endpoint/BlockList. Then the self-updater (`UpdateManager`) + release pipeline + rollback.
 
 ---
 
@@ -27,21 +26,28 @@ Then portal interactivity, self-updater.
 **Phase 2 — Editor, AI & full 360 + automation** (Phase 1 complete)
 
 ## Current task
-**Phase 2 · White-label + i18n + work logs + historical archive** (not started, CLAUDE.md §5/§6/§11.5).
-`ir_report_work_logs` (+ `WorkLog` model + `POST /api/v1/reports/{report}/work-logs`, §8) feeding the
-`worklog_timeline` block. Agency white-label: pass `brand_color`/`logo_path` through to the report page
-(`ReportResource` already exposes `agency`) and the email; render the accent. i18n: app + report content
-localized (ES default; EN, PT-BR) via Laravel localization + the report's locale. Historical archive:
-reports list/filtering already exists (`GET /api/v1/reports`) — add period filters / an archive view.
+**Phase 2 · Client portal interactivity** (not started, CLAUDE.md §11.2/§11.4).
+The interactive client dashboard (`resources/js/portal`), opened via a signed `public_token`: a period
+selector, drill-down, and interactive Recharts — reusing the public report endpoint + the shared `BlockList`.
+The portal SPA is currently a stub; build it into the Looker-parity view (the same data the report page
+renders, plus interactivity). Frontend-only slice (gate: typecheck/lint/build); may add a public endpoint to
+list a site's available report periods for the selector.
 
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
 - [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — 77e9b53
 - [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
 - [x] (2026-06-18) **P2·4 — Scheduling + recurring generation + branded email** (`ir_schedules`, `ir_report_deliveries`). — 74f9f77
-- [ ] **(current)** White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
-- [ ] Client portal interactivity (period selector, drill-down).
+- [x] (2026-06-18) **P2·5 — White-label + i18n + work logs + archive** (`ir_report_work_logs`, `SetLocale`, brand accent). — _commit pending_
+- [ ] **(current)** Client portal interactivity (period selector, drill-down).
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
+
+### P2·5 — White-label + i18n + work logs + archive ✅ DONE (2026-06-18)
+- [x] `ir_report_work_logs`/`WorkLog` (+ factory); `Report::workLogs()`; `GET/POST /reports/{report}/work-logs` (`WorkLogController`).
+- [x] Public `ReportResource` overlays live work logs onto `worklog_timeline` blocks; PublicReportController eager-loads them.
+- [x] White-label: report SPA applies agency `brand_color` accent (`hexToHslString` → `--ir-primary`) + logo.
+- [x] i18n: `SetLocale` middleware (Accept-Language → es/en/pt_BR) + `lang/{es,en,pt_BR}/report.php`.
+- [x] Tests: work-log store/index/isolation, public overlay, SetLocale + translations. 113 tests green; PHPStan max + Pint clean; TS clean.
 
 ### P2·4 — Scheduling + recurring generation + branded email ✅ DONE (2026-06-18)
 - [x] `ir_schedules`/`Schedule` (+ `ScheduleCadence` period/next), `ir_report_deliveries`/`ReportDelivery` (+ `DeliveryChannel`/`DeliveryStatus`); factory.

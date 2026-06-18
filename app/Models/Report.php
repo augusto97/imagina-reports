@@ -10,6 +10,7 @@ use Database\Factories\ReportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -72,5 +73,13 @@ class Report extends Model
     public function definition(): BelongsTo
     {
         return $this->belongsTo(ReportDefinition::class, 'report_definition_id');
+    }
+
+    /**
+     * @return HasMany<WorkLog, $this>
+     */
+    public function workLogs(): HasMany
+    {
+        return $this->hasMany(WorkLog::class)->orderBy('performed_at');
     }
 }
