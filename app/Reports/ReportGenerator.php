@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace App\Reports;
 
 use App\Connectors\Period;
-use App\Enums\DataSourceType;
 use App\Enums\ReportStatus;
-use App\Models\DataSource;
-use App\Models\MetricSnapshot;
+use App\Events\ReportGenerated;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Reports\Blocks\Block;
@@ -16,6 +14,7 @@ use App\Reports\Blocks\BlocksValidator;
 use App\Reports\Blocks\BlockType;
 use App\Reports\Templates\DefaultTemplate;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 
 /**
@@ -31,13 +30,13 @@ final readonly class ReportGenerator
     public function __construct(
         private BlocksValidator $validator,
         private HealthScoreCalculator $health,
-        private MaintenanceDeltaCalculator $maintenance,
+        private MetricBagLoader $bags,
     ) {}
 
     public function generate(ReportDefinition $definition, Period $period): Report
     {
         $blocks = $this->resolveLayout($definition);
-        $bags = $this->loadBags($definition, $period);
+        $bags = $this->bags->forSite($definition->site_id, $period);
         $score = $this->health->calculate($bags);
 
         $visibleBlocks = [];
@@ -57,7 +56,14 @@ final readonly class ReportGenerator
             }
         }
 
-        return $this->persist($definition, $period, $visibleBlocks, $data, $score);
+        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score);
+
+        // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
+        // webhook and run anomaly detection — keeping this generator free of delivery
+        // concerns.
+        Event::dispatch(new ReportGenerated($report));
+
+        return $report;
     }
 
     private const HIDDEN = '__hidden__';
@@ -100,51 +106,6 @@ final readonly class ReportGenerator
         }
 
         return $this->validator->validate($blocks);
-    }
-
-    /**
-     * Build the source-key → metric-bag map from the period's snapshots for the
-     * definition's site. A computed `mainwp.updates_applied` is injected from the
-     * maintenance delta (§9) so the "updates applied" KPI has a value.
-     *
-     * @return MetricBags
-     */
-    private function loadBags(ReportDefinition $definition, Period $period): array
-    {
-        $bags = [];
-
-        $sources = DataSource::query()->where('site_id', $definition->site_id)->get();
-
-        foreach ($sources as $source) {
-            $snapshot = MetricSnapshot::query()
-                ->where('data_source_id', $source->id)
-                ->where('period_start', '>=', $period->start)
-                ->where('period_end', '<=', $period->end)
-                ->orderByDesc('period_end')
-                ->first();
-
-            if ($snapshot === null) {
-                continue;
-            }
-
-            $metrics = $snapshot->payload['metrics'] ?? [];
-
-            if (! is_array($metrics)) {
-                continue;
-            }
-
-            if ($source->type === DataSourceType::MainWp) {
-                $delta = $this->maintenance->forDataSource($source->id, $period);
-
-                if ($delta !== null) {
-                    $metrics['mainwp.updates_applied'] = $delta->updatesApplied;
-                }
-            }
-
-            $bags[$source->type->value] = $metrics;
-        }
-
-        return $bags;
     }
 
     /**

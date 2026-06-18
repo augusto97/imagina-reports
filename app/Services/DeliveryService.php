@@ -7,10 +7,12 @@ namespace App\Services;
 use App\Enums\DeliveryChannel;
 use App\Enums\DeliveryStatus;
 use App\Enums\ReportStatus;
+use App\Events\ReportSent;
 use App\Mail\ReportReadyMail;
 use App\Models\Report;
 use App\Models\ReportDelivery;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -34,6 +36,8 @@ final readonly class DeliveryService
         }
 
         $report->forceFill(['status' => ReportStatus::Sent])->save();
+
+        Event::dispatch(new ReportSent($report));
     }
 
     /**

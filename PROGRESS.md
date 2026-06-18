@@ -7,18 +7,19 @@
 ---
 
 ## Where I left off (read me first)
-**Phase 3 started — P3·1 (Database / CSV / endpoint connector) DONE.** Two config-driven connectors,
-both registered in `ConnectorServiceProvider`: `DatabaseConnector` (`type = database`) runs operator-defined
-aggregate `SELECT`/`WITH` queries on the client's own DB via `DB::build()` (read-only — non-`SELECT`/`WITH`
-SQL is rejected; **never pulls raw rows**, §3.3) and shapes each result as scalar/series/table; metrics come
-from config so the `MetricCatalog` is dynamic. `EndpointConnector` (`type = endpoint`) GETs a JSON/CSV URL
-(optional Bearer token) and maps values per config — JSON via dot-`path`, CSV parsed into header-keyed rows;
-scalar/series/table shaping shared with the DB connector via a new `ParsesValues::toNumber()` helper. Both
-defensive (return `failed`/`partial`, never throw). **130 PHP tests green, PHPStan max clean, Pint clean.**
-**Next action: Phase 3 (§13) — anomaly detection** (traffic drop / attack spike → internal alerts + outbound
-webhooks via a `WebhookDispatcher`, §8). Then: upsell-opportunity detector; advanced comparisons + multi-client
-trends dashboard. ⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API doesn't exist yet). Frontend
-polish (low priority): admin "System → Updates" screen (§11.1) consuming the update API.
+**Phase 3 — P3·2 (Anomaly detection + outbound webhooks) DONE.** Report generation now fires an
+`App\Events\ReportGenerated` event (delivery fires `ReportSent`). Two listeners react: `DetectReportAnomalies`
+compares the report's period vs the previous one (snapshots only, no live APIs) via the new
+`AnomalyDetector` (pure, config-driven from `config/anomalies.php` — traffic-drop on `ga4.sessions`,
+attack-spike on `cloudflare.threats_blocked`/`crowdsec.attacks_blocked`) and raises an internal `Log::warning`
+alert + an `anomaly.detected` webhook per anomaly; `ReportWebhookSubscriber` emits `report.generated` /
+`report.sent`. Webhooks go through the `WebhookDispatcher` interface (→ `HttpWebhookDispatcher`, reads
+`ir_agencies.settings.webhook_urls`/`webhook_secret`, queues one `SendWebhookJob` per endpoint — async,
+retryable, HMAC-SHA256 signed). Snapshot bag-loading was extracted from `ReportGenerator` into a shared
+`MetricBagLoader`. **141 PHP tests green, PHPStan max clean, Pint clean.**
+**Next action: Phase 3 (§13) — upsell-opportunity detector.** Then: advanced comparisons + multi-client trends
+dashboard. ⚠️ Imagina Audit connector remains **DEFERRED** (owner: that API doesn't exist yet). Frontend polish
+(low priority): admin "System → Updates" screen (§11.1) consuming the update API.
 
 ---
 
@@ -26,13 +27,21 @@ polish (low priority): admin "System → Updates" screen (§11.1) consuming the 
 **Phase 3 — Intelligence & differentiation** (Phases 1 & 2 complete)
 
 ## Current task
-**Phase 3 · Anomaly detection** (next, CLAUDE.md §13/§8). Detect traffic drops / attack spikes from the
-resolved snapshots and raise internal alerts + emit outbound webhooks (`report.generated`, `report.sent`,
-`anomaly.detected`) via a `WebhookDispatcher`. _(Imagina Audit connector DEFERRED — owner: that API doesn't
-exist yet, will build it later.)_
+**Phase 3 · Upsell-opportunity detector** (next, CLAUDE.md §13). Surface signals from the resolved metrics
+that justify proposing a plan upgrade / new service (e.g. traffic growth needing more capacity, repeated
+attacks needing hardening, no backup/uptime source connected). _(Imagina Audit connector DEFERRED — owner:
+that API doesn't exist yet, will build it later.)_
 
 ## Phase 3 — progress
 - [x] (2026-06-18) **P3·1 — Database / CSV / endpoint connector** (`DatabaseConnector` + `EndpointConnector`, config-driven, aggregate-at-source). — 59b9d3b
+- [x] (2026-06-18) **P3·2 — Anomaly detection + outbound webhooks** (`AnomalyDetector` + report lifecycle events/listeners + `WebhookDispatcher`). — f321d27
+
+### P3·2 — Anomaly detection + outbound webhooks ✅ DONE (2026-06-18)
+- [x] `AnomalyDetector` (pure, config-driven `config/anomalies.php`): traffic-drop + attack-spike rules comparing a period vs `Period::previous()`; `Anomaly` VO + `AnomalyType` enum.
+- [x] `MetricBagLoader` extracted from `ReportGenerator` (shared snapshot bag-loading for current + previous period).
+- [x] Lifecycle events `ReportGenerated` (fired by `ReportGenerator`) / `ReportSent` (fired by `DeliveryService`); listeners `DetectReportAnomalies` (Log alert + `anomaly.detected` webhook) and `ReportWebhookSubscriber` (`report.generated`/`report.sent`).
+- [x] `WebhookDispatcher` interface → `HttpWebhookDispatcher` (agency `settings.webhook_urls`/`webhook_secret`) → `SendWebhookJob` (async, retryable, HMAC-SHA256 signed). Bound + listeners registered in `AppServiceProvider`.
+- [x] Tests: detector unit (drop/spike/baseline/missing), report→webhook+anomaly wiring (Queue::fake), `SendWebhookJob` signed/unsigned POST (Http::fake). 141 tests green; PHPStan max + Pint clean.
 
 ### P3·1 — Database / CSV / endpoint connector ✅ DONE (2026-06-18)
 - [x] `DatabaseConnector` (`type = database`): `DB::build()` a connection from config + encrypted password; runs
