@@ -37,7 +37,7 @@ Mailable + `Mail::fake()` in tests; queue-safe + tenant-bound like the other job
 ## Phase 2 — progress
 - [x] (2026-06-18) **P2·1 — Block editor** (dnd-kit + Tiptap) + templates CRUD API + metric-catalog endpoint. — 21fa283
 - [x] (2026-06-18) **P2·2 — AiReportBuilder** (Claude API; validated against catalog) + "Generar con IA" + endpoint. — 77e9b53
-- [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — _commit pending_
+- [x] (2026-06-18) **P2·3 — Remaining connectors** (Cloudflare, CrowdSec, Better Stack, Virusdie, WooCommerce). — 65e643b
 - [ ] **(current)** Scheduling (`ir_schedules`) + recurring generation + branded email delivery.
 - [ ] White-label per agency + i18n (ES/EN/PT-BR) + work logs + historical archive.
 - [ ] Client portal interactivity (period selector, drill-down).
