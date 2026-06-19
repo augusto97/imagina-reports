@@ -101,6 +101,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('api.reports.show');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
+    Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 

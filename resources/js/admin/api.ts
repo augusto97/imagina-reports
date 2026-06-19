@@ -173,9 +173,27 @@ export function useCreateReportDefinition() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { site_id: number; name: string }) =>
+        mutationFn: (payload: { site_id: number; name: string; template_id?: number; recipients?: string[] }) =>
             api.post<ReportDefinitionDto>('/report-definitions', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
+export function useApproveReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) => api.post(`/reports/${reportId}/approve`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
+export function useSendReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) => api.post(`/reports/${reportId}/send`).then((r) => r.data),
+        onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), 800),
     });
 }
 

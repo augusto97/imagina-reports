@@ -2,52 +2,78 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import {
+    useApproveReport,
     useCreateReportDefinition,
     useGenerateReport,
     useReportDefinitions,
+    useReportTemplates,
     useReports,
+    useSendReport,
     useSites,
 } from '../api';
 import { DataTable } from '../components/DataTable';
 import { Button, Card, Field, Input } from '../components/ui';
 import type { ReportSummary } from '../types';
 
-const columns: ColumnDef<ReportSummary>[] = [
-    {
-        id: 'period',
-        header: 'Periodo',
-        accessorFn: (row) => `${row.period_start.slice(0, 10)} → ${row.period_end.slice(0, 10)}`,
-    },
-    { header: 'Salud', accessorKey: 'health_score' },
-    { header: 'Estado', accessorKey: 'status' },
-    {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-            <a
-                className="ir-font-medium ir-underline"
-                href={`/reports/${row.original.public_token}`}
-                target="_blank"
-                rel="noreferrer"
-            >
-                Ver reporte
-            </a>
-        ),
-    },
-];
+/** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
+function parseRecipients(raw: string): string[] {
+    return raw
+        .split(/[,\n;]+/)
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+}
 
 export function ReportsScreen(): ReactElement {
     const { data: sites = [] } = useSites();
+    const { data: templates = [] } = useReportTemplates();
     const { data: definitions = [] } = useReportDefinitions();
     const { data: reports = [] } = useReports();
     const createDefinition = useCreateReportDefinition();
     const generate = useGenerateReport();
+    const approve = useApproveReport();
+    const send = useSendReport();
 
     const [defSite, setDefSite] = useState('');
     const [defName, setDefName] = useState('');
+    const [defTemplate, setDefTemplate] = useState('');
+    const [defRecipients, setDefRecipients] = useState('');
     const [genDefinition, setGenDefinition] = useState('');
     const [start, setStart] = useState('');
     const [end, setEnd] = useState('');
+
+    const columns: ColumnDef<ReportSummary>[] = [
+        {
+            id: 'period',
+            header: 'Periodo',
+            accessorFn: (row) => `${row.period_start.slice(0, 10)} → ${row.period_end.slice(0, 10)}`,
+        },
+        { header: 'Salud', accessorKey: 'health_score' },
+        { header: 'Estado', accessorKey: 'status' },
+        {
+            id: 'actions',
+            header: '',
+            cell: ({ row }) => {
+                const report = row.original;
+
+                return (
+                    <div className="ir-flex ir-items-center ir-gap-3">
+                        <a className="ir-font-medium ir-underline" href={`/reports/${report.public_token}`} target="_blank" rel="noreferrer">
+                            Ver
+                        </a>
+                        {report.status === 'draft' ? (
+                            <Button variant="ghost" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
+                                Aprobar
+                            </Button>
+                        ) : (
+                            <Button variant="ghost" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
+                                {report.status === 'sent' ? 'Reenviar' : 'Enviar'}
+                            </Button>
+                        )}
+                    </div>
+                );
+            },
+        },
+    ];
 
     const submitDefinition = (event: FormEvent): void => {
         event.preventDefault();
@@ -55,8 +81,18 @@ export function ReportsScreen(): ReactElement {
             return;
         }
         createDefinition.mutate(
-            { site_id: Number(defSite), name: defName },
-            { onSuccess: () => setDefName('') },
+            {
+                site_id: Number(defSite),
+                name: defName,
+                template_id: defTemplate === '' ? undefined : Number(defTemplate),
+                recipients: parseRecipients(defRecipients),
+            },
+            {
+                onSuccess: () => {
+                    setDefName('');
+                    setDefRecipients('');
+                },
+            },
         );
     };
 
@@ -88,6 +124,27 @@ export function ReportsScreen(): ReactElement {
                     </Field>
                     <Field label="Nombre">
                         <Input value={defName} onChange={(event) => setDefName(event.target.value)} />
+                    </Field>
+                    <Field label="Plantilla (opcional)">
+                        <select
+                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                            value={defTemplate}
+                            onChange={(event) => setDefTemplate(event.target.value)}
+                        >
+                            <option value="">Plantilla por defecto</option>
+                            {templates.map((template) => (
+                                <option key={template.id} value={template.id}>
+                                    {template.name}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+                    <Field label="Destinatarios (emails separados por coma)">
+                        <Input
+                            placeholder="cliente@empresa.com, pm@agencia.com"
+                            value={defRecipients}
+                            onChange={(event) => setDefRecipients(event.target.value)}
+                        />
                     </Field>
                     <Button type="submit" disabled={createDefinition.isPending}>
                         Crear definición
@@ -129,6 +186,11 @@ export function ReportsScreen(): ReactElement {
             </Card>
 
             <Card title="Reportes">
+                {send.isSuccess && (
+                    <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">
+                        Envío encolado: el reporte se enviará por email a los destinatarios.
+                    </p>
+                )}
                 <DataTable columns={columns} data={reports} />
             </Card>
         </div>

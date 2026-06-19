@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**📤 REPORTES END-TO-END — envío cableado (2026-06-19, rama, acumulado v1.1.0):** ya existían
+`DeliverReportJob`/`DeliveryService`/`ReportPdfService`/`ReportReadyMail`/scheduler, pero **faltaba el endpoint
+de envío** y la UI de destinatarios/aprobar/enviar. Añadido: `POST /api/v1/reports/{report}/send` (`ReportController::send`
+→ encola `DeliverReportJob`; 422 si el reporte está en `draft` para no enviar sin aprobar). Definiciones ahora
+aceptan **`recipients`** (emails validados) en store/update + expuestos en el resource. Frontend `ReportsScreen`
+reescrito: formulario de definición con **plantilla opcional + destinatarios**, y tabla de reportes con acciones
+**Aprobar / Enviar / Reenviar** + ver portal. +4 tests (send encola para aprobado, 422 en draft, definición guarda
+y valida recipients). **179 PHP verde, PHPStan max + Pint + TS + ESLint + build limpios.** Flujo completo:
+generar → (draft) aprobar → enviar (PDF Browsershot + email branded a recipients) → sent. **Ojo producción:** el
+email real necesita `MAIL_*` configurado en shared/.env, y el PDF necesita Chromium operativo (Browsershot) — a
+validar en el server. Scheduling (`ir_schedules` + `RunScheduledReportJob` + `ScheduleRunner`) ya existía.
+
 **🔑 Cambio de contraseña en la app (2026-06-19, rama, acumulado v1.1.0):** el owner no tenía forma de cambiar
 su contraseña desde la UI. Añadido: `PUT /api/v1/user/password` (`AccountController` + `UpdatePasswordRequest`;
 verifica la contraseña actual con `Hash::check` —guard-independiente— y el cast `hashed` cifra la nueva al

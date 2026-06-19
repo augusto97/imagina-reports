@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Enums\ReportStatus;
+use App\Jobs\DeliverReportJob;
 use App\Models\Agency;
 use App\Models\Client;
 use App\Models\Report;
@@ -12,6 +13,7 @@ use App\Models\ReportDefinition;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -80,5 +82,59 @@ class ReportApiTest extends TestCase
             ->assertJsonPath('status', 'approved');
 
         $this->assertSame(ReportStatus::Approved, $report->fresh()?->status);
+    }
+
+    public function test_send_queues_delivery_for_an_approved_report(): void
+    {
+        Queue::fake();
+        $definition = $this->definition();
+        $report = Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $definition->id,
+            'status' => ReportStatus::Approved,
+        ]);
+
+        $this->postJson("/api/v1/reports/{$report->id}/send")->assertStatus(202);
+
+        Queue::assertPushed(DeliverReportJob::class, fn (DeliverReportJob $job): bool => $job->reportId === $report->id);
+    }
+
+    public function test_send_is_blocked_for_a_draft(): void
+    {
+        Queue::fake();
+        $definition = $this->definition();
+        $report = Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $definition->id,
+            'status' => ReportStatus::Draft,
+        ]);
+
+        $this->postJson("/api/v1/reports/{$report->id}/send")->assertStatus(422);
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_definition_stores_recipients(): void
+    {
+        $client = Client::factory()->create(['agency_id' => $this->agency->id]);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id, 'client_id' => $client->id]);
+
+        $this->postJson('/api/v1/report-definitions', [
+            'site_id' => $site->id,
+            'name' => 'Mensual',
+            'recipients' => ['cliente@example.com', 'pm@example.com'],
+        ])->assertCreated()->assertJsonPath('recipients', ['cliente@example.com', 'pm@example.com']);
+    }
+
+    public function test_definition_rejects_an_invalid_recipient(): void
+    {
+        $client = Client::factory()->create(['agency_id' => $this->agency->id]);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id, 'client_id' => $client->id]);
+
+        $this->postJson('/api/v1/report-definitions', [
+            'site_id' => $site->id,
+            'name' => 'Mensual',
+            'recipients' => ['no-es-un-email'],
+        ])->assertStatus(422)->assertJsonValidationErrors('recipients.0');
     }
 }
