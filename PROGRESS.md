@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🛠️ CI/release fix (2026-06-19):** the first `v1.0.0` release build failed because the runner used PHP 8.3
+while `composer.lock` pins Symfony 8.1 / Carbon 3.13 (require PHP ≥ 8.4) — the whole project was actually
+developed & tested on PHP **8.4.19**. Fixed by bumping both workflows (`ci.yml`, `release.yml`) to PHP 8.4
+(`composer.json` stays `^8.3` so the lock content-hash is untouched; `composer check-platform-reqs --no-dev`
+passes on 8.4). CLAUDE.md updated to 8.4. **Action for owner:** delete & re-create the `v1.0.0` tag (or push
+`v1.0.1`) pointing at the new `main` so the release workflow re-runs with PHP 8.4 — the tag is the only
+non-automatable step from the dev sandbox (tag pushes are blocked there).
+
 **🎉 PHASE 3 COMPLETE (P3·1…P3·4), except the DEFERRED Imagina Audit connector.** Last item done:
 **advanced comparisons + multi-client trends dashboard.** Backend: `App\Reports\AgencyTrends` aggregates
 already-generated reports (`ir_reports` — frozen, tenant-scoped, no live APIs) into a per-site health-score
@@ -255,6 +263,11 @@ connector shape validation, `upsell.detected` confirmation) or low-priority FE p
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-06-19) **Effective PHP version is 8.4** (CI + VPS LSPHP), not 8.3. Rationale: the dependency lock
+  (Symfony 8.x, Carbon 3.13, recent Laravel 11) requires PHP ≥ 8.4 and everything was built/tested on 8.4.19.
+  Bumped both workflows to 8.4; kept `composer.json` at `^8.3` (lock hash untouched). Alternative (regenerate
+  the lock for 8.3, downgrading Symfony/Laravel) was rejected as higher-risk. Install on ServerAvatar with
+  **LSPHP 8.4**.
 - (2026-06-18) **Product name: Imagina Reports.** Working name, confirmed by owner.
 - (2026-06-18) **Environment: Hetzner VPS managed by ServerAvatar** (stack OLS, LSPHP 8.3/8.4, MariaDB, Redis).
   Rationale: this app polls many external APIs on schedule for many clients — hostile to shared hosting

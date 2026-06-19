@@ -6,7 +6,7 @@
 > Its purpose is client **retention**: making invisible technical work visible so clients
 > understand the value of their support plan and keep paying for it.
 >
-> Built by Imagina WP. Stack: Laravel 11 (PHP 8.3) API-first + React 18 SPA, on a Hetzner VPS
+> Built by Imagina WP. Stack: Laravel 11 (PHP 8.4) API-first + React 18 SPA, on a Hetzner VPS
 > managed with ServerAvatar (OLS / LSPHP / MariaDB / Redis).
 
 ---
@@ -69,7 +69,7 @@ These are **decided**. Do not relitigate them in code.
 | Area | Decision |
 |---|---|
 | Environment | Hetzner VPS managed by **ServerAvatar**, stack **OLS** (LSPHP 8.3/8.4), **MariaDB**, **Redis** (all included in ServerAvatar). |
-| Backend | **Laravel 11**, PHP **8.3**, strict types everywhere. |
+| Backend | **Laravel 11**, PHP **8.4** (deps lock requires ≥8.4; `composer.json` keeps `^8.3`), strict types everywhere. |
 | Architecture | **API-first**: versioned REST API (`/api/v1`) is the core; everything consumes it. |
 | Auth | **Laravel Sanctum** — cookie sessions for own SPAs, API tokens for third-party integrations. |
 | Frontend | **Two React 18 + TypeScript SPAs** (admin panel + interactive client portal). Built in **GitHub Actions** — Node.js is NOT installed on the server. |
@@ -186,7 +186,7 @@ every query is automatically tenant-filtered. `id` is an immutable BIGINT PK.
 
 ## 6. Coding standards & conventions
 
-- **PHP 8.3, `declare(strict_types=1)`** in every file. Final classes by default.
+- **PHP 8.4, `declare(strict_types=1)`** in every file. Final classes by default.
 - **PSR-4**, namespace `App\`. Domain code under `App\Connectors`, `App\Reports`, `App\Services`.
 - **Service + Repository layering.** Controllers stay thin; business logic in services; data access via models/repositories.
 - **Larastan / PHPStan at max level.** `composer run stan` must pass before any commit.
