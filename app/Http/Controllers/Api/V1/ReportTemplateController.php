@@ -9,6 +9,7 @@ use App\Http\Requests\StoreReportTemplateRequest;
 use App\Http\Requests\UpdateReportTemplateRequest;
 use App\Http\Resources\ReportTemplateResource;
 use App\Models\ReportTemplate;
+use App\Reports\Templates\DefaultTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -21,6 +22,15 @@ final class ReportTemplateController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return ReportTemplateResource::collection(ReportTemplate::query()->latest()->get());
+    }
+
+    /**
+     * The default narrative layout (CLAUDE.md §11.5) as a starting point for the
+     * editor — a professional template instead of a blank canvas.
+     */
+    public function defaultBlocks(): JsonResponse
+    {
+        return response()->json(['blocks' => DefaultTemplate::blocks()]);
     }
 
     public function store(StoreReportTemplateRequest $request): JsonResponse

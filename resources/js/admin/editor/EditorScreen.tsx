@@ -1,6 +1,6 @@
 import { type DragEndEvent, DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { LayoutTemplate, RefreshCw, Sparkles } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
@@ -10,6 +10,7 @@ import {
     type PreviewResult,
     useAiTemplate,
     useCreateReportTemplate,
+    useDefaultTemplateBlocks,
     useMetricCatalog,
     usePreview,
     useReportTemplate,
@@ -56,6 +57,7 @@ export function EditorScreen(): ReactElement {
     const [siteId, setSiteId] = useState<number | null>(null);
     const { data: catalog = [] } = useMetricCatalog(siteId);
     const create = useCreateReportTemplate();
+    const defaultTpl = useDefaultTemplateBlocks();
     const ai = useAiTemplate(siteId ?? 0);
 
     const editingTemplateId = useAdminUi((state) => state.editingTemplateId);
@@ -113,6 +115,15 @@ export function EditorScreen(): ReactElement {
         // runPreview (react-query mutate) is stable; re-run on real inputs only.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [siteId, blocks, month]);
+
+    const loadDefaultTemplate = (): void => {
+        defaultTpl.mutate(undefined, {
+            onSuccess: (loaded) => {
+                setBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
+                setErrors([]);
+            },
+        });
+    };
 
     const generateWithAi = (): void => {
         ai.mutate(aiPrompt, {
@@ -241,6 +252,14 @@ export function EditorScreen(): ReactElement {
                                 </Button>
                             </div>
                         </Field>
+                        <Button
+                            variant="ghost"
+                            onClick={loadDefaultTemplate}
+                            disabled={defaultTpl.isPending}
+                        >
+                            <LayoutTemplate className="ir-size-4" />
+                            Empezar desde la plantilla por defecto
+                        </Button>
                         <div className="ir-flex ir-flex-wrap ir-gap-2">
                             {PALETTE.map((item) => (
                                 <Button key={item.type} variant="ghost" onClick={() => addBlock(item.type)}>

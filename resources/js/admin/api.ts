@@ -215,6 +215,13 @@ export function useReportTemplates() {
     return useQuery({ queryKey: ['report-templates'], queryFn: () => get<ReportTemplateDto[]>('/report-templates') });
 }
 
+/** Load the default narrative layout (CLAUDE.md §11.5) as an editor starting point. */
+export function useDefaultTemplateBlocks() {
+    return useMutation({
+        mutationFn: () => get<{ blocks: Block[] }>('/report-templates/default-blocks').then((result) => result.blocks),
+    });
+}
+
 export interface TemplateValidationErrors {
     blocks?: string[];
 }

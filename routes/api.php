@@ -72,6 +72,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
 
+    Route::get('report-templates/default-blocks', [ReportTemplateController::class, 'defaultBlocks'])->name('api.report-templates.default-blocks');
     Route::get('report-templates', [ReportTemplateController::class, 'index'])->name('api.report-templates.index');
     Route::post('report-templates', [ReportTemplateController::class, 'store'])->name('api.report-templates.store');
     Route::get('report-templates/{reportTemplate}', [ReportTemplateController::class, 'show'])->name('api.report-templates.show');

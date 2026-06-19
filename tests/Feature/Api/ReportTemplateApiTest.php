@@ -25,6 +25,14 @@ class ReportTemplateApiTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['agency_id' => $this->agency->id]));
     }
 
+    public function test_default_blocks_returns_the_narrative_layout(): void
+    {
+        $response = $this->getJson('/api/v1/report-templates/default-blocks')->assertOk();
+
+        $this->assertSame(DefaultTemplate::blocks(), $response->json('blocks'));
+        $this->assertContains('header', array_column($response->json('blocks'), 'type'));
+    }
+
     public function test_store_accepts_a_valid_block_layout(): void
     {
         $this->postJson('/api/v1/report-templates', [
