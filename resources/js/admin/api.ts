@@ -252,6 +252,33 @@ export function useAiTemplate(siteId: number) {
     });
 }
 
+/* ------------------------------ editor: preview ---------------------------- */
+
+export interface PreviewResult {
+    blocks: Block[];
+    data: Record<string, unknown>;
+    score: number;
+    period: { start: string; end: string };
+    has_data: boolean;
+    sources_with_data: string[];
+}
+
+/** Resolve a draft layout against a site + period into REAL metric data (CLAUDE.md §11.3). */
+export function usePreview(siteId: number) {
+    return useMutation({
+        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string }) =>
+            api.post<PreviewResult>(`/sites/${siteId}/preview`, payload).then((r) => r.data),
+    });
+}
+
+/** Trigger an on-demand sync of the site's data sources ("Sincronizar ahora"). */
+export function useSyncSite(siteId: number) {
+    return useMutation({
+        mutationFn: () =>
+            api.post<{ queued: number; period: { start: string; end: string } }>(`/sites/${siteId}/sync`).then((r) => r.data),
+    });
+}
+
 export function useGenerateReport() {
     const queryClient = useQueryClient();
 
