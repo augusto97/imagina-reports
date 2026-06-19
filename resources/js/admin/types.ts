@@ -107,3 +107,9 @@ export interface AuthUser {
     email: string;
     role: string;
 }
+
+export interface UpdateStatus {
+    current: string | null;
+    available: string | null;
+    update_available: boolean;
+}

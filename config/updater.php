@@ -8,6 +8,10 @@ return [
     'channel' => env('UPDATER_CHANNEL', 'stable'),
     'source' => env('UPDATER_SOURCE', 'imagina-updater'),
 
+    // GitHub repo polled by `system:check-updates` to register the latest release
+    // (its .zip bundle + .sha256 checksum) so the in-app updater can offer it.
+    'github_repo' => env('UPDATER_GITHUB_REPO', 'augusto97/imagina-reports'),
+
     // Atomic release layout (CLAUDE.md §12.2). `base` holds releases/, shared/ and
     // the `current` symlink (OLS webroot points at current/public).
     'base_path' => env('UPDATER_BASE_PATH', dirname(base_path())),

@@ -16,6 +16,18 @@ final readonly class UpdateManager
 
     public function currentVersion(): string
     {
+        // Each release bundle ships a VERSION file (written by CI), so the running
+        // version is accurate per deploy regardless of the static APP_VERSION env.
+        $file = base_path('VERSION');
+
+        if (is_file($file)) {
+            $version = trim((string) file_get_contents($file));
+
+            if ($version !== '') {
+                return $version;
+            }
+        }
+
         $version = config('app.version');
 
         return is_string($version) ? $version : '0.0.0';
