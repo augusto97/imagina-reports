@@ -73,6 +73,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('report-templates', [ReportTemplateController::class, 'store'])->name('api.report-templates.store');
     Route::get('report-templates/{reportTemplate}', [ReportTemplateController::class, 'show'])->name('api.report-templates.show');
     Route::put('report-templates/{reportTemplate}', [ReportTemplateController::class, 'update'])->name('api.report-templates.update');
+    Route::delete('report-templates/{reportTemplate}', [ReportTemplateController::class, 'destroy'])->name('api.report-templates.destroy');
 
     Route::get('report-definitions', [ReportDefinitionController::class, 'index'])->name('api.report-definitions.index');
     Route::post('report-definitions', [ReportDefinitionController::class, 'store'])->name('api.report-definitions.store');

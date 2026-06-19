@@ -200,12 +200,42 @@ export interface TemplateValidationErrors {
     blocks?: string[];
 }
 
+export function useReportTemplate(id: number | null) {
+    return useQuery({
+        queryKey: ['report-template', id],
+        queryFn: () => get<ReportTemplateDto>(`/report-templates/${id}`),
+        enabled: id !== null,
+    });
+}
+
 export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (payload: { name: string; blocks: Block[] }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
+    });
+}
+
+export function useUpdateReportTemplate(id: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+            api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['report-templates'] });
+            void queryClient.invalidateQueries({ queryKey: ['report-template', id] });
+        },
+    });
+}
+
+export function useDeleteReportTemplate() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/report-templates/${id}`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
 }

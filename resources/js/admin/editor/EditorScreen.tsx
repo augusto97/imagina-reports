@@ -1,13 +1,21 @@
 import { type DragEndEvent, DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Sparkles } from 'lucide-react';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
 import type { Block, BlockType } from '@shared/blocks/types';
 
-import { useAiTemplate, useCreateReportTemplate, useMetricCatalog, useSites } from '../api';
+import {
+    useAiTemplate,
+    useCreateReportTemplate,
+    useMetricCatalog,
+    useReportTemplate,
+    useSites,
+    useUpdateReportTemplate,
+} from '../api';
 import { Button, Card, Field, Input } from '../components/ui';
+import { useAdminUi } from '../store';
 import { makeBlock, PALETTE, sampleData } from './blockFactory';
 import { SortableBlock } from './SortableBlock';
 
@@ -30,10 +38,34 @@ export function EditorScreen(): ReactElement {
     const create = useCreateReportTemplate();
     const ai = useAiTemplate(siteId ?? 0);
 
+    const editingTemplateId = useAdminUi((state) => state.editingTemplateId);
+    const editTemplate = useAdminUi((state) => state.editTemplate);
+    const { data: editingTemplate } = useReportTemplate(editingTemplateId);
+    const update = useUpdateReportTemplate(editingTemplateId ?? 0);
+
     const [name, setName] = useState('');
     const [aiPrompt, setAiPrompt] = useState('');
     const [blocks, setBlocks] = useState<Block[]>([makeBlock('header')]);
     const [errors, setErrors] = useState<string[]>([]);
+
+    // Reset to a blank template when "Nueva" is chosen.
+    useEffect(() => {
+        if (editingTemplateId === null) {
+            setName('');
+            setBlocks([makeBlock('header')]);
+            setErrors([]);
+        }
+    }, [editingTemplateId]);
+
+    // Load the selected template into the editor for re-editing.
+    useEffect(() => {
+        if (editingTemplate !== undefined && editingTemplate.id === editingTemplateId) {
+            const loaded = editingTemplate.blocks as Block[];
+            setName(editingTemplate.name);
+            setBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
+            setErrors([]);
+        }
+    }, [editingTemplate, editingTemplateId]);
 
     const generateWithAi = (): void => {
         ai.mutate(aiPrompt, {
@@ -64,13 +96,16 @@ export function EditorScreen(): ReactElement {
     };
 
     const save = (): void => {
-        create.mutate(
-            { name, blocks },
-            {
-                onSuccess: () => setErrors([]),
-                onError: (error) => setErrors(extractBlockErrors(error)),
-            },
-        );
+        const handlers = {
+            onSuccess: () => setErrors([]),
+            onError: (error: unknown) => setErrors(extractBlockErrors(error)),
+        };
+
+        if (editingTemplateId !== null) {
+            update.mutate({ name, blocks }, handlers);
+        } else {
+            create.mutate({ name, blocks }, handlers);
+        }
     };
 
     const previewData: Record<string, unknown> = {};
@@ -83,6 +118,16 @@ export function EditorScreen(): ReactElement {
             <div className="ir-flex ir-flex-col ir-gap-6">
                 <Card title="Plantilla">
                     <div className="ir-flex ir-flex-col ir-gap-3">
+                        <div className="ir-flex ir-items-center ir-justify-between">
+                            <span className="ir-text-xs ir-font-medium ir-text-muted-foreground">
+                                {editingTemplateId !== null ? 'Editando plantilla' : 'Nueva plantilla'}
+                            </span>
+                            {editingTemplateId !== null && (
+                                <Button variant="ghost" onClick={() => editTemplate(null)}>
+                                    Nueva
+                                </Button>
+                            )}
+                        </div>
                         <Field label="Nombre">
                             <Input value={name} onChange={(event) => setName(event.target.value)} />
                         </Field>
@@ -124,10 +169,12 @@ export function EditorScreen(): ReactElement {
                                 </Button>
                             ))}
                         </div>
-                        <Button onClick={save} disabled={create.isPending || name === ''}>
-                            Guardar plantilla
+                        <Button onClick={save} disabled={create.isPending || update.isPending || name === ''}>
+                            {editingTemplateId !== null ? 'Actualizar plantilla' : 'Guardar plantilla'}
                         </Button>
-                        {create.isSuccess && <p className="ir-text-xs ir-text-emerald-600">Plantilla guardada.</p>}
+                        {(create.isSuccess || update.isSuccess) && (
+                            <p className="ir-text-xs ir-text-emerald-600">Plantilla guardada.</p>
+                        )}
                         {errors.map((error) => (
                             <p key={error} className="ir-text-xs ir-text-red-500">
                                 {error}
