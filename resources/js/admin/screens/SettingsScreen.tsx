@@ -1,7 +1,58 @@
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useUpdateAgency } from '../api';
+import { type AgencyUpdate, useAgency, useChangePassword, useUpdateAgency } from '../api';
 import { Button, Card, Field, Input } from '../components/ui';
+
+function PasswordCard(): ReactElement {
+    const change = useChangePassword();
+    const [current, setCurrent] = useState('');
+    const [next, setNext] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [error, setError] = useState('');
+
+    const submit = (): void => {
+        setError('');
+        if (next !== confirm) {
+            setError('La nueva contraseña y su confirmación no coinciden.');
+
+            return;
+        }
+        change.mutate(
+            { current_password: current, password: next, password_confirmation: confirm },
+            {
+                onSuccess: () => {
+                    setCurrent('');
+                    setNext('');
+                    setConfirm('');
+                },
+                onError: () => setError('No se pudo cambiar. Revisa que la contraseña actual sea correcta y la nueva tenga al menos 8 caracteres.'),
+            },
+        );
+    };
+
+    return (
+        <Card title="Cuenta — cambiar contraseña">
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <Field label="Contraseña actual">
+                    <Input type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} />
+                </Field>
+                <Field label="Nueva contraseña (mín. 8)">
+                    <Input type="password" autoComplete="new-password" value={next} onChange={(event) => setNext(event.target.value)} />
+                </Field>
+                <Field label="Repite la nueva contraseña">
+                    <Input type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+                </Field>
+                <div className="ir-flex ir-items-center ir-gap-3">
+                    <Button onClick={submit} disabled={change.isPending || current === '' || next === ''}>
+                        {change.isPending ? 'Cambiando…' : 'Cambiar contraseña'}
+                    </Button>
+                    {change.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Contraseña actualizada.</span>}
+                    {error !== '' && <span className="ir-text-xs ir-text-red-500">{error}</span>}
+                </div>
+            </div>
+        </Card>
+    );
+}
 
 const LOCALES: { value: string; label: string }[] = [
     { value: 'es', label: 'Español' },
@@ -102,6 +153,8 @@ export function SettingsScreen(): ReactElement {
                 {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Ajustes guardados.</span>}
                 {update.isError && <span className="ir-text-xs ir-text-red-500">No se pudieron guardar.</span>}
             </div>
+
+            <PasswordCard />
         </div>
     );
 }

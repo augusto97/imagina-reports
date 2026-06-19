@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🔑 Cambio de contraseña en la app (2026-06-19, rama, acumulado v1.1.0):** el owner no tenía forma de cambiar
+su contraseña desde la UI. Añadido: `PUT /api/v1/user/password` (`AccountController` + `UpdatePasswordRequest`;
+verifica la contraseña actual con `Hash::check` —guard-independiente— y el cast `hashed` cifra la nueva al
+guardar), y una tarjeta **"Cuenta — cambiar contraseña"** en la pantalla Ajustes (actual + nueva + confirmación).
++3 tests (cambia con la actual correcta, rechaza la incorrecta, exige confirmación/longitud). 175 PHP verde,
+PHPStan max + Pint + TS + ESLint + build limpios. (Atajo inmediato sin esperar al release: `artisan tinker` en el
+VPS seteando `$u->password='…'`.)
+
 **⚙️ AJUSTES / WHITE-LABEL + IA (2026-06-19, rama, acumulado para v1.1.0):** nueva pantalla **Ajustes** en el
 admin para configurar sin SSH: nombre, **color de marca**, idioma por defecto y la **Anthropic API key** de la
 agencia. La key se guarda **cifrada** en `ir_agencies.settings` (`Agency::anthropicKey()`/`setAnthropicKey()` con

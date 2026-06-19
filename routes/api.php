@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -54,6 +55,7 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,
 Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('/user', [AuthController::class, 'me'])->name('api.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
+    Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
 

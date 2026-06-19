@@ -50,6 +50,18 @@ export function useLogin() {
     });
 }
 
+export interface PasswordChange {
+    current_password: string;
+    password: string;
+    password_confirmation: string;
+}
+
+export function useChangePassword() {
+    return useMutation({
+        mutationFn: (payload: PasswordChange) => api.put('/user/password', payload).then((r) => r.data),
+    });
+}
+
 export function useLogout() {
     const queryClient = useQueryClient();
 
