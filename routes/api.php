@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AiTemplateController;
+use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
@@ -17,7 +18,6 @@ use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\TrendsController;
 use App\Http\Controllers\Api\V1\WorkLogController;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -43,11 +43,15 @@ Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
 Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
     ->name('api.public.reports.periods');
 
+// SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');
+
 // Authenticated, tenant-bound routes. `tenant` runs after `auth:sanctum` so the
 // AgencyScope is active for everything inside (CLAUDE.md §5). Resource endpoints
 // are added phase by phase per §8.
 Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
-    Route::get('/user', static fn (Request $request) => $request->user())->name('api.user');
+    Route::get('/user', [AuthController::class, 'me'])->name('api.user');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
 

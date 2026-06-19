@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🔐 Auth implemented (2026-06-19):** the admin SPA had **no login** (it was served publicly and API calls
+got 401 → unusable). Added Sanctum SPA cookie auth end-to-end: `bootstrap/app.php` `statefulApi()`;
+`AuthController` (`login`/`me`/`logout`) + `LoginRequest` + `auth.php` lang (es/en/pt_BR); routes
+`POST /api/v1/login` (throttled), `POST /api/v1/logout`, `GET /api/v1/user` now return `{user}`. Frontend:
+`fetchCsrfCookie()` helper, `useAuthUser/useLogin/useLogout` hooks, `LoginScreen`, and an auth **guard** in
+admin `App.tsx` (shows login when unauthenticated; sidebar shows the email + "Cerrar sesión"). **156 PHP tests
+green, PHPStan max + Pint clean, TS clean.** Needs a **v1.0.2** release so the deployed VPS gets it (the install
+is otherwise live at https://reports.imagina.cloud). Note: client portal/report pages stay public (token-based).
+
 **🛠️ CI/release fix (2026-06-19):** the first `v1.0.0` release build failed because the runner used PHP 8.3
 while `composer.lock` pins Symfony 8.1 / Carbon 3.13 (require PHP ≥ 8.4) — the whole project was actually
 developed & tested on PHP **8.4.19**. Fixed by bumping both workflows (`ci.yml`, `release.yml`) to PHP 8.4

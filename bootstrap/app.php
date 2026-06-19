@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Sanctum SPA cookie auth: same-origin requests from the admin/portal SPAs
+        // (SANCTUM_STATEFUL_DOMAINS) get session + CSRF, so the cookie authenticates
+        // the /api/v1 routes (CLAUDE.md §2 — Sanctum, cookie sessions for own SPAs).
+        $middleware->statefulApi();
+
         // Resolve the tenant from the authenticated user; apply after auth:sanctum.
         $middleware->alias([
             'tenant' => BindTenant::class,
