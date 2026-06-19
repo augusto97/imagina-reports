@@ -45,8 +45,8 @@ final class BetterUptimeConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('monitor_id', 'Monitor ID', ConfigFieldType::Text),
-            new ConfigField('api_token', 'API token (Bearer)', ConfigFieldType::Password, secret: true),
+            new ConfigField('monitor_id', 'Monitor ID', ConfigFieldType::Text, help: 'ID del monitor: Better Stack → Monitors → tu monitor (aparece en la URL).'),
+            new ConfigField('api_token', 'API token (Bearer)', ConfigFieldType::Password, secret: true, help: 'Better Stack → Settings → API tokens → crea un token (Bearer).'),
         ];
     }
 

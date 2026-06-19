@@ -46,8 +46,8 @@ final class VirusdieConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('dashboard_url', 'MainWP dashboard URL', ConfigFieldType::Url),
-            new ConfigField('token', 'MainWP API token', ConfigFieldType::Password, secret: true),
+            new ConfigField('dashboard_url', 'MainWP dashboard URL', ConfigFieldType::Url, help: 'URL del panel MainWP. Virusdie se lee a través de la extensión Virusdie de MainWP.'),
+            new ConfigField('token', 'MainWP API token', ConfigFieldType::Password, secret: true, help: 'El mismo token (Bearer) de la API de MainWP.'),
         ];
     }
 

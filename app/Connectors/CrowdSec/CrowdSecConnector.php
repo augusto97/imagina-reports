@@ -43,8 +43,8 @@ final class CrowdSecConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('api_url', 'API base URL', ConfigFieldType::Url, help: 'CrowdSec Console API or LAPI base'),
-            new ConfigField('token', 'API token', ConfigFieldType::Password, secret: true),
+            new ConfigField('api_url', 'API base URL', ConfigFieldType::Url, help: 'URL base de la API: CrowdSec Console (https://app.crowdsec.net) o tu LAPI.'),
+            new ConfigField('token', 'API token', ConfigFieldType::Password, secret: true, help: 'Token de la CrowdSec Console (o credenciales de tu LAPI).'),
         ];
     }
 

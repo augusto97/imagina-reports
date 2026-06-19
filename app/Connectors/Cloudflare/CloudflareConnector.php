@@ -46,8 +46,8 @@ final class CloudflareConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('zone_id', 'Zone ID', ConfigFieldType::Text),
-            new ConfigField('api_token', 'API token (Analytics:Read)', ConfigFieldType::Password, secret: true),
+            new ConfigField('zone_id', 'Zone ID', ConfigFieldType::Text, help: 'ID de la zona: Cloudflare → tu dominio → Overview (abajo a la derecha).'),
+            new ConfigField('api_token', 'API token (Analytics:Read)', ConfigFieldType::Password, secret: true, help: 'My Profile → API Tokens → Create Token, con permiso Zone Analytics: Read.'),
         ];
     }
 

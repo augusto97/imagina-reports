@@ -47,10 +47,10 @@ final class EndpointConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('url', 'URL', ConfigFieldType::Url),
-            new ConfigField('format', 'Format', ConfigFieldType::Text, required: false, help: 'json (default) or csv'),
-            new ConfigField('token', 'Bearer token', ConfigFieldType::Password, required: false, secret: true),
-            new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: '[{"key","label","type":"scalar|series|table","path","label_field","value_field"}]'),
+            new ConfigField('url', 'URL', ConfigFieldType::Url, help: 'URL que devuelve los datos YA agregados (JSON o CSV).'),
+            new ConfigField('format', 'Format', ConfigFieldType::Text, required: false, help: 'json (por defecto) o csv.'),
+            new ConfigField('token', 'Bearer token', ConfigFieldType::Password, required: false, secret: true, help: 'Token Bearer opcional para autenticar la petición.'),
+            new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: 'JSON con el mapeo: [{"key","label","type":"scalar|series|table","path","label_field","value_field"}].'),
         ];
     }
 

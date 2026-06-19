@@ -62,8 +62,8 @@ final class GscConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('site_url', 'Search Console property URL', ConfigFieldType::Text, help: 'e.g. https://example.com/ or sc-domain:example.com'),
-            new ConfigField('service_account', 'Service account JSON', ConfigFieldType::Json, secret: true),
+            new ConfigField('site_url', 'Search Console property URL', ConfigFieldType::Text, help: 'Propiedad de Search Console, p. ej. https://example.com/ o sc-domain:example.com'),
+            new ConfigField('service_account', 'Service account JSON', ConfigFieldType::Json, secret: true, help: 'Pega el JSON de la cuenta de servicio de Google. Añade su email como usuario en la propiedad de Search Console.'),
         ];
     }
 

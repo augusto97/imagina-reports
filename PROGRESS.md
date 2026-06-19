@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 Connector help in the UI (2026-06-19, → v1.0.4):** every connector's `configSchema()` fields now carry
+Spanish `help:` text (what to enter + where to get the credentials), and the admin "Fuentes" screen
+(`DataSourcesScreen`) renders it under each input. Backend already exposed `help` via `ConfigField::toArray()`.
+Also: WooCommerce stays on Basic Auth (the field 403 the owner hit was a **Cloudflare block**, not auth — Basic
+Auth keeps the secret out of the URL/logs). 156 PHP tests green, PHPStan max + Pint clean, TS clean.
+**Live install runs v1.0.3 at https://reports.imagina.cloud** (auth + worker + cron up; PDF/Browsershot still
+to validate — chromium installed as a snap at /snap/bin/chromium, Node 18). This change needs a **v1.0.4** release.
+
 **🔐 Auth implemented (2026-06-19):** the admin SPA had **no login** (it was served publicly and API calls
 got 401 → unusable). Added Sanctum SPA cookie auth end-to-end: `bootstrap/app.php` `statefulApi()`;
 `AuthController` (`login`/`me`/`logout`) + `LoginRequest` + `auth.php` lang (es/en/pt_BR); routes
