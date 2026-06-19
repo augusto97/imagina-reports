@@ -150,6 +150,41 @@ class PreviewApiTest extends TestCase
         $response->assertJsonPath('data.k1.change_percent', 20);
     }
 
+    public function test_security_shield_collects_real_metrics_from_connected_sources(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+
+        $cloudflare = DataSource::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Cloudflare]);
+        $crowdsec = DataSource::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'type' => DataSourceType::CrowdSec]);
+
+        $start = now()->startOfMonth();
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $cloudflare->id,
+            'period_start' => $start,
+            'period_end' => $start->copy()->endOfMonth(),
+            'payload' => ['status' => MetricSetStatus::Ok->value, 'error' => null, 'metrics' => ['cloudflare.threats_blocked' => 1840]],
+        ]);
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $crowdsec->id,
+            'period_start' => $start,
+            'period_end' => $start->copy()->endOfMonth(),
+            'payload' => ['status' => MetricSetStatus::Ok->value, 'error' => null, 'metrics' => ['crowdsec.attacks_blocked' => 96]],
+        ]);
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/preview", [
+            'blocks' => [['id' => 's1', 'type' => 'security_shield', 'binding' => null, 'props' => [], 'style' => []]],
+        ])->assertOk();
+
+        $response->assertJsonPath('data.s1.threats_blocked', 1840);
+        $response->assertJsonPath('data.s1.attacks_blocked', 96);
+    }
+
     public function test_it_hides_blocks_whose_metric_has_no_data(): void
     {
         $agency = Agency::factory()->create();

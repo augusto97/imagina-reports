@@ -85,9 +85,41 @@ final readonly class BlockResolver
 
         return match ($block->type) {
             BlockType::HealthScore => $score,
+            BlockType::SecurityShield => $this->securityMetrics($bags),
             BlockType::WorklogTimeline => [], // populated from ir_report_work_logs later
             default => null,
         };
+    }
+
+    /**
+     * Collect the security headline numbers the shield block shows (§11.5) from the
+     * connectors that expose them — only those actually present, so a client without
+     * a given source simply doesn't show that stat. Returns null when none are
+     * available (the renderer then shows the reassuring default).
+     *
+     * @param  MetricBags  $bags
+     * @return array<string, int|float>|null
+     */
+    private function securityMetrics(array $bags): ?array
+    {
+        $wanted = [
+            'threats_blocked' => 'cloudflare.threats_blocked',
+            'attacks_blocked' => 'crowdsec.attacks_blocked',
+            'malware_found' => 'virusdie.malware_found',
+        ];
+
+        $out = [];
+
+        foreach ($wanted as $label => $key) {
+            $source = explode('.', $key)[0];
+            $value = $bags[$source][$key] ?? null;
+
+            if (is_numeric($value)) {
+                $out[$label] = $value + 0;
+            }
+        }
+
+        return $out === [] ? null : $out;
     }
 
     /**

@@ -84,14 +84,42 @@ function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
+/** Semicircular SVG gauge (0–100) with a semantic color — prints cleanly to PDF. */
+function Gauge({ score }: { score: number }): ReactElement {
+    const clamped = Math.max(0, Math.min(100, score));
+    const radius = 80;
+    const arcLength = Math.PI * radius; // half circumference
+    const stroke = clamped >= 80 ? '#10b981' : clamped >= 50 ? '#f59e0b' : '#ef4444';
+
+    return (
+        <div className="ir-relative ir-mx-auto ir-w-full ir-max-w-[220px]">
+            <svg viewBox="0 0 200 120" className="ir-w-full">
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="hsl(var(--ir-muted))" strokeWidth="14" strokeLinecap="round" />
+                <path
+                    d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(clamped / 100) * arcLength} ${arcLength}`}
+                />
+                <text x="100" y="92" textAnchor="middle" className="ir-fill-foreground" style={{ fontSize: '34px', fontWeight: 700 }}>
+                    {clamped}
+                </text>
+                <text x="100" y="112" textAnchor="middle" className="ir-fill-muted-foreground" style={{ fontSize: '11px' }}>
+                    / 100
+                </text>
+            </svg>
+        </div>
+    );
+}
+
 function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
     const score = typeof data === 'number' ? data : Number(data) || 0;
-    const tone = score >= 80 ? 'ir-text-emerald-500' : score >= 50 ? 'ir-text-amber-500' : 'ir-text-red-500';
 
     return (
         <Section title={str(prop(block, 'title'), 'Estado general')}>
-            <div className={cn('ir-text-5xl ir-font-bold', tone)}>{score}</div>
-            <p className="ir-text-sm ir-text-muted-foreground">/ 100</p>
+            <Gauge score={score} />
         </Section>
     );
 }
@@ -229,15 +257,34 @@ function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
-function SecurityShieldBlock({ block }: BlockComponentProps): ReactElement {
+const SECURITY_STATS: { key: string; label: string }[] = [
+    { key: 'threats_blocked', label: 'Amenazas bloqueadas' },
+    { key: 'attacks_blocked', label: 'Ataques bloqueados' },
+    { key: 'malware_found', label: 'Malware detectado' },
+];
+
+function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement {
+    const stats = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+    const tiles = SECURITY_STATS.filter((stat) => typeof stats[stat.key] === 'number');
+
     return (
         <Section title={str(prop(block, 'title'), 'Seguridad')}>
             <div className="ir-flex ir-items-center ir-gap-3">
-                <ShieldCheck className="ir-size-8 ir-text-emerald-500" />
+                <ShieldCheck className="ir-size-8 ir-shrink-0 ir-text-emerald-500" />
                 <p className="ir-text-sm ir-text-muted-foreground">
                     Tu sitio está protegido y monitorizado.
                 </p>
             </div>
+            {tiles.length > 0 && (
+                <div className="ir-mt-4 ir-grid ir-grid-cols-3 ir-gap-3">
+                    {tiles.map((stat) => (
+                        <div key={stat.key} className="ir-rounded-md ir-bg-muted ir-p-3 ir-text-center">
+                            <p className="ir-text-2xl ir-font-semibold">{Number(stats[stat.key]).toLocaleString()}</p>
+                            <p className="ir-text-xs ir-text-muted-foreground">{stat.label}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </Section>
     );
 }

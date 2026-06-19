@@ -48,6 +48,8 @@ export function sampleData(block: Block): unknown {
                 : 1234;
         case 'healthscore':
             return 87;
+        case 'security_shield':
+            return { threats_blocked: 1840, attacks_blocked: 96, malware_found: 0 };
         case 'chart':
             return [
                 { date: '01', value: 40 },
