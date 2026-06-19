@@ -27,6 +27,8 @@ final class UpdateReportDefinitionRequest extends FormRequest
             'requested_metrics' => ['sometimes', 'nullable', 'array'],
             'template_id' => ['sometimes', 'nullable', 'integer'],
             'locale' => ['sometimes', 'string', 'max:8'],
+            'recipients' => ['sometimes', 'nullable', 'array'],
+            'recipients.*' => ['email'],
         ];
     }
 }

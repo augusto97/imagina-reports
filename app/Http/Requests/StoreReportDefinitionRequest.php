@@ -25,6 +25,8 @@ final class StoreReportDefinitionRequest extends FormRequest
             'blocks' => ['nullable', 'array'],
             'requested_metrics' => ['nullable', 'array'],
             'locale' => ['nullable', 'string', 'max:8'],
+            'recipients' => ['nullable', 'array'],
+            'recipients.*' => ['email'],
         ];
     }
 }

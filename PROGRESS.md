@@ -7,6 +7,76 @@
 ---
 
 ## Where I left off (read me first)
+**🏷️ WHITE-LABEL COMPLETO — logo + color al reporte (2026-06-19, rama, acumulado v1.1.0):** el `brand_color` ya
+se aplicaba al render (`applyBrandAccent` → `--ir-primary`); faltaba el **logo**. Añadido: `POST /api/v1/agency/logo`
+(sube imagen png/jpg/svg/webp ≤1MB al disco `public`, set `logo_path`), `Agency::logoUrl()` (URL pública), y
+`logo_url` expuesto en `present()` (Ajustes) y en el `ReportResource` (portal/PDF). El front del reporte
+(`ReportApp`) ahora usa `agency.logo_url` para el `<img>`; pantalla **Ajustes** gana subida de logo con preview.
+`deploy.sh` ahora corre `php artisan storage:link` para servir el disco public. +2 tests (sube y guarda; rechaza
+no-imagen). **181 PHP verde, PHPStan max + Pint + TS + ESLint + build limpios.** **Ojo producción:** tras
+desplegar v1.1.0 hay que tener el symlink `public/storage` (lo crea deploy.sh) y que las imágenes
+`APP_URL/storage/...` sean accesibles por Browsershot (Cloudflare no suele bloquear estáticos).
+
+**📤 REPORTES END-TO-END — envío cableado (2026-06-19, rama, acumulado v1.1.0):** ya existían
+`DeliverReportJob`/`DeliveryService`/`ReportPdfService`/`ReportReadyMail`/scheduler, pero **faltaba el endpoint
+de envío** y la UI de destinatarios/aprobar/enviar. Añadido: `POST /api/v1/reports/{report}/send` (`ReportController::send`
+→ encola `DeliverReportJob`; 422 si el reporte está en `draft` para no enviar sin aprobar). Definiciones ahora
+aceptan **`recipients`** (emails validados) en store/update + expuestos en el resource. Frontend `ReportsScreen`
+reescrito: formulario de definición con **plantilla opcional + destinatarios**, y tabla de reportes con acciones
+**Aprobar / Enviar / Reenviar** + ver portal. +4 tests (send encola para aprobado, 422 en draft, definición guarda
+y valida recipients). **179 PHP verde, PHPStan max + Pint + TS + ESLint + build limpios.** Flujo completo:
+generar → (draft) aprobar → enviar (PDF Browsershot + email branded a recipients) → sent. **Ojo producción:** el
+email real necesita `MAIL_*` configurado en shared/.env, y el PDF necesita Chromium operativo (Browsershot) — a
+validar en el server. Scheduling (`ir_schedules` + `RunScheduledReportJob` + `ScheduleRunner`) ya existía.
+
+**🔑 Cambio de contraseña en la app (2026-06-19, rama, acumulado v1.1.0):** el owner no tenía forma de cambiar
+su contraseña desde la UI. Añadido: `PUT /api/v1/user/password` (`AccountController` + `UpdatePasswordRequest`;
+verifica la contraseña actual con `Hash::check` —guard-independiente— y el cast `hashed` cifra la nueva al
+guardar), y una tarjeta **"Cuenta — cambiar contraseña"** en la pantalla Ajustes (actual + nueva + confirmación).
++3 tests (cambia con la actual correcta, rechaza la incorrecta, exige confirmación/longitud). 175 PHP verde,
+PHPStan max + Pint + TS + ESLint + build limpios. (Atajo inmediato sin esperar al release: `artisan tinker` en el
+VPS seteando `$u->password='…'`.)
+
+**⚙️ AJUSTES / WHITE-LABEL + IA (2026-06-19, rama, acumulado para v1.1.0):** nueva pantalla **Ajustes** en el
+admin para configurar sin SSH: nombre, **color de marca**, idioma por defecto y la **Anthropic API key** de la
+agencia. La key se guarda **cifrada** en `ir_agencies.settings` (`Agency::anthropicKey()`/`setAnthropicKey()` con
+`Crypt`) y **nunca se devuelve** (la API solo expone `ai_key_set: bool`). `AnthropicAiClient` ahora **prefiere la
+key de la agencia** (vía `TenantContext`) y cae a la de config — esto **desbloquea la IA** que fallaba por falta de
+key, por agencia (multi-tenant). Endpoints `GET/PUT /api/v1/agency` (`AgencyController` + `UpdateAgencyRequest`).
+Frontend: `SettingsScreen` + nav "Ajustes" + `useAgency`/`useUpdateAgency`. +3 tests (show sin exponer key, update
+cifra la key, el cliente IA prefiere la key de la agencia). **172 PHP verde, PHPStan max + Pint + TS + ESLint +
+build limpios.** Pendiente menor del white-label: subida de **logo** (archivo) y **aplicar `brand_color` al
+render** del reporte (hoy se guarda pero no se propaga al accent del BlockRenderer).
+
+**🎨 EDITOR PROFESIONAL — milestone completo (2026-06-19, rama lista → v1.1.0):** se desarrolló todo el bloque
+"editor pro" (la queja del owner) en 3 incrementos, todos verdes (169 PHP, PHPStan max, Pint, TS, ESLint, build):
+(1) **KPIs pro + grid de columnas** — comparación vs periodo anterior `{value,previous,change_percent}` vía
+`BlockResolver` + `MetricBagLoader::previousForSite()`; `BlockList` es un grid de 6 col con `style.width`
+(full/half/third); editor con control de Ancho + toggle de comparación. (2) **Gauge + escudo de seguridad** —
+`HealthScoreBlock` ahora es un medidor semicircular SVG con color semántico; `SecurityShieldBlock` muestra
+números reales (cloudflare.threats_blocked, crowdsec.attacks_blocked, virusdie.malware_found) recogidos por
+`BlockResolver::securityMetrics()`. (3) **Plantilla por defecto** — `GET /report-templates/default-blocks` +
+botón "Empezar desde la plantilla por defecto"; los KPIs de la plantilla nacen `width:third` (filas de 3).
+Commits en rama: 0a4ac8a, b0cfa85, 7d9f2da. **Pendiente de decisión del owner:** publicar v1.1.0 (merge rama→main
++ tag) o seguir con otro frente (reportes end-to-end / ajustes-whitelabel / 360 datos). Lo único que NO se hizo
+del editor pro: edición visual del grid arrastrando entre columnas (grande; el selector de Ancho ya cubre el
+layout multi-columna). El server corre 1.0.9; esto necesita un nuevo release para llegar a producción.
+
+**🎨 Report Builder M2 (parte 1): KPIs profesionales + grid de columnas (2026-06-19):** primer incremento del
+"editor profesional" (la queja del owner). (1) **KPI con comparación vs periodo anterior**: `BlockResolver`
+enriquece los bloques de dato con `binding.compare === 'prev_period'` a `{value, previous, change_percent}`;
+nuevo `MetricBagLoader::previousForSite()` toma el snapshot más reciente *estrictamente anterior* al periodo
+(robusto a meses de distinta longitud, mejor que `period->previous()`); `ReportGenerator` y `PreviewController`
+cargan los bags previos. (2) **Renderer**: `KpiBlock`/`SalesSummaryBlock` muestran número grande + pill de
+tendencia (▲/▼ % verde/rojo "vs. periodo anterior"); `BlockList` ahora es un **grid de 6 columnas** y cada bloque
+fluye según `style.width` (full/half/third) → fila de KPIs lado a lado como un reporte real. (3) **Editor**:
+control de **Ancho** por bloque + toggle "Comparar vs periodo anterior" en KPI/ventas (preserva `compare` al
+cambiar de métrica); KPIs nuevos nacen `width:third`; sample data enriquecido. La plantilla por defecto ya traía
+`compare:prev_period` en sus KPIs, así que ahora rinden como tarjetas. +2 tests (comparación + sigue ocultando
+sin dato). **167 PHP verde, PHPStan max + Pint + TS + ESLint + build limpios.** Rama lista para PR (→ v1.1.0).
+**Próximos incrementos M2/M3:** gauge real de health score (semicircular), escudo de seguridad con datos reales
+(cloudflare/crowdsec/virusdie), y edición visual del grid (no solo selector de ancho).
+
 **🚀 v1.0.8 LIVE + updater health-check hardened (2026-06-19):** v1.0.7 fue creada por error apuntando a
 `main` pre-merge (= código 1.0.6); se descartó y se publicó **v1.0.8** desde el `main` mergeado (PR #8). El VPS
 quedó en **1.0.8 por deploy manual** (deploy.sh + lsphp84) — éxito visible (migrate/cache/flip/queue:restart OK,

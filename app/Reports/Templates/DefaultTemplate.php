@@ -47,16 +47,17 @@ final class DefaultTemplate
     /**
      * @param  array<string, mixed>|null  $binding
      * @param  array<string, mixed>  $props
+     * @param  array<string, mixed>  $style
      * @return array<string, mixed>
      */
-    private static function block(string $id, BlockType $type, ?array $binding = null, array $props = []): array
+    private static function block(string $id, BlockType $type, ?array $binding = null, array $props = [], array $style = []): array
     {
         return [
             'id' => $id,
             'type' => $type->value,
             'binding' => $binding,
             'props' => $props,
-            'style' => [],
+            'style' => $style,
         ];
     }
 
@@ -65,11 +66,12 @@ final class DefaultTemplate
      */
     private static function kpi(string $id, string $source, string $metric, string $label, string $unit): array
     {
+        // Third width so the KPI cards lay out three-per-row (CLAUDE.md §11.5).
         return self::block($id, BlockType::Kpi, [
             'source' => $source,
             'metric' => $metric,
             'compare' => 'prev_period',
-        ], ['label' => $label, 'unit' => $unit]);
+        ], ['label' => $label, 'unit' => $unit], ['width' => 'third']);
     }
 
     /**

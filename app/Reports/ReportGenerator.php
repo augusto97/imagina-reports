@@ -35,11 +35,12 @@ final readonly class ReportGenerator
     {
         $blocks = $this->resolveLayout($definition);
         $bags = $this->bags->forSite($definition->site_id, $period);
+        $previousBags = $this->bags->previousForSite($definition->site_id, $period);
         $score = $this->health->calculate($bags);
 
         // Resolve blocks→data via the shared resolver — the same logic the live
         // editor preview uses, so the preview matches the generated report exactly.
-        ['blocks' => $visibleBlocks, 'data' => $data] = $this->resolver->resolve($blocks, $bags, $score);
+        ['blocks' => $visibleBlocks, 'data' => $data] = $this->resolver->resolve($blocks, $bags, $score, $previousBags);
 
         $report = $this->persist($definition, $period, $visibleBlocks, $data, $score);
 

@@ -8,6 +8,7 @@ use App\Enums\ReportStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerateReportRequest;
 use App\Http\Resources\ReportSummaryResource;
+use App\Jobs\DeliverReportJob;
 use App\Jobs\GenerateReportJob;
 use App\Models\Report;
 use App\Models\ReportDefinition;
@@ -45,5 +46,21 @@ final class ReportController extends Controller
         $report->update(['status' => ReportStatus::Approved]);
 
         return new ReportSummaryResource($report);
+    }
+
+    /**
+     * Enqueue DELIVER (CLAUDE.md §3.1/§8): render the PDF and email the branded
+     * report to the definition's recipients. Reports must be approved first so an
+     * unreviewed draft can't go out by accident.
+     */
+    public function send(Report $report): JsonResponse
+    {
+        if ($report->status === ReportStatus::Draft) {
+            return response()->json(['message' => 'Aprueba el reporte antes de enviarlo.'], 422);
+        }
+
+        DeliverReportJob::dispatch($report->id);
+
+        return response()->json(['message' => 'Report delivery queued.'], 202);
     }
 }

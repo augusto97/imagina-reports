@@ -97,9 +97,12 @@ class ReportGeneratorTest extends TestCase
         $data = $report->resolved_blocks['data'] ?? [];
         $this->assertIsArray($data);
 
-        // Bound GA4 + computed MainWP delta resolved.
-        $this->assertSame(1500, $data['kpi_visits']);
-        $this->assertSame(7, $data['kpi_updates']);
+        // Bound GA4 + computed MainWP delta resolved. The default template's KPIs
+        // compare vs the previous period, so each resolves to a {value, previous,
+        // change_percent} card (no prior snapshot here → previous is null).
+        $this->assertSame(1500, $data['kpi_visits']['value']);
+        $this->assertNull($data['kpi_visits']['previous']);
+        $this->assertSame(7, $data['kpi_updates']['value']);
 
         // Health score: updates(3→85) + security(100) re-weighted ≈ 93; also on the block.
         $this->assertSame(93, $report->health_score);

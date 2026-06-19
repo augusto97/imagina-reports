@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ClientController;
@@ -53,8 +55,14 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,
 Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('/user', [AuthController::class, 'me'])->name('api.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
+    Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
+
+    // Agency settings: white-label branding + the AI builder's Anthropic key (§11.1).
+    Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');
+    Route::put('agency', [AgencyController::class, 'update'])->name('api.agency.update');
+    Route::post('agency/logo', [AgencyController::class, 'uploadLogo'])->name('api.agency.logo');
 
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');
@@ -72,6 +80,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
 
+    Route::get('report-templates/default-blocks', [ReportTemplateController::class, 'defaultBlocks'])->name('api.report-templates.default-blocks');
     Route::get('report-templates', [ReportTemplateController::class, 'index'])->name('api.report-templates.index');
     Route::post('report-templates', [ReportTemplateController::class, 'store'])->name('api.report-templates.store');
     Route::get('report-templates/{reportTemplate}', [ReportTemplateController::class, 'show'])->name('api.report-templates.show');
@@ -93,6 +102,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('api.reports.show');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
+    Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 

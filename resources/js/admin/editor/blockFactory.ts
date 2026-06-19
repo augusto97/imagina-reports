@@ -14,6 +14,10 @@ export function makeBlock(type: BlockType): Block {
     if (type === 'chart') {
         block.props = { chartType: 'line', title: 'Gráfico' };
     }
+    // KPI cards read best three-per-row with a "vs previous period" trend.
+    if (type === 'kpi') {
+        block.style = { width: 'third' };
+    }
 
     return block;
 }
@@ -38,9 +42,14 @@ export function sampleData(block: Block): unknown {
     switch (block.type) {
         case 'kpi':
         case 'sales_summary':
-            return 1234;
+            // Rich shape so the sample preview shows the professional card with a trend.
+            return block.binding?.compare === 'prev_period'
+                ? { value: 1234, previous: 1100, change_percent: 12.2 }
+                : 1234;
         case 'healthscore':
             return 87;
+        case 'security_shield':
+            return { threats_blocked: 1840, attacks_blocked: 96, malware_found: 0 };
         case 'chart':
             return [
                 { date: '01', value: 40 },

@@ -32,8 +32,8 @@ export function ReportApp({ token }: { token: string }): ReactElement {
         <div className="ir-mx-auto ir-max-w-3xl ir-bg-background ir-p-8 ir-text-foreground">
             {data.agency !== null && (
                 <div className="ir-mb-6 ir-flex ir-items-center ir-gap-3">
-                    {data.agency.logo_path !== null && (
-                        <img src={data.agency.logo_path} alt={data.agency.name} className="ir-h-8" />
+                    {data.agency.logo_url !== null && (
+                        <img src={data.agency.logo_url} alt={data.agency.name} className="ir-h-8" />
                     )}
                     <span className="ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">
                         {data.agency.name}

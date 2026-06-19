@@ -1,4 +1,4 @@
-import { ShieldCheck } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { type ReactElement } from 'react';
 import {
     Area,
@@ -84,25 +84,89 @@ function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
+/** Semicircular SVG gauge (0–100) with a semantic color — prints cleanly to PDF. */
+function Gauge({ score }: { score: number }): ReactElement {
+    const clamped = Math.max(0, Math.min(100, score));
+    const radius = 80;
+    const arcLength = Math.PI * radius; // half circumference
+    const stroke = clamped >= 80 ? '#10b981' : clamped >= 50 ? '#f59e0b' : '#ef4444';
+
+    return (
+        <div className="ir-relative ir-mx-auto ir-w-full ir-max-w-[220px]">
+            <svg viewBox="0 0 200 120" className="ir-w-full">
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="hsl(var(--ir-muted))" strokeWidth="14" strokeLinecap="round" />
+                <path
+                    d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(clamped / 100) * arcLength} ${arcLength}`}
+                />
+                <text x="100" y="92" textAnchor="middle" className="ir-fill-foreground" style={{ fontSize: '34px', fontWeight: 700 }}>
+                    {clamped}
+                </text>
+                <text x="100" y="112" textAnchor="middle" className="ir-fill-muted-foreground" style={{ fontSize: '11px' }}>
+                    / 100
+                </text>
+            </svg>
+        </div>
+    );
+}
+
 function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
     const score = typeof data === 'number' ? data : Number(data) || 0;
-    const tone = score >= 80 ? 'ir-text-emerald-500' : score >= 50 ? 'ir-text-amber-500' : 'ir-text-red-500';
 
     return (
         <Section title={str(prop(block, 'title'), 'Estado general')}>
-            <div className={cn('ir-text-5xl ir-font-bold', tone)}>{score}</div>
-            <p className="ir-text-sm ir-text-muted-foreground">/ 100</p>
+            <Gauge score={score} />
         </Section>
     );
 }
 
+interface Kpi {
+    value: number;
+    changePercent: number | null;
+}
+
+function asKpi(data: unknown): Kpi {
+    if (data !== null && typeof data === 'object' && 'value' in data) {
+        const record = data as Record<string, unknown>;
+        const change = record.change_percent;
+
+        return {
+            value: typeof record.value === 'number' ? record.value : Number(record.value) || 0,
+            changePercent: typeof change === 'number' ? change : null,
+        };
+    }
+
+    return { value: typeof data === 'number' ? data : Number(data) || 0, changePercent: null };
+}
+
+/** A trend pill: green/red arrow + signed percent vs the previous period. */
+function TrendBadge({ percent }: { percent: number }): ReactElement {
+    const up = percent >= 0;
+    const Arrow = up ? ArrowUpRight : ArrowDownRight;
+    const tone = up ? 'ir-text-emerald-600' : 'ir-text-red-500';
+
+    return (
+        <span className={cn('ir-mt-1 ir-inline-flex ir-items-center ir-gap-1 ir-text-sm ir-font-medium', tone)}>
+            <Arrow className="ir-size-4" />
+            {up ? '+' : ''}
+            {percent.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+            <span className="ir-text-xs ir-font-normal ir-text-muted-foreground">vs. periodo anterior</span>
+        </span>
+    );
+}
+
 function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
-    const value = typeof data === 'number' ? data : Number(data) || 0;
+    const { value, changePercent } = asKpi(data);
 
     return (
         <Section>
             <p className="ir-text-sm ir-text-muted-foreground">{str(prop(block, 'label'))}</p>
             <p className="ir-text-3xl ir-font-semibold">{value.toLocaleString()}</p>
+            {changePercent !== null && <TrendBadge percent={changePercent} />}
         </Section>
     );
 }
@@ -193,15 +257,34 @@ function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
-function SecurityShieldBlock({ block }: BlockComponentProps): ReactElement {
+const SECURITY_STATS: { key: string; label: string }[] = [
+    { key: 'threats_blocked', label: 'Amenazas bloqueadas' },
+    { key: 'attacks_blocked', label: 'Ataques bloqueados' },
+    { key: 'malware_found', label: 'Malware detectado' },
+];
+
+function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement {
+    const stats = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+    const tiles = SECURITY_STATS.filter((stat) => typeof stats[stat.key] === 'number');
+
     return (
         <Section title={str(prop(block, 'title'), 'Seguridad')}>
             <div className="ir-flex ir-items-center ir-gap-3">
-                <ShieldCheck className="ir-size-8 ir-text-emerald-500" />
+                <ShieldCheck className="ir-size-8 ir-shrink-0 ir-text-emerald-500" />
                 <p className="ir-text-sm ir-text-muted-foreground">
                     Tu sitio está protegido y monitorizado.
                 </p>
             </div>
+            {tiles.length > 0 && (
+                <div className="ir-mt-4 ir-grid ir-grid-cols-3 ir-gap-3">
+                    {tiles.map((stat) => (
+                        <div key={stat.key} className="ir-rounded-md ir-bg-muted ir-p-3 ir-text-center">
+                            <p className="ir-text-2xl ir-font-semibold">{Number(stats[stat.key]).toLocaleString()}</p>
+                            <p className="ir-text-xs ir-text-muted-foreground">{stat.label}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </Section>
     );
 }
@@ -234,11 +317,12 @@ function DividerBlock(): ReactElement {
 }
 
 function SalesSummaryBlock({ block, data }: BlockComponentProps): ReactElement {
-    const value = typeof data === 'number' ? data : Number(data) || 0;
+    const { value, changePercent } = asKpi(data);
 
     return (
         <Section title={str(prop(block, 'title'), 'Ventas')}>
             <p className="ir-text-3xl ir-font-semibold">{value.toLocaleString()}</p>
+            {changePercent !== null && <TrendBadge percent={changePercent} />}
         </Section>
     );
 }
@@ -270,7 +354,26 @@ export function BlockRenderer({ block, data }: BlockComponentProps): ReactElemen
     return <Component block={block} data={data} />;
 }
 
-/** Render an ordered list of blocks, resolving each block's data by id. */
+/** Column span (out of 6) for a block's configured width. Defaults to full width. */
+function widthSpan(block: Block): string {
+    const width = block.style?.width;
+
+    if (width === 'third') {
+        return 'ir-col-span-6 sm:ir-col-span-2';
+    }
+    if (width === 'half') {
+        return 'ir-col-span-6 sm:ir-col-span-3';
+    }
+
+    return 'ir-col-span-6';
+}
+
+/**
+ * Render an ordered list of blocks on a 6-column grid (single source of truth for
+ * the editor preview, the portal and the PDF). Each block flows into the next column
+ * according to its `style.width` (full / half / third), so a row of KPI cards sits
+ * side by side like a real report (CLAUDE.md §11.4/§11.5).
+ */
 export function BlockList({
     blocks,
     data = {},
@@ -279,9 +382,11 @@ export function BlockList({
     data?: Record<string, unknown>;
 }): ReactElement {
     return (
-        <div className="ir-flex ir-flex-col ir-gap-6">
+        <div className="ir-grid ir-grid-cols-6 ir-gap-6">
             {blocks.map((block) => (
-                <BlockRenderer key={block.id} block={block} data={data[block.id]} />
+                <div key={block.id} className={widthSpan(block)}>
+                    <BlockRenderer block={block} data={data[block.id]} />
+                </div>
             ))}
         </div>
     );

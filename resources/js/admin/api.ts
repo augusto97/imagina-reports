@@ -5,6 +5,7 @@ import { api, fetchCsrfCookie } from '@shared/lib/api';
 import type { Block } from '@shared/blocks/types';
 
 import type {
+    AgencySettings,
     AgencyTrends,
     AuthUser,
     CatalogEntry,
@@ -49,12 +50,60 @@ export function useLogin() {
     });
 }
 
+export interface PasswordChange {
+    current_password: string;
+    password: string;
+    password_confirmation: string;
+}
+
+export function useChangePassword() {
+    return useMutation({
+        mutationFn: (payload: PasswordChange) => api.put('/user/password', payload).then((r) => r.data),
+    });
+}
+
 export function useLogout() {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: () => api.post('/logout').then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+/* --------------------------------- agency ---------------------------------- */
+
+export function useAgency() {
+    return useQuery({ queryKey: ['agency'], queryFn: () => get<AgencySettings>('/agency') });
+}
+
+export interface AgencyUpdate {
+    name: string;
+    brand_color: string | null;
+    default_locale: string;
+    anthropic_key?: string;
+}
+
+export function useUpdateAgency() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: AgencyUpdate) => api.put<AgencySettings>('/agency', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['agency'], data),
+    });
+}
+
+export function useUploadLogo() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (file: File) => {
+            const form = new FormData();
+            form.append('logo', file);
+
+            return api.post<AgencySettings>('/agency/logo', form).then((r) => r.data);
+        },
+        onSuccess: (data) => queryClient.setQueryData(['agency'], data),
     });
 }
 
@@ -138,9 +187,27 @@ export function useCreateReportDefinition() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { site_id: number; name: string }) =>
+        mutationFn: (payload: { site_id: number; name: string; template_id?: number; recipients?: string[] }) =>
             api.post<ReportDefinitionDto>('/report-definitions', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
+export function useApproveReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) => api.post(`/reports/${reportId}/approve`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
+export function useSendReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) => api.post(`/reports/${reportId}/send`).then((r) => r.data),
+        onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), 800),
     });
 }
 
@@ -213,6 +280,13 @@ export function useMetricCatalog(siteId: number | null) {
 
 export function useReportTemplates() {
     return useQuery({ queryKey: ['report-templates'], queryFn: () => get<ReportTemplateDto[]>('/report-templates') });
+}
+
+/** Load the default narrative layout (CLAUDE.md §11.5) as an editor starting point. */
+export function useDefaultTemplateBlocks() {
+    return useMutation({
+        mutationFn: () => get<{ blocks: Block[] }>('/report-templates/default-blocks').then((result) => result.blocks),
+    });
 }
 
 export interface TemplateValidationErrors {

@@ -62,4 +62,39 @@ final readonly class MetricBagLoader
 
         return $bags;
     }
+
+    /**
+     * The metric bags of the most recent snapshot that ended strictly before this
+     * period — the basis for "vs previous period" comparisons (§11.5). Robust to
+     * months of different lengths (the previous calendar period is whatever snapshot
+     * precedes the current one), unlike a fixed-length shift.
+     *
+     * @return Bags
+     */
+    public function previousForSite(int $siteId, Period $period): array
+    {
+        $bags = [];
+
+        $sources = DataSource::query()->where('site_id', $siteId)->get();
+
+        foreach ($sources as $source) {
+            $snapshot = MetricSnapshot::query()
+                ->where('data_source_id', $source->id)
+                ->where('period_end', '<', $period->start)
+                ->orderByDesc('period_end')
+                ->first();
+
+            if ($snapshot === null) {
+                continue;
+            }
+
+            $metrics = $snapshot->payload['metrics'] ?? [];
+
+            if (is_array($metrics)) {
+                $bags[$source->type->value] = $metrics;
+            }
+        }
+
+        return $bags;
+    }
 }

@@ -23,6 +23,9 @@ ln -sfn "${SHARED}/storage" "${RELEASE_DIR}/storage"
 echo "→ Migrating"
 php "${RELEASE_DIR}/artisan" migrate --force
 
+echo "→ Linking public storage (white-label logos, uploads)"
+php "${RELEASE_DIR}/artisan" storage:link || true
+
 echo "→ Caching config/routes/views"
 php "${RELEASE_DIR}/artisan" config:cache
 php "${RELEASE_DIR}/artisan" route:cache
