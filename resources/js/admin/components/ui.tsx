@@ -1,4 +1,4 @@
-import { type ReactElement, type ReactNode } from 'react';
+import { forwardRef, type ReactElement, type ReactNode } from 'react';
 
 import { cn } from '@shared/lib/utils';
 
@@ -20,17 +20,22 @@ export function Button({
     );
 }
 
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>): ReactElement {
-    return (
-        <input
-            className={cn(
-                'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm ir-outline-none focus:ir-ring-2 focus:ir-ring-ring',
-                className,
-            )}
-            {...props}
-        />
-    );
-}
+// forwardRef so React Hook Form's `register` ref attaches to the real <input> —
+// without it, autofilled values aren't captured (form thinks the field is empty).
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+    function Input({ className, ...props }, ref): ReactElement {
+        return (
+            <input
+                ref={ref}
+                className={cn(
+                    'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm ir-outline-none focus:ir-ring-2 focus:ir-ring-ring',
+                    className,
+                )}
+                {...props}
+            />
+        );
+    },
+);
 
 export function Field({
     label,
