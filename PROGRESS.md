@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🧰 EDITOR REHECHO como builder visual WYSIWYG (2026-06-19, rama):** crítica válida del owner — el *resultado*
+(preview) se veía pro pero la *superficie de edición* seguía siendo una pila de tarjetas en una columna. Rehecho a
+**3 paneles**: izquierda (paleta «Añadir bloque» + settings: nombre/sitio/IA/plantilla-por-defecto/guardar), centro
+**lienzo WYSIWYG** (los bloques se renderizan de verdad con el `BlockRenderer` y datos reales, en el grid de
+columnas; cada bloque seleccionable, con barra flotante **mover (drag) · ancho (ciclo) · borrar**; reordenar con
+dnd-kit `rectSortingStrategy`), derecha **Inspector** (edita el bloque: métrica, comparar, título/etiqueta, tipo de
+gráfico, texto Tiptap, ancho). Nuevos `CanvasBlock` + `Inspector`; `SortableBlock` eliminado. El lienzo muestra
+TODOS los bloques (no oculta los sin-dato — eso es solo del reporte final). tsc + ESLint + build + 182 PHP verde.
+Acumulado en rama junto al **fix de base-path del updater** (commit 670ae78) → próximo release (1.1.1/1.2.0).
+**Nota:** no se verificó en navegador; listo para iterar detalles visuales.
+
 **🏷️ WHITE-LABEL COMPLETO — logo + color al reporte (2026-06-19, rama, acumulado v1.1.0):** el `brand_color` ya
 se aplicaba al render (`applyBrandAccent` → `--ir-primary`); faltaba el **logo**. Añadido: `POST /api/v1/agency/logo`
 (sube imagen png/jpg/svg/webp ≤1MB al disco `public`, set `logo_path`), `Agency::logoUrl()` (URL pública), y

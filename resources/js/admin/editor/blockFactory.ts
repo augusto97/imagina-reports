@@ -24,6 +24,27 @@ export function makeBlock(type: BlockType): Block {
 
 export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary'];
 
+export type BlockWidth = 'full' | 'half' | 'third';
+
+/** A block's configured column width (defaults to full). */
+export function widthOf(block: Block): BlockWidth {
+    const width = block.style?.width;
+
+    return width === 'half' || width === 'third' ? width : 'full';
+}
+
+/** Tailwind column span (out of 6) for each width — mirrors the shared BlockList grid. */
+export const WIDTH_SPAN: Record<BlockWidth, string> = {
+    full: 'ir-col-span-6',
+    half: 'ir-col-span-6 sm:ir-col-span-3',
+    third: 'ir-col-span-6 sm:ir-col-span-2',
+};
+
+/** Next width in the full → half → third → full cycle (for the toolbar button). */
+export function nextWidth(current: BlockWidth): BlockWidth {
+    return current === 'full' ? 'half' : current === 'half' ? 'third' : 'full';
+}
+
 export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'header', label: 'Cabecera' },
     { type: 'healthscore', label: 'Health score' },
