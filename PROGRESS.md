@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR PROFESIONAL — milestone completo (2026-06-19, rama lista → v1.1.0):** se desarrolló todo el bloque
+"editor pro" (la queja del owner) en 3 incrementos, todos verdes (169 PHP, PHPStan max, Pint, TS, ESLint, build):
+(1) **KPIs pro + grid de columnas** — comparación vs periodo anterior `{value,previous,change_percent}` vía
+`BlockResolver` + `MetricBagLoader::previousForSite()`; `BlockList` es un grid de 6 col con `style.width`
+(full/half/third); editor con control de Ancho + toggle de comparación. (2) **Gauge + escudo de seguridad** —
+`HealthScoreBlock` ahora es un medidor semicircular SVG con color semántico; `SecurityShieldBlock` muestra
+números reales (cloudflare.threats_blocked, crowdsec.attacks_blocked, virusdie.malware_found) recogidos por
+`BlockResolver::securityMetrics()`. (3) **Plantilla por defecto** — `GET /report-templates/default-blocks` +
+botón "Empezar desde la plantilla por defecto"; los KPIs de la plantilla nacen `width:third` (filas de 3).
+Commits en rama: 0a4ac8a, b0cfa85, 7d9f2da. **Pendiente de decisión del owner:** publicar v1.1.0 (merge rama→main
++ tag) o seguir con otro frente (reportes end-to-end / ajustes-whitelabel / 360 datos). Lo único que NO se hizo
+del editor pro: edición visual del grid arrastrando entre columnas (grande; el selector de Ancho ya cubre el
+layout multi-columna). El server corre 1.0.9; esto necesita un nuevo release para llegar a producción.
+
 **🎨 Report Builder M2 (parte 1): KPIs profesionales + grid de columnas (2026-06-19):** primer incremento del
 "editor profesional" (la queja del owner). (1) **KPI con comparación vs periodo anterior**: `BlockResolver`
 enriquece los bloques de dato con `binding.compare === 'prev_period'` a `{value, previous, change_percent}`;
