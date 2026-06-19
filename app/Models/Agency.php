@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
@@ -89,6 +90,14 @@ class Agency extends Model
         } catch (Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Public URL of the agency logo (white-label, §11.5) for the portal/PDF, or null.
+     */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path === null ? null : Storage::disk('public')->url($this->logo_path);
     }
 
     public function setAnthropicKey(?string $key): void

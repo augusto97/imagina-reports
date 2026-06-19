@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateAgencyRequest;
 use App\Models\Agency;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * The authenticated agency's own settings (CLAUDE.md §11.1): white-label branding
@@ -47,6 +48,28 @@ final class AgencyController extends Controller
         return response()->json($this->present($agency));
     }
 
+    /**
+     * Upload/replace the agency logo (white-label, §11.5). Stored on the public disk;
+     * the report payload exposes its URL for the portal and the printed PDF.
+     */
+    public function uploadLogo(Request $request, TenantContext $tenant): JsonResponse
+    {
+        $request->validate([
+            'logo' => ['required', 'file', 'mimetypes:image/png,image/jpeg,image/svg+xml,image/webp', 'max:1024'],
+        ]);
+
+        $agency = $this->current($tenant);
+
+        $path = $request->file('logo')?->store('logos', 'public');
+
+        if (is_string($path)) {
+            $agency->logo_path = $path;
+            $agency->save();
+        }
+
+        return response()->json($this->present($agency));
+    }
+
     private function current(TenantContext $tenant): Agency
     {
         return Agency::query()->findOrFail($tenant->id());
@@ -63,6 +86,7 @@ final class AgencyController extends Controller
             'brand_color' => $agency->brand_color,
             'default_locale' => $agency->default_locale,
             'logo_path' => $agency->logo_path,
+            'logo_url' => $agency->logoUrl(),
             'ai_key_set' => $agency->anthropicKey() !== null,
         ];
     }

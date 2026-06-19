@@ -1,6 +1,6 @@
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useChangePassword, useUpdateAgency } from '../api';
+import { type AgencyUpdate, useAgency, useChangePassword, useUpdateAgency, useUploadLogo } from '../api';
 import { Button, Card, Field, Input } from '../components/ui';
 
 function PasswordCard(): ReactElement {
@@ -63,6 +63,7 @@ const LOCALES: { value: string; label: string }[] = [
 export function SettingsScreen(): ReactElement {
     const { data: agency, isLoading } = useAgency();
     const update = useUpdateAgency();
+    const uploadLogo = useUploadLogo();
 
     const [name, setName] = useState('');
     const [color, setColor] = useState('#6d28d9');
@@ -119,6 +120,25 @@ export function SettingsScreen(): ReactElement {
                                 </option>
                             ))}
                         </select>
+                    </Field>
+                    <Field label="Logo">
+                        <div className="ir-flex ir-items-center ir-gap-4">
+                            {agency.logo_url !== null && (
+                                <img src={agency.logo_url} alt="Logo" className="ir-h-10 ir-rounded ir-border ir-bg-white ir-p-1" />
+                            )}
+                            <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                onChange={(event) => {
+                                    const file = event.target.files?.[0];
+                                    if (file !== undefined) {
+                                        uploadLogo.mutate(file);
+                                    }
+                                }}
+                                className="ir-text-sm"
+                            />
+                            {uploadLogo.isPending && <span className="ir-text-xs ir-text-muted-foreground">Subiendo…</span>}
+                        </div>
                     </Field>
                 </div>
             </Card>

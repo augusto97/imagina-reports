@@ -93,6 +93,20 @@ export function useUpdateAgency() {
     });
 }
 
+export function useUploadLogo() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (file: File) => {
+            const form = new FormData();
+            form.append('logo', file);
+
+            return api.post<AgencySettings>('/agency/logo', form).then((r) => r.data);
+        },
+        onSuccess: (data) => queryClient.setQueryData(['agency'], data),
+    });
+}
+
 /* --------------------------------- clients --------------------------------- */
 
 export function useClients() {

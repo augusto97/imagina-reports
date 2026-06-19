@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🏷️ WHITE-LABEL COMPLETO — logo + color al reporte (2026-06-19, rama, acumulado v1.1.0):** el `brand_color` ya
+se aplicaba al render (`applyBrandAccent` → `--ir-primary`); faltaba el **logo**. Añadido: `POST /api/v1/agency/logo`
+(sube imagen png/jpg/svg/webp ≤1MB al disco `public`, set `logo_path`), `Agency::logoUrl()` (URL pública), y
+`logo_url` expuesto en `present()` (Ajustes) y en el `ReportResource` (portal/PDF). El front del reporte
+(`ReportApp`) ahora usa `agency.logo_url` para el `<img>`; pantalla **Ajustes** gana subida de logo con preview.
+`deploy.sh` ahora corre `php artisan storage:link` para servir el disco public. +2 tests (sube y guarda; rechaza
+no-imagen). **181 PHP verde, PHPStan max + Pint + TS + ESLint + build limpios.** **Ojo producción:** tras
+desplegar v1.1.0 hay que tener el symlink `public/storage` (lo crea deploy.sh) y que las imágenes
+`APP_URL/storage/...` sean accesibles por Browsershot (Cloudflare no suele bloquear estáticos).
+
 **📤 REPORTES END-TO-END — envío cableado (2026-06-19, rama, acumulado v1.1.0):** ya existían
 `DeliverReportJob`/`DeliveryService`/`ReportPdfService`/`ReportReadyMail`/scheduler, pero **faltaba el endpoint
 de envío** y la UI de destinatarios/aprobar/enviar. Añadido: `POST /api/v1/reports/{report}/send` (`ReportController::send`

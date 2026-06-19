@@ -10,7 +10,9 @@ use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -50,6 +52,35 @@ class AgencyApiTest extends TestCase
         $this->assertSame('sk-ant-secret', $fresh?->anthropicKey());
         // Stored ciphertext, never plaintext.
         $this->assertNotSame('sk-ant-secret', $fresh?->settings['anthropic_key'] ?? null);
+    }
+
+    public function test_logo_upload_stores_the_file_and_returns_its_url(): void
+    {
+        Storage::fake('public');
+
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $response = $this->postJson('/api/v1/agency/logo', [
+            'logo' => UploadedFile::fake()->image('brand.png', 200, 80),
+        ])->assertOk();
+
+        $this->assertNotNull($response->json('logo_url'));
+        $path = $agency->fresh()?->logo_path;
+        $this->assertIsString($path);
+        Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_logo_upload_rejects_a_non_image(): void
+    {
+        Storage::fake('public');
+
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $this->postJson('/api/v1/agency/logo', [
+            'logo' => UploadedFile::fake()->create('malware.pdf', 10, 'application/pdf'),
+        ])->assertStatus(422)->assertJsonValidationErrors('logo');
     }
 
     public function test_ai_client_prefers_the_agency_key_over_config(): void

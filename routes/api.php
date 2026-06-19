@@ -62,6 +62,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     // Agency settings: white-label branding + the AI builder's Anthropic key (§11.1).
     Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');
     Route::put('agency', [AgencyController::class, 'update'])->name('api.agency.update');
+    Route::post('agency/logo', [AgencyController::class, 'uploadLogo'])->name('api.agency.logo');
 
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');

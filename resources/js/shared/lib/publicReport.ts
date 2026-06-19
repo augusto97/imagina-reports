@@ -8,6 +8,7 @@ export interface PublicReportAgency {
     name: string;
     brand_color: string | null;
     logo_path: string | null;
+    logo_url: string | null;
     locale: string;
 }
 

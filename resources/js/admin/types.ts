@@ -123,6 +123,7 @@ export interface AgencySettings {
     brand_color: string | null;
     default_locale: string;
     logo_path: string | null;
+    logo_url: string | null;
     ai_key_set: boolean;
 }
 

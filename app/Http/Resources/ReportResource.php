@@ -44,6 +44,7 @@ final class ReportResource extends JsonResource
             'agency' => $agency === null ? null : [
                 'name' => $agency->name,
                 'logo_path' => $agency->logo_path,
+                'logo_url' => $agency->logoUrl(),
                 'brand_color' => $agency->brand_color,
                 'locale' => $agency->default_locale,
             ],
