@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🚀 v1.0.8 LIVE + updater health-check hardened (2026-06-19):** v1.0.7 fue creada por error apuntando a
+`main` pre-merge (= código 1.0.6); se descartó y se publicó **v1.0.8** desde el `main` mergeado (PR #8). El VPS
+quedó en **1.0.8 por deploy manual** (deploy.sh + lsphp84) — éxito visible (migrate/cache/flip/queue:restart OK,
+VERSION=1.0.8). Diagnóstico del «el botón no actualiza nada»: en 1.0.6 (deployer real) el update **cambiaba el
+symlink y se auto-revertía** porque el health check (`GET dominio/up`) pasa por **Cloudflare** y no devolvía 200.
+Fix en `SymlinkDeployer::healthy()` (commit en rama, para v1.0.9): intenta el probe HTTP y, si está bloqueado,
+**cae a un boot check local** (`artisan about`) — deploy.sh ya ejecutó migrate+cache (que lanzan excepción si el
+build está roto), así que un boot limpio es señal fiable; mantiene el auto-rollback para fallos reales y elimina
+el falso rollback en sitios tras CDN/WAF. PHPStan/Pint/tests verdes. **Pendiente:** cortar v1.0.9 (merge rama→main
++ tag) para llevar este fix al server; recién ahí el botón in-app será fiable (y mostrará ✓/✗ con el banner ya
+presente en 1.0.8). El cron+worker corren bajo lsphp84 (8.4); el `php` pelado del shell es 8.2 (no afecta).
+
 **📟 Update run-state surfaced in the UI (2026-06-19):** the in-app update is a fire-and-forget queued
 `RunUpdateJob`, so clicking "Actualizar ahora" only said "encolado" with no visible outcome (owner: "le di al
 botón pero solo me dijo que quedó en la cola y no veo que haya actualizado nada"). Now `UpdateManager` persists
