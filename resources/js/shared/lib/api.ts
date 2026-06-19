@@ -12,3 +12,11 @@ export const api = axios.create({
         Accept: 'application/json',
     },
 });
+
+/**
+ * Prime Sanctum's XSRF-TOKEN cookie before a stateful POST (login). Must hit the
+ * root path, not the /api/v1 base.
+ */
+export async function fetchCsrfCookie(): Promise<void> {
+    await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
+}

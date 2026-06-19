@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api } from '@shared/lib/api';
+import { api, fetchCsrfCookie } from '@shared/lib/api';
 
 import type { Block } from '@shared/blocks/types';
 
 import type {
     AgencyTrends,
+    AuthUser,
     CatalogEntry,
     Client,
     Connector,
@@ -20,6 +21,40 @@ async function get<T>(url: string): Promise<T> {
     const { data } = await api.get<T>(url);
 
     return data;
+}
+
+/* ----------------------------------- auth ---------------------------------- */
+
+export function useAuthUser() {
+    return useQuery({
+        queryKey: ['auth-user'],
+        queryFn: () => get<{ user: AuthUser }>('/user').then((r) => r.user),
+        retry: false,
+        staleTime: Infinity,
+    });
+}
+
+export function useLogin() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: { email: string; password: string }): Promise<AuthUser> => {
+            await fetchCsrfCookie();
+            const { data } = await api.post<{ user: AuthUser }>('/login', payload);
+
+            return data.user;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+export function useLogout() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post('/logout').then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
 }
 
 /* --------------------------------- clients --------------------------------- */

@@ -100,3 +100,10 @@ export interface AgencyTrends {
     };
     sites: SiteTrend[];
 }
+
+export interface AuthUser {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+}
