@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🛰️ Self-updater made REAL + "Sistema" screen (2026-06-19, → v1.0.5):** owner feedback — the admin UI felt
+too basic and several backend features had no screen. First gap closed: **System → Updates**. ⚠️ Correction to
+the P2·7 record: the `SymlinkDeployer` was actually a **skeleton** (empty stub methods), so the in-app update
+button would have done nothing / falsely reported success. Now implemented for real: it **reuses the proven
+`deploy.sh`** (download bundle + verify sha256 + extract → run deploy.sh [link/migrate/cache/flip/queue:restart]
+→ health check → auto-rollback by repointing `current`), `UpdateManager::currentVersion()` reads a `VERSION`
+file shipped in the bundle (CI writes it), and a new `system:check-updates` command (scheduled hourly) registers
+the latest GitHub release (zip + sha256) into `ir_app_releases` so "available version" appears. Admin **"Sistema"**
+screen shows installed/available version + Actualizar/Rollback (privileged only). 158 PHP tests green, PHPStan
+max + Pint clean, TS clean. **⚠️ The real deployer is untested on the live VPS — validate with a throwaway
+release before trusting it; the manual flow remains the safe fallback.** Remaining UI gaps the owner flagged
+(still pending, prioritized by them next): **Ajustes** (AI key/branding), **Plantillas** gallery, **Editor+preview** polish.
+The AI failing ("no pudo generar un borrador válido") is just a missing real `ANTHROPIC_API_KEY` in shared/.env.
+
 **🧭 Connector help in the UI (2026-06-19, → v1.0.4):** every connector's `configSchema()` fields now carry
 Spanish `help:` text (what to enter + where to get the credentials), and the admin "Fuentes" screen
 (`DataSourcesScreen`) renders it under each input. Backend already exposed `help` via `ConfigField::toArray()`.

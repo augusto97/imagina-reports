@@ -15,6 +15,7 @@ import type {
     ReportSummary,
     ReportTemplateDto,
     Site,
+    UpdateStatus,
 } from './types';
 
 async function get<T>(url: string): Promise<T> {
@@ -153,6 +154,30 @@ export function useReports() {
 
 export function useTrends() {
     return useQuery({ queryKey: ['trends'], queryFn: () => get<AgencyTrends>('/trends') });
+}
+
+/* --------------------------------- system ---------------------------------- */
+
+export function useUpdateStatus() {
+    return useQuery({ queryKey: ['update-status'], queryFn: () => get<UpdateStatus>('/system/update/status') });
+}
+
+export function useRunUpdate() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post('/system/update/run').then((r) => r.data),
+        onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['update-status'] }), 1500),
+    });
+}
+
+export function useRollback() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post('/system/update/rollback').then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['update-status'] }),
+    });
 }
 
 /* ------------------------------ editor: catalog ---------------------------- */

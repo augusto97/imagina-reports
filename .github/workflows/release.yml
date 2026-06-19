@@ -39,6 +39,8 @@ jobs:
       - name: Assemble the bundle
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # Ship the version inside the bundle so the deployed app reports it accurately.
+          echo "${VERSION}" > VERSION
           mkdir -p dist
           # Self-contained: includes vendor/ and the compiled public/build assets.
           zip -qr "dist/imagina-reports-${VERSION}.zip" . \
