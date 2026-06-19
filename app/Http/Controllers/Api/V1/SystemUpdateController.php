@@ -35,10 +35,11 @@ final class SystemUpdateController extends Controller
         return response()->json($manager->status());
     }
 
-    public function run(Request $request): JsonResponse
+    public function run(Request $request, UpdateManager $manager): JsonResponse
     {
         $this->authorizePrivileged($request);
 
+        $manager->markQueued();
         RunUpdateJob::dispatch();
 
         return response()->json(['message' => 'Update queued.'], 202);

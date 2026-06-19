@@ -159,7 +159,16 @@ export function useTrends() {
 /* --------------------------------- system ---------------------------------- */
 
 export function useUpdateStatus() {
-    return useQuery({ queryKey: ['update-status'], queryFn: () => get<UpdateStatus>('/system/update/status') });
+    return useQuery({
+        queryKey: ['update-status'],
+        queryFn: () => get<UpdateStatus>('/system/update/status'),
+        // While an update is queued/running, poll so the UI reflects success/failure live.
+        refetchInterval: (query) => {
+            const status = query.state.data?.last_run.status;
+
+            return status === 'queued' || status === 'running' ? 3000 : false;
+        },
+    });
 }
 
 /** Poll GitHub on demand ("Buscar actualizaciones") instead of waiting for the hourly job. */

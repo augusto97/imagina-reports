@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**📟 Update run-state surfaced in the UI (2026-06-19):** the in-app update is a fire-and-forget queued
+`RunUpdateJob`, so clicking "Actualizar ahora" only said "encolado" with no visible outcome (owner: "le di al
+botón pero solo me dijo que quedó en la cola y no veo que haya actualizado nada"). Now `UpdateManager` persists
+a **last-run state** to the (Redis, shared-across-releases) cache — `markQueued()` on dispatch, then
+running/success/failed transitions inside `update()` — and `status()` returns it as `last_run`
+{status,version,message,at}. "Sistema" screen shows a live banner (spinner while queued/running, ✓/✗ on
+finish), disables "Actualizar ahora" while in flight, and the status query **auto-polls every 3 s** until the run
+settles. The banner also hints to check the queue worker (Horizon) if it stays queued. +1 test
+(`mark_queued`...) and asserts on success/failed state. 165 PHP tests green, PHPStan max + Pint clean, TS +
+ESLint + build clean. **Note:** still no live validation that the real `SymlinkDeployer` works on this VPS — if
+the install isn't in the atomic `releases/`+`current` layout, the deploy will fail and now show as ✗ failed.
+
 **🔄 Manual "Buscar actualizaciones" button (2026-06-19):** update detection runs hourly
 (`system:check-updates` → polls GitHub `releases/latest`, registers the `.zip`+`.sha256` into
 `ir_app_releases`), so a just-published release can take up to an hour to appear (and is skipped if polled

@@ -5,13 +5,23 @@ declare(strict_types=1);
 namespace App\Services\Update;
 
 use App\Models\AppRelease;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Orchestrates the self-update flow (CLAUDE.md §12.3/§12.4). All destructive work
  * is delegated to a Deployer; this class is pure logic and fully testable.
+ *
+ * The update runs out-of-band on the queue (RunUpdateJob), so its progress/result is
+ * persisted to the (Redis, shared-across-releases) cache as a "last run" record — the
+ * status endpoint surfaces it so the admin can see running/success/failed instead of a
+ * silent "queued".
+ *
+ * @phpstan-type RunState array{status: string, version: string|null, message: string, at: string|null}
  */
 final readonly class UpdateManager
 {
+    private const STATE_KEY = 'ir:update:last_run';
+
     public function __construct(private Deployer $deployer) {}
 
     public function currentVersion(): string
@@ -44,7 +54,7 @@ final readonly class UpdateManager
     }
 
     /**
-     * @return array{current: string, available: string|null, update_available: bool}
+     * @return array{current: string, available: string|null, update_available: bool, last_run: RunState}
      */
     public function status(): array
     {
@@ -55,7 +65,32 @@ final readonly class UpdateManager
             'current' => $current,
             'available' => $release?->version,
             'update_available' => $release !== null && version_compare($release->version, $current, '>'),
+            'last_run' => $this->lastRun(),
         ];
+    }
+
+    /**
+     * @return RunState
+     */
+    public function lastRun(): array
+    {
+        $state = Cache::get(self::STATE_KEY);
+
+        if (is_array($state) && isset($state['status'], $state['message'])) {
+            /** @var RunState $state */
+            return $state;
+        }
+
+        return ['status' => 'idle', 'version' => null, 'message' => '', 'at' => null];
+    }
+
+    /**
+     * Record that an update has been enqueued (the UI shows "en cola" immediately).
+     */
+    public function markQueued(): void
+    {
+        $release = $this->availableRelease();
+        $this->setState('queued', $release?->version, 'Actualización en cola.');
     }
 
     /**
@@ -66,16 +101,33 @@ final readonly class UpdateManager
         $release = $this->availableRelease();
 
         if ($release === null) {
+            $this->setState('failed', null, 'No hay ninguna versión disponible para instalar.');
+
             return false;
         }
 
+        $this->setState('running', $release->version, "Instalando la versión {$release->version}…");
+
         if ($this->deployer->deploy($release)) {
+            $this->setState('success', $release->version, "Actualizado a la versión {$release->version}.");
+
             return true;
         }
 
         $this->deployer->rollback();
+        $this->setState('failed', $release->version, 'La actualización falló el health check; se revirtió a la versión anterior.');
 
         return false;
+    }
+
+    private function setState(string $status, ?string $version, string $message): void
+    {
+        Cache::forever(self::STATE_KEY, [
+            'status' => $status,
+            'version' => $version,
+            'message' => $message,
+            'at' => now()->toIso8601String(),
+        ]);
     }
 
     public function rollback(): void

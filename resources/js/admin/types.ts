@@ -108,8 +108,18 @@ export interface AuthUser {
     role: string;
 }
 
+export type UpdateRunStatus = 'idle' | 'queued' | 'running' | 'success' | 'failed';
+
+export interface UpdateRunState {
+    status: UpdateRunStatus;
+    version: string | null;
+    message: string;
+    at: string | null;
+}
+
 export interface UpdateStatus {
     current: string | null;
     available: string | null;
     update_available: boolean;
+    last_run: UpdateRunState;
 }
