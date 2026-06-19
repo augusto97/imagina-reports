@@ -26,7 +26,9 @@ return new class extends Migration
             $table->timestamp('captured_at');
             $table->timestamps();
 
-            $table->unique(['data_source_id', 'period_start', 'period_end']);
+            // Explicit short name: the auto-generated one exceeds MariaDB's 64-char
+            // identifier limit (SQLite, used in tests, has no such limit).
+            $table->unique(['data_source_id', 'period_start', 'period_end'], 'ir_snapshots_source_period_unique');
         });
     }
 
