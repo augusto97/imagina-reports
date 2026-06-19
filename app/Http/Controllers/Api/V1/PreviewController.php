@@ -81,7 +81,13 @@ final class PreviewController extends Controller
         $end = $request->input('period_end');
 
         if (is_string($start) && is_string($end)) {
-            return new Period($start, $end);
+            // Expand to full-day bounds so a "2026-06-30" end (parsed as 00:00:00)
+            // still contains a snapshot whose period_end is that day's 23:59:59
+            // (MetricBagLoader matches with period_end <= period.end).
+            return new Period(
+                Carbon::parse($start)->startOfDay(),
+                Carbon::parse($end)->endOfDay(),
+            );
         }
 
         return $this->currentMonth();

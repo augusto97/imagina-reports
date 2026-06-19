@@ -62,6 +62,46 @@ class PreviewApiTest extends TestCase
         $this->assertContains('ga4', $response->json('sources_with_data'));
     }
 
+    public function test_it_matches_a_snapshot_when_period_is_sent_as_dates(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        $source = DataSource::factory()->create([
+            'agency_id' => $agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::Ga4,
+        ]);
+
+        // Snapshot spans the whole month, ending at 23:59:59 — as the sync stores it.
+        $start = now()->startOfMonth();
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => $start,
+            'period_end' => $start->copy()->endOfMonth(),
+            'payload' => [
+                'status' => MetricSetStatus::Ok->value,
+                'error' => null,
+                'metrics' => ['ga4.sessions' => 99],
+            ],
+        ]);
+
+        // Editor sends the month as plain dates: end parses to 00:00:00 — must still match.
+        $response = $this->postJson("/api/v1/sites/{$site->id}/preview", [
+            'blocks' => [
+                ['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions'], 'props' => [], 'style' => []],
+            ],
+            'period_start' => $start->toDateString(),
+            'period_end' => $start->copy()->endOfMonth()->toDateString(),
+        ])->assertOk();
+
+        $response->assertJsonPath('has_data', true);
+        $response->assertJsonPath('data.k1', 99);
+    }
+
     public function test_it_hides_blocks_whose_metric_has_no_data(): void
     {
         $agency = Agency::factory()->create();

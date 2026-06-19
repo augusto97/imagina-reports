@@ -175,8 +175,19 @@ export function EditorScreen(): ReactElement {
         }
         syncSite.mutate(undefined, {
             onSuccess: () => {
-                // Snapshots land asynchronously; re-resolve shortly after.
-                setTimeout(() => runPreview({ blocks, ...monthPeriod(month) }, { onSuccess: setPreview }), 2500);
+                // Snapshots land asynchronously (the queue worker fetches each source).
+                // Poll the preview a few times instead of a single shot, and stop as
+                // soon as real data shows up.
+                const delays = [2500, 3000, 4000, 5000, 6000];
+                delays.forEach((_, index) => {
+                    const elapsed = delays.slice(0, index + 1).reduce((sum, value) => sum + value, 0);
+                    setTimeout(() => {
+                        runPreview(
+                            { blocks, ...monthPeriod(month) },
+                            { onSuccess: (result) => setPreview((current) => (current?.has_data === true ? current : result)) },
+                        );
+                    }, elapsed);
+                });
             },
         });
     };
