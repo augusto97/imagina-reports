@@ -47,8 +47,8 @@ final class Ga4Connector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('property_id', 'GA4 property ID', ConfigFieldType::Text, help: 'Numeric property id, e.g. 123456789'),
-            new ConfigField('service_account', 'Service account JSON', ConfigFieldType::Json, secret: true),
+            new ConfigField('property_id', 'GA4 property ID', ConfigFieldType::Text, help: 'ID numérico de la propiedad GA4, p. ej. 123456789 (Administrar → Configuración de la propiedad).'),
+            new ConfigField('service_account', 'Service account JSON', ConfigFieldType::Json, secret: true, help: 'Pega el JSON completo de una cuenta de servicio de Google Cloud. Añade su email como Lector en la propiedad GA4.'),
         ];
     }
 

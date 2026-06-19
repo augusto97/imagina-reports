@@ -86,6 +86,9 @@ export function DataSourcesScreen(): ReactElement {
                                     setValues((prev) => ({ ...prev, [field.key]: event.target.value }))
                                 }
                             />
+                            {field.help !== null && (
+                                <span className="ir-text-xs ir-text-muted-foreground">{field.help}</span>
+                            )}
                         </Field>
                     ))}
 

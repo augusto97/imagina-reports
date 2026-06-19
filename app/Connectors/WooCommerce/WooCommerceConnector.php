@@ -46,9 +46,9 @@ final class WooCommerceConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('store_url', 'Store URL', ConfigFieldType::Url),
-            new ConfigField('consumer_key', 'Consumer key', ConfigFieldType::Password, secret: true),
-            new ConfigField('consumer_secret', 'Consumer secret', ConfigFieldType::Password, secret: true),
+            new ConfigField('store_url', 'Store URL', ConfigFieldType::Url, help: 'URL de la tienda con HTTPS, p. ej. https://tutienda.com'),
+            new ConfigField('consumer_key', 'Consumer key', ConfigFieldType::Password, secret: true, help: 'En la tienda: WooCommerce → Ajustes → Avanzado → REST API → Añadir clave (permisos: Lectura). Empieza por «ck_».'),
+            new ConfigField('consumer_secret', 'Consumer secret', ConfigFieldType::Password, secret: true, help: 'Se genera junto a la consumer key (empieza por «cs_»). Solo se muestra una vez al crearla.'),
         ];
     }
 

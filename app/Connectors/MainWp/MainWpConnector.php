@@ -49,8 +49,8 @@ final class MainWpConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('dashboard_url', 'MainWP dashboard URL', ConfigFieldType::Url, help: 'e.g. https://dash.example.com'),
-            new ConfigField('token', 'API token (Bearer)', ConfigFieldType::Password, secret: true),
+            new ConfigField('dashboard_url', 'MainWP dashboard URL', ConfigFieldType::Url, help: 'URL del panel MainWP, p. ej. https://dash.tuagencia.com'),
+            new ConfigField('token', 'API token (Bearer)', ConfigFieldType::Password, secret: true, help: 'En MainWP → Ajustes → REST API genera un token v2 (Bearer) con permisos de lectura.'),
         ];
     }
 

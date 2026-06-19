@@ -46,13 +46,13 @@ final class DatabaseConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('driver', 'Driver', ConfigFieldType::Text, help: 'mysql, pgsql, sqlite…'),
-            new ConfigField('host', 'Host', ConfigFieldType::Text, required: false),
-            new ConfigField('port', 'Port', ConfigFieldType::Number, required: false),
-            new ConfigField('database', 'Database', ConfigFieldType::Text),
-            new ConfigField('username', 'Username', ConfigFieldType::Text, required: false),
-            new ConfigField('password', 'Password', ConfigFieldType::Password, required: false, secret: true),
-            new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: '[{"key","label","type":"scalar|series|table","sql":"SELECT …"}]'),
+            new ConfigField('driver', 'Driver', ConfigFieldType::Text, help: 'Motor de la base de datos: mysql, pgsql o sqlite.'),
+            new ConfigField('host', 'Host', ConfigFieldType::Text, required: false, help: 'Host de la BD del cliente (déjalo vacío para sqlite).'),
+            new ConfigField('port', 'Port', ConfigFieldType::Number, required: false, help: 'Puerto (3306 MySQL, 5432 Postgres). Opcional.'),
+            new ConfigField('database', 'Database', ConfigFieldType::Text, help: 'Nombre de la base de datos (o ruta del archivo en sqlite).'),
+            new ConfigField('username', 'Username', ConfigFieldType::Text, required: false, help: 'Usuario de SOLO LECTURA.'),
+            new ConfigField('password', 'Password', ConfigFieldType::Password, required: false, secret: true, help: 'Contraseña del usuario de solo lectura.'),
+            new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: 'JSON con tus métricas. Solo consultas SELECT/WITH (agregadas en origen): [{"key","label","type":"scalar|series|table","sql":"SELECT …"}].'),
         ];
     }
 
