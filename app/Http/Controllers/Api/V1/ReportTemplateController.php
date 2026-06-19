@@ -41,4 +41,11 @@ final class ReportTemplateController extends Controller
 
         return new ReportTemplateResource($reportTemplate);
     }
+
+    public function destroy(ReportTemplate $reportTemplate): JsonResponse
+    {
+        $reportTemplate->delete();
+
+        return response()->json(['message' => 'Template deleted.']);
+    }
 }

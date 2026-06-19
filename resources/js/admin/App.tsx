@@ -1,4 +1,4 @@
-import { Database, DownloadCloud, FileBarChart, Globe, LayoutDashboard, LogOut, PencilRuler, TrendingUp, Users } from 'lucide-react';
+import { Database, DownloadCloud, FileBarChart, Globe, LayoutDashboard, LayoutTemplate, LogOut, PencilRuler, TrendingUp, Users } from 'lucide-react';
 import { type ReactElement } from 'react';
 
 import { cn } from '@shared/lib/utils';
@@ -11,6 +11,7 @@ import { LoginScreen } from './screens/LoginScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SitesScreen } from './screens/SitesScreen';
 import { SystemScreen } from './screens/SystemScreen';
+import { TemplatesScreen } from './screens/TemplatesScreen';
 import { TrendsScreen } from './screens/TrendsScreen';
 import { type AdminView, useAdminUi } from './store';
 
@@ -19,6 +20,7 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: 'sites', label: 'Sitios', icon: Globe },
     { view: 'data-sources', label: 'Fuentes', icon: Database },
     { view: 'editor', label: 'Editor', icon: PencilRuler },
+    { view: 'templates', label: 'Plantillas', icon: LayoutTemplate },
     { view: 'reports', label: 'Reportes', icon: FileBarChart },
     { view: 'trends', label: 'Tendencias', icon: TrendingUp },
     { view: 'system', label: 'Sistema', icon: DownloadCloud },
@@ -34,6 +36,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <DataSourcesScreen />;
         case 'editor':
             return <EditorScreen />;
+        case 'templates':
+            return <TemplatesScreen />;
         case 'reports':
             return <ReportsScreen />;
         case 'trends':

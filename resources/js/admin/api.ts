@@ -159,7 +159,26 @@ export function useTrends() {
 /* --------------------------------- system ---------------------------------- */
 
 export function useUpdateStatus() {
-    return useQuery({ queryKey: ['update-status'], queryFn: () => get<UpdateStatus>('/system/update/status') });
+    return useQuery({
+        queryKey: ['update-status'],
+        queryFn: () => get<UpdateStatus>('/system/update/status'),
+        // While an update is queued/running, poll so the UI reflects success/failure live.
+        refetchInterval: (query) => {
+            const status = query.state.data?.last_run.status;
+
+            return status === 'queued' || status === 'running' ? 3000 : false;
+        },
+    });
+}
+
+/** Poll GitHub on demand ("Buscar actualizaciones") instead of waiting for the hourly job. */
+export function useCheckUpdates() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<UpdateStatus>('/system/update/check').then((r) => r.data),
+        onSuccess: (status) => queryClient.setQueryData(['update-status'], status),
+    });
 }
 
 export function useRunUpdate() {
@@ -200,12 +219,42 @@ export interface TemplateValidationErrors {
     blocks?: string[];
 }
 
+export function useReportTemplate(id: number | null) {
+    return useQuery({
+        queryKey: ['report-template', id],
+        queryFn: () => get<ReportTemplateDto>(`/report-templates/${id}`),
+        enabled: id !== null,
+    });
+}
+
 export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (payload: { name: string; blocks: Block[] }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
+    });
+}
+
+export function useUpdateReportTemplate(id: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+            api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['report-templates'] });
+            void queryClient.invalidateQueries({ queryKey: ['report-template', id] });
+        },
+    });
+}
+
+export function useDeleteReportTemplate() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/report-templates/${id}`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
 }
@@ -219,6 +268,33 @@ export function useAiTemplate(siteId: number) {
     return useMutation({
         mutationFn: (prompt: string) =>
             api.post<AiTemplateResult>(`/sites/${siteId}/ai-template`, { prompt }).then((r) => r.data),
+    });
+}
+
+/* ------------------------------ editor: preview ---------------------------- */
+
+export interface PreviewResult {
+    blocks: Block[];
+    data: Record<string, unknown>;
+    score: number;
+    period: { start: string; end: string };
+    has_data: boolean;
+    sources_with_data: string[];
+}
+
+/** Resolve a draft layout against a site + period into REAL metric data (CLAUDE.md §11.3). */
+export function usePreview(siteId: number) {
+    return useMutation({
+        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string }) =>
+            api.post<PreviewResult>(`/sites/${siteId}/preview`, payload).then((r) => r.data),
+    });
+}
+
+/** Trigger an on-demand sync of the site's data sources ("Sincronizar ahora"). */
+export function useSyncSite(siteId: number) {
+    return useMutation({
+        mutationFn: () =>
+            api.post<{ queued: number; period: { start: string; end: string } }>(`/sites/${siteId}/sync`).then((r) => r.data),
     });
 }
 

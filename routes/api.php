@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
+use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
@@ -67,12 +68,15 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
+    Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');
+    Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
 
     Route::get('report-templates', [ReportTemplateController::class, 'index'])->name('api.report-templates.index');
     Route::post('report-templates', [ReportTemplateController::class, 'store'])->name('api.report-templates.store');
     Route::get('report-templates/{reportTemplate}', [ReportTemplateController::class, 'show'])->name('api.report-templates.show');
     Route::put('report-templates/{reportTemplate}', [ReportTemplateController::class, 'update'])->name('api.report-templates.update');
+    Route::delete('report-templates/{reportTemplate}', [ReportTemplateController::class, 'destroy'])->name('api.report-templates.destroy');
 
     Route::get('report-definitions', [ReportDefinitionController::class, 'index'])->name('api.report-definitions.index');
     Route::post('report-definitions', [ReportDefinitionController::class, 'store'])->name('api.report-definitions.store');
@@ -94,6 +98,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     // Self-updater (CLAUDE.md §8/§12); privileged users only (checked in the controller).
     Route::get('system/update/status', [SystemUpdateController::class, 'status'])->name('api.system.update.status');
+    Route::post('system/update/check', [SystemUpdateController::class, 'check'])->name('api.system.update.check');
     Route::post('system/update/run', [SystemUpdateController::class, 'run'])->name('api.system.update.run');
     Route::post('system/update/rollback', [SystemUpdateController::class, 'rollback'])->name('api.system.update.rollback');
 });

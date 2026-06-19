@@ -7,6 +7,43 @@
 ---
 
 ## Where I left off (read me first)
+**📟 Update run-state surfaced in the UI (2026-06-19):** the in-app update is a fire-and-forget queued
+`RunUpdateJob`, so clicking "Actualizar ahora" only said "encolado" with no visible outcome (owner: "le di al
+botón pero solo me dijo que quedó en la cola y no veo que haya actualizado nada"). Now `UpdateManager` persists
+a **last-run state** to the (Redis, shared-across-releases) cache — `markQueued()` on dispatch, then
+running/success/failed transitions inside `update()` — and `status()` returns it as `last_run`
+{status,version,message,at}. "Sistema" screen shows a live banner (spinner while queued/running, ✓/✗ on
+finish), disables "Actualizar ahora" while in flight, and the status query **auto-polls every 3 s** until the run
+settles. The banner also hints to check the queue worker (Horizon) if it stays queued. +1 test
+(`mark_queued`...) and asserts on success/failed state. 165 PHP tests green, PHPStan max + Pint clean, TS +
+ESLint + build clean. **Note:** still no live validation that the real `SymlinkDeployer` works on this VPS — if
+the install isn't in the atomic `releases/`+`current` layout, the deploy will fail and now show as ✗ failed.
+
+**🔄 Manual "Buscar actualizaciones" button (2026-06-19):** update detection runs hourly
+(`system:check-updates` → polls GitHub `releases/latest`, registers the `.zip`+`.sha256` into
+`ir_app_releases`), so a just-published release can take up to an hour to appear (and is skipped if polled
+before CI finished uploading the zip). Added an on-demand trigger: `POST /api/v1/system/update/check` runs the
+command synchronously (`Artisan::call`) and returns the fresh status (any authenticated user; harmless/read-only).
+"Sistema" screen now has a **«Buscar actualizaciones»** button with spinner + "sin novedades / nueva versión
+encontrada / error" feedback. `useCheckUpdates` writes the result straight into the `update-status` query.
++2 tests (`SystemUpdateCheckTest`). 164 PHP tests green, PHPStan max + Pint clean, TS + ESLint + build clean.
+
+**🖥️ Report Builder — milestone 1: REAL data in the editor preview (2026-06-19):** owner found the editor
+"increíblemente básico" (sample data, one column) vs the connectors it has. First Report-Builder milestone
+done — **the live preview now renders REAL metric data**, not placeholders. Extracted a shared
+`App\Reports\BlockResolver` (the single source of truth for block→data resolution; `ReportGenerator` now uses it
+too, so preview === generated report). New `PreviewController`: `POST /api/v1/sites/{site}/preview` validates the
+draft blocks (same schema as saved templates), loads the site's snapshots for the period via `MetricBagLoader`,
+computes the health score, and returns `{blocks, data, score, period, has_data, sources_with_data}` **without
+persisting an `ir_reports` row**; `POST /api/v1/sites/{site}/sync` ("Sincronizar ahora") queues a `SyncSourceJob`
+per data source for the current month. Editor (`EditorScreen.tsx`): a **month picker**, a debounced auto-preview
+(fires on site/period/layout change), real-vs-sample state (sample only when no site is selected, clearly
+labeled), a "Sincronizar ahora" button, and has-data/no-data banners. **162 PHP tests green (+4 new
+`PreviewApiTest`), PHPStan max + Pint clean, TS typecheck + ESLint + build clean.** Next Report-Builder
+milestones (in order, per owner's plan): professional blocks (KPI %-vs-prev + trend, real gauge, security
+shield with real CrowdSec/Virusdie), multi-column/grid layout, visual binding picker + branding/white-label,
+start-from-default-template. Needs a new release to reach the live VPS.
+
 **🛰️ Self-updater made REAL + "Sistema" screen (2026-06-19, → v1.0.5):** owner feedback — the admin UI felt
 too basic and several backend features had no screen. First gap closed: **System → Updates**. ⚠️ Correction to
 the P2·7 record: the `SymlinkDeployer` was actually a **skeleton** (empty stub methods), so the in-app update
@@ -64,12 +101,21 @@ shapes against live accounts (Open Questions). (4) Low-priority FE polish: admin
 ---
 
 ## Current phase
-**Phase 3 — Intelligence & differentiation: COMPLETE** (Phases 1, 2 & 3 done; only the DEFERRED Imagina
-Audit connector remains). No active build task — see "Where I left off" for owner-gated / polish items.
+**Post-Phase-3: Report Builder overhaul** (Phases 1–3 done bar the DEFERRED Imagina Audit connector).
+Owner-driven: make the admin editor a real report builder. Milestone 1 (real data in preview) ✅ done.
 
 ## Current task
-_None in progress._ Phases 1–3 are functionally complete. Next work is owner-gated (Imagina Audit API,
-connector shape validation, `upsell.detected` confirmation) or low-priority FE polish (see "Where I left off").
+_None in progress._ Report Builder milestone 1 (real data in preview) shipped. **Next up:** milestone 2 —
+**professional blocks** (KPI with %-vs-previous + sparkline/trend, real health-score gauge, security shield
+fed by real CrowdSec/Virusdie metrics). Then: multi-column/grid layout; visual binding picker + branding;
+start-from-default-template. Needs a release to reach the live VPS.
+
+## Report Builder — progress
+- [x] (2026-06-19) **M1 — Real data in the editor preview**: shared `BlockResolver` (single source of truth, also used by `ReportGenerator`); `POST /sites/{site}/preview` (resolve draft blocks → real `{blocks,data,score,...}` without persisting) + `POST /sites/{site}/sync` ("Sincronizar ahora"); editor month picker + debounced auto-preview + real/sample states + has-data banners. `PreviewApiTest` (+4). 162 tests green.
+- [ ] M2 — professional blocks (KPI %-vs-prev + trend, real gauge, security shield).
+- [ ] M3 — multi-column / grid layout.
+- [ ] M4 — visual binding picker + branding / white-label.
+- [ ] M5 — start from the default narrative template (§11.5).
 
 ## Phase 3 — progress
 - [x] (2026-06-18) **P3·1 — Database / CSV / endpoint connector** (`DatabaseConnector` + `EndpointConnector`, config-driven, aggregate-at-source). — 59b9d3b
