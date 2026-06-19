@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 Report Builder M2 (parte 1): KPIs profesionales + grid de columnas (2026-06-19):** primer incremento del
+"editor profesional" (la queja del owner). (1) **KPI con comparación vs periodo anterior**: `BlockResolver`
+enriquece los bloques de dato con `binding.compare === 'prev_period'` a `{value, previous, change_percent}`;
+nuevo `MetricBagLoader::previousForSite()` toma el snapshot más reciente *estrictamente anterior* al periodo
+(robusto a meses de distinta longitud, mejor que `period->previous()`); `ReportGenerator` y `PreviewController`
+cargan los bags previos. (2) **Renderer**: `KpiBlock`/`SalesSummaryBlock` muestran número grande + pill de
+tendencia (▲/▼ % verde/rojo "vs. periodo anterior"); `BlockList` ahora es un **grid de 6 columnas** y cada bloque
+fluye según `style.width` (full/half/third) → fila de KPIs lado a lado como un reporte real. (3) **Editor**:
+control de **Ancho** por bloque + toggle "Comparar vs periodo anterior" en KPI/ventas (preserva `compare` al
+cambiar de métrica); KPIs nuevos nacen `width:third`; sample data enriquecido. La plantilla por defecto ya traía
+`compare:prev_period` en sus KPIs, así que ahora rinden como tarjetas. +2 tests (comparación + sigue ocultando
+sin dato). **167 PHP verde, PHPStan max + Pint + TS + ESLint + build limpios.** Rama lista para PR (→ v1.1.0).
+**Próximos incrementos M2/M3:** gauge real de health score (semicircular), escudo de seguridad con datos reales
+(cloudflare/crowdsec/virusdie), y edición visual del grid (no solo selector de ancho).
+
 **🚀 v1.0.8 LIVE + updater health-check hardened (2026-06-19):** v1.0.7 fue creada por error apuntando a
 `main` pre-merge (= código 1.0.6); se descartó y se publicó **v1.0.8** desde el `main` mergeado (PR #8). El VPS
 quedó en **1.0.8 por deploy manual** (deploy.sh + lsphp84) — éxito visible (migrate/cache/flip/queue:restart OK,

@@ -102,6 +102,54 @@ class PreviewApiTest extends TestCase
         $response->assertJsonPath('data.k1', 99);
     }
 
+    public function test_it_enriches_a_kpi_with_the_previous_period_comparison(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        $source = DataSource::factory()->create([
+            'agency_id' => $agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::Ga4,
+        ]);
+
+        $thisMonth = now()->startOfMonth();
+        $lastMonth = now()->subMonthNoOverflow()->startOfMonth();
+
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => $thisMonth,
+            'period_end' => $thisMonth->copy()->endOfMonth(),
+            'payload' => ['status' => MetricSetStatus::Ok->value, 'error' => null, 'metrics' => ['ga4.sessions' => 120]],
+        ]);
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => $lastMonth,
+            'period_end' => $lastMonth->copy()->endOfMonth(),
+            'payload' => ['status' => MetricSetStatus::Ok->value, 'error' => null, 'metrics' => ['ga4.sessions' => 100]],
+        ]);
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/preview", [
+            'blocks' => [
+                [
+                    'id' => 'k1',
+                    'type' => 'kpi',
+                    'binding' => ['source' => 'ga4', 'metric' => 'sessions', 'compare' => 'prev_period'],
+                    'props' => [],
+                    'style' => [],
+                ],
+            ],
+        ])->assertOk();
+
+        $response->assertJsonPath('data.k1.value', 120);
+        $response->assertJsonPath('data.k1.previous', 100);
+        $response->assertJsonPath('data.k1.change_percent', 20);
+    }
+
     public function test_it_hides_blocks_whose_metric_has_no_data(): void
     {
         $agency = Agency::factory()->create();

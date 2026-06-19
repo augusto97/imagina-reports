@@ -39,9 +39,10 @@ final class PreviewController extends Controller
         $blocks = $validator->validate($request->input('blocks'));
 
         $bags = $loader->forSite($site->id, $period);
+        $previousBags = $loader->previousForSite($site->id, $period);
         $score = $health->calculate($bags);
 
-        ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score);
+        ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags);
 
         return response()->json([
             'blocks' => $visibleBlocks,

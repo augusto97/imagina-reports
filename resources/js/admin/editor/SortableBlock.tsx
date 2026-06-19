@@ -27,10 +27,23 @@ export function SortableBlock({
 }): ReactElement {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: block.id });
     const isData = DATA_BLOCKS.includes(block.type);
+    const canCompare = block.type === 'kpi' || block.type === 'sales_summary';
     const titleKey = block.type === 'kpi' ? 'label' : 'title';
+    const width = str(block.style?.width) || 'full';
 
     const setProp = (key: string, value: string): void => {
         onChange({ ...block, props: { ...block.props, [key]: value } });
+    };
+
+    const setWidth = (value: string): void => {
+        onChange({ ...block, style: { ...block.style, width: value } });
+    };
+
+    const setCompare = (on: boolean): void => {
+        if (block.binding === undefined || block.binding === null) {
+            return;
+        }
+        onChange({ ...block, binding: { ...block.binding, compare: on ? 'prev_period' : undefined } });
     };
 
     return (
@@ -68,7 +81,10 @@ export function SortableBlock({
                             const [source, metric] = event.target.value.split('|');
                             onChange({
                                 ...block,
-                                binding: source !== undefined && metric !== undefined ? { source, metric } : null,
+                                binding:
+                                    source !== undefined && metric !== undefined
+                                        ? { source, metric, compare: block.binding?.compare }
+                                        : null,
                             });
                         }}
                     >
@@ -79,6 +95,32 @@ export function SortableBlock({
                             </option>
                         ))}
                     </select>
+                )}
+
+                {canCompare && block.binding !== undefined && block.binding !== null && (
+                    <label className="ir-flex ir-items-center ir-gap-2 ir-text-xs ir-text-muted-foreground">
+                        <input
+                            type="checkbox"
+                            checked={block.binding.compare === 'prev_period'}
+                            onChange={(event) => setCompare(event.target.checked)}
+                        />
+                        Comparar vs periodo anterior
+                    </label>
+                )}
+
+                {block.type !== 'divider' && (
+                    <label className="ir-flex ir-items-center ir-gap-2 ir-text-xs ir-text-muted-foreground">
+                        Ancho
+                        <select
+                            className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-xs"
+                            value={width}
+                            onChange={(event) => setWidth(event.target.value)}
+                        >
+                            <option value="full">Completo</option>
+                            <option value="half">Mitad</option>
+                            <option value="third">Tercio</option>
+                        </select>
+                    </label>
                 )}
 
                 {block.type === 'narrative' && (
