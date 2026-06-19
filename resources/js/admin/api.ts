@@ -5,6 +5,7 @@ import { api, fetchCsrfCookie } from '@shared/lib/api';
 import type { Block } from '@shared/blocks/types';
 
 import type {
+    AgencySettings,
     AgencyTrends,
     AuthUser,
     CatalogEntry,
@@ -55,6 +56,28 @@ export function useLogout() {
     return useMutation({
         mutationFn: () => api.post('/logout').then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+/* --------------------------------- agency ---------------------------------- */
+
+export function useAgency() {
+    return useQuery({ queryKey: ['agency'], queryFn: () => get<AgencySettings>('/agency') });
+}
+
+export interface AgencyUpdate {
+    name: string;
+    brand_color: string | null;
+    default_locale: string;
+    anthropic_key?: string;
+}
+
+export function useUpdateAgency() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: AgencyUpdate) => api.put<AgencySettings>('/agency', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['agency'], data),
     });
 }
 

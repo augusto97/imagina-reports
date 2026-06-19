@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ClientController;
@@ -55,6 +56,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
+
+    // Agency settings: white-label branding + the AI builder's Anthropic key (§11.1).
+    Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');
+    Route::put('agency', [AgencyController::class, 'update'])->name('api.agency.update');
 
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');

@@ -8,6 +8,8 @@ use Database\Factories\AgencyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Crypt;
+use Throwable;
 
 /**
  * The tenant root (CLAUDE.md §5). Not itself agency-scoped; all other domain
@@ -66,5 +68,39 @@ class Agency extends Model
     public function clients(): HasMany
     {
         return $this->hasMany(Client::class);
+    }
+
+    /**
+     * The agency's own Anthropic API key (CLAUDE.md §10.6), stored encrypted in
+     * `settings` so it never appears in plaintext. Lets each agency configure the AI
+     * builder from the UI without touching the server's .env. Returns null if unset
+     * or undecryptable.
+     */
+    public function anthropicKey(): ?string
+    {
+        $stored = $this->settings['anthropic_key'] ?? null;
+
+        if (! is_string($stored) || $stored === '') {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($stored);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function setAnthropicKey(?string $key): void
+    {
+        $settings = $this->settings ?? [];
+
+        if ($key === null || $key === '') {
+            unset($settings['anthropic_key']);
+        } else {
+            $settings['anthropic_key'] = Crypt::encryptString($key);
+        }
+
+        $this->settings = $settings;
     }
 }

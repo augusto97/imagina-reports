@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**⚙️ AJUSTES / WHITE-LABEL + IA (2026-06-19, rama, acumulado para v1.1.0):** nueva pantalla **Ajustes** en el
+admin para configurar sin SSH: nombre, **color de marca**, idioma por defecto y la **Anthropic API key** de la
+agencia. La key se guarda **cifrada** en `ir_agencies.settings` (`Agency::anthropicKey()`/`setAnthropicKey()` con
+`Crypt`) y **nunca se devuelve** (la API solo expone `ai_key_set: bool`). `AnthropicAiClient` ahora **prefiere la
+key de la agencia** (vía `TenantContext`) y cae a la de config — esto **desbloquea la IA** que fallaba por falta de
+key, por agencia (multi-tenant). Endpoints `GET/PUT /api/v1/agency` (`AgencyController` + `UpdateAgencyRequest`).
+Frontend: `SettingsScreen` + nav "Ajustes" + `useAgency`/`useUpdateAgency`. +3 tests (show sin exponer key, update
+cifra la key, el cliente IA prefiere la key de la agencia). **172 PHP verde, PHPStan max + Pint + TS + ESLint +
+build limpios.** Pendiente menor del white-label: subida de **logo** (archivo) y **aplicar `brand_color` al
+render** del reporte (hoy se guarda pero no se propaga al accent del BlockRenderer).
+
 **🎨 EDITOR PROFESIONAL — milestone completo (2026-06-19, rama lista → v1.1.0):** se desarrolló todo el bloque
 "editor pro" (la queja del owner) en 3 incrementos, todos verdes (169 PHP, PHPStan max, Pint, TS, ESLint, build):
 (1) **KPIs pro + grid de columnas** — comparación vs periodo anterior `{value,previous,change_percent}` vía

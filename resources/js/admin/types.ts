@@ -117,6 +117,15 @@ export interface UpdateRunState {
     at: string | null;
 }
 
+export interface AgencySettings {
+    id: number;
+    name: string;
+    brand_color: string | null;
+    default_locale: string;
+    logo_path: string | null;
+    ai_key_set: boolean;
+}
+
 export interface UpdateStatus {
     current: string | null;
     available: string | null;
