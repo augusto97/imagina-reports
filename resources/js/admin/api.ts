@@ -162,6 +162,16 @@ export function useUpdateStatus() {
     return useQuery({ queryKey: ['update-status'], queryFn: () => get<UpdateStatus>('/system/update/status') });
 }
 
+/** Poll GitHub on demand ("Buscar actualizaciones") instead of waiting for the hourly job. */
+export function useCheckUpdates() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<UpdateStatus>('/system/update/check').then((r) => r.data),
+        onSuccess: (status) => queryClient.setQueryData(['update-status'], status),
+    });
+}
+
 export function useRunUpdate() {
     const queryClient = useQueryClient();
 

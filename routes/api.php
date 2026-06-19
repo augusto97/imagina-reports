@@ -98,6 +98,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     // Self-updater (CLAUDE.md §8/§12); privileged users only (checked in the controller).
     Route::get('system/update/status', [SystemUpdateController::class, 'status'])->name('api.system.update.status');
+    Route::post('system/update/check', [SystemUpdateController::class, 'check'])->name('api.system.update.check');
     Route::post('system/update/run', [SystemUpdateController::class, 'run'])->name('api.system.update.run');
     Route::post('system/update/rollback', [SystemUpdateController::class, 'rollback'])->name('api.system.update.rollback');
 });

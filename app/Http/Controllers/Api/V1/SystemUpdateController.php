@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Update\UpdateManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 
 /**
  * In-app self-update controls (CLAUDE.md §8/§12). Restricted to privileged users
@@ -19,6 +20,18 @@ final class SystemUpdateController extends Controller
 {
     public function status(UpdateManager $manager): JsonResponse
     {
+        return response()->json($manager->status());
+    }
+
+    /**
+     * Poll GitHub on demand (the "Buscar actualizaciones" button) so the operator
+     * need not wait for the hourly `system:check-updates` schedule, then return the
+     * freshly-computed status. Harmless/read-only — any authenticated user may run it.
+     */
+    public function check(UpdateManager $manager): JsonResponse
+    {
+        Artisan::call('system:check-updates');
+
         return response()->json($manager->status());
     }
 

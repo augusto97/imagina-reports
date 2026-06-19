@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🔄 Manual "Buscar actualizaciones" button (2026-06-19):** update detection runs hourly
+(`system:check-updates` → polls GitHub `releases/latest`, registers the `.zip`+`.sha256` into
+`ir_app_releases`), so a just-published release can take up to an hour to appear (and is skipped if polled
+before CI finished uploading the zip). Added an on-demand trigger: `POST /api/v1/system/update/check` runs the
+command synchronously (`Artisan::call`) and returns the fresh status (any authenticated user; harmless/read-only).
+"Sistema" screen now has a **«Buscar actualizaciones»** button with spinner + "sin novedades / nueva versión
+encontrada / error" feedback. `useCheckUpdates` writes the result straight into the `update-status` query.
++2 tests (`SystemUpdateCheckTest`). 164 PHP tests green, PHPStan max + Pint clean, TS + ESLint + build clean.
+
 **🖥️ Report Builder — milestone 1: REAL data in the editor preview (2026-06-19):** owner found the editor
 "increíblemente básico" (sample data, one column) vs the connectors it has. First Report-Builder milestone
 done — **the live preview now renders REAL metric data**, not placeholders. Extracted a shared
