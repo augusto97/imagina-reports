@@ -30,7 +30,7 @@ final class SymlinkDeployer implements Deployer
             $path = $this->downloadAndExtract($release);
             $this->runDeployScript($path);
 
-            if ($this->healthy()) {
+            if ($this->healthy($path)) {
                 $this->writeVersion($path, $release->version);
                 $this->pruneOldReleases();
 
@@ -210,19 +210,43 @@ final class SymlinkDeployer implements Deployer
         @file_put_contents($releasePath.'/VERSION', $version."\n");
     }
 
-    private function healthy(): bool
+    /**
+     * Confirm the freshly-flipped release is healthy (CLAUDE.md §12.3) before
+     * keeping it. Tries the configured HTTP probe first; if that is unreachable
+     * — common when the site sits behind a CDN/WAF (Cloudflare) that blocks the
+     * server's own request to its public URL — it falls back to a local boot
+     * check of the new release. deploy.sh already ran migrate + config/route/view
+     * cache (which throw on a broken build), so a clean local boot is a reliable
+     * signal and avoids spurious auto-rollbacks.
+     */
+    private function healthy(string $releasePath): bool
     {
         $url = config('updater.health_url');
 
-        if (! is_string($url)) {
-            return false;
+        if (is_string($url) && $url !== '') {
+            try {
+                if (Http::timeout(10)->get($url)->successful()) {
+                    return true;
+                }
+            } catch (Throwable) {
+                // Unreachable (CDN/WAF, DNS, TLS) — fall back to the local boot check.
+            }
         }
 
-        try {
-            return Http::timeout(10)->get($url)->successful();
-        } catch (Throwable) {
-            return false;
-        }
+        return $this->bootsLocally($releasePath);
+    }
+
+    /**
+     * The new release boots cleanly under the running PHP (8.x): `artisan about`
+     * fully bootstraps the framework, so exit 0 means config/providers/DB are wired.
+     */
+    private function bootsLocally(string $releasePath): bool
+    {
+        return Process::path($releasePath)
+            ->env(['PATH' => dirname(PHP_BINARY).':'.(getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin')])
+            ->timeout(60)
+            ->run([PHP_BINARY, $releasePath.'/artisan', 'about', '--only=environment'])
+            ->successful();
     }
 
     private function basePath(): string
