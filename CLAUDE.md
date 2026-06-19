@@ -78,7 +78,7 @@ These are **decided**. Do not relitigate them in code.
 | Scheduler | Laravel scheduler via one cron (`* * * * * php artisan schedule:run`). |
 | Report model | **Block-based templates** (drag-drop editor, dnd-kit + Tiptap). Reports are blocks bound to metrics, not fixed sections. |
 | Metrics | **Not hardcoded.** Connectors expose a `MetricCatalog`; editor + AI pick freely from it. |
-| AI builder | **`AiReportBuilder`** assembles a full draft report (validated block JSON) + per-period narrative via `gpt.imagina.cloud` — "create a report in seconds". Always editable. |
+| AI builder | **`AiReportBuilder`** assembles a full draft report (validated block JSON) + per-period narrative via the **Claude API (Anthropic)** — "create a report in seconds". Always editable. _(Owner override 2026-06-18: replaces the originally-specced `gpt.imagina.cloud`.)_ |
 | Report rendering | **Single source of truth**: a shared React `BlockRenderer`; the **PDF is produced by headless Chromium printing that same page** (pixel-perfect). |
 | PDF engine | Spatie **Browsershot** (headless Chromium installed on the VPS). VPS isolation contains RAM spikes. |
 | Deployment | **Atomic releases** (CI builds a self-contained ZIP → symlink swap) with in-app **Update** + **Rollback** (see §12). |
@@ -343,7 +343,7 @@ snapshot of the rendered report). Blocks whose bound metric has no data are **gr
 missing** — never penalizes a client for a source they don't have. Rendered by the `healthscore` block.
 
 ### 10.6 AI report builder (`AiReportBuilder`)
-The "create a report in seconds" feature. Two modes, both using `gpt.imagina.cloud`:
+The "create a report in seconds" feature. Two modes, both using the **Claude API (Anthropic)** (owner override 2026-06-18; was `gpt.imagina.cloud`). Implement behind an `AiClient` interface (model from `services.anthropic.model`):
 - **Template assembly:** input = the client/site context + the **MetricCatalog of connected sources** +
   optional user prompt ("focus on SEO and security"). Output = a **validated blocks JSON** (a draft
   template) + narrative text. **The AI returns structured blocks, never free prose**, and every binding
@@ -544,8 +544,8 @@ DB_CONNECTION=mariadb
 QUEUE_CONNECTION=redis
 CACHE_STORE=redis
 SESSION_DRIVER=redis
-GPT_IMAGINA_ENDPOINT=...        # executive summary generation
-GPT_IMAGINA_KEY=...
+ANTHROPIC_API_KEY=...           # AI report builder / narrative (Claude API)
+ANTHROPIC_MODEL=claude-sonnet-4-6
 UPDATER_CHANNEL=stable          # stable/beta
 UPDATER_SOURCE=imagina-updater  # or github-releases
 BROWSERSHOT_CHROME_PATH=/usr/bin/chromium

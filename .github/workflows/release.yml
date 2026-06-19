@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build self-contained release bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo, pdo_mysql, redis, intl, bcmath, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PHP dependencies (production)
+        run: composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+      - name: Build the SPAs
+        run: |
+          npm ci
+          npm run build:assets
+
+      - name: Assemble the bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          # Self-contained: includes vendor/ and the compiled public/build assets.
+          zip -qr "dist/imagina-reports-${VERSION}.zip" . \
+            -x '.git/*' 'node_modules/*' 'dist/*' 'tests/*' '.github/*' 'storage/logs/*'
+          sha256sum "dist/imagina-reports-${VERSION}.zip" > "dist/imagina-reports-${VERSION}.zip.sha256"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.sha256

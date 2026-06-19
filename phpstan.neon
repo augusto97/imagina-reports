@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: max
+
+    # Domain code is analysed at max level. The declarative config/ files are framework
+    # defaults built on env() (typed bool|string) and add no signal, so they are excluded.
+    paths:
+        - app
+        - bootstrap/app.php
+        - database
+        - routes
