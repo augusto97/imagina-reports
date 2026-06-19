@@ -13,8 +13,10 @@ return [
     'github_repo' => env('UPDATER_GITHUB_REPO', 'augusto97/imagina-reports'),
 
     // Atomic release layout (CLAUDE.md §12.2). `base` holds releases/, shared/ and
-    // the `current` symlink (OLS webroot points at current/public).
-    'base_path' => env('UPDATER_BASE_PATH', dirname(base_path())),
+    // the `current` symlink (OLS webroot points at current/public). The running app
+    // lives at `<base>/releases/<ts>_<ver>`, so the base is TWO levels up from
+    // base_path() — not one. Override with UPDATER_BASE_PATH for non-standard layouts.
+    'base_path' => env('UPDATER_BASE_PATH', dirname(base_path(), 2)),
     'releases_dir' => 'releases',
     'shared_dir' => 'shared',
     'current_link' => 'current',

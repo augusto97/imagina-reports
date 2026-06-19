@@ -71,6 +71,15 @@ class UpdateManagerTest extends TestCase
         $this->assertSame('failed', $manager->lastRun()['status']);
     }
 
+    public function test_updater_base_path_defaults_two_levels_above_the_app(): void
+    {
+        // Regression: the in-app updater built `<base>/releases/releases/...` because
+        // the base defaulted to dirname(base_path()) (one level) instead of two. In the
+        // atomic layout the app runs at <base>/releases/<ts>_<ver>, so the base — which
+        // holds releases/, shared/ and the current symlink — is two levels up.
+        $this->assertSame(dirname(base_path(), 2), config('updater.base_path'));
+    }
+
     public function test_mark_queued_records_a_pending_run(): void
     {
         AppRelease::factory()->create(['version' => '2.0.0']);
