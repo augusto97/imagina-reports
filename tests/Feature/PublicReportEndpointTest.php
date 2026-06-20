@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Agency;
+use App\Models\Client;
 use App\Models\Report;
 use App\Models\ReportDefinition;
+use App\Models\Site;
 use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -37,6 +39,21 @@ class PublicReportEndpointTest extends TestCase
     public function test_an_unknown_token_is_not_found(): void
     {
         $this->getJson('/api/v1/public/reports/does-not-exist')->assertNotFound();
+    }
+
+    public function test_it_exposes_merge_field_context(): void
+    {
+        $agency = Agency::factory()->create(['name' => 'Imagina WP']);
+        $client = Client::factory()->create(['agency_id' => $agency->id, 'name' => 'Acme']);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id, 'name' => 'acme.com']);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id]);
+        $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")
+            ->assertOk()
+            ->assertJsonPath('context.agency', 'Imagina WP')
+            ->assertJsonPath('context.client', 'Acme')
+            ->assertJsonPath('context.site', 'acme.com');
     }
 
     public function test_it_lists_sibling_periods_for_the_selector(): void

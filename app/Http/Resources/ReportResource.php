@@ -28,6 +28,8 @@ final class ReportResource extends JsonResource
 
         $resolved = $report->resolved_blocks;
         $agency = $report->agency;
+        $site = $report->definition?->site;
+        $client = $site?->client;
 
         $blocks = $resolved['blocks'] ?? [];
         $data = $resolved['data'] ?? [];
@@ -38,6 +40,14 @@ final class ReportResource extends JsonResource
             'health_score' => $report->health_score,
             'status' => $report->status->value,
             'blocks' => $blocks,
+            // Merge-field context for dynamic {{tokens}} in text blocks (§11.3).
+            'context' => [
+                'agency' => $agency !== null ? $agency->name : '',
+                'site' => $site !== null ? $site->name : '',
+                'client' => $client !== null ? $client->name : '',
+                'period' => $report->period_start->format('d/m/Y').' – '.$report->period_end->format('d/m/Y'),
+                'score' => (string) ($report->health_score ?? ''),
+            ],
             // Overlay live work logs onto any worklog_timeline block (the frozen
             // layout stays; the "what we did" list reflects entries added later).
             'data' => $this->withWorkLogs($report, $blocks, is_array($data) ? $data : []),

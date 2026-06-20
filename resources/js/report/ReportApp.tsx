@@ -40,7 +40,7 @@ export function ReportApp({ token }: { token: string }): ReactElement {
                     </span>
                 </div>
             )}
-            <BlockList blocks={data.blocks} data={data.data} />
+            <BlockList blocks={data.blocks} data={data.data} context={data.context} />
         </div>
     );
 }

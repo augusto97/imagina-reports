@@ -53,6 +53,9 @@ const TYPE_LABELS: Record<string, string> = {
 /** Block types that manage their own content fields (no generic title field). */
 const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak']);
 
+/** Text-bearing blocks where {{merge-fields}} are useful. */
+const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom']);
+
 const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
 /**
@@ -102,6 +105,13 @@ export function Inspector({
             <p className="ir-text-xs ir-font-medium ir-uppercase ir-tracking-wide ir-text-muted-foreground">
                 {TYPE_LABELS[block.type] ?? block.type}
             </p>
+
+            {TEXT_BLOCKS.has(block.type) && (
+                <p className="ir-rounded-md ir-bg-muted ir-px-2 ir-py-1.5 ir-text-xs ir-text-muted-foreground">
+                    Campos dinámicos: <code>{'{{client}}'}</code> <code>{'{{site}}'}</code> <code>{'{{period}}'}</code> <code>{'{{score}}'}</code>{' '}
+                    <code>{'{{agency}}'}</code>
+                </p>
+            )}
 
             {!NO_TITLE.has(block.type) && (
                 <Field label={titleKey === 'label' ? 'Etiqueta' : 'Título'}>

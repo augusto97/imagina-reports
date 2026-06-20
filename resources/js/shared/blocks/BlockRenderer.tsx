@@ -549,22 +549,46 @@ function widthSpan(block: Block): string {
     return 'ir-col-span-6';
 }
 
+/** Replace {{token}} merge fields (e.g. {{client}}, {{period}}) with context values. */
+function mergeFields(text: string, context: Record<string, string>): string {
+    return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => context[key] ?? match);
+}
+
+/** Apply merge fields to every string prop of a block (header titles, narrative html, CTA…). */
+function applyContext(block: Block, context: Record<string, string>): Block {
+    if (block.props === undefined || block.props === null) {
+        return block;
+    }
+
+    const props: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(block.props)) {
+        props[key] = typeof value === 'string' ? mergeFields(value, context) : value;
+    }
+
+    return { ...block, props };
+}
+
 /**
  * Render an ordered list of blocks on a 6-column grid (single source of truth for
  * the editor preview, the portal and the PDF). Each block flows into the next column
  * according to its `style.width` (full / half / third), so a row of KPI cards sits
- * side by side like a real report (CLAUDE.md §11.4/§11.5).
+ * side by side like a real report (CLAUDE.md §11.4/§11.5). When a `context` is given,
+ * {{merge-fields}} in text blocks are resolved (client/site/period/score).
  */
 export function BlockList({
     blocks,
     data = {},
+    context,
 }: {
     blocks: Block[];
     data?: Record<string, unknown>;
+    context?: Record<string, string>;
 }): ReactElement {
+    const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
+
     return (
         <div className="ir-grid ir-grid-cols-6 ir-gap-6">
-            {blocks.map((block) => (
+            {resolved.map((block) => (
                 <div key={block.id} className={widthSpan(block)}>
                     <BlockRenderer block={block} data={data[block.id]} />
                 </div>
