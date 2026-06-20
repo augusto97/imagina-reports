@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**✨ EDITOR v2 · Ideas de competidores (2026-06-19, rama):** sobre los clusters A–E, añadidas 4 funciones de
+paridad competitiva, cada una con gate verde: **(1) bloque `goal`/Meta** (vincula métrica + objetivo →
+barra de progreso on-track/atrasado) y **bloque `pagebreak`** (salto de página A4 en el PDF, etiqueta oculta
+en impresión); **(2) AI insights** — `AiReportBuilder::insights()` + `POST /reports/{id}/insights`
+(tenant-scoped, lee `resolved_blocks` sin tocar APIs externas, pasa a la IA un mapa label→valor + health
+score; la IA responde JSON array de strings) + botón «Insights» por fila en ReportsScreen; **(3) merge-fields
+dinámicos** — `{{client}} {{site}} {{period}} {{score}} {{agency}}` resueltos en el render compartido (portal
++ PDF) vía `BlockList context`, con `context` expuesto en `ReportResource` (eager-load definition.site.client)
+y pista en el inspector. **192 PHP verde (+3), PHPStan max + Pint + TS + ESLint + build limpios.** Pendientes
+de la lista (más pesadas, requieren scoping): **conversión de moneda con FX real** (hoy solo hay formato
+`currency`) y **anotaciones/comentarios** (colaboración). Todo en rama → próximo release **1.2.0**.
+
 **🧩 EDITOR v2 · Clusters C+D+E COMPLETOS (2026-06-19, rama):** **C · contenido & layout:** nuevo bloque
 **`cta`** (banner de retención §11.5, en enum PHP+TS, renderer, paleta, inspector con titular/texto/botón),
 bloque **imagen** en paleta (url/alt), y **galería de plantillas** (3 verticales: e-commerce, SEO/tráfico,
