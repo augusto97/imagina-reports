@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🖥️ EDITOR FULL-BLEED + PANELES COLAPSABLES (2026-06-20, rama, post v1.3.0):** feedback del owner — el editor se
+veía "de juguete" por estar metido en el shell `max-w-6xl` con 3 columnas fijas (el lienzo solo recibía la franja
+central). Rehecho como **app shell de editor real (Figma/Looker)**: `App.tsx` saca la vista `editor` a **pantalla
+completa** (h-screen, sin max-width; las demás vistas mantienen su layout centrado). `EditorScreen` ahora es
+barra superior a todo el ancho (nombre + periodo + undo/redo + sincronizar + **Guardar** + toggles de panel) →
+cuerpo de 3 paneles: izquierdo (config/bloques/tema) y derecho (inspector) **colapsables**, y el centro es un
+**lienzo tipo lámina centrada (max-w-5xl) sobre fondo gris con scroll propio**. typecheck+eslint+build limpios,
+Prettier aplicado. **Sin desplegar aún** (candidato a v1.3.1). 214 PHP sin cambios.
+
 **🎨 TEMA/BRANDING + v1.3.0 (2026-06-20):** cerrado el milestone del editor con **tema por reporte (956547b)**:
 columna `theme` (json nullable) en templates+definitions (acento hex + densidad normal|compact), validada y
 expuesta; el generador congela el tema (definición→plantilla) en el reporte; el render comparte el acento como
