@@ -133,9 +133,10 @@ final readonly class AiReportBuilder
         You assemble a branded client report as a block layout for "Imagina Reports".
         Return ONLY a JSON object: {"blocks": [...], "narrative": "..."}.
         Each block is {"id": string, "type": one of
-        [header,kpi,chart,table,narrative,healthscore,security_shield,worklog_timeline,image,divider,sales_summary,custom],
+        [header,kpi,chart,table,narrative,healthscore,security_shield,worklog_timeline,image,divider,sales_summary,goal,cta,custom],
         "binding": {"source": string, "metric": string}|null, "props": object, "style": object}.
-        Data blocks (kpi,chart,table,sales_summary) MUST bind to a metric from the provided catalog
+        A "goal" block also needs props.target (a number). A "cta" block uses props.headline/text/buttonLabel/buttonUrl.
+        Data blocks (kpi,chart,table,sales_summary,goal) MUST bind to a metric from the provided catalog
         (use the catalog's "source" and "metric"). Never invent metrics. Ids must be unique. No prose outside the JSON.
         PROMPT;
     }

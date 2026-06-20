@@ -466,8 +466,51 @@ function CtaBlock({ block }: BlockComponentProps): ReactElement {
     );
 }
 
-/* ------------------------------- dispatcher -------------------------------- */
+/**
+ * Goal / target block: a metric's current value against a target, with a progress
+ * bar and an on-track (green) / behind (amber) tint. Competitor parity — "goal
+ * tracking". Binds to a metric; the target lives in `props.target`.
+ */
+function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
+    const { value } = asKpi(data);
+    const target = Number(prop(block, 'target')) || 0;
+    const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
+    const onTrack = pct >= 100;
+    const format = str(block.style?.format);
 
+    return (
+        <Section title={str(prop(block, 'label'), 'Meta')} style={block.style}>
+            <div className="ir-flex ir-items-baseline ir-justify-between">
+                <span className="ir-text-2xl ir-font-semibold">{formatNumber(value, format)}</span>
+                <span className="ir-text-sm ir-text-muted-foreground">/ {formatNumber(target, format)}</span>
+            </div>
+            <div className="ir-mt-2 ir-h-2 ir-overflow-hidden ir-rounded ir-bg-muted">
+                <div
+                    className={cn('ir-h-full ir-rounded', onTrack ? 'ir-bg-emerald-500' : 'ir-bg-amber-500')}
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+            <p className={cn('ir-mt-1 ir-text-xs', onTrack ? 'ir-text-emerald-600' : 'ir-text-muted-foreground')}>
+                {pct.toLocaleString(undefined, { maximumFractionDigits: 0 })}% de la meta
+            </p>
+        </Section>
+    );
+}
+
+/** A4 page break for the PDF — forces a new printed page. The label is hidden in print. */
+function PageBreakBlock(): ReactElement {
+    return (
+        <div className="ir-break-after-page">
+            <div className="ir-flex ir-items-center ir-gap-2 ir-py-2 ir-text-[10px] ir-uppercase ir-tracking-wide ir-text-muted-foreground print:ir-hidden">
+                <span className="ir-h-px ir-flex-1 ir-bg-border" />
+                Salto de página
+                <span className="ir-h-px ir-flex-1 ir-bg-border" />
+            </div>
+        </div>
+    );
+}
+
+/* ------------------------------- dispatcher -------------------------------- */
 const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement | null> = {
     header: HeaderBlock,
     kpi: KpiBlock,
@@ -479,7 +522,9 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     worklog_timeline: WorklogTimelineBlock,
     image: ImageBlock,
     divider: DividerBlock,
+    pagebreak: PageBreakBlock,
     sales_summary: SalesSummaryBlock,
+    goal: GoalBlock,
     cta: CtaBlock,
     custom: CustomBlock,
 };

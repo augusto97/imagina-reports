@@ -42,14 +42,16 @@ const TYPE_LABELS: Record<string, string> = {
     security_shield: 'Seguridad',
     worklog_timeline: 'Trabajo del mes',
     sales_summary: 'Ventas',
+    goal: 'Meta',
     image: 'Imagen',
     cta: 'Llamada a la acción',
     divider: 'Separador',
+    pagebreak: 'Salto de página',
     custom: 'Personalizado',
 };
 
 /** Block types that manage their own content fields (no generic title field). */
-const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image']);
+const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak']);
 
 const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
@@ -77,7 +79,7 @@ export function Inspector({
 
     const isData = DATA_BLOCKS.includes(block.type);
     const canCompare = block.type === 'kpi' || block.type === 'sales_summary';
-    const titleKey = block.type === 'kpi' ? 'label' : 'title';
+    const titleKey = block.type === 'kpi' || block.type === 'goal' ? 'label' : 'title';
     const width = str(block.style?.width) || 'full';
 
     const setProp = (key: string, value: string): void => onChange({ ...block, props: { ...block.props, [key]: value } });
@@ -199,13 +201,23 @@ export function Inspector({
                 </label>
             )}
 
+            {block.type === 'goal' && (
+                <Field label="Meta (objetivo)">
+                    <Input
+                        type="number"
+                        value={block.props?.target === undefined ? '' : String(block.props.target)}
+                        onChange={(event) => setProp('target', event.target.value)}
+                    />
+                </Field>
+            )}
+
             {block.type === 'narrative' && (
                 <Field label="Texto">
                     <NarrativeEditor value={str(block.props?.text)} onChange={(html) => setProp('text', html)} />
                 </Field>
             )}
 
-            {block.type !== 'divider' && (
+            {block.type !== 'divider' && block.type !== 'pagebreak' && (
                 <Field label="Ancho">
                     <select className={selectClass} value={width} onChange={(event) => setWidth(event.target.value)}>
                         <option value="full">Completo</option>

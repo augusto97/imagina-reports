@@ -22,6 +22,10 @@ export function makeBlock(type: BlockType): Block {
             buttonUrl: '',
         };
     }
+    if (type === 'goal') {
+        block.props = { label: 'Meta', target: 100 };
+        block.style = { width: 'third' };
+    }
     // KPI cards read best three-per-row with a "vs previous period" trend.
     if (type === 'kpi') {
         block.style = { width: 'third' };
@@ -30,7 +34,7 @@ export function makeBlock(type: BlockType): Block {
     return block;
 }
 
-export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary'];
+export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary', 'goal'];
 
 export type BlockWidth = 'full' | 'half' | 'third';
 
@@ -63,9 +67,11 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'security_shield', label: 'Seguridad' },
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
+    { type: 'goal', label: 'Meta' },
     { type: 'image', label: 'Imagen' },
     { type: 'cta', label: 'CTA' },
     { type: 'divider', label: 'Separador' },
+    { type: 'pagebreak', label: 'Salto de página' },
 ];
 
 /** Placeholder data so the live preview shows something for each block type. */
@@ -77,6 +83,8 @@ export function sampleData(block: Block): unknown {
             return block.binding?.compare === 'prev_period'
                 ? { value: 1234, previous: 1100, change_percent: 12.2 }
                 : 1234;
+        case 'goal':
+            return 720;
         case 'healthscore':
             return 87;
         case 'security_shield':
