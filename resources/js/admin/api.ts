@@ -234,6 +234,20 @@ export function useTestConnection() {
 
 /* ---------------------------- report definitions --------------------------- */
 
+export interface SnapshotPeriod {
+    period_start: string;
+    period_end: string;
+}
+
+/** Periods for which a site has synced snapshots — to default/validate the generate period. */
+export function useSnapshotPeriods(siteId: number | null) {
+    return useQuery({
+        queryKey: ['snapshot-periods', siteId],
+        queryFn: () => get<SnapshotPeriod[]>(`/sites/${siteId ?? 0}/snapshot-periods`),
+        enabled: siteId !== null,
+    });
+}
+
 export function useReportDefinitions() {
     return useQuery({ queryKey: ['report-definitions'], queryFn: () => get<ReportDefinitionDto[]>('/report-definitions') });
 }

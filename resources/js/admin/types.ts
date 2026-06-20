@@ -135,6 +135,7 @@ export interface AuthUser {
     name: string;
     email: string;
     role: string;
+    app_version?: string;
 }
 
 export type UpdateRunStatus = 'idle' | 'queued' | 'running' | 'success' | 'failed';

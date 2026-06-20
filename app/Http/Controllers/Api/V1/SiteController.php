@@ -9,6 +9,7 @@ use App\Http\Requests\StoreSiteRequest;
 use App\Http\Requests\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Client;
+use App\Models\MetricSnapshot;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -49,5 +50,27 @@ final class SiteController extends Controller
         $site->update($data);
 
         return new SiteResource($site);
+    }
+
+    /**
+     * The distinct periods for which this site has synced snapshots — so the report
+     * generation form can default to a period that actually has data and warn when the
+     * chosen one doesn't (the cause of "the report shows no metrics").
+     */
+    public function snapshotPeriods(Site $site): JsonResponse
+    {
+        $periods = MetricSnapshot::query()
+            ->whereIn('data_source_id', $site->dataSources()->select('id'))
+            ->select('period_start', 'period_end')
+            ->distinct()
+            ->orderByDesc('period_end')
+            ->get()
+            ->map(static fn (MetricSnapshot $snapshot): array => [
+                'period_start' => $snapshot->period_start->toIso8601String(),
+                'period_end' => $snapshot->period_end->toIso8601String(),
+            ])
+            ->all();
+
+        return response()->json($periods);
     }
 }

@@ -83,10 +83,10 @@ export function App(): ReactElement {
         return <LoginScreen />;
     }
 
-    return <AuthenticatedApp email={user.email} />;
+    return <AuthenticatedApp email={user.email} version={user.app_version} />;
 }
 
-function AuthenticatedApp({ email }: { email: string }): ReactElement {
+function AuthenticatedApp({ email, version }: { email: string; version?: string }): ReactElement {
     const view = useAdminUi((state) => state.view);
     const setView = useAdminUi((state) => state.setView);
     const logout = useLogout();
@@ -128,10 +128,19 @@ function AuthenticatedApp({ email }: { email: string }): ReactElement {
                         type="button"
                         onClick={() => logout.mutate()}
                         disabled={logout.isPending}
-                        className="ir-flex ir-items-center ir-gap-2 ir-text-left hover:ir-text-foreground"
+                        className="ir-mb-3 ir-flex ir-items-center ir-gap-2 ir-text-left hover:ir-text-foreground"
                     >
                         <LogOut className="ir-size-4" />
                         Cerrar sesión
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setView('system')}
+                        title="Versión instalada en este servidor — clic para ir a Sistema"
+                        className="ir-flex ir-items-center ir-gap-1.5 ir-rounded ir-bg-muted ir-px-2 ir-py-1 ir-font-mono ir-text-[11px] hover:ir-text-foreground"
+                    >
+                        <DownloadCloud className="ir-size-3" />
+                        v{(version ?? '—').replace(/^v/, '')}
                     </button>
                 </div>
             </aside>
