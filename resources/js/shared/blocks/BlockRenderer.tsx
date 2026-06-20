@@ -6,8 +6,12 @@ import {
     Bar,
     BarChart,
     CartesianGrid,
+    Cell,
+    Legend,
     Line,
     LineChart,
+    Pie,
+    PieChart,
     ResponsiveContainer,
     Tooltip,
     XAxis,
@@ -60,6 +64,9 @@ function asRecords(data: unknown): Record<string, unknown>[] {
 }
 
 /* -------------------------------- styling ---------------------------------- */
+
+/** Slice/series palette — starts with the agency accent, then complementary hues. */
+const CHART_COLORS = ['hsl(var(--ir-primary))', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899'];
 
 const PAD: Record<string, string> = { sm: 'ir-p-3', md: 'ir-p-6', lg: 'ir-p-10' };
 const RADIUS: Record<string, string> = { none: 'ir-rounded-none', sm: 'ir-rounded', md: 'ir-rounded-lg', lg: 'ir-rounded-2xl' };
@@ -213,6 +220,8 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     const rows = asChartRows(data);
     const chartType = str(prop(block, 'chartType'), 'line');
+    const legend = block.style?.legend === true;
+    const accent = 'hsl(var(--ir-primary))';
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
@@ -224,7 +233,8 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <XAxis dataKey="name" />
                             <YAxis />
                             <Tooltip />
-                            <Bar dataKey="value" fill="hsl(var(--ir-primary))" />
+                            {legend && <Legend />}
+                            <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} />
                         </BarChart>
                     ) : chartType === 'area' ? (
                         <AreaChart data={rows}>
@@ -232,15 +242,34 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <XAxis dataKey="name" />
                             <YAxis />
                             <Tooltip />
-                            <Area dataKey="value" stroke="hsl(var(--ir-primary))" fill="hsl(var(--ir-muted))" />
+                            {legend && <Legend />}
+                            <Area dataKey="value" stroke={accent} fill="hsl(var(--ir-muted))" />
                         </AreaChart>
+                    ) : chartType === 'donut' || chartType === 'pie' ? (
+                        <PieChart>
+                            <Tooltip />
+                            {legend && <Legend />}
+                            <Pie
+                                data={rows}
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={chartType === 'donut' ? 55 : 0}
+                                outerRadius={92}
+                                paddingAngle={2}
+                            >
+                                {rows.map((_, index) => (
+                                    <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                            </Pie>
+                        </PieChart>
                     ) : (
                         <LineChart data={rows}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis />
                             <Tooltip />
-                            <Line dataKey="value" stroke="hsl(var(--ir-primary))" dot={false} />
+                            {legend && <Legend />}
+                            <Line dataKey="value" stroke={accent} strokeWidth={2} dot={false} />
                         </LineChart>
                     )}
                 </ResponsiveContainer>
@@ -257,6 +286,8 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     }
 
     const columns = Object.keys(rows[0] ?? {});
+    const bars = block.style?.bars === true;
+    const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
@@ -274,8 +305,20 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                     {rows.map((row, index) => (
                         <tr key={index} className="ir-border-t">
                             {columns.map((col) => (
-                                <td key={col} className="ir-py-1">
-                                    {String(row[col] ?? '')}
+                                <td key={col} className="ir-py-1.5">
+                                    {bars && col === 'value' && typeof row[col] !== 'undefined' ? (
+                                        <div className="ir-flex ir-items-center ir-gap-2">
+                                            <div className="ir-h-1.5 ir-flex-1 ir-overflow-hidden ir-rounded ir-bg-muted">
+                                                <div
+                                                    className="ir-h-full ir-rounded ir-bg-primary"
+                                                    style={{ width: `${max > 0 ? ((Number(row[col]) || 0) / max) * 100 : 0}%` }}
+                                                />
+                                            </div>
+                                            <span className="ir-tabular-nums">{Number(row[col]).toLocaleString()}</span>
+                                        </div>
+                                    ) : (
+                                        String(row[col] ?? '')
+                                    )}
                                 </td>
                             ))}
                         </tr>

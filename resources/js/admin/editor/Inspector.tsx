@@ -141,13 +141,28 @@ export function Inspector({
             )}
 
             {block.type === 'chart' && (
-                <Field label="Tipo de gráfico">
-                    <select className={selectClass} value={str(block.props?.chartType) || 'line'} onChange={(event) => setProp('chartType', event.target.value)}>
-                        <option value="line">Línea</option>
-                        <option value="bar">Barras</option>
-                        <option value="area">Área</option>
-                    </select>
-                </Field>
+                <>
+                    <Field label="Tipo de gráfico">
+                        <select className={selectClass} value={str(block.props?.chartType) || 'line'} onChange={(event) => setProp('chartType', event.target.value)}>
+                            <option value="line">Línea</option>
+                            <option value="bar">Barras</option>
+                            <option value="area">Área</option>
+                            <option value="donut">Dona</option>
+                            <option value="pie">Pastel</option>
+                        </select>
+                    </Field>
+                    <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
+                        <input type="checkbox" checked={block.style?.legend === true} onChange={(event) => setStyle('legend', event.target.checked ? true : undefined)} />
+                        Mostrar leyenda
+                    </label>
+                </>
+            )}
+
+            {block.type === 'table' && (
+                <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
+                    <input type="checkbox" checked={block.style?.bars === true} onChange={(event) => setStyle('bars', event.target.checked ? true : undefined)} />
+                    Barras en la columna de valor
+                </label>
             )}
 
             {block.type === 'narrative' && (
