@@ -19,9 +19,10 @@ function SiteEditForm({ site, onClose }: { site: Site; onClose: () => void }): R
     const [name, setName] = useState(site.name);
     const [url, setUrl] = useState(site.url);
     const [currency, setCurrency] = useState(site.currency);
+    const [planHours, setPlanHours] = useState(site.plan_hours ?? '');
 
     const save = (): void => {
-        update.mutate({ name, url, currency }, { onSuccess: onClose });
+        update.mutate({ name, url, currency, plan_hours: planHours === '' ? null : Number(planHours) }, { onSuccess: onClose });
     };
 
     return (
@@ -41,6 +42,9 @@ function SiteEditForm({ site, onClose }: { site: Site; onClose: () => void }): R
                             </option>
                         ))}
                     </select>
+                </Field>
+                <Field label="Horas de plan/mes (opcional)">
+                    <Input type="number" min="0" step="0.5" value={planHours} onChange={(event) => setPlanHours(event.target.value)} placeholder="Ej. 5" />
                 </Field>
                 <div className="ir-flex ir-gap-2">
                     <Button onClick={save} disabled={update.isPending}>

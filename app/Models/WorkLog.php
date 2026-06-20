@@ -20,6 +20,8 @@ use Illuminate\Support\Carbon;
  * @property int $site_id
  * @property Carbon $performed_at
  * @property string $description
+ * @property int|null $minutes
+ * @property string|null $category
  * @property string|null $screenshot_path
  */
 class WorkLog extends Model
@@ -38,6 +40,8 @@ class WorkLog extends Model
         'site_id',
         'performed_at',
         'description',
+        'minutes',
+        'category',
         'screenshot_path',
     ];
 
@@ -48,6 +52,7 @@ class WorkLog extends Model
     {
         return [
             'performed_at' => 'datetime',
+            'minutes' => 'integer',
         ];
     }
 

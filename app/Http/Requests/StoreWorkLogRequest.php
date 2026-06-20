@@ -19,8 +19,12 @@ final class StoreWorkLogRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'performed_at' => ['required', 'date'],
+            // Optional — the quick-add UI defaults it to today.
+            'performed_at' => ['nullable', 'date'],
             'description' => ['required', 'string'],
+            // Time is OPTIONAL: some tasks just describe what was done.
+            'minutes' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'category' => ['nullable', 'string', 'max:255'],
             'screenshot_path' => ['nullable', 'string'],
         ];
     }

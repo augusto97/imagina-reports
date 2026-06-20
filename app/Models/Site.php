@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $support_plan
  * @property string $status
  * @property string $currency
+ * @property numeric-string|null $plan_hours
  */
 class Site extends Model
 {
@@ -67,6 +68,7 @@ class Site extends Model
         'support_plan',
         'status',
         'currency',
+        'plan_hours',
     ];
 
     /**
@@ -83,5 +85,13 @@ class Site extends Model
     public function dataSources(): HasMany
     {
         return $this->hasMany(DataSource::class);
+    }
+
+    /**
+     * @return HasMany<WorkLog, $this>
+     */
+    public function workLogs(): HasMany
+    {
+        return $this->hasMany(WorkLog::class);
     }
 }

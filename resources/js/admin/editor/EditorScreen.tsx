@@ -124,7 +124,6 @@ export function EditorScreen(): ReactElement {
             setSelectedId(null);
             setErrors([]);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingTemplateId]);
 
     useEffect(() => {
@@ -136,7 +135,6 @@ export function EditorScreen(): ReactElement {
             setSelectedId(null);
             setErrors([]);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingTemplate, editingTemplateId]);
 
     // Keyboard shortcuts: Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo.

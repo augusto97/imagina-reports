@@ -28,6 +28,7 @@ final class UpdateSiteRequest extends FormRequest
             'support_plan' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'max:255'],
             'currency' => ['sometimes', Rule::in(array_keys(Site::CURRENCIES))],
+            'plan_hours' => ['nullable', 'numeric', 'min:0', 'max:9999'],
         ];
     }
 }

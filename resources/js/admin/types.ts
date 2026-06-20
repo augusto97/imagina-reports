@@ -15,6 +15,18 @@ export interface Site {
     support_plan: string | null;
     status: string;
     currency: string;
+    plan_hours: string | null;
+}
+
+export interface WorkLog {
+    id: number;
+    report_id: number | null;
+    site_id: number;
+    performed_at: string;
+    description: string;
+    minutes: number | null;
+    category: string | null;
+    screenshot_path: string | null;
 }
 
 export interface ConfigFieldDef {

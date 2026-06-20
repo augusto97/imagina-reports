@@ -17,6 +17,7 @@ import type {
     ReportTemplateDto,
     Site,
     UpdateStatus,
+    WorkLog,
 } from './types';
 
 async function get<T>(url: string): Promise<T> {
@@ -143,9 +144,51 @@ export function useUpdateSite(id: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { client_id?: number; name?: string; url?: string; currency?: string }) =>
+        mutationFn: (payload: { client_id?: number; name?: string; url?: string; currency?: string; plan_hours?: number | null }) =>
             api.put<Site>(`/sites/${id}`, payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+    });
+}
+
+/* -------------------------------- work logs -------------------------------- */
+
+export interface WorkLogInput {
+    description: string;
+    minutes?: number | null;
+    category?: string | null;
+    performed_at?: string;
+}
+
+/** Work logs for a site within a period (CLAUDE.md §11.5). */
+export function useSiteWorkLogs(siteId: number | null, from?: string, to?: string) {
+    return useQuery({
+        queryKey: ['site-work-logs', siteId, from, to],
+        enabled: siteId !== null,
+        queryFn: () => {
+            const params = new URLSearchParams();
+            if (from !== undefined) params.set('from', from);
+            if (to !== undefined) params.set('to', to);
+
+            return get<WorkLog[]>(`/sites/${siteId}/work-logs?${params.toString()}`);
+        },
+    });
+}
+
+export function useCreateSiteWorkLog(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: WorkLogInput) => api.post<WorkLog>(`/sites/${siteId}/work-logs`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
+    });
+}
+
+export function useDeleteWorkLog() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/work-logs/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
     });
 }
 
