@@ -1,6 +1,6 @@
 import { type DragEndEvent, DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable';
-import { LayoutTemplate, RefreshCw, Sparkles } from 'lucide-react';
+import { LayoutTemplate, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
 import type { Block, BlockType } from '@shared/blocks/types';
@@ -77,27 +77,87 @@ export function EditorScreen(): ReactElement {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [preview_, setPreview] = useState<PreviewResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
+    // Undo/redo history — snapshots of the blocks array.
+    const [past, setPast] = useState<Block[][]>([]);
+    const [future, setFuture] = useState<Block[][]>([]);
+
+    /** Apply a structural change to the canvas, recording it for undo. */
+    const commit = (next: Block[]): void => {
+        setPast((stack) => [...stack, blocks]);
+        setFuture([]);
+        setBlocks(next);
+    };
+
+    /** Replace the canvas wholesale (load/AI/reset) and clear the undo history. */
+    const resetBlocks = (next: Block[]): void => {
+        setPast([]);
+        setFuture([]);
+        setBlocks(next);
+    };
+
+    const undo = (): void => {
+        if (past.length === 0) {
+            return;
+        }
+        const previous = past[past.length - 1] as Block[];
+        setPast(past.slice(0, -1));
+        setFuture((stack) => [blocks, ...stack]);
+        setBlocks(previous);
+    };
+
+    const redo = (): void => {
+        if (future.length === 0) {
+            return;
+        }
+        const next = future[0] as Block[];
+        setFuture(future.slice(1));
+        setPast((stack) => [...stack, blocks]);
+        setBlocks(next);
+    };
 
     useEffect(() => {
         if (editingTemplateId === null) {
             setName('');
-            setBlocks([makeBlock('header')]);
+            resetBlocks([makeBlock('header')]);
             setCalcMetrics([]);
             setSelectedId(null);
             setErrors([]);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingTemplateId]);
 
     useEffect(() => {
         if (editingTemplate !== undefined && editingTemplate.id === editingTemplateId) {
             const loaded = editingTemplate.blocks as Block[];
             setName(editingTemplate.name);
-            setBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
+            resetBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
             setCalcMetrics(editingTemplate.calculated_metrics ?? []);
             setSelectedId(null);
             setErrors([]);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingTemplate, editingTemplateId]);
+
+    // Keyboard shortcuts: Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent): void => {
+            if (!(event.metaKey || event.ctrlKey)) {
+                return;
+            }
+            const key = event.key.toLowerCase();
+            if (key === 'z' && !event.shiftKey) {
+                event.preventDefault();
+                undo();
+            } else if ((key === 'z' && event.shiftKey) || key === 'y') {
+                event.preventDefault();
+                redo();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+
+        return () => window.removeEventListener('keydown', onKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [past, future, blocks]);
 
     const runPreview = preview.mutate;
     useEffect(() => {
@@ -118,7 +178,7 @@ export function EditorScreen(): ReactElement {
     const loadDefaultTemplate = (): void => {
         defaultTpl.mutate(undefined, {
             onSuccess: (loaded) => {
-                setBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
+                resetBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
                 setSelectedId(null);
                 setErrors([]);
             },
@@ -128,7 +188,7 @@ export function EditorScreen(): ReactElement {
     const generateWithAi = (): void => {
         ai.mutate(aiPrompt, {
             onSuccess: (result) => {
-                setBlocks(result.blocks.length > 0 ? result.blocks : [makeBlock('header')]);
+                resetBlocks(result.blocks.length > 0 ? result.blocks : [makeBlock('header')]);
                 setSelectedId(null);
                 setErrors([]);
             },
@@ -143,31 +203,46 @@ export function EditorScreen(): ReactElement {
             return;
         }
         const next = build();
-        setBlocks(next);
+        resetBlocks(next);
         setSelectedId(next[0]?.id ?? null);
     };
 
     const addBlock = (type: BlockType): void => {
         const block = makeBlock(type);
-        setBlocks((prev) => [...prev, block]);
+        commit([...blocks, block]);
         setSelectedId(block.id);
     };
-    const updateBlock = (next: Block): void => setBlocks((prev) => prev.map((b) => (b.id === next.id ? next : b)));
+    const updateBlock = (next: Block): void => commit(blocks.map((b) => (b.id === next.id ? next : b)));
     const removeBlock = (id: string): void => {
-        setBlocks((prev) => prev.filter((b) => b.id !== id));
+        commit(blocks.filter((b) => b.id !== id));
         setSelectedId((current) => (current === id ? null : current));
+    };
+    const duplicateBlock = (id: string): void => {
+        const index = blocks.findIndex((b) => b.id === id);
+        const source = blocks[index];
+        if (source === undefined) {
+            return;
+        }
+        const clone: Block = {
+            ...source,
+            id: `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            binding: source.binding ? { ...source.binding } : source.binding,
+            props: { ...source.props },
+            style: { ...source.style },
+        };
+        commit([...blocks.slice(0, index + 1), clone, ...blocks.slice(index + 1)]);
+        setSelectedId(clone.id);
     };
     const cycleWidth = (block: Block): void => updateBlock({ ...block, style: { ...block.style, width: nextWidth(widthOf(block)) } });
 
     const onDragEnd = (event: DragEndEvent): void => {
         const { active, over } = event;
         if (over !== null && active.id !== over.id) {
-            setBlocks((prev) => {
-                const oldIndex = prev.findIndex((b) => b.id === String(active.id));
-                const newIndex = prev.findIndex((b) => b.id === String(over.id));
-
-                return oldIndex < 0 || newIndex < 0 ? prev : arrayMove(prev, oldIndex, newIndex);
-            });
+            const oldIndex = blocks.findIndex((b) => b.id === String(active.id));
+            const newIndex = blocks.findIndex((b) => b.id === String(over.id));
+            if (oldIndex >= 0 && newIndex >= 0) {
+                commit(arrayMove(blocks, oldIndex, newIndex));
+            }
         }
     };
 
@@ -355,10 +430,18 @@ export function EditorScreen(): ReactElement {
                     <Field label="Periodo de la vista previa">
                         <Input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="ir-w-44" />
                     </Field>
-                    <Button variant="ghost" onClick={triggerSync} disabled={siteId === null || syncSite.isPending}>
-                        <RefreshCw className={syncSite.isPending ? 'ir-size-4 ir-animate-spin' : 'ir-size-4'} />
-                        Sincronizar ahora
-                    </Button>
+                    <div className="ir-flex ir-items-center ir-gap-2">
+                        <Button variant="ghost" onClick={undo} disabled={past.length === 0} title="Deshacer (Ctrl+Z)">
+                            <Undo2 className="ir-size-4" />
+                        </Button>
+                        <Button variant="ghost" onClick={redo} disabled={future.length === 0} title="Rehacer (Ctrl+Shift+Z)">
+                            <Redo2 className="ir-size-4" />
+                        </Button>
+                        <Button variant="ghost" onClick={triggerSync} disabled={siteId === null || syncSite.isPending}>
+                            <RefreshCw className={syncSite.isPending ? 'ir-size-4 ir-animate-spin' : 'ir-size-4'} />
+                            Sincronizar ahora
+                        </Button>
+                    </div>
                 </div>
 
                 {siteId === null ? (
@@ -384,6 +467,7 @@ export function EditorScreen(): ReactElement {
                                             onSelect={() => setSelectedId(block.id)}
                                             onRemove={() => removeBlock(block.id)}
                                             onCycleWidth={() => cycleWidth(block)}
+                                            onDuplicate={() => duplicateBlock(block.id)}
                                         />
                                     </div>
                                 ))}

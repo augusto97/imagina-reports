@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Columns2, GripVertical, Trash2 } from 'lucide-react';
+import { Columns2, Copy, GripVertical, Trash2 } from 'lucide-react';
 import { type MouseEvent, type ReactElement } from 'react';
 
 import { BlockRenderer } from '@shared/blocks/BlockRenderer';
@@ -20,6 +20,7 @@ export function CanvasBlock({
     onSelect,
     onRemove,
     onCycleWidth,
+    onDuplicate,
 }: {
     block: Block;
     data: unknown;
@@ -27,6 +28,7 @@ export function CanvasBlock({
     onSelect: () => void;
     onRemove: () => void;
     onCycleWidth: () => void;
+    onDuplicate: () => void;
 }): ReactElement {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
 
@@ -69,6 +71,14 @@ export function CanvasBlock({
                     onClick={stop(onCycleWidth)}
                 >
                     <Columns2 className="ir-size-4" />
+                </button>
+                <button
+                    type="button"
+                    className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                    title="Duplicar"
+                    onClick={stop(onDuplicate)}
+                >
+                    <Copy className="ir-size-4" />
                 </button>
                 <button
                     type="button"
