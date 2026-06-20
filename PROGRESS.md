@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🕒 TRABAJO/HORAS + COMENTARIOS (2026-06-19, rama):** servicio de soporte por horas — registrar trabajo y
+demostrar que valió la pena. **Fase 1:** work logs con `minutes` (opcional) + `category`; `ir_sites.plan_hours`;
+API de alta rápida por sitio (`GET/POST /sites/{site}/work-logs`, `DELETE /work-logs/{id}`, filtro por periodo);
+pantalla **«Trabajo»** (elige sitio, escribe qué hiciste + minutos/categoría opcionales, Enter; cabecera con
+horas, nº tareas y barra horas-vs-plan del mes). **Fase 2:** `WorkLogMetrics` agrega el periodo en una fuente
+`worklog` (hours, tasks, by_category, hours_vs_plan{value,target}) inyectada en preview y generación (+ periodo
+anterior para comparar); bindable desde el catálogo → KPIs, dona por categoría y bloque meta horas-vs-plan; el
+timeline superpone los logs del SITIO en el periodo (incluye altas rápidas) con tiempo+categoría y total;
+plantilla de galería «Soporte por horas». **Fase 3:** comentarios `ir_report_comments` (internal|client) + API +
+bloque `comments` (solo los visibles para el cliente salen al reporte; las notas internas nunca) + panel
+«Comentarios» en ReportsScreen. **207 PHP verde (+15), PHPStan max + Pint + TS + ESLint + build limpios.** Todo
+en rama → próximo release **1.2.0**.
+
 **💱 MONEDA POR SITIO (2026-06-19, rama):** corrección del enfoque — **no hay conversión FX**; cada sitio
 reporta en **su propia moneda** (COP, CLP, PEN, VES, USD, EUR…) y se muestra tal cual (§5). Añadido
 `ir_sites.currency` (ISO 4217, default USD) + `Site::CURRENCIES` (lista LATAM-first) + validación en
