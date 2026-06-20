@@ -73,6 +73,25 @@ export const GALLERY: GalleryTemplate[] = [
         ],
     },
     {
+        key: 'hourly_support',
+        name: 'Soporte por horas',
+        description: 'Justifica el plan: horas invertidas, tareas y desglose del trabajo.',
+        build: () => [
+            spec({ type: 'header' }),
+            kpi('worklog', 'hours', 'Horas invertidas'),
+            kpi('worklog', 'tasks', 'Tareas realizadas'),
+            spec({ type: 'goal', binding: { source: 'worklog', metric: 'hours_vs_plan' }, props: { label: 'Horas vs plan' }, style: { width: 'third' } }),
+            spec({
+                type: 'chart',
+                binding: { source: 'worklog', metric: 'by_category' },
+                props: { chartType: 'donut', title: 'Horas por categoría' },
+                style: { width: 'half', legend: true },
+            }),
+            spec({ type: 'worklog_timeline', props: { title: 'Lo que hicimos este mes' }, style: { width: 'half' } }),
+            spec({ type: 'cta' }),
+        ],
+    },
+    {
         key: 'security',
         name: 'Seguridad y mantenimiento',
         description: 'El trabajo invisible: ataques bloqueados, uptime y updates.',

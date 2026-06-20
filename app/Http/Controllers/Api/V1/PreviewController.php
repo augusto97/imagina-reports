@@ -14,6 +14,7 @@ use App\Reports\Blocks\BlocksValidator;
 use App\Reports\Calc\CalculatedMetrics;
 use App\Reports\HealthScoreCalculator;
 use App\Reports\MetricBagLoader;
+use App\Reports\WorkLogMetrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 
@@ -36,12 +37,23 @@ final class PreviewController extends Controller
         HealthScoreCalculator $health,
         BlockResolver $resolver,
         CalculatedMetrics $calculated,
+        WorkLogMetrics $workLogs,
     ): JsonResponse {
         $period = $this->resolvePeriod($request);
         $blocks = $validator->validate($request->input('blocks'));
 
         $bags = $loader->forSite($site->id, $period);
         $previousBags = $loader->previousForSite($site->id, $period);
+
+        // Work-log metrics (hours invested, tasks, by-category, vs plan) as `worklog`.
+        $worklog = $workLogs->forSite($site, $period);
+        if ($worklog !== []) {
+            $bags['worklog'] = $worklog;
+        }
+        $worklogPrev = $workLogs->forSite($site, $period->previous());
+        if ($worklogPrev !== []) {
+            $previousBags['worklog'] = $worklogPrev;
+        }
 
         // Inject calculated metrics (formulas over the bag) as a `calc` source so
         // blocks bind to them like any connector metric (CLAUDE.md §10.1).

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Report;
+use App\Models\WorkLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
@@ -64,6 +65,10 @@ final class ReportResource extends JsonResource
     }
 
     /**
+     * Overlay the "what we did" timeline from the SITE's work logs within the report
+     * period (includes the daily quick-add entries, report-independent, §11.5) with
+     * their time + category — so the timeline reflects entries added after generation.
+     *
      * @param  array<array-key, mixed>  $data
      * @return array<array-key, mixed>
      */
@@ -73,11 +78,26 @@ final class ReportResource extends JsonResource
             return $data;
         }
 
-        $entries = $report->workLogs->map(static fn ($log): array => [
-            'performed_at' => $log->performed_at->toDateString(),
-            'description' => $log->description,
-            'screenshot_path' => $log->screenshot_path,
-        ])->all();
+        $site = $report->definition?->site;
+
+        if ($site === null) {
+            return $data;
+        }
+
+        // Tenant-safe by site_id (resolved from the token's report); no auth context here.
+        $entries = WorkLog::query()
+            ->withoutGlobalScopes()
+            ->where('site_id', $site->id)
+            ->whereBetween('performed_at', [$report->period_start, $report->period_end])
+            ->orderByDesc('performed_at')
+            ->get()
+            ->map(static fn (WorkLog $log): array => [
+                'performed_at' => $log->performed_at->toDateString(),
+                'description' => $log->description,
+                'minutes' => $log->minutes,
+                'category' => $log->category,
+                'screenshot_path' => $log->screenshot_path,
+            ])->all();
 
         foreach ($blocks as $block) {
             if (is_array($block) && ($block['type'] ?? null) === 'worklog_timeline' && is_string($block['id'] ?? null)) {

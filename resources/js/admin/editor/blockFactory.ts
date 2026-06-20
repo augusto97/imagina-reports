@@ -101,7 +101,10 @@ export function sampleData(block: Block): unknown {
                 { label: '/precios', value: 120 },
             ];
         case 'worklog_timeline':
-            return [{ performed_at: '2026-06-10', description: 'Actualizaciones aplicadas' }];
+            return [
+                { performed_at: '2026-06-10', description: 'Actualizaciones aplicadas', minutes: 45, category: 'Mantenimiento' },
+                { performed_at: '2026-06-14', description: 'Limpieza de spam y backup', minutes: 30, category: 'Seguridad' },
+            ];
         default:
             return undefined;
     }

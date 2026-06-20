@@ -424,16 +424,32 @@ function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement
 function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElement {
     const entries = asRecords(data);
 
+    // Total invested hours across the listed tasks (only those with logged time).
+    const totalMinutes = entries.reduce((sum, entry) => sum + (typeof entry.minutes === 'number' ? entry.minutes : 0), 0);
+
     return (
         <Section title={str(prop(block, 'title'), 'Lo que hicimos este mes')} style={block.style}>
             <ul className="ir-space-y-2">
                 {entries.map((entry, index) => (
-                    <li key={index} className="ir-flex ir-gap-3 ir-text-sm">
-                        <span className="ir-text-muted-foreground">{str(entry.performed_at)}</span>
-                        <span>{str(entry.description)}</span>
+                    <li key={index} className="ir-flex ir-items-baseline ir-gap-3 ir-text-sm">
+                        <span className="ir-w-20 ir-shrink-0 ir-text-muted-foreground">{str(entry.performed_at)}</span>
+                        <span className="ir-flex-1">{str(entry.description)}</span>
+                        {typeof entry.category === 'string' && entry.category !== '' && (
+                            <span className="ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground">{entry.category}</span>
+                        )}
+                        {typeof entry.minutes === 'number' && entry.minutes > 0 && (
+                            <span className="ir-shrink-0 ir-tabular-nums ir-text-muted-foreground">
+                                {(entry.minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 })} h
+                            </span>
+                        )}
                     </li>
                 ))}
             </ul>
+            {totalMinutes > 0 && (
+                <p className="ir-mt-3 ir-border-t ir-pt-2 ir-text-right ir-text-sm ir-font-medium">
+                    Total: {(totalMinutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 })} h
+                </p>
+            )}
         </Section>
     );
 }
@@ -502,7 +518,10 @@ function CtaBlock({ block }: BlockComponentProps): ReactElement {
 function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value } = asKpi(data);
     const settings = useContext(ReportSettingsContext);
-    const target = Number(prop(block, 'target')) || 0;
+    // Target can come from the bound metric (e.g. worklog.hours_vs_plan → plan hours)
+    // or, failing that, the block's own `target` prop.
+    const dataTarget = data !== null && typeof data === 'object' && 'target' in data ? Number((data as Record<string, unknown>).target) : NaN;
+    const target = !Number.isNaN(dataTarget) ? dataTarget : Number(prop(block, 'target')) || 0;
     const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
     const onTrack = pct >= 100;
     const format = str(block.style?.format);

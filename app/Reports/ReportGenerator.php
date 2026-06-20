@@ -31,6 +31,7 @@ final readonly class ReportGenerator
         private MetricBagLoader $bags,
         private BlockResolver $resolver,
         private CalculatedMetrics $calculated,
+        private WorkLogMetrics $workLogs,
     ) {}
 
     public function generate(ReportDefinition $definition, Period $period): Report
@@ -38,6 +39,13 @@ final readonly class ReportGenerator
         $blocks = $this->resolveLayout($definition);
         $bags = $this->bags->forSite($definition->site_id, $period);
         $previousBags = $this->bags->previousForSite($definition->site_id, $period);
+
+        // Work-log metrics (hours invested, tasks, by-category, vs plan) as `worklog`.
+        $site = $definition->site;
+        if ($site !== null) {
+            $bags = $this->withWorkLogs($bags, $this->workLogs->forSite($site, $period));
+            $previousBags = $this->withWorkLogs($previousBags, $this->workLogs->forSite($site, $period->previous()));
+        }
 
         // Calculated metrics (formulas over the bag) injected as a `calc` source.
         $calcDefs = $this->calcDefinitions($definition);
@@ -103,6 +111,20 @@ final readonly class ReportGenerator
     {
         if ($calc !== []) {
             $bags['calc'] = $calc;
+        }
+
+        return $bags;
+    }
+
+    /**
+     * @param  array<string, array<array-key, mixed>>  $bags
+     * @param  array<string, mixed>  $worklog
+     * @return array<string, array<array-key, mixed>>
+     */
+    private function withWorkLogs(array $bags, array $worklog): array
+    {
+        if ($worklog !== []) {
+            $bags['worklog'] = $worklog;
         }
 
         return $bags;
