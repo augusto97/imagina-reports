@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $hosting
  * @property string|null $support_plan
  * @property string $status
+ * @property string $currency
  */
 class Site extends Model
 {
@@ -29,6 +30,30 @@ class Site extends Model
     use BelongsToAgency, HasFactory;
 
     protected $table = 'ir_sites';
+
+    /**
+     * Supported reporting currencies (ISO 4217 → label). No FX conversion — each
+     * site's amounts render in its own currency (CLAUDE.md §5). LATAM-first.
+     *
+     * @var array<string, string>
+     */
+    public const CURRENCIES = [
+        'USD' => 'Dólar estadounidense (USD)',
+        'COP' => 'Peso colombiano (COP)',
+        'CLP' => 'Peso chileno (CLP)',
+        'PEN' => 'Sol peruano (PEN)',
+        'VES' => 'Bolívar venezolano (VES)',
+        'ARS' => 'Peso argentino (ARS)',
+        'MXN' => 'Peso mexicano (MXN)',
+        'BRL' => 'Real brasileño (BRL)',
+        'BOB' => 'Boliviano (BOB)',
+        'UYU' => 'Peso uruguayo (UYU)',
+        'PYG' => 'Guaraní paraguayo (PYG)',
+        'GTQ' => 'Quetzal guatemalteco (GTQ)',
+        'CRC' => 'Colón costarricense (CRC)',
+        'DOP' => 'Peso dominicano (DOP)',
+        'EUR' => 'Euro (EUR)',
+    ];
 
     /**
      * @var list<string>
@@ -41,6 +66,7 @@ class Site extends Model
         'hosting',
         'support_plan',
         'status',
+        'currency',
     ];
 
     /**

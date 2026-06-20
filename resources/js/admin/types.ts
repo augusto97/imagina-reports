@@ -14,6 +14,7 @@ export interface Site {
     hosting: string | null;
     support_plan: string | null;
     status: string;
+    currency: string;
 }
 
 export interface ConfigFieldDef {

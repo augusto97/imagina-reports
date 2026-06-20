@@ -56,7 +56,7 @@ export function PortalApp({ token }: { token: string }): ReactElement {
                 )}
             </header>
 
-            <BlockList blocks={data.blocks} data={data.data} context={data.context} />
+            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} />
         </div>
     );
 }

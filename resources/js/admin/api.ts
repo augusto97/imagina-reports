@@ -133,7 +133,7 @@ export function useCreateSite() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { client_id: number; name: string; url: string }) =>
+        mutationFn: (payload: { client_id: number; name: string; url: string; currency?: string }) =>
             api.post<Site>('/sites', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
     });

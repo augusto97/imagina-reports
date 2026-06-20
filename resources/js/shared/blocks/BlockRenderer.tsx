@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
-import { type CSSProperties, type ReactElement, useMemo, useState } from 'react';
+import { type CSSProperties, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -87,17 +87,43 @@ function styleCss(s: Style): CSSProperties {
     return css;
 }
 
-/** Format a KPI/sales number per the block's `style.format`. */
-function formatNumber(value: number, format: string): string {
+/**
+ * Per-report render settings — currency (the site's, shown as-is with no FX
+ * conversion, CLAUDE.md §5) and locale. Provided by BlockList / ReportSettingsProvider
+ * and read by the currency-formatting blocks.
+ */
+interface ReportSettings {
+    currency: string;
+    locale?: string;
+}
+
+const ReportSettingsContext = createContext<ReportSettings>({ currency: 'USD' });
+
+export function ReportSettingsProvider({
+    currency = 'USD',
+    locale,
+    children,
+}: {
+    currency?: string;
+    locale?: string;
+    children: ReactNode;
+}): ReactElement {
+    return <ReportSettingsContext.Provider value={{ currency, locale }}>{children}</ReportSettingsContext.Provider>;
+}
+
+/** Format a KPI/sales number per the block's `style.format`, in the report's currency/locale. */
+function formatNumber(value: number, format: string, settings: ReportSettings = { currency: 'USD' }): string {
+    const { currency, locale } = settings;
+
     switch (format) {
         case 'compact':
-            return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+            return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
         case 'percent':
-            return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+            return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })}%`;
         case 'currency':
-            return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+            return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
         default:
-            return value.toLocaleString();
+            return value.toLocaleString(locale);
     }
 }
 
@@ -207,11 +233,12 @@ function TrendBadge({ percent }: { percent: number }): ReactElement {
 
 function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value, changePercent } = asKpi(data);
+    const settings = useContext(ReportSettingsContext);
 
     return (
         <Section style={block.style}>
             <p className="ir-text-sm ir-text-muted-foreground">{str(prop(block, 'label'))}</p>
-            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format))}</p>
+            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format), settings)}</p>
             {changePercent !== null && <TrendBadge percent={changePercent} />}
         </Section>
     );
@@ -423,10 +450,11 @@ function DividerBlock(): ReactElement {
 
 function SalesSummaryBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value, changePercent } = asKpi(data);
+    const settings = useContext(ReportSettingsContext);
 
     return (
         <Section title={str(prop(block, 'title'), 'Ventas')} style={block.style}>
-            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format))}</p>
+            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format), settings)}</p>
             {changePercent !== null && <TrendBadge percent={changePercent} />}
         </Section>
     );
@@ -473,6 +501,7 @@ function CtaBlock({ block }: BlockComponentProps): ReactElement {
  */
 function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value } = asKpi(data);
+    const settings = useContext(ReportSettingsContext);
     const target = Number(prop(block, 'target')) || 0;
     const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
     const onTrack = pct >= 100;
@@ -481,8 +510,8 @@ function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
     return (
         <Section title={str(prop(block, 'label'), 'Meta')} style={block.style}>
             <div className="ir-flex ir-items-baseline ir-justify-between">
-                <span className="ir-text-2xl ir-font-semibold">{formatNumber(value, format)}</span>
-                <span className="ir-text-sm ir-text-muted-foreground">/ {formatNumber(target, format)}</span>
+                <span className="ir-text-2xl ir-font-semibold">{formatNumber(value, format, settings)}</span>
+                <span className="ir-text-sm ir-text-muted-foreground">/ {formatNumber(target, format, settings)}</span>
             </div>
             <div className="ir-mt-2 ir-h-2 ir-overflow-hidden ir-rounded ir-bg-muted">
                 <div
@@ -579,20 +608,26 @@ export function BlockList({
     blocks,
     data = {},
     context,
+    currency = 'USD',
+    locale,
 }: {
     blocks: Block[];
     data?: Record<string, unknown>;
     context?: Record<string, string>;
+    currency?: string;
+    locale?: string;
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
 
     return (
-        <div className="ir-grid ir-grid-cols-6 ir-gap-6">
-            {resolved.map((block) => (
-                <div key={block.id} className={widthSpan(block)}>
-                    <BlockRenderer block={block} data={data[block.id]} />
-                </div>
-            ))}
-        </div>
+        <ReportSettingsProvider currency={currency} locale={locale}>
+            <div className="ir-grid ir-grid-cols-6 ir-gap-6">
+                {resolved.map((block) => (
+                    <div key={block.id} className={widthSpan(block)}>
+                        <BlockRenderer block={block} data={data[block.id]} />
+                    </div>
+                ))}
+            </div>
+        </ReportSettingsProvider>
     );
 }

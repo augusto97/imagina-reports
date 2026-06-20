@@ -39,6 +39,8 @@ final class ReportResource extends JsonResource
             'period_end' => $report->period_end->toIso8601String(),
             'health_score' => $report->health_score,
             'status' => $report->status->value,
+            // Site reporting currency — amounts render as-is, no FX conversion (§5).
+            'currency' => $site !== null ? $site->currency : 'USD',
             'blocks' => $blocks,
             // Merge-field context for dynamic {{tokens}} in text blocks (§11.3).
             'context' => [

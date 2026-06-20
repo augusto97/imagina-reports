@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Site;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class StoreSiteRequest extends FormRequest
 {
@@ -25,6 +27,7 @@ final class StoreSiteRequest extends FormRequest
             'hosting' => ['nullable', 'string', 'max:255'],
             'support_plan' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'max:255'],
+            'currency' => ['nullable', Rule::in(array_keys(Site::CURRENCIES))],
         ];
     }
 }

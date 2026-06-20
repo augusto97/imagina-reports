@@ -3,6 +3,7 @@ import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortab
 import { LayoutTemplate, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
+import { ReportSettingsProvider } from '@shared/blocks/BlockRenderer';
 import type { Block, BlockType } from '@shared/blocks/types';
 
 import {
@@ -312,6 +313,7 @@ export function EditorScreen(): ReactElement {
     }
 
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
+    const siteCurrency = sites.find((site) => site.id === siteId)?.currency ?? 'USD';
 
     return (
         <div className="ir-grid ir-grid-cols-[15rem_1fr_19rem] ir-gap-5">
@@ -457,7 +459,8 @@ export function EditorScreen(): ReactElement {
                 <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5">
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                         <SortableContext items={blocks.map((b) => b.id)} strategy={rectSortingStrategy}>
-                            <div className="ir-grid ir-grid-cols-6 ir-gap-4">
+                            <ReportSettingsProvider currency={siteCurrency}>
+                                <div className="ir-grid ir-grid-cols-6 ir-gap-4">
                                 {blocks.map((block) => (
                                     <div key={block.id} className={WIDTH_SPAN[widthOf(block)]}>
                                         <CanvasBlock
@@ -471,7 +474,8 @@ export function EditorScreen(): ReactElement {
                                         />
                                     </div>
                                 ))}
-                            </div>
+                                </div>
+                            </ReportSettingsProvider>
                         </SortableContext>
                     </DndContext>
                     {blocks.length === 0 && (

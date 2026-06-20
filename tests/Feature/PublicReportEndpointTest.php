@@ -45,7 +45,7 @@ class PublicReportEndpointTest extends TestCase
     {
         $agency = Agency::factory()->create(['name' => 'Imagina WP']);
         $client = Client::factory()->create(['agency_id' => $agency->id, 'name' => 'Acme']);
-        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id, 'name' => 'acme.com']);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id, 'name' => 'acme.com', 'currency' => 'COP']);
         $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id]);
         $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
 
@@ -53,7 +53,9 @@ class PublicReportEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonPath('context.agency', 'Imagina WP')
             ->assertJsonPath('context.client', 'Acme')
-            ->assertJsonPath('context.site', 'acme.com');
+            ->assertJsonPath('context.site', 'acme.com')
+            // The site reports in its own currency (no FX conversion).
+            ->assertJsonPath('currency', 'COP');
     }
 
     public function test_it_lists_sibling_periods_for_the_selector(): void
