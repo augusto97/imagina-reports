@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🧮 EDITOR v2 · Clusters A+B (2026-06-19, rama):** análisis competitivo (Looker/Power BI/Whatagraph/
+AgencyAnalytics/DashThis) → más capacidades. **A · gráficos:** nuevos tipos **dona/pastel** (Recharts PieChart +
+paleta desde el accent), **leyenda** opcional, **tabla con barras de valor**; línea/barra más pulidas. **B ·
+métricas calculadas + mezclar fuentes (el diferenciador):** `FormulaEvaluator` SEGURO (sin eval — tokeniza →
+shunting-yard → RPN; soporta `+ - * / ( )`, números e identificadores tipo `woocommerce.revenue/ga4.sessions`;
+6 unit tests) + `CalculatedMetrics` que las computa sobre el metric bag agregado (NO sobre filas crudas, §3.3) y
+las inyecta como fuente **`calc`** → los bloques las vinculan como cualquier métrica. Cableado en **preview**
+(`PreviewController` + request) y **generación** (`ReportGenerator` usa las de la definición o su plantilla);
+persistidas en `ir_report_templates`/`ir_report_definitions` (migración `calculated_metrics` json + modelos +
+requests + resource). Editor: tarjeta «Métricas calculadas» (clave/etiqueta/fórmula) que entran al selector de
+binding como fuente «calc». **189 PHP verde (+7), PHPStan max + Pint + TS + ESLint + build limpios.** **Quedan
+del Editor v2:** C (bloques imagen/CTA/portada + redimensionar + galería de plantillas) y D (filtros/drill-down en
+el portal). Acumulado en rama con builder WYSIWYG + estilos + fix updater → próximo release (1.2.0).
+
 **🎨 EDITOR v2 · Fase 1 — sistema de estilos por bloque + formato de números (2026-06-19, rama):** hacia un editor
 tipo Looker/Power BI ("estilos ajustables para casi todo"). Cada bloque ahora tiene overrides de **estilo** en
 `block.style`: **fondo, texto (color), relleno (sm/md/lg), esquinas (none/sm/md/lg), borde on/off, alineación,

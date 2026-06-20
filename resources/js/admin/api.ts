@@ -305,7 +305,7 @@ export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[] }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
@@ -315,7 +315,7 @@ export function useUpdateReportTemplate(id: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[] }) =>
             api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ['report-templates'] });
@@ -356,10 +356,16 @@ export interface PreviewResult {
     sources_with_data: string[];
 }
 
+export interface CalcMetric {
+    key: string;
+    label: string;
+    formula: string;
+}
+
 /** Resolve a draft layout against a site + period into REAL metric data (CLAUDE.md §11.3). */
 export function usePreview(siteId: number) {
     return useMutation({
-        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string }) =>
+        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string; calculated_metrics?: CalcMetric[] }) =>
             api.post<PreviewResult>(`/sites/${siteId}/preview`, payload).then((r) => r.data),
     });
 }

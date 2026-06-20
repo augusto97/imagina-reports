@@ -74,6 +74,7 @@ export interface ReportTemplateDto {
     id: number;
     name: string;
     blocks: unknown[];
+    calculated_metrics: { key: string; label: string; formula: string }[];
     is_default: boolean;
     locale: string;
 }

@@ -185,6 +185,46 @@ class PreviewApiTest extends TestCase
         $response->assertJsonPath('data.s1.attacks_blocked', 96);
     }
 
+    public function test_it_resolves_a_calculated_metric_from_a_formula(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        $source = DataSource::factory()->create([
+            'agency_id' => $agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::WooCommerce,
+        ]);
+
+        $start = now()->startOfMonth();
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => $start,
+            'period_end' => $start->copy()->endOfMonth(),
+            'payload' => [
+                'status' => MetricSetStatus::Ok->value,
+                'error' => null,
+                'metrics' => ['woocommerce.revenue' => 300000, 'woocommerce.orders' => 120],
+            ],
+        ]);
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/preview", [
+            'blocks' => [
+                ['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'aov'], 'props' => [], 'style' => []],
+            ],
+            'calculated_metrics' => [
+                ['key' => 'aov', 'label' => 'Ticket medio', 'formula' => 'woocommerce.revenue / woocommerce.orders'],
+            ],
+        ])->assertOk();
+
+        // 300000 / 120 = 2500.
+        $response->assertJsonPath('data.k1', 2500);
+        $this->assertContains('calc', $response->json('sources_with_data'));
+    }
+
     public function test_it_hides_blocks_whose_metric_has_no_data(): void
     {
         $agency = Agency::factory()->create();

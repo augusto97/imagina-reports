@@ -6,6 +6,7 @@ import { type ReactElement, useEffect, useState } from 'react';
 import type { Block, BlockType } from '@shared/blocks/types';
 
 import {
+    type CalcMetric,
     type PreviewResult,
     useAiTemplate,
     useCreateReportTemplate,
@@ -18,6 +19,7 @@ import {
     useUpdateReportTemplate,
 } from '../api';
 import { Button, Card, Field, Input } from '../components/ui';
+import type { CatalogEntry } from '../types';
 import { useAdminUi } from '../store';
 import { CanvasBlock } from './CanvasBlock';
 import { makeBlock, nextWidth, PALETTE, sampleData, WIDTH_SPAN, widthOf } from './blockFactory';
@@ -70,6 +72,7 @@ export function EditorScreen(): ReactElement {
     const [aiPrompt, setAiPrompt] = useState('');
     const [month, setMonth] = useState(currentMonth());
     const [blocks, setBlocks] = useState<Block[]>([makeBlock('header')]);
+    const [calcMetrics, setCalcMetrics] = useState<CalcMetric[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [preview_, setPreview] = useState<PreviewResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
@@ -78,6 +81,7 @@ export function EditorScreen(): ReactElement {
         if (editingTemplateId === null) {
             setName('');
             setBlocks([makeBlock('header')]);
+            setCalcMetrics([]);
             setSelectedId(null);
             setErrors([]);
         }
@@ -88,6 +92,7 @@ export function EditorScreen(): ReactElement {
             const loaded = editingTemplate.blocks as Block[];
             setName(editingTemplate.name);
             setBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
+            setCalcMetrics(editingTemplate.calculated_metrics ?? []);
             setSelectedId(null);
             setErrors([]);
         }
@@ -102,12 +107,12 @@ export function EditorScreen(): ReactElement {
         }
 
         const timer = setTimeout(() => {
-            runPreview({ blocks, ...monthPeriod(month) }, { onSuccess: (result) => setPreview(result) });
+            runPreview({ blocks, calculated_metrics: calcMetrics, ...monthPeriod(month) }, { onSuccess: (result) => setPreview(result) });
         }, 400);
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [siteId, blocks, month]);
+    }, [siteId, blocks, calcMetrics, month]);
 
     const loadDefaultTemplate = (): void => {
         defaultTpl.mutate(undefined, {
@@ -162,12 +167,34 @@ export function EditorScreen(): ReactElement {
             onError: (error: unknown) => setErrors(extractBlockErrors(error)),
         };
 
+        const payload = { name, blocks, calculated_metrics: calcMetrics };
         if (editingTemplateId !== null) {
-            update.mutate({ name, blocks }, handlers);
+            update.mutate(payload, handlers);
         } else {
-            create.mutate({ name, blocks }, handlers);
+            create.mutate(payload, handlers);
         }
     };
+
+    const addCalc = (): void => setCalcMetrics((prev) => [...prev, { key: `m${prev.length + 1}`, label: '', formula: '' }]);
+    const updateCalc = (index: number, patch: Partial<CalcMetric>): void =>
+        setCalcMetrics((prev) => prev.map((metric, i) => (i === index ? { ...metric, ...patch } : metric)));
+    const removeCalc = (index: number): void => setCalcMetrics((prev) => prev.filter((_, i) => i !== index));
+
+    // Calculated metrics appear in the binding picker as a "calc" source.
+    const fullCatalog: CatalogEntry[] = [
+        ...catalog,
+        ...calcMetrics
+            .filter((metric) => metric.key !== '')
+            .map((metric) => ({
+                source: 'calc',
+                metric: metric.key,
+                key: `calc.${metric.key}`,
+                label: metric.label !== '' ? metric.label : metric.key,
+                type: 'number',
+                unit: null,
+                dimensions: [],
+            })),
+    ];
 
     const triggerSync = (): void => {
         if (siteId === null) {
@@ -180,7 +207,7 @@ export function EditorScreen(): ReactElement {
                     const elapsed = delays.slice(0, index + 1).reduce((sum, value) => sum + value, 0);
                     setTimeout(() => {
                         runPreview(
-                            { blocks, ...monthPeriod(month) },
+                            { blocks, calculated_metrics: calcMetrics, ...monthPeriod(month) },
                             { onSuccess: (result) => setPreview((current) => (current?.has_data === true ? current : result)) },
                         );
                     }, elapsed);
@@ -266,6 +293,34 @@ export function EditorScreen(): ReactElement {
                         ))}
                     </div>
                 </Card>
+
+                <Card title="Métricas calculadas">
+                    <div className="ir-flex ir-flex-col ir-gap-3">
+                        {calcMetrics.map((metric, index) => (
+                            <div key={index} className="ir-flex ir-flex-col ir-gap-1 ir-rounded-md ir-border ir-p-2">
+                                <div className="ir-flex ir-gap-1">
+                                    <Input placeholder="clave" value={metric.key} onChange={(event) => updateCalc(index, { key: event.target.value })} />
+                                    <button type="button" className="ir-px-2 ir-text-muted-foreground hover:ir-text-red-500" onClick={() => removeCalc(index)}>
+                                        ×
+                                    </button>
+                                </div>
+                                <Input placeholder="Etiqueta" value={metric.label} onChange={(event) => updateCalc(index, { label: event.target.value })} />
+                                <Input
+                                    placeholder="ga4.sessions / woocommerce.orders"
+                                    value={metric.formula}
+                                    onChange={(event) => updateCalc(index, { formula: event.target.value })}
+                                />
+                            </div>
+                        ))}
+                        <Button variant="ghost" onClick={addCalc}>
+                            + Añadir métrica
+                        </Button>
+                        <p className="ir-text-xs ir-text-muted-foreground">
+                            Usa claves de métricas (p. ej. <code>ga4.sessions</code>) y <code>+ - * / ( )</code>. Aparecen como fuente «calc» al
+                            vincular un bloque.
+                        </p>
+                    </div>
+                </Card>
             </aside>
 
             {/* ---- Center: the WYSIWYG canvas ---- */}
@@ -320,7 +375,7 @@ export function EditorScreen(): ReactElement {
             {/* ---- Right: inspector for the selected block ---- */}
             <aside className="ir-sticky ir-top-8 ir-self-start">
                 <Card title="Bloque">
-                    <Inspector block={selectedBlock} catalog={catalog} onChange={updateBlock} />
+                    <Inspector block={selectedBlock} catalog={fullCatalog} onChange={updateBlock} />
                 </Card>
             </aside>
         </div>
