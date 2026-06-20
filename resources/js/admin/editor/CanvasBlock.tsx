@@ -1,6 +1,4 @@
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { Columns2, Copy, GripVertical, Trash2 } from 'lucide-react';
+import { Copy, GripVertical, Trash2 } from 'lucide-react';
 import { type MouseEvent, type ReactElement } from 'react';
 
 import { BlockRenderer } from '@shared/blocks/BlockRenderer';
@@ -8,10 +6,11 @@ import type { Block } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
 
 /**
- * A block on the visual canvas: renders the REAL block (WYSIWYG) and, on hover or
- * when selected, a floating toolbar to drag, cycle its width, or remove it. Clicking
- * selects the block for the inspector. Inner block content is non-interactive so a
- * click always selects rather than triggering links/tooltips.
+ * A widget on the dashboard grid: renders the REAL block (WYSIWYG) filling its tile,
+ * with a floating toolbar to drag (the grip is react-grid-layout's drag handle),
+ * duplicate or remove. Clicking selects it for the inspector; inner content is
+ * non-interactive so a click always selects rather than triggering links/tooltips.
+ * Resizing is handled by the grid's corner handle.
  */
 export function CanvasBlock({
     block,
@@ -19,7 +18,6 @@ export function CanvasBlock({
     selected,
     onSelect,
     onRemove,
-    onCycleWidth,
     onDuplicate,
 }: {
     block: Block;
@@ -27,11 +25,8 @@ export function CanvasBlock({
     selected: boolean;
     onSelect: () => void;
     onRemove: () => void;
-    onCycleWidth: () => void;
     onDuplicate: () => void;
 }): ReactElement {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
-
     const stop = (handler: () => void) => (event: MouseEvent): void => {
         event.stopPropagation();
         handler();
@@ -39,12 +34,9 @@ export function CanvasBlock({
 
     return (
         <div
-            ref={setNodeRef}
-            style={{ transform: CSS.Transform.toString(transform), transition }}
             onClick={onSelect}
             className={cn(
-                'ir-group ir-relative ir-cursor-pointer ir-rounded-lg ir-transition',
-                isDragging && 'ir-opacity-60',
+                'ir-group ir-relative ir-h-full ir-cursor-pointer ir-overflow-hidden ir-rounded-lg ir-transition',
                 selected ? 'ir-ring-2 ir-ring-primary' : 'hover:ir-ring-1 hover:ir-ring-border',
             )}
         >
@@ -56,21 +48,11 @@ export function CanvasBlock({
             >
                 <button
                     type="button"
-                    className="ir-cursor-grab ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                    className="ir-drag-handle ir-cursor-grab ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
                     title="Mover"
                     onClick={(event) => event.stopPropagation()}
-                    {...attributes}
-                    {...listeners}
                 >
                     <GripVertical className="ir-size-4" />
-                </button>
-                <button
-                    type="button"
-                    className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
-                    title="Ancho (completo / mitad / tercio)"
-                    onClick={stop(onCycleWidth)}
-                >
-                    <Columns2 className="ir-size-4" />
                 </button>
                 <button
                     type="button"
@@ -90,7 +72,7 @@ export function CanvasBlock({
                 </button>
             </div>
 
-            <div className="ir-pointer-events-none">
+            <div className="ir-pointer-events-none ir-h-full ir-overflow-hidden">
                 <BlockRenderer block={block} data={data} />
             </div>
         </div>

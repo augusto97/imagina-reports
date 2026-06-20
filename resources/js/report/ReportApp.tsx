@@ -12,7 +12,7 @@ export function ReportApp({ token }: { token: string }): ReactElement {
     const { data, isLoading, isError } = usePublicReport(token);
 
     useEffect(() => {
-        applyBrandAccent(data?.agency?.brand_color);
+        applyBrandAccent(data?.theme?.accent ?? data?.agency?.brand_color);
 
         if (data !== undefined || isError) {
             // Signal the PDF renderer that the page is fully painted (success or empty).
@@ -40,7 +40,7 @@ export function ReportApp({ token }: { token: string }): ReactElement {
                     </span>
                 </div>
             )}
-            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} />
+            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} theme={data.theme} />
         </div>
     );
 }

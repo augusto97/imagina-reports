@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $name
  * @property array<int, array<string, mixed>> $blocks
  * @property array<int, array<string, mixed>>|null $calculated_metrics
+ * @property array<string, mixed>|null $theme
  * @property bool $is_default
  * @property string $locale
  */
@@ -35,6 +36,7 @@ class ReportTemplate extends Model
         'name',
         'blocks',
         'calculated_metrics',
+        'theme',
         'is_default',
         'locale',
     ];
@@ -47,6 +49,7 @@ class ReportTemplate extends Model
         return [
             'blocks' => 'array',
             'calculated_metrics' => 'array',
+            'theme' => 'array',
             'is_default' => 'boolean',
         ];
     }

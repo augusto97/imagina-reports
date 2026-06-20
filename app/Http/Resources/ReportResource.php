@@ -36,6 +36,7 @@ final class ReportResource extends JsonResource
 
         $blocks = $resolved['blocks'] ?? [];
         $data = $resolved['data'] ?? [];
+        $theme = $resolved['theme'] ?? null;
 
         return [
             'period_start' => $report->period_start->toIso8601String(),
@@ -44,6 +45,8 @@ final class ReportResource extends JsonResource
             'status' => $report->status->value,
             // Site reporting currency — amounts render as-is, no FX conversion (§5).
             'currency' => $site !== null ? $site->currency : 'USD',
+            // Per-report theme (accent + density), or null to inherit the agency brand.
+            'theme' => is_array($theme) ? $theme : null,
             'blocks' => $blocks,
             // Merge-field context for dynamic {{tokens}} in text blocks (§11.3).
             'context' => [

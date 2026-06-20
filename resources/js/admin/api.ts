@@ -16,6 +16,7 @@ import type {
     ReportSummary,
     ReportComment,
     ReportTemplateDto,
+    ReportTheme,
     Site,
     UpdateStatus,
     WorkLog,
@@ -396,7 +397,7 @@ export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[] }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
@@ -406,7 +407,7 @@ export function useUpdateReportTemplate(id: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[] }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null }) =>
             api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ['report-templates'] });

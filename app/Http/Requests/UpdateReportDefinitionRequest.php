@@ -29,6 +29,9 @@ final class UpdateReportDefinitionRequest extends FormRequest
             'locale' => ['sometimes', 'string', 'max:8'],
             'recipients' => ['sometimes', 'nullable', 'array'],
             'recipients.*' => ['email'],
+            'theme' => ['sometimes', 'nullable', 'array'],
+            'theme.accent' => ['nullable', 'string', 'max:9'],
+            'theme.density' => ['nullable', 'in:normal,compact'],
         ];
     }
 }

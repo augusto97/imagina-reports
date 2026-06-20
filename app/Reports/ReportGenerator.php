@@ -58,7 +58,10 @@ final readonly class ReportGenerator
         // editor preview uses, so the preview matches the generated report exactly.
         ['blocks' => $visibleBlocks, 'data' => $data] = $this->resolver->resolve($blocks, $bags, $score, $previousBags);
 
-        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score);
+        // Per-report theme (accent + density): the definition's, falling back to its template's.
+        $theme = $definition->theme ?? $definition->template?->theme;
+
+        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, is_array($theme) ? $theme : null);
 
         // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
         // webhook and run anomaly detection — keeping this generator free of delivery
@@ -133,15 +136,16 @@ final readonly class ReportGenerator
     /**
      * @param  list<array<string, mixed>>  $visibleBlocks
      * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>|null  $theme
      */
-    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score): Report
+    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null): Report
     {
         $report = new Report;
         $report->agency_id = $definition->agency_id;
         $report->report_definition_id = $definition->id;
         $report->period_start = Carbon::instance($period->start);
         $report->period_end = Carbon::instance($period->end);
-        $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data];
+        $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data, 'theme' => $theme];
         $report->health_score = $score;
         $report->executive_summary = null; // AI narrative is Phase 2
         $report->public_token = Str::random(48);

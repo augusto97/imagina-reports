@@ -27,6 +27,9 @@ final class StoreReportDefinitionRequest extends FormRequest
             'locale' => ['nullable', 'string', 'max:8'],
             'recipients' => ['nullable', 'array'],
             'recipients.*' => ['email'],
+            'theme' => ['nullable', 'array'],
+            'theme.accent' => ['nullable', 'string', 'max:9'],
+            'theme.density' => ['nullable', 'in:normal,compact'],
         ];
     }
 }

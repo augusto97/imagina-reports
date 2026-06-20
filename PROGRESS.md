@@ -7,6 +7,52 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 TEMA/BRANDING + v1.3.0 (2026-06-20):** cerrado el milestone del editor con **tema por reporte (956547b)**:
+columna `theme` (json nullable) en templates+definitions (acento hex + densidad normal|compact), validada y
+expuesta; el generador congela el tema (definición→plantilla) en el reporte; el render comparte el acento como
+**variable CSS scoped** (`--ir-primary`, sobreescribe la marca de agencia) y la densidad ajusta el padding —
+idéntico en portal/PDF/editor; panel "Tema del reporte" en el editor. **214 PHP verde.** **Milestone editor
+COMPLETO:** rejilla, galería+pestañas+drill-down, multipágina, fill-tile, control de filtro, tema. → cortando
+**v1.3.0** (PR a main + release workflow_dispatch, porque el entorno bloquea push de tags).
+
+**🎛️ EDITOR PRO TIPO LOOKER — milestone (casi) completo (2026-06-20, rama, post v1.2.0):** además de A/B/C-multipágina/
+fill-tile (ver entrada siguiente), se añadió **controles de página honestos (0a61663)**: bloque `control` = un
+desplegable de los valores de su métrica que **acota las filas** de tablas/gráficos/timeline de la misma página
+(ReportFilterContext compartido). Es un **filtro de filas client-side** sobre snapshots agregados, NO un cross-filter
+sobre datos crudos (el modelo no los guarda, §3.3); por defecto vacío → sin control = render idéntico (cero
+regresión). El **selector de periodo ya existía** en el portal (cambia entre el reporte de cada periodo). **Estado
+del milestone:** ✅ rejilla, ✅ galería+pestañas+drill-down, ✅ multipágina, ✅ controles de página, ✅ fill-tile.
+**Único pendiente (opcional):** tema/branding por reporte (acento+densidad) — requiere columna `theme` en
+templates/definitions; el acento de marca de la agencia ya fluye. **211 PHP verde, gates limpios.** Decisión del
+owner: **un solo v1.3.0 al final** (en rama, sin desplegar aún).
+
+**🎛️ EDITOR PRO TIPO LOOKER — rediseño (2026-06-20, rama, post v1.2.0):** el owner exigió paridad con Looker
+Studio/Power BI (el editor anterior era una lista apilada de 1 columna, "parecía de juguete"). Rediseño por fases,
+todo verde y commiteado: **Fase A (6732aa1)** lienzo de **rejilla responsive 12-col** con react-grid-layout —
+arrastrar, **redimensionar** por tiradores, reflujo, snap; coordenadas `layout{x,y,w,h}` en el modelo (TS+PHP+
+validador, retrocompatible: sin coords = width-flow legacy); el render compartido pinta la **misma rejilla CSS**
+en portal/PDF. **Fase B (9484ab5)** Inspector con **pestañas Configuración/Estilo**, **galería visual de tipos**
+(línea/barras/barras-horiz/área/dona/pastel, +hbar en el renderer) y **drill-down** (dimensión del catálogo en
+binding.dimension); quitado el control "Ancho" (lo gobierna el resize). **Fase C/D (711bb95)** **multipágina**:
+cada bloque lleva `page`; navegador de páginas en el editor (añadir/eliminar/cambiar); el render agrupa por página
+con salto de página para el PDF. **Polish (40a0e8d)** los widgets **llenan su tile** (secciones flex a altura
+completa, gráficos al 100%) para que parezca un dashboard real. **211 PHP verde, PHPStan max + Pint + TS + ESLint +
+build limpios.** Nueva dependencia: `react-grid-layout`. **PENDIENTE del milestone:** controles de página
+(periodo/filtros/desplegables — ojo: el filtrado interactivo encaja mal con el modelo de snapshots agregados, hay
+que diseñarlo con honestidad) y tema/branding por reporte (acento+densidad). Sin desplegar aún (en rama) → será
+**v1.3.0**.
+
+
+**🚀 RELEASE v1.2.0 PUBLICADO (2026-06-20):** PR #11 mergeado a `main` y release **v1.2.0** publicado en GitHub
+(`imagina-reports-1.2.0.zip` + `.sha256`, run #11 verde). Contenido: time tracking/work logs por horas,
+comentarios de reporte (internas + cliente), moneda por sitio y edición de sitios — sobre v1.1.0. **Nota de
+entorno:** este entorno remoto **bloquea el push de tags por git** (ramas y API sí funcionan), así que se añadió
+`workflow_dispatch` (input `version`) al `release.yml` — **retrocompatible**: el disparo por tag sigue igual; el
+workflow crea el tag y publica el release desde el input. **Para que llegue al VPS:** el self-updater sondea
+`releases/latest` (hasta ~1h) y registra el zip en `ir_app_releases`; luego pulsar **Sistema → Actualizar** (o
+esperar al auto). Reconciliación de historial: la rama ya superaba el squash de #10 (v1.1.0), integrada con
+`merge -s ours`.
+
 **🕒 TRABAJO/HORAS + COMENTARIOS (2026-06-19, rama):** servicio de soporte por horas — registrar trabajo y
 demostrar que valió la pena. **Fase 1:** work logs con `minutes` (opcional) + `category`; `ir_sites.plan_hours`;
 API de alta rápida por sitio (`GET/POST /sites/{site}/work-logs`, `DELETE /work-logs/{id}`, filtro por periodo);

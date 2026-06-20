@@ -30,6 +30,9 @@ final class UpdateReportTemplateRequest extends FormRequest
             'calculated_metrics.*.key' => ['required_with:calculated_metrics', 'string', 'regex:/^[a-zA-Z][a-zA-Z0-9_]*$/'],
             'calculated_metrics.*.label' => ['nullable', 'string', 'max:120'],
             'calculated_metrics.*.formula' => ['required_with:calculated_metrics', 'string', 'max:500'],
+            'theme' => ['sometimes', 'nullable', 'array'],
+            'theme.accent' => ['nullable', 'string', 'max:9'],
+            'theme.density' => ['nullable', 'in:normal,compact'],
         ];
     }
 }

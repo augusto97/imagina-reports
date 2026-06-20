@@ -20,7 +20,10 @@ import {
 
 import { cn } from '@shared/lib/utils';
 
-import type { Block, BlockComponentProps, BlockType } from './types';
+import { hexToHslString } from '@shared/lib/color';
+
+import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
+import type { Block, BlockComponentProps, BlockLayout, BlockType } from './types';
 
 /* ------------------------------- prop helpers ------------------------------ */
 
@@ -95,6 +98,7 @@ function styleCss(s: Style): CSSProperties {
 interface ReportSettings {
     currency: string;
     locale?: string;
+    density?: 'normal' | 'compact';
 }
 
 const ReportSettingsContext = createContext<ReportSettings>({ currency: 'USD' });
@@ -102,13 +106,57 @@ const ReportSettingsContext = createContext<ReportSettings>({ currency: 'USD' })
 export function ReportSettingsProvider({
     currency = 'USD',
     locale,
+    density,
     children,
 }: {
     currency?: string;
     locale?: string;
+    density?: 'normal' | 'compact';
     children: ReactNode;
 }): ReactElement {
-    return <ReportSettingsContext.Provider value={{ currency, locale }}>{children}</ReportSettingsContext.Provider>;
+    return <ReportSettingsContext.Provider value={{ currency, locale, density }}>{children}</ReportSettingsContext.Provider>;
+}
+
+/**
+ * Active page-level filters (CLAUDE.md §11.3): a map of row-field → selected value, set
+ * by `control` blocks and applied to the list blocks on the page. Empty by default, so
+ * with no control present every block renders exactly as before (no regression). This is
+ * an honest client-side ROW filter over the pre-aggregated snapshot rows — not a
+ * cross-filter that re-queries raw data (which the snapshot model doesn't hold, §3.3).
+ */
+interface FilterContextValue {
+    filters: Record<string, string>;
+    setFilter: (field: string, value: string) => void;
+}
+
+const ReportFilterContext = createContext<FilterContextValue>({ filters: {}, setFilter: () => {} });
+
+/**
+ * Keep only the rows matching the active filters. A row is kept when, for every active
+ * filter, it either matches the selected value (on the named field, or a `name`/`label`
+ * fallback) OR simply doesn't carry that field — so a filter never blanks out an unrelated
+ * block that lacks the dimension.
+ */
+function useFilteredRows<T>(rows: T[]): T[] {
+    const { filters } = useContext(ReportFilterContext);
+    const active = Object.entries(filters).filter(([, value]) => value !== '');
+
+    if (active.length === 0) {
+        return rows;
+    }
+
+    return rows.filter((row) => {
+        if (typeof row !== 'object' || row === null) {
+            return true;
+        }
+        const record = row as Record<string, unknown>;
+
+        return active.every(([field, value]) => {
+            const cell = record[field] ?? record.name ?? record.label;
+
+            return cell === undefined || String(cell) === value;
+        });
+    });
 }
 
 /** Format a KPI/sales number per the block's `style.format`, in the report's currency/locale. */
@@ -130,16 +178,17 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
 /* -------------------------------- sections --------------------------------- */
 
 function Section({ title, style: s, children }: { title?: string; style?: Style; children: React.ReactNode }): ReactElement {
-    const pad = PAD[str(s?.pad)] ?? 'ir-p-6';
+    const settings = useContext(ReportSettingsContext);
+    const pad = PAD[str(s?.pad)] ?? (settings.density === 'compact' ? 'ir-p-4' : 'ir-p-6');
     const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-lg';
     const align = ALIGN[str(s?.align)] ?? '';
     const border = s?.border === false ? '' : 'ir-border';
     const showTitle = title !== undefined && title !== '' && s?.hideTitle !== true;
 
     return (
-        <section className={cn('ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
+        <section className={cn('ir-flex ir-h-full ir-flex-col ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
             {showTitle && <h3 className="ir-mb-3 ir-text-sm ir-font-semibold ir-text-muted-foreground">{title}</h3>}
-            {children}
+            <div className="ir-min-h-0 ir-flex-1">{children}</div>
         </section>
     );
 }
@@ -245,14 +294,14 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 }
 
 function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
-    const rows = asChartRows(data);
+    const rows = useFilteredRows(asChartRows(data));
     const chartType = str(prop(block, 'chartType'), 'line');
     const legend = block.style?.legend === true;
     const accent = 'hsl(var(--ir-primary))';
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
-            <div className="ir-h-64 ir-w-full">
+            <div className="ir-h-full ir-min-h-[12rem] ir-w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     {chartType === 'bar' ? (
                         <BarChart data={rows}>
@@ -262,6 +311,15 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <Tooltip />
                             {legend && <Legend />}
                             <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    ) : chartType === 'hbar' ? (
+                        <BarChart data={rows} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" />
+                            <YAxis type="category" dataKey="name" width={90} />
+                            <Tooltip />
+                            {legend && <Legend />}
+                            <Bar dataKey="value" fill={accent} radius={[0, 4, 4, 0]} />
                         </BarChart>
                     ) : chartType === 'area' ? (
                         <AreaChart data={rows}>
@@ -306,7 +364,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 }
 
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
-    const rows = asRecords(data);
+    const rows = useFilteredRows(asRecords(data));
     // Interactive sort for the portal (clicking a header). The PDF prints the
     // default order; the editor canvas is pointer-events-none so it stays static.
     const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
@@ -422,7 +480,7 @@ function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement
 }
 
 function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElement {
-    const entries = asRecords(data);
+    const entries = useFilteredRows(asRecords(data));
 
     // Total invested hours across the listed tasks (only those with logged time).
     const totalMinutes = entries.reduce((sum, entry) => sum + (typeof entry.minutes === 'number' ? entry.minutes : 0), 0);
@@ -585,6 +643,41 @@ function CommentsBlock({ block, data }: BlockComponentProps): ReactElement | nul
     );
 }
 
+/**
+ * A page-level filter control (CLAUDE.md §11.3): a dropdown of the distinct values from
+ * its bound metric, which narrows the rows shown by the list blocks on the page. Honest
+ * client-side row filtering over snapshot rows — no raw-data re-query.
+ */
+function ControlBlock({ block, data }: BlockComponentProps): ReactElement {
+    const { filters, setFilter } = useContext(ReportFilterContext);
+    const field = str(prop(block, 'field'), 'name');
+    const options = Array.from(
+        new Set(
+            asChartRows(data)
+                .map((row) => row.name)
+                .filter((name): name is string => typeof name === 'string' && name !== ''),
+        ),
+    );
+
+    return (
+        <Section style={block.style}>
+            <label className="ir-text-xs ir-text-muted-foreground">{str(prop(block, 'label'), 'Filtro')}</label>
+            <select
+                className="ir-mt-1 ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                value={filters[field] ?? ''}
+                onChange={(event) => setFilter(field, event.target.value)}
+            >
+                <option value="">Todos</option>
+                {options.map((option) => (
+                    <option key={option} value={option}>
+                        {option}
+                    </option>
+                ))}
+            </select>
+        </Section>
+    );
+}
+
 /* ------------------------------- dispatcher -------------------------------- */
 const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement | null> = {
     header: HeaderBlock,
@@ -602,6 +695,7 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     goal: GoalBlock,
     cta: CtaBlock,
     comments: CommentsBlock,
+    control: ControlBlock,
     custom: CustomBlock,
 };
 
@@ -623,6 +717,16 @@ function widthSpan(block: Block): string {
     }
 
     return 'ir-col-span-6';
+}
+
+/** CSS grid placement for a block on the 12-column dashboard grid (matches the editor canvas). */
+function gridCellStyle(layout: BlockLayout): CSSProperties {
+    return {
+        gridColumn: `${layout.x + 1} / span ${layout.w}`,
+        gridRow: `${layout.y + 1} / span ${layout.h}`,
+        minHeight: 0,
+        minWidth: 0,
+    };
 }
 
 /** Replace {{token}} merge fields (e.g. {{client}}, {{period}}) with context values. */
@@ -657,24 +761,87 @@ export function BlockList({
     context,
     currency = 'USD',
     locale,
+    theme,
 }: {
     blocks: Block[];
     data?: Record<string, unknown>;
     context?: Record<string, string>;
     currency?: string;
     locale?: string;
+    theme?: { accent?: string | null; density?: 'normal' | 'compact' | null } | null;
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
 
+    // Dashboard grid mode: when every block carries grid coordinates, place them on a
+    // 12-column CSS grid identical to the editor canvas (CLAUDE.md §11.3/§11.4). Older
+    // templates without coordinates keep the legacy width-flow so they still render.
+    const useGrid = resolved.length > 0 && resolved.every((block) => block.layout != null);
+
+    // Multi-page: group blocks by their page index; each page prints on its own sheet.
+    const pages = groupByPage(resolved);
+
+    // Per-report theme: scope the accent (CSS var, overriding the agency brand) and density.
+    const density = theme?.density === 'compact' ? 'compact' : 'normal';
+    const accentHsl = typeof theme?.accent === 'string' ? hexToHslString(theme.accent) : null;
+    const themeStyle: CSSProperties = accentHsl !== null ? ({ '--ir-primary': accentHsl, '--ir-ring': accentHsl } as CSSProperties) : {};
+
     return (
-        <ReportSettingsProvider currency={currency} locale={locale}>
-            <div className="ir-grid ir-grid-cols-6 ir-gap-6">
-                {resolved.map((block) => (
-                    <div key={block.id} className={widthSpan(block)}>
-                        <BlockRenderer block={block} data={data[block.id]} />
-                    </div>
-                ))}
-            </div>
+        <div style={themeStyle}>
+        <ReportSettingsProvider currency={currency} locale={locale} density={density}>
+            <ReportFilterProvider>
+            {pages.map((pageBlocks, pageIndex) => (
+                <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
+                    {useGrid ? (
+                        <div
+                            className="ir-grid"
+                            style={{
+                                gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                                gridAutoRows: `${GRID_ROW_HEIGHT}px`,
+                                gap: `${GRID_MARGIN}px`,
+                            }}
+                        >
+                            {pageBlocks.map((block) => (
+                                <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-overflow-hidden">
+                                    <BlockRenderer block={block} data={data[block.id]} />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="ir-grid ir-grid-cols-6 ir-gap-6">
+                            {pageBlocks.map((block) => (
+                                <div key={block.id} className={widthSpan(block)}>
+                                    <BlockRenderer block={block} data={data[block.id]} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            ))}
+            </ReportFilterProvider>
         </ReportSettingsProvider>
+        </div>
     );
+}
+
+/** Stateful provider for page-level filter controls. */
+function ReportFilterProvider({ children }: { children: ReactNode }): ReactElement {
+    const [filters, setFilters] = useState<Record<string, string>>({});
+    const setFilter = (field: string, value: string): void => setFilters((prev) => ({ ...prev, [field]: value }));
+
+    return <ReportFilterContext.Provider value={{ filters, setFilter }}>{children}</ReportFilterContext.Provider>;
+}
+
+/** Group blocks into ordered pages by their `page` index (default 0), dropping empty pages. */
+function groupByPage(blocks: Block[]): Block[][] {
+    const maxPage = blocks.reduce((max, block) => Math.max(max, block.page ?? 0), 0);
+    const pages: Block[][] = [];
+
+    for (let index = 0; index <= maxPage; index += 1) {
+        const pageBlocks = blocks.filter((block) => (block.page ?? 0) === index);
+        if (pageBlocks.length > 0) {
+            pages.push(pageBlocks);
+        }
+    }
+
+    return pages.length > 0 ? pages : [[]];
 }

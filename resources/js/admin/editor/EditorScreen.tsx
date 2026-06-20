@@ -1,9 +1,11 @@
-import { type DragEndEvent, DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable';
-import { LayoutTemplate, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
-import { type ReactElement, useEffect, useState } from 'react';
+import { LayoutTemplate, Plus, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
+import { type CSSProperties, type ReactElement, useEffect, useState } from 'react';
+import GridLayout, { type Layout, WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
 import { ReportSettingsProvider } from '@shared/blocks/BlockRenderer';
+import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from '@shared/blocks/types';
 import type { Block, BlockType } from '@shared/blocks/types';
 
 import {
@@ -19,13 +21,18 @@ import {
     useSyncSite,
     useUpdateReportTemplate,
 } from '../api';
+import { hexToHslString } from '@shared/lib/color';
+
 import { Button, Card, Field, Input } from '../components/ui';
-import type { CatalogEntry } from '../types';
+import type { CatalogEntry, ReportTheme } from '../types';
 import { useAdminUi } from '../store';
 import { CanvasBlock } from './CanvasBlock';
-import { makeBlock, nextWidth, PALETTE, sampleData, WIDTH_SPAN, widthOf } from './blockFactory';
+import { ensureLayouts, makeBlock, PALETTE, sampleData } from './blockFactory';
 import { GALLERY } from './templateGallery';
 import { Inspector } from './Inspector';
+
+/** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
+const Grid = WidthProvider(GridLayout);
 
 function currentMonth(): string {
     const now = new Date();
@@ -78,6 +85,11 @@ export function EditorScreen(): ReactElement {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [preview_, setPreview] = useState<PreviewResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
+    // Multi-page: the page currently shown on the canvas + how many pages exist.
+    const [currentPage, setCurrentPage] = useState(0);
+    const [pageCount, setPageCount] = useState(1);
+    // Per-report theme (accent + density).
+    const [theme, setTheme] = useState<ReportTheme>({});
     // Undo/redo history — snapshots of the blocks array.
     const [past, setPast] = useState<Block[][]>([]);
     const [future, setFuture] = useState<Block[][]>([]);
@@ -91,9 +103,12 @@ export function EditorScreen(): ReactElement {
 
     /** Replace the canvas wholesale (load/AI/reset) and clear the undo history. */
     const resetBlocks = (next: Block[]): void => {
+        const prepared = ensureLayouts(next);
         setPast([]);
         setFuture([]);
-        setBlocks(next);
+        setBlocks(prepared);
+        setCurrentPage(0);
+        setPageCount(Math.max(1, ...prepared.map((block) => (block.page ?? 0) + 1)));
     };
 
     const undo = (): void => {
@@ -121,6 +136,7 @@ export function EditorScreen(): ReactElement {
             setName('');
             resetBlocks([makeBlock('header')]);
             setCalcMetrics([]);
+            setTheme({});
             setSelectedId(null);
             setErrors([]);
         }
@@ -132,6 +148,7 @@ export function EditorScreen(): ReactElement {
             setName(editingTemplate.name);
             resetBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
             setCalcMetrics(editingTemplate.calculated_metrics ?? []);
+            setTheme(editingTemplate.theme ?? {});
             setSelectedId(null);
             setErrors([]);
         }
@@ -195,8 +212,6 @@ export function EditorScreen(): ReactElement {
         });
     };
 
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-
     const loadTemplate = (build: () => Block[]): void => {
         if (blocks.length > 1 && !window.confirm('Esto reemplazará el lienzo actual. ¿Continuar?')) {
             return;
@@ -207,9 +222,30 @@ export function EditorScreen(): ReactElement {
     };
 
     const addBlock = (type: BlockType): void => {
-        const block = makeBlock(type);
+        const block = { ...makeBlock(type), page: currentPage };
         commit([...blocks, block]);
         setSelectedId(block.id);
+    };
+
+    const addPage = (): void => {
+        setPageCount((count) => count + 1);
+        setCurrentPage(pageCount);
+        setSelectedId(null);
+    };
+
+    /** Delete a page: drop its blocks and renumber the pages after it. */
+    const removePage = (page: number): void => {
+        if (pageCount <= 1) {
+            return;
+        }
+        commit(
+            blocks
+                .filter((block) => (block.page ?? 0) !== page)
+                .map((block) => ((block.page ?? 0) > page ? { ...block, page: (block.page ?? 0) - 1 } : block)),
+        );
+        setPageCount((count) => Math.max(1, count - 1));
+        setCurrentPage((current) => (current >= page && current > 0 ? current - 1 : current));
+        setSelectedId(null);
     };
     const updateBlock = (next: Block): void => commit(blocks.map((b) => (b.id === next.id ? next : b)));
     const removeBlock = (id: string): void => {
@@ -228,21 +264,37 @@ export function EditorScreen(): ReactElement {
             binding: source.binding ? { ...source.binding } : source.binding,
             props: { ...source.props },
             style: { ...source.style },
+            // Drop the copy at the bottom of the grid so it doesn't overlap the original.
+            layout: source.layout != null ? { ...source.layout, y: 9999 } : source.layout,
         };
         commit([...blocks.slice(0, index + 1), clone, ...blocks.slice(index + 1)]);
         setSelectedId(clone.id);
     };
-    const cycleWidth = (block: Block): void => updateBlock({ ...block, style: { ...block.style, width: nextWidth(widthOf(block)) } });
 
-    const onDragEnd = (event: DragEndEvent): void => {
-        const { active, over } = event;
-        if (over !== null && active.id !== over.id) {
-            const oldIndex = blocks.findIndex((b) => b.id === String(active.id));
-            const newIndex = blocks.findIndex((b) => b.id === String(over.id));
-            if (oldIndex >= 0 && newIndex >= 0) {
-                commit(arrayMove(blocks, oldIndex, newIndex));
-            }
-        }
+    /**
+     * Sync grid coordinates from react-grid-layout back into the blocks. Called on every
+     * layout change (drag, resize, and the initial compaction that normalises new tiles
+     * dropped at y:9999). Updates coords WITHOUT touching the undo history to avoid spam,
+     * and bails when nothing actually changed so it can't loop.
+     */
+    const syncLayouts = (next: Layout[]): void => {
+        const byId = new Map(next.map((item) => [item.i, item]));
+        setBlocks((prev) => {
+            let changed = false;
+            const updated = prev.map((block) => {
+                const item = byId.get(block.id);
+                if (item === undefined) {
+                    return block;
+                }
+                const current = block.layout;
+                if (current != null && current.x === item.x && current.y === item.y && current.w === item.w && current.h === item.h) {
+                    return block;
+                }
+                changed = true;
+                return { ...block, layout: { x: item.x, y: item.y, w: item.w, h: item.h } };
+            });
+            return changed ? updated : prev;
+        });
     };
 
     const save = (): void => {
@@ -251,7 +303,9 @@ export function EditorScreen(): ReactElement {
             onError: (error: unknown) => setErrors(extractBlockErrors(error)),
         };
 
-        const payload = { name, blocks, calculated_metrics: calcMetrics };
+        // Only send a theme when something is set, so an unstyled template stays null.
+        const themePayload = theme.accent != null || theme.density != null ? theme : null;
+        const payload = { name, blocks, calculated_metrics: calcMetrics, theme: themePayload };
         if (editingTemplateId !== null) {
             update.mutate(payload, handlers);
         } else {
@@ -312,6 +366,12 @@ export function EditorScreen(): ReactElement {
 
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
     const siteCurrency = sites.find((site) => site.id === siteId)?.currency ?? 'USD';
+    // Only the current page's blocks are shown/edited on the canvas (multi-page).
+    const pageBlocks = blocks.filter((block) => (block.page ?? 0) === currentPage);
+    // Apply the report accent to the canvas as a scoped CSS var (matches portal/PDF).
+    const accentHsl = theme.accent != null ? hexToHslString(theme.accent) : null;
+    const canvasThemeStyle: CSSProperties | undefined =
+        accentHsl !== null ? ({ '--ir-primary': accentHsl, '--ir-ring': accentHsl } as CSSProperties) : undefined;
 
     return (
         <div className="ir-grid ir-grid-cols-[15rem_1fr_19rem] ir-gap-5">
@@ -366,6 +426,40 @@ export function EditorScreen(): ReactElement {
                                 {error}
                             </p>
                         ))}
+                    </div>
+                </Card>
+
+                <Card title="Tema del reporte">
+                    <div className="ir-flex ir-flex-col ir-gap-3">
+                        <Field label="Color de acento">
+                            <div className="ir-flex ir-items-center ir-gap-2">
+                                <input
+                                    type="color"
+                                    value={theme.accent ?? '#6366f1'}
+                                    onChange={(event) => setTheme((current) => ({ ...current, accent: event.target.value }))}
+                                    className="ir-h-8 ir-w-10 ir-rounded ir-border"
+                                />
+                                {theme.accent != null && (
+                                    <button
+                                        type="button"
+                                        className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
+                                        onClick={() => setTheme((current) => ({ ...current, accent: null }))}
+                                    >
+                                        usar marca de agencia
+                                    </button>
+                                )}
+                            </div>
+                        </Field>
+                        <Field label="Densidad">
+                            <select
+                                className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                                value={theme.density ?? 'normal'}
+                                onChange={(event) => setTheme((current) => ({ ...current, density: event.target.value as 'normal' | 'compact' }))}
+                            >
+                                <option value="normal">Normal</option>
+                                <option value="compact">Compacta</option>
+                            </select>
+                        </Field>
                     </div>
                 </Card>
 
@@ -454,31 +548,80 @@ export function EditorScreen(): ReactElement {
                     <p className="ir-text-xs ir-text-muted-foreground">Cargando datos…</p>
                 )}
 
-                <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5">
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                        <SortableContext items={blocks.map((b) => b.id)} strategy={rectSortingStrategy}>
-                            <ReportSettingsProvider currency={siteCurrency}>
-                                <div className="ir-grid ir-grid-cols-6 ir-gap-4">
-                                {blocks.map((block) => (
-                                    <div key={block.id} className={WIDTH_SPAN[widthOf(block)]}>
-                                        <CanvasBlock
-                                            block={block}
-                                            data={renderData[block.id]}
-                                            selected={block.id === selectedId}
-                                            onSelect={() => setSelectedId(block.id)}
-                                            onRemove={() => removeBlock(block.id)}
-                                            onCycleWidth={() => cycleWidth(block)}
-                                            onDuplicate={() => duplicateBlock(block.id)}
-                                        />
-                                    </div>
-                                ))}
+                {/* Page navigator (multi-page reports, Looker-style) */}
+                <div className="ir-flex ir-items-center ir-gap-1">
+                    {Array.from({ length: pageCount }, (_, index) => (
+                        <div key={index} className="ir-group ir-relative">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setCurrentPage(index);
+                                    setSelectedId(null);
+                                }}
+                                className={
+                                    index === currentPage
+                                        ? 'ir-rounded-md ir-border ir-border-primary ir-bg-primary/5 ir-px-3 ir-py-1 ir-text-sm ir-font-medium'
+                                        : 'ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-border-primary/60'
+                                }
+                            >
+                                Página {index + 1}
+                            </button>
+                            {pageCount > 1 && (
+                                <button
+                                    type="button"
+                                    title="Eliminar página"
+                                    onClick={() => removePage(index)}
+                                    className="ir-absolute -ir-right-1 -ir-top-1 ir-hidden ir-size-4 ir-items-center ir-justify-center ir-rounded-full ir-bg-muted ir-text-xs ir-text-muted-foreground group-hover:ir-flex hover:ir-text-red-500"
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    <Button variant="ghost" onClick={addPage} title="Añadir página">
+                        <Plus className="ir-size-4" />
+                    </Button>
+                </div>
+
+                <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5" style={canvasThemeStyle}>
+                    <ReportSettingsProvider currency={siteCurrency} density={theme.density === 'compact' ? 'compact' : 'normal'}>
+                        <Grid
+                            key={currentPage}
+                            cols={GRID_COLS}
+                            rowHeight={GRID_ROW_HEIGHT}
+                            margin={[GRID_MARGIN, GRID_MARGIN]}
+                            containerPadding={[0, 0]}
+                            layout={pageBlocks.map((block) => ({
+                                i: block.id,
+                                x: block.layout?.x ?? 0,
+                                y: block.layout?.y ?? 0,
+                                w: block.layout?.w ?? 6,
+                                h: block.layout?.h ?? 4,
+                                minW: 2,
+                                minH: 1,
+                            }))}
+                            draggableHandle=".ir-drag-handle"
+                            resizeHandles={['se']}
+                            compactType="vertical"
+                            onLayoutChange={syncLayouts}
+                        >
+                            {pageBlocks.map((block) => (
+                                <div key={block.id} className="ir-h-full">
+                                    <CanvasBlock
+                                        block={block}
+                                        data={renderData[block.id]}
+                                        selected={block.id === selectedId}
+                                        onSelect={() => setSelectedId(block.id)}
+                                        onRemove={() => removeBlock(block.id)}
+                                        onDuplicate={() => duplicateBlock(block.id)}
+                                    />
                                 </div>
-                            </ReportSettingsProvider>
-                        </SortableContext>
-                    </DndContext>
-                    {blocks.length === 0 && (
+                            ))}
+                        </Grid>
+                    </ReportSettingsProvider>
+                    {pageBlocks.length === 0 && (
                         <p className="ir-py-12 ir-text-center ir-text-sm ir-text-muted-foreground">
-                            Lienzo vacío. Añade bloques desde la izquierda o empieza con la plantilla por defecto.
+                            Página vacía. Añade bloques desde la izquierda.
                         </p>
                     )}
                 </div>

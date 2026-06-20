@@ -12,6 +12,11 @@ export interface PublicReportAgency {
     locale: string;
 }
 
+export interface ReportTheme {
+    accent?: string | null;
+    density?: 'normal' | 'compact' | null;
+}
+
 export interface PublicReport {
     period_start: string;
     period_end: string;
@@ -22,6 +27,7 @@ export interface PublicReport {
     agency: PublicReportAgency | null;
     context?: Record<string, string>;
     currency?: string;
+    theme?: ReportTheme | null;
 }
 
 export interface ReportPeriod {

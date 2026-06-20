@@ -27,6 +27,7 @@ final class ReportTemplateResource extends JsonResource
             'name' => $template->name,
             'blocks' => $template->blocks,
             'calculated_metrics' => $template->calculated_metrics ?? [],
+            'theme' => $template->theme,
             'is_default' => $template->is_default,
             'locale' => $template->locale,
         ];

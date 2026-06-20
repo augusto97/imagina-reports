@@ -30,6 +30,7 @@ final class ReportDefinitionResource extends JsonResource
             'locale' => $definition->locale,
             'requested_metrics' => $definition->requested_metrics,
             'recipients' => $definition->recipients ?? [],
+            'theme' => $definition->theme,
         ];
     }
 }

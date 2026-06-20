@@ -45,6 +45,29 @@ class ReportTemplateApiTest extends TestCase
         $this->assertDatabaseHas('ir_report_templates', ['name' => 'Mensual', 'agency_id' => $this->agency->id]);
     }
 
+    public function test_store_accepts_and_persists_a_theme(): void
+    {
+        $this->postJson('/api/v1/report-templates', [
+            'name' => 'Con tema',
+            'blocks' => DefaultTemplate::blocks(),
+            'theme' => ['accent' => '#10b981', 'density' => 'compact'],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('theme.accent', '#10b981')
+            ->assertJsonPath('theme.density', 'compact');
+    }
+
+    public function test_store_rejects_an_invalid_theme_density(): void
+    {
+        $this->postJson('/api/v1/report-templates', [
+            'name' => 'Tema roto',
+            'blocks' => DefaultTemplate::blocks(),
+            'theme' => ['density' => 'enormous'],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('theme.density');
+    }
+
     public function test_store_rejects_an_invalid_block_layout(): void
     {
         $this->postJson('/api/v1/report-templates', [
