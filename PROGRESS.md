@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🚀 RELEASE v1.2.0 PUBLICADO (2026-06-20):** PR #11 mergeado a `main` y release **v1.2.0** publicado en GitHub
+(`imagina-reports-1.2.0.zip` + `.sha256`, run #11 verde). Contenido: time tracking/work logs por horas,
+comentarios de reporte (internas + cliente), moneda por sitio y edición de sitios — sobre v1.1.0. **Nota de
+entorno:** este entorno remoto **bloquea el push de tags por git** (ramas y API sí funcionan), así que se añadió
+`workflow_dispatch` (input `version`) al `release.yml` — **retrocompatible**: el disparo por tag sigue igual; el
+workflow crea el tag y publica el release desde el input. **Para que llegue al VPS:** el self-updater sondea
+`releases/latest` (hasta ~1h) y registra el zip en `ir_app_releases`; luego pulsar **Sistema → Actualizar** (o
+esperar al auto). Reconciliación de historial: la rama ya superaba el squash de #10 (v1.1.0), integrada con
+`merge -s ours`.
+
 **🕒 TRABAJO/HORAS + COMENTARIOS (2026-06-19, rama):** servicio de soporte por horas — registrar trabajo y
 demostrar que valió la pena. **Fase 1:** work logs con `minutes` (opcional) + `category`; `ir_sites.plan_hours`;
 API de alta rápida por sitio (`GET/POST /sites/{site}/work-logs`, `DELETE /work-logs/{id}`, filtro por periodo);
