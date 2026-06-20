@@ -36,22 +36,30 @@ export function SystemScreen(): ReactElement {
         <div className="ir-flex ir-flex-col ir-gap-6">
             <Card title="Actualizaciones del sistema">
                 <div className="ir-flex ir-flex-col ir-gap-4">
-                    <div className="ir-grid ir-grid-cols-2 ir-gap-4">
-                        <div>
-                            <p className="ir-text-xs ir-text-muted-foreground">Versión instalada</p>
-                            <p className="ir-text-2xl ir-font-semibold">{status.current ?? '—'}</p>
+                    {status.update_available ? (
+                        <div className="ir-rounded-md ir-border ir-border-amber-300 ir-bg-amber-50 ir-p-3 ir-text-sm ir-text-amber-800">
+                            ⬆️ <strong>Hay una actualización disponible: v{(status.available ?? '').replace(/^v/, '')}</strong>. Estás
+                            ejecutando v{(status.current ?? '').replace(/^v/, '')}. Pulsa «Actualizar ahora» y espera a que termine
+                            (no recargues durante el proceso).
                         </div>
-                        <div>
-                            <p className="ir-text-xs ir-text-muted-foreground">Versión disponible</p>
-                            <p className="ir-text-2xl ir-font-semibold">{status.available ?? '—'}</p>
+                    ) : (
+                        <div className="ir-rounded-md ir-border ir-border-emerald-300 ir-bg-emerald-50 ir-p-3 ir-text-sm ir-text-emerald-800">
+                            ✓ Estás en la última versión registrada (v{(status.current ?? '').replace(/^v/, '')}).
+                        </div>
+                    )}
+
+                    <div className="ir-grid ir-grid-cols-2 ir-gap-4">
+                        <div className="ir-rounded-md ir-border ir-p-3">
+                            <p className="ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">Ejecutando ahora</p>
+                            <p className="ir-font-mono ir-text-2xl ir-font-semibold">v{(status.current ?? '—').replace(/^v/, '')}</p>
+                            <p className="ir-text-xs ir-text-muted-foreground">La versión real del código en el servidor.</p>
+                        </div>
+                        <div className="ir-rounded-md ir-border ir-p-3">
+                            <p className="ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">Última publicada</p>
+                            <p className="ir-font-mono ir-text-2xl ir-font-semibold">v{(status.available ?? '—').replace(/^v/, '')}</p>
+                            <p className="ir-text-xs ir-text-muted-foreground">La más reciente registrada desde GitHub.</p>
                         </div>
                     </div>
-
-                    <p className="ir-text-sm">
-                        {status.update_available
-                            ? `Hay una actualización disponible (${status.available ?? ''}).`
-                            : 'Estás en la última versión registrada.'}
-                    </p>
 
                     <div className="ir-flex ir-items-center ir-gap-3">
                         <Button variant="ghost" onClick={() => check.mutate()} disabled={check.isPending}>

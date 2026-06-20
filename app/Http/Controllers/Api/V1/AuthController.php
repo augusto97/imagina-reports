@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Models\User;
+use App\Services\Update\UpdateManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,9 +34,11 @@ final class AuthController extends Controller
         return response()->json(['user' => $this->user($request)]);
     }
 
-    public function me(Request $request): JsonResponse
+    public function me(Request $request, UpdateManager $manager): JsonResponse
     {
-        return response()->json(['user' => $this->user($request)]);
+        return response()->json([
+            'user' => [...$this->user($request), 'app_version' => $manager->currentVersion()],
+        ]);
     }
 
     public function logout(Request $request): JsonResponse

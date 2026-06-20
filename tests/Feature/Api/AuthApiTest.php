@@ -60,7 +60,9 @@ class AuthApiTest extends TestCase
         $this->getJson('/api/v1/user')
             ->assertOk()
             ->assertJsonPath('user.email', 'owner@agency.test')
-            ->assertJsonPath('user.role', 'admin');
+            ->assertJsonPath('user.role', 'admin')
+            // The installed version travels with the profile so the admin UI can show it everywhere.
+            ->assertJsonStructure(['user' => ['app_version']]);
     }
 
     public function test_authenticated_user_can_logout(): void
