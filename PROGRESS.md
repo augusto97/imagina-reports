@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**🎛️ EDITOR PRO TIPO LOOKER — rediseño (2026-06-20, rama, post v1.2.0):** el owner exigió paridad con Looker
+Studio/Power BI (el editor anterior era una lista apilada de 1 columna, "parecía de juguete"). Rediseño por fases,
+todo verde y commiteado: **Fase A (6732aa1)** lienzo de **rejilla responsive 12-col** con react-grid-layout —
+arrastrar, **redimensionar** por tiradores, reflujo, snap; coordenadas `layout{x,y,w,h}` en el modelo (TS+PHP+
+validador, retrocompatible: sin coords = width-flow legacy); el render compartido pinta la **misma rejilla CSS**
+en portal/PDF. **Fase B (9484ab5)** Inspector con **pestañas Configuración/Estilo**, **galería visual de tipos**
+(línea/barras/barras-horiz/área/dona/pastel, +hbar en el renderer) y **drill-down** (dimensión del catálogo en
+binding.dimension); quitado el control "Ancho" (lo gobierna el resize). **Fase C/D (711bb95)** **multipágina**:
+cada bloque lleva `page`; navegador de páginas en el editor (añadir/eliminar/cambiar); el render agrupa por página
+con salto de página para el PDF. **Polish (40a0e8d)** los widgets **llenan su tile** (secciones flex a altura
+completa, gráficos al 100%) para que parezca un dashboard real. **211 PHP verde, PHPStan max + Pint + TS + ESLint +
+build limpios.** Nueva dependencia: `react-grid-layout`. **PENDIENTE del milestone:** controles de página
+(periodo/filtros/desplegables — ojo: el filtrado interactivo encaja mal con el modelo de snapshots agregados, hay
+que diseñarlo con honestidad) y tema/branding por reporte (acento+densidad). Sin desplegar aún (en rama) → será
+**v1.3.0**.
+
+
 **🚀 RELEASE v1.2.0 PUBLICADO (2026-06-20):** PR #11 mergeado a `main` y release **v1.2.0** publicado en GitHub
 (`imagina-reports-1.2.0.zip` + `.sha256`, run #11 verde). Contenido: time tracking/work logs por horas,
 comentarios de reporte (internas + cliente), moneda por sitio y edición de sitios — sobre v1.1.0. **Nota de
