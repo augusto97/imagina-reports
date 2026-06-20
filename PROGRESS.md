@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🧩 EDITOR v2 · Clusters C+D+E COMPLETOS (2026-06-19, rama):** **C · contenido & layout:** nuevo bloque
+**`cta`** (banner de retención §11.5, en enum PHP+TS, renderer, paleta, inspector con titular/texto/botón),
+bloque **imagen** en paleta (url/alt), y **galería de plantillas** (3 verticales: e-commerce, SEO/tráfico,
+seguridad) vinculadas a claves de métricas REALES → 1 clic carga un layout listo (los bloques sin datos se
+ocultan). El ancho full/half/third (grid de 6 col) ya estaba. **E · UX del editor:** **duplicar bloque**
+(clon con id nuevo) + **deshacer/rehacer** (pila de historial + botones + Cmd/Ctrl+Z y Ctrl+Shift+Z/Ctrl+Y;
+los cambios estructurales se registran, cargar plantilla/IA resetea el historial). **D · portal:** el **selector
+de periodos** ya existía (endpoint `periods` + `PortalApp`); añadido **tablas ordenables** por columna en el
+render compartido (interactivo en el portal, estático en PDF/editor). **189 PHP verde, PHPStan max + Pint + TS +
+ESLint + build limpios.** **Editor v2 = clusters A–E hechos.** Todo acumulado en rama (builder WYSIWYG, estilos,
+fórmulas, gráficos, bloques, UX, portal) → próximo release **1.2.0** para verlo en producción.
+
 **🧮 EDITOR v2 · Clusters A+B (2026-06-19, rama):** análisis competitivo (Looker/Power BI/Whatagraph/
 AgencyAnalytics/DashThis) → más capacidades. **A · gráficos:** nuevos tipos **dona/pastel** (Recharts PieChart +
 paleta desde el accent), **leyenda** opcional, **tabla con barras de valor**; línea/barra más pulidas. **B ·

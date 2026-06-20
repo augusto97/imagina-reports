@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
-import { type CSSProperties, type ReactElement } from 'react';
+import { type CSSProperties, type ReactElement, useMemo, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -280,6 +280,24 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const rows = asRecords(data);
+    // Interactive sort for the portal (clicking a header). The PDF prints the
+    // default order; the editor canvas is pointer-events-none so it stays static.
+    const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+
+    const sorted = useMemo(() => {
+        if (sort === null) {
+            return rows;
+        }
+
+        return [...rows].sort((a, b) => {
+            const av = a[sort.col];
+            const bv = b[sort.col];
+            const numeric = typeof av !== 'string' || !Number.isNaN(Number(av));
+            const cmp = numeric ? (Number(av) || 0) - (Number(bv) || 0) : String(av ?? '').localeCompare(String(bv ?? ''));
+
+            return cmp * sort.dir;
+        });
+    }, [rows, sort]);
 
     if (rows.length === 0) {
         return null;
@@ -288,6 +306,8 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const columns = Object.keys(rows[0] ?? {});
     const bars = block.style?.bars === true;
     const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
+    const toggleSort = (col: string): void =>
+        setSort((current) => (current?.col === col ? { col, dir: current.dir === 1 ? -1 : 1 } : { col, dir: -1 }));
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
@@ -296,13 +316,16 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                     <tr className="ir-text-muted-foreground">
                         {columns.map((col) => (
                             <th key={col} className="ir-py-1 ir-font-medium">
-                                {col}
+                                <button type="button" className="ir-inline-flex ir-items-center ir-gap-1 hover:ir-text-foreground" onClick={() => toggleSort(col)}>
+                                    {col}
+                                    {sort?.col === col && <span className="ir-text-xs">{sort.dir === 1 ? '▲' : '▼'}</span>}
+                                </button>
                             </th>
                         ))}
                     </tr>
                 </thead>
                 <tbody>
-                    {rows.map((row, index) => (
+                    {sorted.map((row, index) => (
                         <tr key={index} className="ir-border-t">
                             {columns.map((col) => (
                                 <td key={col} className="ir-py-1.5">
