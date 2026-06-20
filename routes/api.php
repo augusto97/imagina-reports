@@ -75,6 +75,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('sites', [SiteController::class, 'store'])->name('api.sites.store');
     Route::get('sites/{site}', [SiteController::class, 'show'])->name('api.sites.show');
     Route::put('sites/{site}', [SiteController::class, 'update'])->name('api.sites.update');
+    Route::get('sites/{site}/snapshot-periods', [SiteController::class, 'snapshotPeriods'])->name('api.sites.snapshot-periods');
 
     // Fast day-to-day work logging per site (hours invested) — CLAUDE.md §11.5.
     Route::get('sites/{site}/work-logs', [SiteWorkLogController::class, 'index'])->name('api.sites.work-logs.index');

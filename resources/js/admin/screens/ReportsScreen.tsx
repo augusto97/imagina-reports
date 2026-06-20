@@ -1,5 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { type FormEvent, type ReactElement, useState } from 'react';
+import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
 import { MessageSquare, Sparkles, Trash2 } from 'lucide-react';
 
@@ -16,6 +16,7 @@ import {
     useReports,
     useSendReport,
     useSites,
+    useSnapshotPeriods,
     useUpdateReportDefinition,
 } from '../api';
 import { DataTable } from '../components/DataTable';
@@ -128,6 +129,27 @@ export function ReportsScreen(): ReactElement {
     const [genDefinition, setGenDefinition] = useState('');
     const [start, setStart] = useState('');
     const [end, setEnd] = useState('');
+
+    // Data availability for the period being generated (so an empty report can't be
+    // produced unknowingly): the selected definition's site → its synced snapshot periods.
+    const selectedDefinition = definitions.find((definition) => String(definition.id) === genDefinition);
+    const selectedSiteId = selectedDefinition?.site_id ?? null;
+    const { data: snapshotPeriods = [] } = useSnapshotPeriods(selectedSiteId);
+
+    // Default the generate dates to the most recent period that actually has data.
+    useEffect(() => {
+        const latest = snapshotPeriods[0];
+        if (latest !== undefined && start === '' && end === '') {
+            setStart(latest.period_start.slice(0, 10));
+            setEnd(latest.period_end.slice(0, 10));
+        }
+    }, [snapshotPeriods, start, end]);
+
+    // Does the chosen [start, end] overlap any synced snapshot period?
+    const periodHasData =
+        start !== '' &&
+        end !== '' &&
+        snapshotPeriods.some((period) => period.period_start.slice(0, 10) <= end && period.period_end.slice(0, 10) >= start);
 
     const columns: ColumnDef<ReportSummary>[] = [
         {
@@ -330,6 +352,21 @@ export function ReportsScreen(): ReactElement {
                     <Field label="Hasta">
                         <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
                     </Field>
+
+                    {genDefinition !== '' && start !== '' && end !== '' && (
+                        periodHasData ? (
+                            <p className="ir-text-xs ir-text-emerald-600">✓ Hay datos sincronizados para este periodo.</p>
+                        ) : (
+                            <p className="ir-text-xs ir-text-amber-600">
+                                ⚠ Este sitio no tiene datos sincronizados para este periodo
+                                {snapshotPeriods.length > 0 && (
+                                    <> (datos disponibles: {snapshotPeriods.map((period) => `${period.period_start.slice(0, 10)}→${period.period_end.slice(0, 10)}`).join(', ')})</>
+                                )}
+                                . El reporte saldría sin métricas. Sincroniza ese mes en el Editor antes de generar.
+                            </p>
+                        )
+                    )}
+
                     <Button type="submit" disabled={generate.isPending}>
                         Generar
                     </Button>
