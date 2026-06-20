@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR v2 · Fase 1 — sistema de estilos por bloque + formato de números (2026-06-19, rama):** hacia un editor
+tipo Looker/Power BI ("estilos ajustables para casi todo"). Cada bloque ahora tiene overrides de **estilo** en
+`block.style`: **fondo, texto (color), relleno (sm/md/lg), esquinas (none/sm/md/lg), borde on/off, alineación,
+ocultar título**, y para KPI/ventas **formato de número** (1,234 / 1.2K / 95% / $1,234). El `BlockRenderer`
+(`Section` + header) los aplica vía clases + inline-style; el `Inspector` tiene una sección **«Estilo»** con color
+pickers (con «quitar» para heredar), selects y checkboxes. Sin cambios de backend (el validador ya acepta
+`style` como objeto libre). tsc + ESLint + build + 182 PHP verde. **Roadmap Editor v2 acordado:** A visualizaciones
+& estilos (estilos ✅; faltan más tipos de gráfico: donut/combo/scorecard-sparkline/tabla-con-barras/formato
+condicional), B métricas calculadas + mezclar fuentes (fórmulas sobre el metric bag — NO BI sobre filas crudas,
+§3.3), C más contenido & layout (bloques imagen/CTA/portada + redimensionar + galería plantillas), D filtros &
+drill-down en el portal, E UX (undo/redo, duplicar, temas). Acumulado en rama con editor-builder + fix updater.
+
 **🧰 EDITOR REHECHO como builder visual WYSIWYG (2026-06-19, rama):** crítica válida del owner — el *resultado*
 (preview) se veía pro pero la *superficie de edición* seguía siendo una pila de tarjetas en una columna. Rehecho a
 **3 paneles**: izquierda (paleta «Añadir bloque» + settings: nombre/sitio/IA/plantilla-por-defecto/guardar), centro

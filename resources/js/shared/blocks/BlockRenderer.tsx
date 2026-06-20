@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
-import { type ReactElement } from 'react';
+import { type CSSProperties, type ReactElement } from 'react';
 import {
     Area,
     AreaChart,
@@ -59,14 +59,53 @@ function asRecords(data: unknown): Record<string, unknown>[] {
     return data.filter((row): row is Record<string, unknown> => row !== null && typeof row === 'object');
 }
 
+/* -------------------------------- styling ---------------------------------- */
+
+const PAD: Record<string, string> = { sm: 'ir-p-3', md: 'ir-p-6', lg: 'ir-p-10' };
+const RADIUS: Record<string, string> = { none: 'ir-rounded-none', sm: 'ir-rounded', md: 'ir-rounded-lg', lg: 'ir-rounded-2xl' };
+const ALIGN: Record<string, string> = { left: 'ir-text-left', center: 'ir-text-center', right: 'ir-text-right' };
+
+type Style = Record<string, unknown> | undefined;
+
+/** Inline CSS (background/text colour) from a block's style overrides. */
+function styleCss(s: Style): CSSProperties {
+    const css: CSSProperties = {};
+    if (typeof s?.bg === 'string' && s.bg !== '') {
+        css.backgroundColor = s.bg;
+    }
+    if (typeof s?.color === 'string' && s.color !== '') {
+        css.color = s.color;
+    }
+
+    return css;
+}
+
+/** Format a KPI/sales number per the block's `style.format`. */
+function formatNumber(value: number, format: string): string {
+    switch (format) {
+        case 'compact':
+            return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+        case 'percent':
+            return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+        case 'currency':
+            return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+        default:
+            return value.toLocaleString();
+    }
+}
+
 /* -------------------------------- sections --------------------------------- */
 
-function Section({ title, children }: { title?: string; children: React.ReactNode }): ReactElement {
+function Section({ title, style: s, children }: { title?: string; style?: Style; children: React.ReactNode }): ReactElement {
+    const pad = PAD[str(s?.pad)] ?? 'ir-p-6';
+    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-lg';
+    const align = ALIGN[str(s?.align)] ?? '';
+    const border = s?.border === false ? '' : 'ir-border';
+    const showTitle = title !== undefined && title !== '' && s?.hideTitle !== true;
+
     return (
-        <section className="ir-rounded-lg ir-border ir-bg-card ir-p-6">
-            {title !== undefined && title !== '' && (
-                <h3 className="ir-mb-3 ir-text-sm ir-font-semibold ir-text-muted-foreground">{title}</h3>
-            )}
+        <section className={cn('ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
+            {showTitle && <h3 className="ir-mb-3 ir-text-sm ir-font-semibold ir-text-muted-foreground">{title}</h3>}
             {children}
         </section>
     );
@@ -78,7 +117,7 @@ function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
     const title = str((data as Record<string, unknown> | undefined)?.title, str(prop(block, 'title'), 'Reporte'));
 
     return (
-        <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-pb-6">
+        <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-pb-6" style={styleCss(block.style)}>
             <h1 className="ir-text-2xl ir-font-semibold">{title}</h1>
         </header>
     );
@@ -118,7 +157,7 @@ function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
     const score = typeof data === 'number' ? data : Number(data) || 0;
 
     return (
-        <Section title={str(prop(block, 'title'), 'Estado general')}>
+        <Section title={str(prop(block, 'title'), 'Estado general')} style={block.style}>
             <Gauge score={score} />
         </Section>
     );
@@ -163,9 +202,9 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value, changePercent } = asKpi(data);
 
     return (
-        <Section>
+        <Section style={block.style}>
             <p className="ir-text-sm ir-text-muted-foreground">{str(prop(block, 'label'))}</p>
-            <p className="ir-text-3xl ir-font-semibold">{value.toLocaleString()}</p>
+            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format))}</p>
             {changePercent !== null && <TrendBadge percent={changePercent} />}
         </Section>
     );
@@ -176,7 +215,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     const chartType = str(prop(block, 'chartType'), 'line');
 
     return (
-        <Section title={str(prop(block, 'title'))}>
+        <Section title={str(prop(block, 'title'))} style={block.style}>
             <div className="ir-h-64 ir-w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     {chartType === 'bar' ? (
@@ -220,7 +259,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const columns = Object.keys(rows[0] ?? {});
 
     return (
-        <Section title={str(prop(block, 'title'))}>
+        <Section title={str(prop(block, 'title'))} style={block.style}>
             <table className="ir-w-full ir-text-left ir-text-sm">
                 <thead>
                     <tr className="ir-text-muted-foreground">
@@ -251,7 +290,7 @@ function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement {
     const text = str(data, str(prop(block, 'text')));
 
     return (
-        <Section title={str(prop(block, 'title'))}>
+        <Section title={str(prop(block, 'title'))} style={block.style}>
             <p className="ir-whitespace-pre-line ir-text-sm ir-leading-relaxed">{text}</p>
         </Section>
     );
@@ -268,7 +307,7 @@ function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement
     const tiles = SECURITY_STATS.filter((stat) => typeof stats[stat.key] === 'number');
 
     return (
-        <Section title={str(prop(block, 'title'), 'Seguridad')}>
+        <Section title={str(prop(block, 'title'), 'Seguridad')} style={block.style}>
             <div className="ir-flex ir-items-center ir-gap-3">
                 <ShieldCheck className="ir-size-8 ir-shrink-0 ir-text-emerald-500" />
                 <p className="ir-text-sm ir-text-muted-foreground">
@@ -293,7 +332,7 @@ function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElemen
     const entries = asRecords(data);
 
     return (
-        <Section title={str(prop(block, 'title'), 'Lo que hicimos este mes')}>
+        <Section title={str(prop(block, 'title'), 'Lo que hicimos este mes')} style={block.style}>
             <ul className="ir-space-y-2">
                 {entries.map((entry, index) => (
                     <li key={index} className="ir-flex ir-gap-3 ir-text-sm">
@@ -320,15 +359,19 @@ function SalesSummaryBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value, changePercent } = asKpi(data);
 
     return (
-        <Section title={str(prop(block, 'title'), 'Ventas')}>
-            <p className="ir-text-3xl ir-font-semibold">{value.toLocaleString()}</p>
+        <Section title={str(prop(block, 'title'), 'Ventas')} style={block.style}>
+            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format))}</p>
             {changePercent !== null && <TrendBadge percent={changePercent} />}
         </Section>
     );
 }
 
 function CustomBlock({ block }: BlockComponentProps): ReactElement {
-    return <Section title={str(prop(block, 'title'))}>{str(prop(block, 'text'))}</Section>;
+    return (
+        <Section title={str(prop(block, 'title'))} style={block.style}>
+            {str(prop(block, 'text'))}
+        </Section>
+    );
 }
 
 /* ------------------------------- dispatcher -------------------------------- */

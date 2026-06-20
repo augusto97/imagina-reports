@@ -11,6 +11,27 @@ function str(value: unknown): string {
     return typeof value === 'string' ? value : '';
 }
 
+/** A colour picker with a "clear" action so a block can inherit (no override). */
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string | undefined) => void }): ReactElement {
+    return (
+        <Field label={label}>
+            <div className="ir-flex ir-items-center ir-gap-2">
+                <input
+                    type="color"
+                    value={value === '' ? '#ffffff' : value}
+                    onChange={(event) => onChange(event.target.value)}
+                    className="ir-h-8 ir-w-10 ir-rounded ir-border"
+                />
+                {value !== '' && (
+                    <button type="button" className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground" onClick={() => onChange(undefined)}>
+                        quitar
+                    </button>
+                )}
+            </div>
+        </Field>
+    );
+}
+
 const TYPE_LABELS: Record<string, string> = {
     header: 'Cabecera',
     healthscore: 'Health score',
@@ -61,6 +82,13 @@ export function Inspector({
         if (block.binding !== undefined && block.binding !== null) {
             onChange({ ...block, binding: { ...block.binding, compare: on ? 'prev_period' : undefined } });
         }
+    };
+    const setStyle = (key: string, value: unknown): void => {
+        const nextStyle: Record<string, unknown> = { ...block.style, [key]: value };
+        if (value === undefined || value === '') {
+            delete nextStyle[key];
+        }
+        onChange({ ...block, style: nextStyle });
     };
 
     return (
@@ -137,6 +165,60 @@ export function Inspector({
                     </select>
                 </Field>
             )}
+
+            <div className="ir-mt-1 ir-border-t ir-pt-4">
+                <p className="ir-mb-3 ir-text-xs ir-font-medium ir-uppercase ir-tracking-wide ir-text-muted-foreground">Estilo</p>
+                <div className="ir-flex ir-flex-col ir-gap-3">
+                    {isData && (
+                        <Field label="Formato de número">
+                            <select className={selectClass} value={str(block.style?.format) || 'number'} onChange={(event) => setStyle('format', event.target.value)}>
+                                <option value="number">1,234</option>
+                                <option value="compact">1.2 K</option>
+                                <option value="percent">95 %</option>
+                                <option value="currency">$ 1,234</option>
+                            </select>
+                        </Field>
+                    )}
+                    <div className="ir-grid ir-grid-cols-2 ir-gap-3">
+                        <ColorField label="Fondo" value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
+                        <ColorField label="Texto" value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
+                    </div>
+                    <div className="ir-grid ir-grid-cols-2 ir-gap-3">
+                        <Field label="Relleno">
+                            <select className={selectClass} value={str(block.style?.pad) || 'md'} onChange={(event) => setStyle('pad', event.target.value)}>
+                                <option value="sm">Compacto</option>
+                                <option value="md">Normal</option>
+                                <option value="lg">Amplio</option>
+                            </select>
+                        </Field>
+                        <Field label="Esquinas">
+                            <select className={selectClass} value={str(block.style?.radius) || 'md'} onChange={(event) => setStyle('radius', event.target.value)}>
+                                <option value="none">Rectas</option>
+                                <option value="sm">Suaves</option>
+                                <option value="md">Redondeadas</option>
+                                <option value="lg">Muy redondeadas</option>
+                            </select>
+                        </Field>
+                    </div>
+                    <Field label="Alineación">
+                        <select className={selectClass} value={str(block.style?.align) || 'left'} onChange={(event) => setStyle('align', event.target.value)}>
+                            <option value="left">Izquierda</option>
+                            <option value="center">Centro</option>
+                            <option value="right">Derecha</option>
+                        </select>
+                    </Field>
+                    <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
+                        <input type="checkbox" checked={block.style?.border !== false} onChange={(event) => setStyle('border', event.target.checked ? undefined : false)} />
+                        Mostrar borde
+                    </label>
+                    {block.type !== 'divider' && block.type !== 'header' && (
+                        <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
+                            <input type="checkbox" checked={block.style?.hideTitle === true} onChange={(event) => setStyle('hideTitle', event.target.checked ? true : undefined)} />
+                            Ocultar título
+                        </label>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
