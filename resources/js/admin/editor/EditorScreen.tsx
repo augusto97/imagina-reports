@@ -618,6 +618,10 @@ export function EditorScreen(): ReactElement {
                                         ))}
                                     </select>
                                 </Field>
+                                <p className="ir-text-xs ir-text-muted-foreground">
+                                    Solo para la vista previa. Para que un reporte use esta plantilla, asóciala en
+                                    <strong> Reportes → Nueva definición</strong>.
+                                </p>
                                 <div className="ir-flex ir-gap-2">
                                     <Input
                                         placeholder="Enfoque para la IA…"

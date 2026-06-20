@@ -248,6 +248,16 @@ export function useCreateReportDefinition() {
     });
 }
 
+export function useUpdateReportDefinition() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: number; template_id?: number | null; name?: string; recipients?: string[] }) =>
+            api.put<ReportDefinitionDto>(`/report-definitions/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
 export function useApproveReport() {
     const queryClient = useQueryClient();
 
