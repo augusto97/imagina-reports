@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSiteRequest;
+use App\Http\Requests\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Client;
 use App\Models\Site;
@@ -33,6 +34,20 @@ final class SiteController extends Controller
 
     public function show(Site $site): SiteResource
     {
+        return new SiteResource($site);
+    }
+
+    public function update(UpdateSiteRequest $request, Site $site): SiteResource
+    {
+        $data = $request->validated();
+
+        // If reassigning the client, enforce it belongs to this agency (scoped 404).
+        if (array_key_exists('client_id', $data)) {
+            Client::query()->findOrFail($data['client_id']);
+        }
+
+        $site->update($data);
+
         return new SiteResource($site);
     }
 }

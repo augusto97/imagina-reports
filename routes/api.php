@@ -72,6 +72,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('sites', [SiteController::class, 'index'])->name('api.sites.index');
     Route::post('sites', [SiteController::class, 'store'])->name('api.sites.store');
     Route::get('sites/{site}', [SiteController::class, 'show'])->name('api.sites.show');
+    Route::put('sites/{site}', [SiteController::class, 'update'])->name('api.sites.update');
 
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');

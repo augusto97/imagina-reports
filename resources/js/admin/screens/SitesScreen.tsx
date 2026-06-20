@@ -1,15 +1,59 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ColumnDef } from '@tanstack/react-table';
-import { type ReactElement } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { useClients, useCreateSite, useSites } from '../api';
+import { useClients, useCreateSite, useSites, useUpdateSite } from '../api';
 import { DataTable } from '../components/DataTable';
 import { Button, Card, Field, Input } from '../components/ui';
 import { CURRENCIES } from '../currencies';
 import { useAdminUi } from '../store';
 import type { Site } from '../types';
+
+const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
+
+/** Inline edit form for an existing site (name, URL, currency). */
+function SiteEditForm({ site, onClose }: { site: Site; onClose: () => void }): ReactElement {
+    const update = useUpdateSite(site.id);
+    const [name, setName] = useState(site.name);
+    const [url, setUrl] = useState(site.url);
+    const [currency, setCurrency] = useState(site.currency);
+
+    const save = (): void => {
+        update.mutate({ name, url, currency }, { onSuccess: onClose });
+    };
+
+    return (
+        <Card title={`Editar «${site.name}»`}>
+            <div className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
+                <Field label="Nombre">
+                    <Input value={name} onChange={(event) => setName(event.target.value)} />
+                </Field>
+                <Field label="URL">
+                    <Input value={url} onChange={(event) => setUrl(event.target.value)} />
+                </Field>
+                <Field label="Moneda del sitio">
+                    <select className={selectClass} value={currency} onChange={(event) => setCurrency(event.target.value)}>
+                        {CURRENCIES.map((option) => (
+                            <option key={option.code} value={option.code}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                </Field>
+                <div className="ir-flex ir-gap-2">
+                    <Button onClick={save} disabled={update.isPending}>
+                        Guardar cambios
+                    </Button>
+                    <Button variant="ghost" onClick={onClose}>
+                        Cancelar
+                    </Button>
+                </div>
+            </div>
+        </Card>
+    );
+}
 
 const schema = z.object({
     client_id: z.coerce.number().int().positive('Selecciona un cliente'),
@@ -25,6 +69,7 @@ export function SitesScreen(): ReactElement {
     const { data: clients = [] } = useClients();
     const create = useCreateSite();
     const selectSite = useAdminUi((state) => state.selectSite);
+    const [editingSite, setEditingSite] = useState<Site | null>(null);
 
     const {
         register,
@@ -46,9 +91,14 @@ export function SitesScreen(): ReactElement {
             id: 'actions',
             header: '',
             cell: ({ row }) => (
-                <Button variant="ghost" onClick={() => selectSite(row.original.id)}>
-                    Fuentes de datos
-                </Button>
+                <div className="ir-flex ir-items-center ir-gap-2">
+                    <Button variant="ghost" onClick={() => setEditingSite(row.original)}>
+                        Editar
+                    </Button>
+                    <Button variant="ghost" onClick={() => selectSite(row.original.id)}>
+                        Fuentes de datos
+                    </Button>
+                </div>
             ),
         },
     ];
@@ -90,6 +140,8 @@ export function SitesScreen(): ReactElement {
                     </Button>
                 </form>
             </Card>
+
+            {editingSite !== null && <SiteEditForm key={editingSite.id} site={editingSite} onClose={() => setEditingSite(null)} />}
 
             <Card title="Sitios">
                 <DataTable columns={columns} data={sites} />

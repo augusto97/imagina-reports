@@ -139,6 +139,16 @@ export function useCreateSite() {
     });
 }
 
+export function useUpdateSite(id: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { client_id?: number; name?: string; url?: string; currency?: string }) =>
+            api.put<Site>(`/sites/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+    });
+}
+
 /* -------------------------------- connectors ------------------------------- */
 
 export function useConnectors() {
