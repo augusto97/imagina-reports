@@ -138,9 +138,9 @@ function Section({ title, style: s, children }: { title?: string; style?: Style;
     const showTitle = title !== undefined && title !== '' && s?.hideTitle !== true;
 
     return (
-        <section className={cn('ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
+        <section className={cn('ir-flex ir-h-full ir-flex-col ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
             {showTitle && <h3 className="ir-mb-3 ir-text-sm ir-font-semibold ir-text-muted-foreground">{title}</h3>}
-            {children}
+            <div className="ir-min-h-0 ir-flex-1">{children}</div>
         </section>
     );
 }
@@ -253,7 +253,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
-            <div className="ir-h-64 ir-w-full">
+            <div className="ir-h-full ir-min-h-[12rem] ir-w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     {chartType === 'bar' ? (
                         <BarChart data={rows}>
