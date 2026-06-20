@@ -15,6 +15,8 @@ export function defaultSize(type: BlockType): { w: number; h: number } {
         case 'divider':
         case 'pagebreak':
             return { w: 12, h: 1 };
+        case 'control':
+            return { w: 3, h: 3 };
         case 'kpi':
         case 'sales_summary':
             return { w: 4, h: 4 };
@@ -110,7 +112,7 @@ export function ensureLayouts(blocks: Block[]): Block[] {
     });
 }
 
-export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary', 'goal'];
+export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary', 'goal', 'control'];
 
 export type BlockWidth = 'full' | 'half' | 'third';
 
@@ -144,6 +146,7 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
     { type: 'goal', label: 'Meta' },
+    { type: 'control', label: 'Filtro' },
     { type: 'comments', label: 'Comentarios' },
     { type: 'image', label: 'Imagen' },
     { type: 'cta', label: 'CTA' },
@@ -177,6 +180,8 @@ export function sampleData(block: Block): unknown {
                 { label: '/home', value: 900 },
                 { label: '/precios', value: 120 },
             ];
+        case 'control':
+            return [{ name: 'Escritorio', value: 1 }, { name: 'Móvil', value: 1 }, { name: 'Tablet', value: 1 }];
         case 'comments':
             return [{ body: 'Este mes reforzamos la seguridad tras detectar intentos de acceso sospechosos.', created_at: '2026-06-15' }];
         case 'worklog_timeline':

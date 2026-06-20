@@ -112,6 +112,48 @@ export function ReportSettingsProvider({
     return <ReportSettingsContext.Provider value={{ currency, locale }}>{children}</ReportSettingsContext.Provider>;
 }
 
+/**
+ * Active page-level filters (CLAUDE.md §11.3): a map of row-field → selected value, set
+ * by `control` blocks and applied to the list blocks on the page. Empty by default, so
+ * with no control present every block renders exactly as before (no regression). This is
+ * an honest client-side ROW filter over the pre-aggregated snapshot rows — not a
+ * cross-filter that re-queries raw data (which the snapshot model doesn't hold, §3.3).
+ */
+interface FilterContextValue {
+    filters: Record<string, string>;
+    setFilter: (field: string, value: string) => void;
+}
+
+const ReportFilterContext = createContext<FilterContextValue>({ filters: {}, setFilter: () => {} });
+
+/**
+ * Keep only the rows matching the active filters. A row is kept when, for every active
+ * filter, it either matches the selected value (on the named field, or a `name`/`label`
+ * fallback) OR simply doesn't carry that field — so a filter never blanks out an unrelated
+ * block that lacks the dimension.
+ */
+function useFilteredRows<T>(rows: T[]): T[] {
+    const { filters } = useContext(ReportFilterContext);
+    const active = Object.entries(filters).filter(([, value]) => value !== '');
+
+    if (active.length === 0) {
+        return rows;
+    }
+
+    return rows.filter((row) => {
+        if (typeof row !== 'object' || row === null) {
+            return true;
+        }
+        const record = row as Record<string, unknown>;
+
+        return active.every(([field, value]) => {
+            const cell = record[field] ?? record.name ?? record.label;
+
+            return cell === undefined || String(cell) === value;
+        });
+    });
+}
+
 /** Format a KPI/sales number per the block's `style.format`, in the report's currency/locale. */
 function formatNumber(value: number, format: string, settings: ReportSettings = { currency: 'USD' }): string {
     const { currency, locale } = settings;
@@ -246,7 +288,7 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 }
 
 function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
-    const rows = asChartRows(data);
+    const rows = useFilteredRows(asChartRows(data));
     const chartType = str(prop(block, 'chartType'), 'line');
     const legend = block.style?.legend === true;
     const accent = 'hsl(var(--ir-primary))';
@@ -316,7 +358,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 }
 
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
-    const rows = asRecords(data);
+    const rows = useFilteredRows(asRecords(data));
     // Interactive sort for the portal (clicking a header). The PDF prints the
     // default order; the editor canvas is pointer-events-none so it stays static.
     const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
@@ -432,7 +474,7 @@ function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement
 }
 
 function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElement {
-    const entries = asRecords(data);
+    const entries = useFilteredRows(asRecords(data));
 
     // Total invested hours across the listed tasks (only those with logged time).
     const totalMinutes = entries.reduce((sum, entry) => sum + (typeof entry.minutes === 'number' ? entry.minutes : 0), 0);
@@ -595,6 +637,41 @@ function CommentsBlock({ block, data }: BlockComponentProps): ReactElement | nul
     );
 }
 
+/**
+ * A page-level filter control (CLAUDE.md §11.3): a dropdown of the distinct values from
+ * its bound metric, which narrows the rows shown by the list blocks on the page. Honest
+ * client-side row filtering over snapshot rows — no raw-data re-query.
+ */
+function ControlBlock({ block, data }: BlockComponentProps): ReactElement {
+    const { filters, setFilter } = useContext(ReportFilterContext);
+    const field = str(prop(block, 'field'), 'name');
+    const options = Array.from(
+        new Set(
+            asChartRows(data)
+                .map((row) => row.name)
+                .filter((name): name is string => typeof name === 'string' && name !== ''),
+        ),
+    );
+
+    return (
+        <Section style={block.style}>
+            <label className="ir-text-xs ir-text-muted-foreground">{str(prop(block, 'label'), 'Filtro')}</label>
+            <select
+                className="ir-mt-1 ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                value={filters[field] ?? ''}
+                onChange={(event) => setFilter(field, event.target.value)}
+            >
+                <option value="">Todos</option>
+                {options.map((option) => (
+                    <option key={option} value={option}>
+                        {option}
+                    </option>
+                ))}
+            </select>
+        </Section>
+    );
+}
+
 /* ------------------------------- dispatcher -------------------------------- */
 const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement | null> = {
     header: HeaderBlock,
@@ -612,6 +689,7 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     goal: GoalBlock,
     cta: CtaBlock,
     comments: CommentsBlock,
+    control: ControlBlock,
     custom: CustomBlock,
 };
 
@@ -696,6 +774,7 @@ export function BlockList({
 
     return (
         <ReportSettingsProvider currency={currency} locale={locale}>
+            <ReportFilterProvider>
             {pages.map((pageBlocks, pageIndex) => (
                 <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
                     {useGrid ? (
@@ -724,8 +803,17 @@ export function BlockList({
                     )}
                 </div>
             ))}
+            </ReportFilterProvider>
         </ReportSettingsProvider>
     );
+}
+
+/** Stateful provider for page-level filter controls. */
+function ReportFilterProvider({ children }: { children: ReactNode }): ReactElement {
+    const [filters, setFilters] = useState<Record<string, string>>({});
+    const setFilter = (field: string, value: string): void => setFilters((prev) => ({ ...prev, [field]: value }));
+
+    return <ReportFilterContext.Provider value={{ filters, setFilter }}>{children}</ReportFilterContext.Provider>;
 }
 
 /** Group blocks into ordered pages by their `page` index (default 0), dropping empty pages. */

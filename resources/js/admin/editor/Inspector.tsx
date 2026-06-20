@@ -58,13 +58,14 @@ const TYPE_LABELS: Record<string, string> = {
     image: 'Imagen',
     cta: 'Llamada a la acción',
     comments: 'Comentarios',
+    control: 'Filtro',
     divider: 'Separador',
     pagebreak: 'Salto de página',
     custom: 'Personalizado',
 };
 
 /** Block types that manage their own content fields (no generic title field). */
-const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak']);
+const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak', 'control']);
 
 /** Text-bearing blocks where {{merge-fields}} are useful. */
 const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom']);
@@ -269,6 +270,20 @@ export function Inspector({
                                 })}
                             </div>
                         </Field>
+                    )}
+
+                    {block.type === 'control' && (
+                        <>
+                            <Field label="Etiqueta del filtro">
+                                <Input value={str(block.props?.label)} onChange={(event) => setProp('label', event.target.value)} placeholder="Filtrar por…" />
+                            </Field>
+                            <Field label="Campo a filtrar (clave de fila)">
+                                <Input value={str(block.props?.field) || 'name'} onChange={(event) => setProp('field', event.target.value)} placeholder="name" />
+                            </Field>
+                            <p className="ir-text-xs ir-text-muted-foreground">
+                                El filtro acota las filas de las tablas, gráficos y la línea de trabajo de esta página por el campo elegido.
+                            </p>
+                        </>
                     )}
 
                     {block.type === 'goal' && (
