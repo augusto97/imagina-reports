@@ -20,7 +20,8 @@ import {
 
 import { cn } from '@shared/lib/utils';
 
-import type { Block, BlockComponentProps, BlockType } from './types';
+import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
+import type { Block, BlockComponentProps, BlockLayout, BlockType } from './types';
 
 /* ------------------------------- prop helpers ------------------------------ */
 
@@ -625,6 +626,16 @@ function widthSpan(block: Block): string {
     return 'ir-col-span-6';
 }
 
+/** CSS grid placement for a block on the 12-column dashboard grid (matches the editor canvas). */
+function gridCellStyle(layout: BlockLayout): CSSProperties {
+    return {
+        gridColumn: `${layout.x + 1} / span ${layout.w}`,
+        gridRow: `${layout.y + 1} / span ${layout.h}`,
+        minHeight: 0,
+        minWidth: 0,
+    };
+}
+
 /** Replace {{token}} merge fields (e.g. {{client}}, {{period}}) with context values. */
 function mergeFields(text: string, context: Record<string, string>): string {
     return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => context[key] ?? match);
@@ -666,15 +677,37 @@ export function BlockList({
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
 
+    // Dashboard grid mode: when every block carries grid coordinates, place them on a
+    // 12-column CSS grid identical to the editor canvas (CLAUDE.md §11.3/§11.4). Older
+    // templates without coordinates keep the legacy width-flow so they still render.
+    const useGrid = resolved.length > 0 && resolved.every((block) => block.layout != null);
+
     return (
         <ReportSettingsProvider currency={currency} locale={locale}>
-            <div className="ir-grid ir-grid-cols-6 ir-gap-6">
-                {resolved.map((block) => (
-                    <div key={block.id} className={widthSpan(block)}>
-                        <BlockRenderer block={block} data={data[block.id]} />
-                    </div>
-                ))}
-            </div>
+            {useGrid ? (
+                <div
+                    className="ir-grid"
+                    style={{
+                        gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                        gridAutoRows: `${GRID_ROW_HEIGHT}px`,
+                        gap: `${GRID_MARGIN}px`,
+                    }}
+                >
+                    {resolved.map((block) => (
+                        <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-overflow-hidden">
+                            <BlockRenderer block={block} data={data[block.id]} />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="ir-grid ir-grid-cols-6 ir-gap-6">
+                    {resolved.map((block) => (
+                        <div key={block.id} className={widthSpan(block)}>
+                            <BlockRenderer block={block} data={data[block.id]} />
+                        </div>
+                    ))}
+                </div>
+            )}
         </ReportSettingsProvider>
     );
 }

@@ -75,4 +75,33 @@ class BlocksValidatorTest extends TestCase
         $this->assertCount(2, $blocks);
         $this->assertNull($blocks[0]->binding);
     }
+
+    public function test_it_accepts_and_clamps_grid_layout(): void
+    {
+        $blocks = $this->validator->validate([
+            ['id' => 'a', 'type' => 'divider', 'layout' => ['x' => 9, 'y' => 2, 'w' => 8, 'h' => 3]],
+        ]);
+
+        // x=9 leaves only 3 columns, so w is clamped from 8 to 3.
+        $this->assertSame(['x' => 9, 'y' => 2, 'w' => 3, 'h' => 3], $blocks[0]->layout);
+    }
+
+    public function test_layout_is_null_when_absent(): void
+    {
+        $blocks = $this->validator->validate([['id' => 'a', 'type' => 'divider']]);
+
+        $this->assertNull($blocks[0]->layout);
+    }
+
+    public function test_it_rejects_a_non_numeric_layout(): void
+    {
+        try {
+            $this->validator->validate([
+                ['id' => 'a', 'type' => 'divider', 'layout' => ['x' => 'left', 'y' => 0, 'w' => 6, 'h' => 2]],
+            ]);
+            $this->fail('Expected BlockValidationException.');
+        } catch (BlockValidationException $e) {
+            $this->assertStringContainsString('layout.x', $e->errors[0]);
+        }
+    }
 }

@@ -1,9 +1,11 @@
-import { type DragEndEvent, DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable';
 import { LayoutTemplate, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
+import GridLayout, { type Layout, WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
 import { ReportSettingsProvider } from '@shared/blocks/BlockRenderer';
+import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from '@shared/blocks/types';
 import type { Block, BlockType } from '@shared/blocks/types';
 
 import {
@@ -23,9 +25,12 @@ import { Button, Card, Field, Input } from '../components/ui';
 import type { CatalogEntry } from '../types';
 import { useAdminUi } from '../store';
 import { CanvasBlock } from './CanvasBlock';
-import { makeBlock, nextWidth, PALETTE, sampleData, WIDTH_SPAN, widthOf } from './blockFactory';
+import { ensureLayouts, makeBlock, PALETTE, sampleData } from './blockFactory';
 import { GALLERY } from './templateGallery';
 import { Inspector } from './Inspector';
+
+/** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
+const Grid = WidthProvider(GridLayout);
 
 function currentMonth(): string {
     const now = new Date();
@@ -93,7 +98,7 @@ export function EditorScreen(): ReactElement {
     const resetBlocks = (next: Block[]): void => {
         setPast([]);
         setFuture([]);
-        setBlocks(next);
+        setBlocks(ensureLayouts(next));
     };
 
     const undo = (): void => {
@@ -195,8 +200,6 @@ export function EditorScreen(): ReactElement {
         });
     };
 
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-
     const loadTemplate = (build: () => Block[]): void => {
         if (blocks.length > 1 && !window.confirm('Esto reemplazará el lienzo actual. ¿Continuar?')) {
             return;
@@ -228,21 +231,37 @@ export function EditorScreen(): ReactElement {
             binding: source.binding ? { ...source.binding } : source.binding,
             props: { ...source.props },
             style: { ...source.style },
+            // Drop the copy at the bottom of the grid so it doesn't overlap the original.
+            layout: source.layout != null ? { ...source.layout, y: 9999 } : source.layout,
         };
         commit([...blocks.slice(0, index + 1), clone, ...blocks.slice(index + 1)]);
         setSelectedId(clone.id);
     };
-    const cycleWidth = (block: Block): void => updateBlock({ ...block, style: { ...block.style, width: nextWidth(widthOf(block)) } });
 
-    const onDragEnd = (event: DragEndEvent): void => {
-        const { active, over } = event;
-        if (over !== null && active.id !== over.id) {
-            const oldIndex = blocks.findIndex((b) => b.id === String(active.id));
-            const newIndex = blocks.findIndex((b) => b.id === String(over.id));
-            if (oldIndex >= 0 && newIndex >= 0) {
-                commit(arrayMove(blocks, oldIndex, newIndex));
-            }
-        }
+    /**
+     * Sync grid coordinates from react-grid-layout back into the blocks. Called on every
+     * layout change (drag, resize, and the initial compaction that normalises new tiles
+     * dropped at y:9999). Updates coords WITHOUT touching the undo history to avoid spam,
+     * and bails when nothing actually changed so it can't loop.
+     */
+    const syncLayouts = (next: Layout[]): void => {
+        const byId = new Map(next.map((item) => [item.i, item]));
+        setBlocks((prev) => {
+            let changed = false;
+            const updated = prev.map((block) => {
+                const item = byId.get(block.id);
+                if (item === undefined) {
+                    return block;
+                }
+                const current = block.layout;
+                if (current != null && current.x === item.x && current.y === item.y && current.w === item.w && current.h === item.h) {
+                    return block;
+                }
+                changed = true;
+                return { ...block, layout: { x: item.x, y: item.y, w: item.w, h: item.h } };
+            });
+            return changed ? updated : prev;
+        });
     };
 
     const save = (): void => {
@@ -455,27 +474,40 @@ export function EditorScreen(): ReactElement {
                 )}
 
                 <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5">
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                        <SortableContext items={blocks.map((b) => b.id)} strategy={rectSortingStrategy}>
-                            <ReportSettingsProvider currency={siteCurrency}>
-                                <div className="ir-grid ir-grid-cols-6 ir-gap-4">
-                                {blocks.map((block) => (
-                                    <div key={block.id} className={WIDTH_SPAN[widthOf(block)]}>
-                                        <CanvasBlock
-                                            block={block}
-                                            data={renderData[block.id]}
-                                            selected={block.id === selectedId}
-                                            onSelect={() => setSelectedId(block.id)}
-                                            onRemove={() => removeBlock(block.id)}
-                                            onCycleWidth={() => cycleWidth(block)}
-                                            onDuplicate={() => duplicateBlock(block.id)}
-                                        />
-                                    </div>
-                                ))}
+                    <ReportSettingsProvider currency={siteCurrency}>
+                        <Grid
+                            cols={GRID_COLS}
+                            rowHeight={GRID_ROW_HEIGHT}
+                            margin={[GRID_MARGIN, GRID_MARGIN]}
+                            containerPadding={[0, 0]}
+                            layout={blocks.map((block) => ({
+                                i: block.id,
+                                x: block.layout?.x ?? 0,
+                                y: block.layout?.y ?? 0,
+                                w: block.layout?.w ?? 6,
+                                h: block.layout?.h ?? 4,
+                                minW: 2,
+                                minH: 1,
+                            }))}
+                            draggableHandle=".ir-drag-handle"
+                            resizeHandles={['se']}
+                            compactType="vertical"
+                            onLayoutChange={syncLayouts}
+                        >
+                            {blocks.map((block) => (
+                                <div key={block.id} className="ir-h-full">
+                                    <CanvasBlock
+                                        block={block}
+                                        data={renderData[block.id]}
+                                        selected={block.id === selectedId}
+                                        onSelect={() => setSelectedId(block.id)}
+                                        onRemove={() => removeBlock(block.id)}
+                                        onDuplicate={() => duplicateBlock(block.id)}
+                                    />
                                 </div>
-                            </ReportSettingsProvider>
-                        </SortableContext>
-                    </DndContext>
+                            ))}
+                        </Grid>
+                    </ReportSettingsProvider>
                     {blocks.length === 0 && (
                         <p className="ir-py-12 ir-text-center ir-text-sm ir-text-muted-foreground">
                             Lienzo vacío. Añade bloques desde la izquierda o empieza con la plantilla por defecto.

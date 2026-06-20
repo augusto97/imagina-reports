@@ -1,12 +1,47 @@
-import type { Block, BlockType } from '@shared/blocks/types';
+import { GRID_COLS } from '@shared/blocks/types';
+import type { Block, BlockLayout, BlockType } from '@shared/blocks/types';
 
 let counter = 0;
 
-/** Create a fresh block with sane default props for the editor. */
+/** Sensible default tile size (in 12-col grid units) per block type. */
+export function defaultSize(type: BlockType): { w: number; h: number } {
+    switch (type) {
+        case 'header':
+            return { w: 12, h: 2 };
+        case 'cta':
+            return { w: 12, h: 3 };
+        case 'narrative':
+            return { w: 12, h: 4 };
+        case 'divider':
+        case 'pagebreak':
+            return { w: 12, h: 1 };
+        case 'kpi':
+        case 'sales_summary':
+            return { w: 4, h: 4 };
+        case 'goal':
+            return { w: 4, h: 5 };
+        case 'healthscore':
+            return { w: 4, h: 7 };
+        case 'chart':
+        case 'table':
+        case 'worklog_timeline':
+            return { w: 6, h: 7 };
+        case 'security_shield':
+        case 'comments':
+        case 'image':
+            return { w: 6, h: 5 };
+        default:
+            return { w: 6, h: 4 };
+    }
+}
+
+/** Create a fresh block with sane default props + a grid tile size (dropped at the bottom). */
 export function makeBlock(type: BlockType): Block {
     counter += 1;
     const id = `b_${Date.now().toString(36)}_${counter}`;
-    const block: Block = { id, type, binding: null, props: {}, style: {} };
+    const size = defaultSize(type);
+    // y: a large value so react-grid-layout drops the new tile at the bottom of the canvas.
+    const block: Block = { id, type, binding: null, props: {}, style: {}, layout: { x: 0, y: 9999, ...size } };
 
     if (type === 'narrative') {
         block.props = { text: '<p>Escribe aquí…</p>' };
@@ -24,14 +59,55 @@ export function makeBlock(type: BlockType): Block {
     }
     if (type === 'goal') {
         block.props = { label: 'Meta', target: 100 };
-        block.style = { width: 'third' };
-    }
-    // KPI cards read best three-per-row with a "vs previous period" trend.
-    if (type === 'kpi') {
-        block.style = { width: 'third' };
     }
 
     return block;
+}
+
+/** Legacy width keyword → column span (full/half/third on the old 6-col flow). */
+function widthToCols(block: Block): number {
+    const width = block.style?.width;
+    if (width === 'third') {
+        return 4;
+    }
+    if (width === 'half') {
+        return 6;
+    }
+    return GRID_COLS;
+}
+
+/**
+ * Guarantee every block has grid coordinates. Templates authored before the dashboard
+ * grid (or by the AI / gallery) carry only a legacy `style.width`; we flow them into the
+ * 12-column grid so they open as a real, resizable dashboard. Blocks that already have a
+ * layout are left untouched.
+ */
+export function ensureLayouts(blocks: Block[]): Block[] {
+    if (blocks.every((block) => block.layout != null)) {
+        return blocks;
+    }
+
+    let x = 0;
+    let y = 0;
+    let rowHeight = 0;
+
+    return blocks.map((block) => {
+        const size = defaultSize(block.type);
+        const w = Math.min(GRID_COLS, block.style?.width != null ? widthToCols(block) : size.w);
+        const h = size.h;
+
+        if (x + w > GRID_COLS) {
+            x = 0;
+            y += rowHeight;
+            rowHeight = 0;
+        }
+
+        const layout: BlockLayout = { x, y, w, h };
+        x += w;
+        rowHeight = Math.max(rowHeight, h);
+
+        return { ...block, layout };
+    });
 }
 
 export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary', 'goal'];

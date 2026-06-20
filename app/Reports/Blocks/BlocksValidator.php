@@ -64,9 +64,10 @@ final class BlocksValidator
 
             $props = $this->objectOrError($raw['props'] ?? [], $label, 'props', $errors);
             $style = $this->objectOrError($raw['style'] ?? [], $label, 'style', $errors);
+            $layout = $this->layoutOrError($raw['layout'] ?? null, $label, $errors);
 
             if (is_string($id) && $id !== '' && $type !== null) {
-                $result[] = new Block($id, $type, is_array($binding) ? $binding : null, $props, $style);
+                $result[] = new Block($id, $type, is_array($binding) ? $binding : null, $props, $style, $layout);
             }
         }
 
@@ -87,6 +88,44 @@ final class BlocksValidator
         $metric = $binding['metric'] ?? null;
 
         return is_string($source) && $source !== '' && is_string($metric) && $metric !== '';
+    }
+
+    /**
+     * Validate and normalize a block's grid placement (CLAUDE.md §11.3). Returns null
+     * when absent (legacy width-flow layout), or a clamped {x,y,w,h} on a 12-col grid.
+     *
+     * @param  list<string>  $errors
+     * @return array{x: int, y: int, w: int, h: int}|null
+     */
+    private function layoutOrError(mixed $value, string $label, array &$errors): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_array($value) || array_is_list($value)) {
+            $errors[] = "Block {$label} 'layout' must be an object with x, y, w, h.";
+
+            return null;
+        }
+
+        foreach (['x', 'y', 'w', 'h'] as $key) {
+            if (! isset($value[$key]) || ! is_numeric($value[$key])) {
+                $errors[] = "Block {$label} 'layout.{$key}' must be a number.";
+
+                return null;
+            }
+        }
+
+        $x = max(0, min(11, (int) $value['x']));
+        $w = max(1, min(12 - $x, (int) $value['w']));
+
+        return [
+            'x' => $x,
+            'y' => max(0, (int) $value['y']),
+            'w' => $w,
+            'h' => max(1, (int) $value['h']),
+        ];
     }
 
     /**

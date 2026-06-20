@@ -27,12 +27,29 @@ export interface BlockBinding {
     compare?: string;
 }
 
+/** Grid placement on the 12-column dashboard canvas (CLAUDE.md §11.3). x/w in columns, y/h in row units. */
+export interface BlockLayout {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+/**
+ * Dashboard grid geometry — shared by the editor canvas (react-grid-layout) and the
+ * shared renderer's CSS grid, so the editor, portal and PDF place widgets identically.
+ */
+export const GRID_COLS = 12;
+export const GRID_ROW_HEIGHT = 30;
+export const GRID_MARGIN = 12;
+
 export interface Block {
     id: string;
     type: BlockType;
     binding?: BlockBinding | null;
     props?: Record<string, unknown>;
     style?: Record<string, unknown>;
+    layout?: BlockLayout | null;
 }
 
 /** Resolved metric values keyed by block id (produced by the ReportGenerator, Task 9). */

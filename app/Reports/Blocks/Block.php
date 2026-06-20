@@ -15,6 +15,7 @@ final readonly class Block
      * @param  array<array-key, mixed>|null  $binding  Metric binding (source/metric/dimension/compare).
      * @param  array<array-key, mixed>  $props
      * @param  array<array-key, mixed>  $style
+     * @param  array{x: int, y: int, w: int, h: int}|null  $layout  12-column grid placement (CLAUDE.md §11.3).
      */
     public function __construct(
         public string $id,
@@ -22,6 +23,7 @@ final readonly class Block
         public ?array $binding = null,
         public array $props = [],
         public array $style = [],
+        public ?array $layout = null,
     ) {}
 
     /**
@@ -35,6 +37,7 @@ final readonly class Block
             'binding' => $this->binding,
             'props' => $this->props,
             'style' => $this->style,
+            'layout' => $this->layout,
         ];
     }
 }
