@@ -18,7 +18,8 @@ export function PortalApp({ token }: { token: string }): ReactElement {
     const { data: periods = [] } = useReportPeriods(token);
 
     useEffect(() => {
-        applyBrandAccent(data?.agency?.brand_color);
+        // Per-report accent overrides the agency brand when set.
+        applyBrandAccent(data?.theme?.accent ?? data?.agency?.brand_color);
     }, [data]);
 
     if (isLoading) {
@@ -56,7 +57,7 @@ export function PortalApp({ token }: { token: string }): ReactElement {
                 )}
             </header>
 
-            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} />
+            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} theme={data.theme} />
         </div>
     );
 }

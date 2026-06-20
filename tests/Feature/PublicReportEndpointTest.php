@@ -74,6 +74,23 @@ class PublicReportEndpointTest extends TestCase
             ->assertJsonStructure([['public_token', 'period_start', 'period_end']]);
     }
 
+    public function test_it_exposes_the_report_theme(): void
+    {
+        $report = Report::factory()->create([
+            'agency_id' => Agency::factory()->create()->id,
+            'resolved_blocks' => [
+                'blocks' => [],
+                'data' => [],
+                'theme' => ['accent' => '#10b981', 'density' => 'compact'],
+            ],
+        ]);
+
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")
+            ->assertOk()
+            ->assertJsonPath('theme.accent', '#10b981')
+            ->assertJsonPath('theme.density', 'compact');
+    }
+
     public function test_it_overlays_site_work_logs_in_period_onto_the_worklog_block(): void
     {
         $agency = Agency::factory()->create();

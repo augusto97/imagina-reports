@@ -20,6 +20,8 @@ import {
 
 import { cn } from '@shared/lib/utils';
 
+import { hexToHslString } from '@shared/lib/color';
+
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
 import type { Block, BlockComponentProps, BlockLayout, BlockType } from './types';
 
@@ -96,6 +98,7 @@ function styleCss(s: Style): CSSProperties {
 interface ReportSettings {
     currency: string;
     locale?: string;
+    density?: 'normal' | 'compact';
 }
 
 const ReportSettingsContext = createContext<ReportSettings>({ currency: 'USD' });
@@ -103,13 +106,15 @@ const ReportSettingsContext = createContext<ReportSettings>({ currency: 'USD' })
 export function ReportSettingsProvider({
     currency = 'USD',
     locale,
+    density,
     children,
 }: {
     currency?: string;
     locale?: string;
+    density?: 'normal' | 'compact';
     children: ReactNode;
 }): ReactElement {
-    return <ReportSettingsContext.Provider value={{ currency, locale }}>{children}</ReportSettingsContext.Provider>;
+    return <ReportSettingsContext.Provider value={{ currency, locale, density }}>{children}</ReportSettingsContext.Provider>;
 }
 
 /**
@@ -173,7 +178,8 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
 /* -------------------------------- sections --------------------------------- */
 
 function Section({ title, style: s, children }: { title?: string; style?: Style; children: React.ReactNode }): ReactElement {
-    const pad = PAD[str(s?.pad)] ?? 'ir-p-6';
+    const settings = useContext(ReportSettingsContext);
+    const pad = PAD[str(s?.pad)] ?? (settings.density === 'compact' ? 'ir-p-4' : 'ir-p-6');
     const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-lg';
     const align = ALIGN[str(s?.align)] ?? '';
     const border = s?.border === false ? '' : 'ir-border';
@@ -755,12 +761,14 @@ export function BlockList({
     context,
     currency = 'USD',
     locale,
+    theme,
 }: {
     blocks: Block[];
     data?: Record<string, unknown>;
     context?: Record<string, string>;
     currency?: string;
     locale?: string;
+    theme?: { accent?: string | null; density?: 'normal' | 'compact' | null } | null;
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
 
@@ -772,8 +780,14 @@ export function BlockList({
     // Multi-page: group blocks by their page index; each page prints on its own sheet.
     const pages = groupByPage(resolved);
 
+    // Per-report theme: scope the accent (CSS var, overriding the agency brand) and density.
+    const density = theme?.density === 'compact' ? 'compact' : 'normal';
+    const accentHsl = typeof theme?.accent === 'string' ? hexToHslString(theme.accent) : null;
+    const themeStyle: CSSProperties = accentHsl !== null ? ({ '--ir-primary': accentHsl, '--ir-ring': accentHsl } as CSSProperties) : {};
+
     return (
-        <ReportSettingsProvider currency={currency} locale={locale}>
+        <div style={themeStyle}>
+        <ReportSettingsProvider currency={currency} locale={locale} density={density}>
             <ReportFilterProvider>
             {pages.map((pageBlocks, pageIndex) => (
                 <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
@@ -805,6 +819,7 @@ export function BlockList({
             ))}
             </ReportFilterProvider>
         </ReportSettingsProvider>
+        </div>
     );
 }
 

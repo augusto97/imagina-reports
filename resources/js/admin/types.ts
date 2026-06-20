@@ -91,11 +91,17 @@ export interface CatalogEntry {
     dimensions: string[];
 }
 
+export interface ReportTheme {
+    accent?: string | null;
+    density?: 'normal' | 'compact' | null;
+}
+
 export interface ReportTemplateDto {
     id: number;
     name: string;
     blocks: unknown[];
     calculated_metrics: { key: string; label: string; formula: string }[];
+    theme?: ReportTheme | null;
     is_default: boolean;
     locale: string;
 }

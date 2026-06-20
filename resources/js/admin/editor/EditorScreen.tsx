@@ -1,5 +1,5 @@
 import { LayoutTemplate, Plus, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
-import { type ReactElement, useEffect, useState } from 'react';
+import { type CSSProperties, type ReactElement, useEffect, useState } from 'react';
 import GridLayout, { type Layout, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -21,8 +21,10 @@ import {
     useSyncSite,
     useUpdateReportTemplate,
 } from '../api';
+import { hexToHslString } from '@shared/lib/color';
+
 import { Button, Card, Field, Input } from '../components/ui';
-import type { CatalogEntry } from '../types';
+import type { CatalogEntry, ReportTheme } from '../types';
 import { useAdminUi } from '../store';
 import { CanvasBlock } from './CanvasBlock';
 import { ensureLayouts, makeBlock, PALETTE, sampleData } from './blockFactory';
@@ -86,6 +88,8 @@ export function EditorScreen(): ReactElement {
     // Multi-page: the page currently shown on the canvas + how many pages exist.
     const [currentPage, setCurrentPage] = useState(0);
     const [pageCount, setPageCount] = useState(1);
+    // Per-report theme (accent + density).
+    const [theme, setTheme] = useState<ReportTheme>({});
     // Undo/redo history — snapshots of the blocks array.
     const [past, setPast] = useState<Block[][]>([]);
     const [future, setFuture] = useState<Block[][]>([]);
@@ -132,6 +136,7 @@ export function EditorScreen(): ReactElement {
             setName('');
             resetBlocks([makeBlock('header')]);
             setCalcMetrics([]);
+            setTheme({});
             setSelectedId(null);
             setErrors([]);
         }
@@ -143,6 +148,7 @@ export function EditorScreen(): ReactElement {
             setName(editingTemplate.name);
             resetBlocks(loaded.length > 0 ? loaded : [makeBlock('header')]);
             setCalcMetrics(editingTemplate.calculated_metrics ?? []);
+            setTheme(editingTemplate.theme ?? {});
             setSelectedId(null);
             setErrors([]);
         }
@@ -297,7 +303,9 @@ export function EditorScreen(): ReactElement {
             onError: (error: unknown) => setErrors(extractBlockErrors(error)),
         };
 
-        const payload = { name, blocks, calculated_metrics: calcMetrics };
+        // Only send a theme when something is set, so an unstyled template stays null.
+        const themePayload = theme.accent != null || theme.density != null ? theme : null;
+        const payload = { name, blocks, calculated_metrics: calcMetrics, theme: themePayload };
         if (editingTemplateId !== null) {
             update.mutate(payload, handlers);
         } else {
@@ -360,6 +368,10 @@ export function EditorScreen(): ReactElement {
     const siteCurrency = sites.find((site) => site.id === siteId)?.currency ?? 'USD';
     // Only the current page's blocks are shown/edited on the canvas (multi-page).
     const pageBlocks = blocks.filter((block) => (block.page ?? 0) === currentPage);
+    // Apply the report accent to the canvas as a scoped CSS var (matches portal/PDF).
+    const accentHsl = theme.accent != null ? hexToHslString(theme.accent) : null;
+    const canvasThemeStyle: CSSProperties | undefined =
+        accentHsl !== null ? ({ '--ir-primary': accentHsl, '--ir-ring': accentHsl } as CSSProperties) : undefined;
 
     return (
         <div className="ir-grid ir-grid-cols-[15rem_1fr_19rem] ir-gap-5">
@@ -414,6 +426,40 @@ export function EditorScreen(): ReactElement {
                                 {error}
                             </p>
                         ))}
+                    </div>
+                </Card>
+
+                <Card title="Tema del reporte">
+                    <div className="ir-flex ir-flex-col ir-gap-3">
+                        <Field label="Color de acento">
+                            <div className="ir-flex ir-items-center ir-gap-2">
+                                <input
+                                    type="color"
+                                    value={theme.accent ?? '#6366f1'}
+                                    onChange={(event) => setTheme((current) => ({ ...current, accent: event.target.value }))}
+                                    className="ir-h-8 ir-w-10 ir-rounded ir-border"
+                                />
+                                {theme.accent != null && (
+                                    <button
+                                        type="button"
+                                        className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
+                                        onClick={() => setTheme((current) => ({ ...current, accent: null }))}
+                                    >
+                                        usar marca de agencia
+                                    </button>
+                                )}
+                            </div>
+                        </Field>
+                        <Field label="Densidad">
+                            <select
+                                className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                                value={theme.density ?? 'normal'}
+                                onChange={(event) => setTheme((current) => ({ ...current, density: event.target.value as 'normal' | 'compact' }))}
+                            >
+                                <option value="normal">Normal</option>
+                                <option value="compact">Compacta</option>
+                            </select>
+                        </Field>
                     </div>
                 </Card>
 
@@ -537,8 +583,8 @@ export function EditorScreen(): ReactElement {
                     </Button>
                 </div>
 
-                <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5">
-                    <ReportSettingsProvider currency={siteCurrency}>
+                <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5" style={canvasThemeStyle}>
+                    <ReportSettingsProvider currency={siteCurrency} density={theme.density === 'compact' ? 'compact' : 'normal'}>
                         <Grid
                             key={currentPage}
                             cols={GRID_COLS}
