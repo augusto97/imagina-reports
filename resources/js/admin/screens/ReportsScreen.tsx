@@ -16,6 +16,7 @@ import {
     useReports,
     useSendReport,
     useSites,
+    useUpdateReportDefinition,
 } from '../api';
 import { DataTable } from '../components/DataTable';
 import { Button, Card, Field, Input } from '../components/ui';
@@ -102,7 +103,13 @@ export function ReportsScreen(): ReactElement {
     const { data: definitions = [] } = useReportDefinitions();
     const { data: reports = [] } = useReports();
     const createDefinition = useCreateReportDefinition();
+    const updateDefinition = useUpdateReportDefinition();
     const generate = useGenerateReport();
+
+    // Surface which template each definition uses, so the association is verifiable.
+    const templateLabel = (templateId: number | null): string =>
+        templateId === null ? 'Plantilla por defecto' : (templates.find((template) => template.id === templateId)?.name ?? `Plantilla #${templateId}`);
+    const siteLabel = (id: number): string => sites.find((site) => site.id === id)?.name ?? `Sitio #${id}`;
     const approve = useApproveReport();
     const send = useSendReport();
     const insights = useReportInsights();
@@ -241,6 +248,46 @@ export function ReportsScreen(): ReactElement {
                 </form>
             </Card>
 
+            <Card title="Definiciones existentes">
+                {definitions.length === 0 ? (
+                    <p className="ir-text-sm ir-text-muted-foreground">Aún no hay definiciones. Crea una arriba.</p>
+                ) : (
+                    <div className="ir-flex ir-flex-col ir-gap-2">
+                        <p className="ir-text-xs ir-text-muted-foreground">
+                            La <strong>plantilla</strong> de cada definición es la que usa el reporte generado. Puedes cambiarla aquí.
+                        </p>
+                        {definitions.map((definition) => (
+                            <div key={definition.id} className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3 ir-rounded-md ir-border ir-p-3">
+                                <div className="ir-min-w-0">
+                                    <p className="ir-text-sm ir-font-medium">{definition.name}</p>
+                                    <p className="ir-text-xs ir-text-muted-foreground">{siteLabel(definition.site_id)}</p>
+                                </div>
+                                <div className="ir-flex ir-items-center ir-gap-2">
+                                    <span className="ir-text-xs ir-text-muted-foreground">Plantilla:</span>
+                                    <select
+                                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-sm"
+                                        value={definition.template_id ?? ''}
+                                        onChange={(event) =>
+                                            updateDefinition.mutate({
+                                                id: definition.id,
+                                                template_id: event.target.value === '' ? null : Number(event.target.value),
+                                            })
+                                        }
+                                    >
+                                        <option value="">Plantilla por defecto</option>
+                                        {templates.map((template) => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Card>
+
             <Card title="Generar reporte">
                 <form onSubmit={submitGenerate} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
                     <Field label="Definición">
@@ -252,7 +299,7 @@ export function ReportsScreen(): ReactElement {
                             <option value="">Selecciona…</option>
                             {definitions.map((definition) => (
                                 <option key={definition.id} value={definition.id}>
-                                    {definition.name}
+                                    {definition.name} · {templateLabel(definition.template_id)}
                                 </option>
                             ))}
                         </select>

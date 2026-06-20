@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\Agency;
+use App\Models\Client;
+use App\Models\ReportDefinition;
 use App\Models\ReportTemplate;
+use App\Models\Site;
 use App\Models\User;
 use App\Reports\Templates\DefaultTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,5 +97,32 @@ class ReportTemplateApiTest extends TestCase
         $other = ReportTemplate::factory()->create(['agency_id' => Agency::factory()->create()->id]);
 
         $this->getJson("/api/v1/report-templates/{$other->id}")->assertNotFound();
+    }
+
+    public function test_it_blocks_deleting_a_template_in_use_by_a_definition(): void
+    {
+        $template = ReportTemplate::factory()->create(['agency_id' => $this->agency->id]);
+        $site = Site::factory()->create([
+            'agency_id' => $this->agency->id,
+            'client_id' => Client::factory()->create(['agency_id' => $this->agency->id])->id,
+        ]);
+        ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $site->id,
+            'template_id' => $template->id,
+        ]);
+
+        $this->deleteJson("/api/v1/report-templates/{$template->id}")->assertStatus(409);
+
+        $this->assertDatabaseHas('ir_report_templates', ['id' => $template->id]);
+    }
+
+    public function test_it_deletes_an_unused_template(): void
+    {
+        $template = ReportTemplate::factory()->create(['agency_id' => $this->agency->id]);
+
+        $this->deleteJson("/api/v1/report-templates/{$template->id}")->assertOk();
+
+        $this->assertDatabaseMissing('ir_report_templates', ['id' => $template->id]);
     }
 }

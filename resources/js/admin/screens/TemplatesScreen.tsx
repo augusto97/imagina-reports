@@ -1,4 +1,4 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useState } from 'react';
 
 import type { Block } from '@shared/blocks/types';
 
@@ -7,25 +7,39 @@ import { Button, Card } from '../components/ui';
 import { useAdminUi } from '../store';
 import type { ReportTemplateDto } from '../types';
 
+function deleteErrorMessage(error: unknown): string {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+        const message = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message;
+        if (typeof message === 'string') {
+            return message;
+        }
+    }
+
+    return 'No se pudo eliminar la plantilla.';
+}
+
 export function TemplatesScreen(): ReactElement {
     const { data: templates = [] } = useReportTemplates();
     const editTemplate = useAdminUi((state) => state.editTemplate);
     const create = useCreateReportTemplate();
     const remove = useDeleteReportTemplate();
+    const [removeError, setRemoveError] = useState<string | null>(null);
 
     const duplicate = (template: ReportTemplateDto): void => {
         create.mutate({ name: `${template.name} (copia)`, blocks: template.blocks as Block[] });
     };
 
     const confirmRemove = (id: number): void => {
-        if (window.confirm('¿Eliminar esta plantilla? No afecta a los reportes ya generados.')) {
-            remove.mutate(id);
+        if (window.confirm('¿Eliminar esta plantilla? Los reportes ya generados no cambian, pero las definiciones que la usan volverán a la plantilla por defecto.')) {
+            setRemoveError(null);
+            remove.mutate(id, { onError: (error) => setRemoveError(deleteErrorMessage(error)) });
         }
     };
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
             <Card title="Plantillas de reportes">
+                {removeError !== null && <p className="ir-mb-3 ir-text-xs ir-text-red-500">{removeError}</p>}
                 <div className="ir-mb-4">
                     <Button onClick={() => editTemplate(null)}>+ Nueva plantilla</Button>
                 </div>
