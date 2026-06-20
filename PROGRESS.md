@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🎛️ EDITOR PRO TIPO LOOKER — milestone (casi) completo (2026-06-20, rama, post v1.2.0):** además de A/B/C-multipágina/
+fill-tile (ver entrada siguiente), se añadió **controles de página honestos (0a61663)**: bloque `control` = un
+desplegable de los valores de su métrica que **acota las filas** de tablas/gráficos/timeline de la misma página
+(ReportFilterContext compartido). Es un **filtro de filas client-side** sobre snapshots agregados, NO un cross-filter
+sobre datos crudos (el modelo no los guarda, §3.3); por defecto vacío → sin control = render idéntico (cero
+regresión). El **selector de periodo ya existía** en el portal (cambia entre el reporte de cada periodo). **Estado
+del milestone:** ✅ rejilla, ✅ galería+pestañas+drill-down, ✅ multipágina, ✅ controles de página, ✅ fill-tile.
+**Único pendiente (opcional):** tema/branding por reporte (acento+densidad) — requiere columna `theme` en
+templates/definitions; el acento de marca de la agencia ya fluye. **211 PHP verde, gates limpios.** Decisión del
+owner: **un solo v1.3.0 al final** (en rama, sin desplegar aún).
+
 **🎛️ EDITOR PRO TIPO LOOKER — rediseño (2026-06-20, rama, post v1.2.0):** el owner exigió paridad con Looker
 Studio/Power BI (el editor anterior era una lista apilada de 1 columna, "parecía de juguete"). Rediseño por fases,
 todo verde y commiteado: **Fase A (6732aa1)** lienzo de **rejilla responsive 12-col** con react-grid-layout —
