@@ -13,6 +13,7 @@ use App\Models\DataSource;
 use App\Models\MetricSnapshot;
 use App\Models\Report;
 use App\Models\ReportDefinition;
+use App\Models\ReportTemplate;
 use App\Models\Site;
 use App\Reports\ReportGenerator;
 use App\Support\Tenancy\TenantContext;
@@ -139,5 +140,50 @@ class ReportGeneratorTest extends TestCase
         $this->assertContains('footer', $visible);
         $this->assertNotContains('kpi_visits', $visible);
         $this->assertSame(100, $report->health_score);
+    }
+
+    public function test_it_matches_a_snapshot_synced_for_the_period_despite_time_of_day(): void
+    {
+        $ga4 = $this->dataSource(DataSourceType::Ga4);
+        // Stored exactly like "Sincronizar ahora": full month with an end-of-month time.
+        $this->snapshot($ga4, '2026-06-01 00:00:00', '2026-06-30 23:59:59', ['ga4.sessions' => 4321]);
+
+        $template = ReportTemplate::factory()->create([
+            'agency_id' => $this->agency->id,
+            'blocks' => [['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions'], 'props' => ['title' => 'Visitas']]],
+        ]);
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'template_id' => $template->id,
+        ]);
+
+        // Generate the SAME month with bare dates, as the generate form sends them.
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $this->assertSame(4321, $report->resolved_blocks['data']['k1'] ?? null);
+        $this->assertSame([], $report->resolved_blocks['diagnostics'] ?? null);
+    }
+
+    public function test_it_records_diagnostics_when_a_bound_metric_has_no_data(): void
+    {
+        $this->dataSource(DataSourceType::Ga4); // source exists but no snapshot for the period
+
+        $template = ReportTemplate::factory()->create([
+            'agency_id' => $this->agency->id,
+            'blocks' => [['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions'], 'props' => []]],
+        ]);
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'template_id' => $template->id,
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $this->assertSame([], $report->resolved_blocks['blocks']); // the data-less block is hidden
+        $diagnostics = $report->resolved_blocks['diagnostics'] ?? [];
+        $this->assertCount(1, $diagnostics);
+        $this->assertSame('ga4.sessions', $diagnostics[0]['source'].'.'.$diagnostics[0]['metric']);
     }
 }

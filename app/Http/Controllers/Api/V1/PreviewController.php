@@ -16,6 +16,7 @@ use App\Reports\HealthScoreCalculator;
 use App\Reports\MetricBagLoader;
 use App\Reports\WorkLogMetrics;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
@@ -75,9 +76,15 @@ final class PreviewController extends Controller
         ]);
     }
 
-    public function sync(Site $site): JsonResponse
+    public function sync(Request $request, Site $site): JsonResponse
     {
-        $period = $this->currentMonth();
+        // Sync the period being previewed in the editor (so "Sincronizar ahora" fetches
+        // the month you're looking at), falling back to the current month.
+        $start = $request->input('period_start');
+        $end = $request->input('period_end');
+        $period = is_string($start) && is_string($end)
+            ? new Period(Carbon::parse($start)->startOfDay(), Carbon::parse($end)->endOfDay())
+            : $this->currentMonth();
 
         $queued = 0;
 

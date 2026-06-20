@@ -79,6 +79,7 @@ export interface ReportSummary {
     status: string;
     public_token: string;
     pdf_path: string | null;
+    hidden_metrics: string[];
 }
 
 export interface CatalogEntry {

@@ -56,12 +56,12 @@ final readonly class ReportGenerator
 
         // Resolve blocks→data via the shared resolver — the same logic the live
         // editor preview uses, so the preview matches the generated report exactly.
-        ['blocks' => $visibleBlocks, 'data' => $data] = $this->resolver->resolve($blocks, $bags, $score, $previousBags);
+        ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags);
 
         // Per-report theme (accent + density): the definition's, falling back to its template's.
         $theme = $definition->theme ?? $definition->template?->theme;
 
-        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, is_array($theme) ? $theme : null);
+        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, is_array($theme) ? $theme : null, $diagnostics);
 
         // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
         // webhook and run anomaly detection — keeping this generator free of delivery
@@ -137,15 +137,16 @@ final readonly class ReportGenerator
      * @param  list<array<string, mixed>>  $visibleBlocks
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>|null  $theme
+     * @param  list<array<string, mixed>>  $diagnostics
      */
-    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null): Report
+    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null, array $diagnostics = []): Report
     {
         $report = new Report;
         $report->agency_id = $definition->agency_id;
         $report->report_definition_id = $definition->id;
         $report->period_start = Carbon::instance($period->start);
         $report->period_end = Carbon::instance($period->end);
-        $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data, 'theme' => $theme];
+        $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data, 'theme' => $theme, 'diagnostics' => $diagnostics];
         $report->health_score = $score;
         $report->executive_summary = null; // AI narrative is Phase 2
         $report->public_token = Str::random(48);

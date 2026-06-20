@@ -475,8 +475,8 @@ export function usePreview(siteId: number) {
 /** Trigger an on-demand sync of the site's data sources ("Sincronizar ahora"). */
 export function useSyncSite(siteId: number) {
     return useMutation({
-        mutationFn: () =>
-            api.post<{ queued: number; period: { start: string; end: string } }>(`/sites/${siteId}/sync`).then((r) => r.data),
+        mutationFn: (period?: { period_start: string; period_end: string }) =>
+            api.post<{ queued: number; period: { start: string; end: string } }>(`/sites/${siteId}/sync`, period ?? {}).then((r) => r.data),
     });
 }
 

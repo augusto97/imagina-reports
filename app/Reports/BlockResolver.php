@@ -21,7 +21,8 @@ use App\Reports\Blocks\BlockType;
  * professional KPI card (big number + trend vs previous period, §11.5).
  *
  * @phpstan-type MetricBags array<string, array<array-key, mixed>>
- * @phpstan-type Resolved array{blocks: list<array<string, mixed>>, data: array<string, mixed>}
+ * @phpstan-type Diagnostic array{id: string, type: string, source: string, metric: string}
+ * @phpstan-type Resolved array{blocks: list<array<string, mixed>>, data: array<string, mixed>, diagnostics: list<Diagnostic>}
  */
 final readonly class BlockResolver
 {
@@ -37,11 +38,27 @@ final readonly class BlockResolver
     {
         $visibleBlocks = [];
         $data = [];
+        $diagnostics = [];
 
         foreach ($blocks as $block) {
             $value = $this->resolveBlock($block, $bags, $previousBags, $score);
 
             if ($value === self::HIDDEN) {
+                // A bound block disappeared because its metric had no data for the period.
+                // Record it so the agency can see exactly what's missing (no silent gaps).
+                $binding = $block->binding;
+                $source = is_array($binding) ? ($binding['source'] ?? null) : null;
+                $metric = is_array($binding) ? ($binding['metric'] ?? null) : null;
+
+                if (is_string($source) && is_string($metric)) {
+                    $diagnostics[] = [
+                        'id' => $block->id,
+                        'type' => $block->type->value,
+                        'source' => $source,
+                        'metric' => $metric,
+                    ];
+                }
+
                 continue;
             }
 
@@ -52,7 +69,7 @@ final readonly class BlockResolver
             }
         }
 
-        return ['blocks' => $visibleBlocks, 'data' => $data];
+        return ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics];
     }
 
     /**

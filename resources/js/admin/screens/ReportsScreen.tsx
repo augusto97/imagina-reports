@@ -138,6 +138,26 @@ export function ReportsScreen(): ReactElement {
         { header: 'Salud', accessorKey: 'health_score' },
         { header: 'Estado', accessorKey: 'status' },
         {
+            id: 'data',
+            header: 'Datos',
+            cell: ({ row }) => {
+                const hidden = row.original.hidden_metrics ?? [];
+
+                if (hidden.length === 0) {
+                    return <span className="ir-text-xs ir-text-emerald-600">OK</span>;
+                }
+
+                return (
+                    <span
+                        className="ir-cursor-help ir-text-xs ir-text-amber-600"
+                        title={`Sin datos para el periodo (bloques ocultos): ${hidden.join(', ')}. Sincroniza el sitio para ese periodo y regenera.`}
+                    >
+                        ⚠ {hidden.length} sin datos
+                    </span>
+                );
+            },
+        },
+        {
             id: 'actions',
             header: '',
             cell: ({ row }) => {
