@@ -426,7 +426,7 @@ export function EditorScreen(): ReactElement {
         if (siteId === null) {
             return;
         }
-        syncSite.mutate(undefined, {
+        syncSite.mutate(monthPeriod(month), {
             onSuccess: () => {
                 const delays = [2500, 3000, 4000, 5000, 6000];
                 delays.forEach((_, index) => {

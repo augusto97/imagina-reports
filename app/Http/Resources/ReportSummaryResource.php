@@ -26,6 +26,22 @@ final class ReportSummaryResource extends JsonResource
             throw new LogicException('ReportSummaryResource expects a Report.');
         }
 
+        // Metrics whose blocks were hidden at generation because they had no data for the
+        // period — surfaced so the agency sees exactly what's missing (not a silent gap).
+        $diagnostics = $report->resolved_blocks['diagnostics'] ?? [];
+        $hiddenMetrics = [];
+
+        if (is_array($diagnostics)) {
+            foreach ($diagnostics as $diagnostic) {
+                $source = is_array($diagnostic) ? ($diagnostic['source'] ?? null) : null;
+                $metric = is_array($diagnostic) ? ($diagnostic['metric'] ?? null) : null;
+
+                if (is_string($source) && is_string($metric)) {
+                    $hiddenMetrics[] = "{$source}.{$metric}";
+                }
+            }
+        }
+
         return [
             'id' => $report->id,
             'report_definition_id' => $report->report_definition_id,
@@ -35,6 +51,7 @@ final class ReportSummaryResource extends JsonResource
             'status' => $report->status->value,
             'public_token' => $report->public_token,
             'pdf_path' => $report->pdf_path,
+            'hidden_metrics' => $hiddenMetrics,
         ];
     }
 }

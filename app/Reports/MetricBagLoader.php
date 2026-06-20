@@ -32,10 +32,15 @@ final readonly class MetricBagLoader
         $sources = DataSource::query()->where('site_id', $siteId)->get();
 
         foreach ($sources as $source) {
+            // Match the most recent snapshot whose window OVERLAPS the requested period,
+            // not one strictly contained in it. Snapshots are stored with end-of-month
+            // timestamps (e.g. 23:59:59) while a report period end is often a bare date
+            // (midnight), so strict containment dropped the very month just synced — the
+            // root cause of "the report shows no metrics" (CLAUDE.md §3.1: use last snapshot).
             $snapshot = MetricSnapshot::query()
                 ->where('data_source_id', $source->id)
-                ->where('period_start', '>=', $period->start)
-                ->where('period_end', '<=', $period->end)
+                ->where('period_start', '<=', $period->end)
+                ->where('period_end', '>=', $period->start)
                 ->orderByDesc('period_end')
                 ->first();
 
