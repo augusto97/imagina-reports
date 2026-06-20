@@ -25,6 +25,7 @@ enum BlockType: string
     case SalesSummary = 'sales_summary';
     case Goal = 'goal';
     case Cta = 'cta';
+    case Comments = 'comments';
     case Custom = 'custom';
 
     /**

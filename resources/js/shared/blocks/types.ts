@@ -17,6 +17,7 @@ export type BlockType =
     | 'sales_summary'
     | 'goal'
     | 'cta'
+    | 'comments'
     | 'custom';
 
 export interface BlockBinding {

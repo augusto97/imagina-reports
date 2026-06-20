@@ -1,12 +1,15 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
-import { Sparkles } from 'lucide-react';
+import { MessageSquare, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
+    useCreateReportComment,
     useCreateReportDefinition,
+    useDeleteComment,
     useGenerateReport,
+    useReportComments,
     useReportDefinitions,
     useReportInsights,
     useReportTemplates,
@@ -17,6 +20,73 @@ import {
 import { DataTable } from '../components/DataTable';
 import { Button, Card, Field, Input } from '../components/ui';
 import type { ReportSummary } from '../types';
+
+const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
+
+/** Internal notes + client-visible comments for a report (CLAUDE.md §11). */
+function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
+    const { data: comments = [] } = useReportComments(reportId);
+    const create = useCreateReportComment(reportId);
+    const remove = useDeleteComment();
+    const [body, setBody] = useState('');
+    const [visibility, setVisibility] = useState<'internal' | 'client'>('internal');
+
+    const submit = (event: FormEvent): void => {
+        event.preventDefault();
+        if (body.trim() === '') {
+            return;
+        }
+        create.mutate({ body: body.trim(), visibility }, { onSuccess: () => setBody('') });
+    };
+
+    return (
+        <Card title="Comentarios y notas">
+            <form onSubmit={submit} className="ir-mb-4 ir-flex ir-max-w-xl ir-flex-col ir-gap-2">
+                <textarea
+                    className={inputClass}
+                    rows={2}
+                    value={body}
+                    onChange={(event) => setBody(event.target.value)}
+                    placeholder="Escribe una nota interna o un comentario para el cliente…"
+                />
+                <div className="ir-flex ir-items-center ir-gap-2">
+                    <select className={`${inputClass} ir-w-56`} value={visibility} onChange={(event) => setVisibility(event.target.value as 'internal' | 'client')}>
+                        <option value="internal">Nota interna (solo equipo)</option>
+                        <option value="client">Visible para el cliente</option>
+                    </select>
+                    <Button type="submit" disabled={create.isPending || body.trim() === ''}>
+                        Añadir
+                    </Button>
+                </div>
+            </form>
+
+            {comments.length === 0 ? (
+                <p className="ir-text-sm ir-text-muted-foreground">Sin comentarios todavía.</p>
+            ) : (
+                <ul className="ir-flex ir-flex-col ir-divide-y">
+                    {comments.map((comment) => (
+                        <li key={comment.id} className="ir-flex ir-items-start ir-gap-3 ir-py-2 ir-text-sm">
+                            <span
+                                className={
+                                    comment.visibility === 'client'
+                                        ? 'ir-rounded ir-bg-primary ir-px-2 ir-py-0.5 ir-text-xs ir-text-primary-foreground'
+                                        : 'ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground'
+                                }
+                            >
+                                {comment.visibility === 'client' ? 'Cliente' : 'Interna'}
+                            </span>
+                            <span className="ir-flex-1">{comment.body}</span>
+                            <span className="ir-shrink-0 ir-text-xs ir-text-muted-foreground">{comment.created_at.slice(0, 10)}</span>
+                            <button type="button" className="ir-text-muted-foreground hover:ir-text-red-500" title="Eliminar" onClick={() => remove.mutate(comment.id)}>
+                                <Trash2 className="ir-size-4" />
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Card>
+    );
+}
 
 /** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
 function parseRecipients(raw: string): string[] {
@@ -38,6 +108,7 @@ export function ReportsScreen(): ReactElement {
     const insights = useReportInsights();
 
     const [insightsFor, setInsightsFor] = useState<number | null>(null);
+    const [commentsFor, setCommentsFor] = useState<number | null>(null);
     const showInsights = (reportId: number): void => {
         setInsightsFor(reportId);
         insights.mutate(reportId);
@@ -73,6 +144,10 @@ export function ReportsScreen(): ReactElement {
                         <Button variant="ghost" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
                             <Sparkles className="ir-size-4" />
                             Insights
+                        </Button>
+                        <Button variant="ghost" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
+                            <MessageSquare className="ir-size-4" />
+                            Comentarios
                         </Button>
                         {report.status === 'draft' ? (
                             <Button variant="ghost" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
@@ -207,6 +282,8 @@ export function ReportsScreen(): ReactElement {
                 )}
                 <DataTable columns={columns} data={reports} />
             </Card>
+
+            {commentsFor !== null && <ReportCommentsPanel key={commentsFor} reportId={commentsFor} />}
 
             {insightsFor !== null && (
                 <Card title="Insights de IA">

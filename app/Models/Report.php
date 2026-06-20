@@ -82,4 +82,12 @@ class Report extends Model
     {
         return $this->hasMany(WorkLog::class)->orderBy('performed_at');
     }
+
+    /**
+     * @return HasMany<ReportComment, $this>
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(ReportComment::class)->latest();
+    }
 }

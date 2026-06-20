@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicReportController;
+use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportInsightsController;
@@ -112,6 +113,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
     Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');
+    Route::get('reports/{report}/comments', [ReportCommentController::class, 'index'])->name('api.reports.comments.index');
+    Route::post('reports/{report}/comments', [ReportCommentController::class, 'store'])->name('api.reports.comments.store');
+    Route::delete('comments/{comment}', [ReportCommentController::class, 'destroy'])->name('api.comments.destroy');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 

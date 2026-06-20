@@ -18,6 +18,14 @@ export interface Site {
     plan_hours: string | null;
 }
 
+export interface ReportComment {
+    id: number;
+    body: string;
+    visibility: 'internal' | 'client';
+    author: string | null;
+    created_at: string;
+}
+
 export interface WorkLog {
     id: number;
     report_id: number | null;

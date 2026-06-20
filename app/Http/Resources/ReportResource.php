@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\CommentVisibility;
 use App\Models\Report;
+use App\Models\ReportComment;
 use App\Models\WorkLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -51,9 +53,9 @@ final class ReportResource extends JsonResource
                 'period' => $report->period_start->format('d/m/Y').' – '.$report->period_end->format('d/m/Y'),
                 'score' => (string) ($report->health_score ?? ''),
             ],
-            // Overlay live work logs onto any worklog_timeline block (the frozen
-            // layout stays; the "what we did" list reflects entries added later).
-            'data' => $this->withWorkLogs($report, $blocks, is_array($data) ? $data : []),
+            // Overlay live work logs + client-visible comments onto their blocks (the
+            // frozen layout stays; the lists reflect entries added after generation).
+            'data' => $this->withComments($report, $blocks, $this->withWorkLogs($report, $blocks, is_array($data) ? $data : [])),
             'agency' => $agency === null ? null : [
                 'name' => $agency->name,
                 'logo_path' => $agency->logo_path,
@@ -102,6 +104,37 @@ final class ReportResource extends JsonResource
         foreach ($blocks as $block) {
             if (is_array($block) && ($block['type'] ?? null) === 'worklog_timeline' && is_string($block['id'] ?? null)) {
                 $data[$block['id']] = $entries;
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Overlay CLIENT-visible comments onto any `comments` block. Internal team notes
+     * are never exposed here (CLAUDE.md §11).
+     *
+     * @param  array<array-key, mixed>  $data
+     * @return array<array-key, mixed>
+     */
+    private function withComments(Report $report, mixed $blocks, array $data): array
+    {
+        if (! is_array($blocks)) {
+            return $data;
+        }
+
+        $comments = $report->comments()
+            ->where('visibility', CommentVisibility::Client)
+            ->latest()
+            ->get()
+            ->map(static fn (ReportComment $comment): array => [
+                'body' => $comment->body,
+                'created_at' => $comment->created_at->toDateString(),
+            ])->all();
+
+        foreach ($blocks as $block) {
+            if (is_array($block) && ($block['type'] ?? null) === 'comments' && is_string($block['id'] ?? null)) {
+                $data[$block['id']] = $comments;
             }
         }
 

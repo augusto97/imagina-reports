@@ -68,6 +68,7 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
     { type: 'goal', label: 'Meta' },
+    { type: 'comments', label: 'Comentarios' },
     { type: 'image', label: 'Imagen' },
     { type: 'cta', label: 'CTA' },
     { type: 'divider', label: 'Separador' },
@@ -100,6 +101,8 @@ export function sampleData(block: Block): unknown {
                 { label: '/home', value: 900 },
                 { label: '/precios', value: 120 },
             ];
+        case 'comments':
+            return [{ body: 'Este mes reforzamos la seguridad tras detectar intentos de acceso sospechosos.', created_at: '2026-06-15' }];
         case 'worklog_timeline':
             return [
                 { performed_at: '2026-06-10', description: 'Actualizaciones aplicadas', minutes: 45, category: 'Mantenimiento' },

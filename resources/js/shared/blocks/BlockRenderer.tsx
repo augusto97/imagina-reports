@@ -558,6 +558,33 @@ function PageBreakBlock(): ReactElement {
     );
 }
 
+/**
+ * Client-visible comments / annotations from the team (CLAUDE.md §11), rendered as
+ * quoted note cards. Internal notes never reach this block (filtered server-side).
+ */
+function CommentsBlock({ block, data }: BlockComponentProps): ReactElement | null {
+    const notes = asRecords(data);
+
+    if (notes.length === 0) {
+        return null;
+    }
+
+    return (
+        <Section title={str(prop(block, 'title'), 'Comentarios del equipo')} style={block.style}>
+            <div className="ir-flex ir-flex-col ir-gap-3">
+                {notes.map((note, index) => (
+                    <blockquote key={index} className="ir-border-l-2 ir-border-primary ir-pl-3 ir-text-sm">
+                        <p>{str(note.body)}</p>
+                        {typeof note.created_at === 'string' && note.created_at !== '' && (
+                            <span className="ir-text-xs ir-text-muted-foreground">{note.created_at}</span>
+                        )}
+                    </blockquote>
+                ))}
+            </div>
+        </Section>
+    );
+}
+
 /* ------------------------------- dispatcher -------------------------------- */
 const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement | null> = {
     header: HeaderBlock,
@@ -574,6 +601,7 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     sales_summary: SalesSummaryBlock,
     goal: GoalBlock,
     cta: CtaBlock,
+    comments: CommentsBlock,
     custom: CustomBlock,
 };
 

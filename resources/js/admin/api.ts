@@ -14,6 +14,7 @@ import type {
     DataSourceDto,
     ReportDefinitionDto,
     ReportSummary,
+    ReportComment,
     ReportTemplateDto,
     Site,
     UpdateStatus,
@@ -269,6 +270,35 @@ export function useReportInsights() {
     return useMutation({
         mutationFn: (reportId: number) =>
             api.post<{ insights: string[] }>(`/reports/${reportId}/insights`).then((r) => r.data.insights),
+    });
+}
+
+/* -------------------------------- comments --------------------------------- */
+
+export function useReportComments(reportId: number | null) {
+    return useQuery({
+        queryKey: ['report-comments', reportId],
+        enabled: reportId !== null,
+        queryFn: () => get<ReportComment[]>(`/reports/${reportId}/comments`),
+    });
+}
+
+export function useCreateReportComment(reportId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { body: string; visibility: 'internal' | 'client' }) =>
+            api.post<ReportComment>(`/reports/${reportId}/comments`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-comments'] }),
+    });
+}
+
+export function useDeleteComment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/comments/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-comments'] }),
     });
 }
 

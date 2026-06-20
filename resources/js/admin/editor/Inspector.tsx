@@ -45,6 +45,7 @@ const TYPE_LABELS: Record<string, string> = {
     goal: 'Meta',
     image: 'Imagen',
     cta: 'Llamada a la acción',
+    comments: 'Comentarios',
     divider: 'Separador',
     pagebreak: 'Salto de página',
     custom: 'Personalizado',
