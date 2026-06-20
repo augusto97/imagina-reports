@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. v1.2.0'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -36,9 +42,16 @@ jobs:
           npm ci
           npm run build:assets
 
+      - name: Resolve the release tag
+        id: tag
+        run: |
+          REF="${{ github.event.inputs.version || github.ref_name }}"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+          echo "version=${REF#v}" >> "$GITHUB_OUTPUT"
+
       - name: Assemble the bundle
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.tag.outputs.version }}"
           # Ship the version inside the bundle so the deployed app reports it accurately.
           echo "${VERSION}" > VERSION
           mkdir -p dist
@@ -50,6 +63,7 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.ref }}
           files: |
             dist/*.zip
             dist/*.sha256
