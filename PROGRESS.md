@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**💱 MONEDA POR SITIO (2026-06-19, rama):** corrección del enfoque — **no hay conversión FX**; cada sitio
+reporta en **su propia moneda** (COP, CLP, PEN, VES, USD, EUR…) y se muestra tal cual (§5). Añadido
+`ir_sites.currency` (ISO 4217, default USD) + `Site::CURRENCIES` (lista LATAM-first) + validación en
+StoreSiteRequest + SiteResource + factory; `ReportResource` expone la moneda del sitio; el render compartido
+formatea los importes `currency` vía un **`ReportSettingsProvider`/contexto** (moneda + locale) que consumen
+los bloques KPI/ventas/meta; portal, página de reporte y **lienzo del editor** renderizan en la moneda del
+sitio; el formulario de sitio tiene selector de moneda y la tabla una columna «Moneda». **192 PHP verde,
+PHPStan max + Pint + TS + ESLint + build limpios.** (Reemplaza el pendiente «conversión de moneda».)
+
 **✨ EDITOR v2 · Ideas de competidores (2026-06-19, rama):** sobre los clusters A–E, añadidas 4 funciones de
 paridad competitiva, cada una con gate verde: **(1) bloque `goal`/Meta** (vincula métrica + objetivo →
 barra de progreso on-track/atrasado) y **bloque `pagebreak`** (salto de página A4 en el PDF, etiqueta oculta
