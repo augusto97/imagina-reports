@@ -264,6 +264,15 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             {legend && <Legend />}
                             <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} />
                         </BarChart>
+                    ) : chartType === 'hbar' ? (
+                        <BarChart data={rows} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" />
+                            <YAxis type="category" dataKey="name" width={90} />
+                            <Tooltip />
+                            {legend && <Legend />}
+                            <Bar dataKey="value" fill={accent} radius={[0, 4, 4, 0]} />
+                        </BarChart>
                     ) : chartType === 'area' ? (
                         <AreaChart data={rows}>
                             <CartesianGrid strokeDasharray="3 3" />
