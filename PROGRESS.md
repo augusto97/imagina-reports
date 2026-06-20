@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 TEMA/BRANDING + v1.3.0 (2026-06-20):** cerrado el milestone del editor con **tema por reporte (956547b)**:
+columna `theme` (json nullable) en templates+definitions (acento hex + densidad normal|compact), validada y
+expuesta; el generador congela el tema (definición→plantilla) en el reporte; el render comparte el acento como
+**variable CSS scoped** (`--ir-primary`, sobreescribe la marca de agencia) y la densidad ajusta el padding —
+idéntico en portal/PDF/editor; panel "Tema del reporte" en el editor. **214 PHP verde.** **Milestone editor
+COMPLETO:** rejilla, galería+pestañas+drill-down, multipágina, fill-tile, control de filtro, tema. → cortando
+**v1.3.0** (PR a main + release workflow_dispatch, porque el entorno bloquea push de tags).
+
 **🎛️ EDITOR PRO TIPO LOOKER — milestone (casi) completo (2026-06-20, rama, post v1.2.0):** además de A/B/C-multipágina/
 fill-tile (ver entrada siguiente), se añadió **controles de página honestos (0a61663)**: bloque `control` = un
 desplegable de los valores de su métrica que **acota las filas** de tablas/gráficos/timeline de la misma página
