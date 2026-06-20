@@ -14,6 +14,18 @@ export function makeBlock(type: BlockType): Block {
     if (type === 'chart') {
         block.props = { chartType: 'line', title: 'Gráfico' };
     }
+    if (type === 'cta') {
+        block.props = {
+            headline: 'Tu plan de soporte está activo y protegiendo tu sitio.',
+            text: '',
+            buttonLabel: '',
+            buttonUrl: '',
+        };
+    }
+    if (type === 'goal') {
+        block.props = { label: 'Meta', target: 100 };
+        block.style = { width: 'third' };
+    }
     // KPI cards read best three-per-row with a "vs previous period" trend.
     if (type === 'kpi') {
         block.style = { width: 'third' };
@@ -22,7 +34,28 @@ export function makeBlock(type: BlockType): Block {
     return block;
 }
 
-export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary'];
+export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary', 'goal'];
+
+export type BlockWidth = 'full' | 'half' | 'third';
+
+/** A block's configured column width (defaults to full). */
+export function widthOf(block: Block): BlockWidth {
+    const width = block.style?.width;
+
+    return width === 'half' || width === 'third' ? width : 'full';
+}
+
+/** Tailwind column span (out of 6) for each width — mirrors the shared BlockList grid. */
+export const WIDTH_SPAN: Record<BlockWidth, string> = {
+    full: 'ir-col-span-6',
+    half: 'ir-col-span-6 sm:ir-col-span-3',
+    third: 'ir-col-span-6 sm:ir-col-span-2',
+};
+
+/** Next width in the full → half → third → full cycle (for the toolbar button). */
+export function nextWidth(current: BlockWidth): BlockWidth {
+    return current === 'full' ? 'half' : current === 'half' ? 'third' : 'full';
+}
 
 export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'header', label: 'Cabecera' },
@@ -34,7 +67,12 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'security_shield', label: 'Seguridad' },
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
+    { type: 'goal', label: 'Meta' },
+    { type: 'comments', label: 'Comentarios' },
+    { type: 'image', label: 'Imagen' },
+    { type: 'cta', label: 'CTA' },
     { type: 'divider', label: 'Separador' },
+    { type: 'pagebreak', label: 'Salto de página' },
 ];
 
 /** Placeholder data so the live preview shows something for each block type. */
@@ -46,6 +84,8 @@ export function sampleData(block: Block): unknown {
             return block.binding?.compare === 'prev_period'
                 ? { value: 1234, previous: 1100, change_percent: 12.2 }
                 : 1234;
+        case 'goal':
+            return 720;
         case 'healthscore':
             return 87;
         case 'security_shield':
@@ -61,8 +101,13 @@ export function sampleData(block: Block): unknown {
                 { label: '/home', value: 900 },
                 { label: '/precios', value: 120 },
             ];
+        case 'comments':
+            return [{ body: 'Este mes reforzamos la seguridad tras detectar intentos de acceso sospechosos.', created_at: '2026-06-15' }];
         case 'worklog_timeline':
-            return [{ performed_at: '2026-06-10', description: 'Actualizaciones aplicadas' }];
+            return [
+                { performed_at: '2026-06-10', description: 'Actualizaciones aplicadas', minutes: 45, category: 'Mantenimiento' },
+                { performed_at: '2026-06-14', description: 'Limpieza de spam y backup', minutes: 30, category: 'Seguridad' },
+            ];
         default:
             return undefined;
     }

@@ -31,6 +31,10 @@ final class PreviewReportRequest extends FormRequest
             'blocks' => ['required', 'array'],
             'period_start' => ['nullable', 'date'],
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start'],
+            'calculated_metrics' => ['nullable', 'array'],
+            'calculated_metrics.*.key' => ['required_with:calculated_metrics', 'string', 'regex:/^[a-zA-Z][a-zA-Z0-9_]*$/'],
+            'calculated_metrics.*.label' => ['nullable', 'string', 'max:120'],
+            'calculated_metrics.*.formula' => ['required_with:calculated_metrics', 'string', 'max:500'],
         ];
     }
 }

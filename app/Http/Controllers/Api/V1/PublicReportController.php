@@ -20,7 +20,7 @@ final class PublicReportController extends Controller
     {
         $report = Report::query()
             ->withoutGlobalScopes()
-            ->with(['agency', 'workLogs'])
+            ->with(['agency', 'workLogs', 'definition.site.client'])
             ->where('public_token', $token)
             ->firstOrFail();
 

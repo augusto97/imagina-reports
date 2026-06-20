@@ -11,8 +11,10 @@ use App\Jobs\SyncSourceJob;
 use App\Models\Site;
 use App\Reports\BlockResolver;
 use App\Reports\Blocks\BlocksValidator;
+use App\Reports\Calc\CalculatedMetrics;
 use App\Reports\HealthScoreCalculator;
 use App\Reports\MetricBagLoader;
+use App\Reports\WorkLogMetrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 
@@ -34,12 +36,31 @@ final class PreviewController extends Controller
         MetricBagLoader $loader,
         HealthScoreCalculator $health,
         BlockResolver $resolver,
+        CalculatedMetrics $calculated,
+        WorkLogMetrics $workLogs,
     ): JsonResponse {
         $period = $this->resolvePeriod($request);
         $blocks = $validator->validate($request->input('blocks'));
 
         $bags = $loader->forSite($site->id, $period);
         $previousBags = $loader->previousForSite($site->id, $period);
+
+        // Work-log metrics (hours invested, tasks, by-category, vs plan) as `worklog`.
+        $worklog = $workLogs->forSite($site, $period);
+        if ($worklog !== []) {
+            $bags['worklog'] = $worklog;
+        }
+        $worklogPrev = $workLogs->forSite($site, $period->previous());
+        if ($worklogPrev !== []) {
+            $previousBags['worklog'] = $worklogPrev;
+        }
+
+        // Inject calculated metrics (formulas over the bag) as a `calc` source so
+        // blocks bind to them like any connector metric (CLAUDE.md §10.1).
+        $calcDefs = $this->calcDefinitions($request->input('calculated_metrics'));
+        $bags = $this->withCalc($bags, $calculated->compute($calcDefs, $bags));
+        $previousBags = $this->withCalc($previousBags, $calculated->compute($calcDefs, $previousBags));
+
         $score = $health->calculate($bags);
 
         ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags);
@@ -74,6 +95,32 @@ final class PreviewController extends Controller
             'queued' => $queued,
             'period' => $period->toArray(),
         ], 202);
+    }
+
+    /**
+     * @param  array<string, int|float>  $calc
+     * @param  array<string, array<array-key, mixed>>  $bags
+     * @return array<string, array<array-key, mixed>>
+     */
+    private function withCalc(array $bags, array $calc): array
+    {
+        if ($calc !== []) {
+            $bags['calc'] = $calc;
+        }
+
+        return $bags;
+    }
+
+    /**
+     * @return array<int, array<array-key, mixed>>
+     */
+    private function calcDefinitions(mixed $input): array
+    {
+        if (! is_array($input)) {
+            return [];
+        }
+
+        return array_values(array_filter($input, 'is_array'));
     }
 
     private function resolvePeriod(PreviewReportRequest $request): Period

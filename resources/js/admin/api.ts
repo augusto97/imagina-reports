@@ -14,9 +14,11 @@ import type {
     DataSourceDto,
     ReportDefinitionDto,
     ReportSummary,
+    ReportComment,
     ReportTemplateDto,
     Site,
     UpdateStatus,
+    WorkLog,
 } from './types';
 
 async function get<T>(url: string): Promise<T> {
@@ -133,9 +135,61 @@ export function useCreateSite() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { client_id: number; name: string; url: string }) =>
+        mutationFn: (payload: { client_id: number; name: string; url: string; currency?: string }) =>
             api.post<Site>('/sites', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+    });
+}
+
+export function useUpdateSite(id: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { client_id?: number; name?: string; url?: string; currency?: string; plan_hours?: number | null }) =>
+            api.put<Site>(`/sites/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+    });
+}
+
+/* -------------------------------- work logs -------------------------------- */
+
+export interface WorkLogInput {
+    description: string;
+    minutes?: number | null;
+    category?: string | null;
+    performed_at?: string;
+}
+
+/** Work logs for a site within a period (CLAUDE.md §11.5). */
+export function useSiteWorkLogs(siteId: number | null, from?: string, to?: string) {
+    return useQuery({
+        queryKey: ['site-work-logs', siteId, from, to],
+        enabled: siteId !== null,
+        queryFn: () => {
+            const params = new URLSearchParams();
+            if (from !== undefined) params.set('from', from);
+            if (to !== undefined) params.set('to', to);
+
+            return get<WorkLog[]>(`/sites/${siteId}/work-logs?${params.toString()}`);
+        },
+    });
+}
+
+export function useCreateSiteWorkLog(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: WorkLogInput) => api.post<WorkLog>(`/sites/${siteId}/work-logs`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
+    });
+}
+
+export function useDeleteWorkLog() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/work-logs/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
     });
 }
 
@@ -208,6 +262,43 @@ export function useSendReport() {
     return useMutation({
         mutationFn: (reportId: number) => api.post(`/reports/${reportId}/send`).then((r) => r.data),
         onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), 800),
+    });
+}
+
+/** AI insights for a generated report (CLAUDE.md §10.6). */
+export function useReportInsights() {
+    return useMutation({
+        mutationFn: (reportId: number) =>
+            api.post<{ insights: string[] }>(`/reports/${reportId}/insights`).then((r) => r.data.insights),
+    });
+}
+
+/* -------------------------------- comments --------------------------------- */
+
+export function useReportComments(reportId: number | null) {
+    return useQuery({
+        queryKey: ['report-comments', reportId],
+        enabled: reportId !== null,
+        queryFn: () => get<ReportComment[]>(`/reports/${reportId}/comments`),
+    });
+}
+
+export function useCreateReportComment(reportId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { body: string; visibility: 'internal' | 'client' }) =>
+            api.post<ReportComment>(`/reports/${reportId}/comments`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-comments'] }),
+    });
+}
+
+export function useDeleteComment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/comments/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-comments'] }),
     });
 }
 
@@ -305,7 +396,7 @@ export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[] }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
@@ -315,7 +406,7 @@ export function useUpdateReportTemplate(id: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[] }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[] }) =>
             api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ['report-templates'] });
@@ -356,10 +447,16 @@ export interface PreviewResult {
     sources_with_data: string[];
 }
 
+export interface CalcMetric {
+    key: string;
+    label: string;
+    formula: string;
+}
+
 /** Resolve a draft layout against a site + period into REAL metric data (CLAUDE.md §11.3). */
 export function usePreview(siteId: number) {
     return useMutation({
-        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string }) =>
+        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string; calculated_metrics?: CalcMetric[] }) =>
             api.post<PreviewResult>(`/sites/${siteId}/preview`, payload).then((r) => r.data),
     });
 }

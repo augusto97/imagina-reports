@@ -82,6 +82,53 @@ final readonly class AiReportBuilder
     }
 
     /**
+     * AI insights (competitor parity): 3-5 short, plain-language takeaways derived
+     * from a report's resolved metrics, in the report's locale. Returns a list of
+     * one-sentence strings (the AI is constrained to a JSON array, never free prose).
+     *
+     * @param  array<string, mixed>  $metrics
+     * @return list<string>
+     */
+    public function insights(array $metrics, string $locale = 'es'): array
+    {
+        $system = "You are a web-agency analyst. From the report's metrics, write 3 to 5 SHORT, "
+            ."plain-language insights for a non-technical client in locale '{$locale}'. Each insight is one "
+            .'specific sentence that references the numbers. Return ONLY a JSON array of strings. No jargon, no markdown.';
+
+        $raw = $this->ai->complete($system, 'Metrics (JSON): '.$this->encode($metrics));
+
+        return $this->decodeStringList($raw);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function decodeStringList(string $raw): array
+    {
+        $start = strpos($raw, '[');
+        $end = strrpos($raw, ']');
+
+        if ($start === false || $end === false || $end < $start) {
+            return [];
+        }
+
+        $decoded = json_decode(substr($raw, $start, $end - $start + 1), true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $list = [];
+        foreach ($decoded as $item) {
+            if (is_string($item) && trim($item) !== '') {
+                $list[] = trim($item);
+            }
+        }
+
+        return array_slice($list, 0, 5);
+    }
+
+    /**
      * @param  list<string>  $catalogKeys
      */
     private function bindingExists(Block $block, array $catalogKeys): bool
@@ -133,9 +180,10 @@ final readonly class AiReportBuilder
         You assemble a branded client report as a block layout for "Imagina Reports".
         Return ONLY a JSON object: {"blocks": [...], "narrative": "..."}.
         Each block is {"id": string, "type": one of
-        [header,kpi,chart,table,narrative,healthscore,security_shield,worklog_timeline,image,divider,sales_summary,custom],
+        [header,kpi,chart,table,narrative,healthscore,security_shield,worklog_timeline,image,divider,sales_summary,goal,cta,comments,custom],
         "binding": {"source": string, "metric": string}|null, "props": object, "style": object}.
-        Data blocks (kpi,chart,table,sales_summary) MUST bind to a metric from the provided catalog
+        A "goal" block also needs props.target (a number). A "cta" block uses props.headline/text/buttonLabel/buttonUrl.
+        Data blocks (kpi,chart,table,sales_summary,goal) MUST bind to a metric from the provided catalog
         (use the catalog's "source" and "metric"). Never invent metrics. Ids must be unique. No prose outside the JSON.
         PROMPT;
     }

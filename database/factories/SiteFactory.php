@@ -29,6 +29,7 @@ class SiteFactory extends Factory
             'hosting' => 'ServerAvatar',
             'support_plan' => 'care',
             'status' => 'active',
+            'currency' => 'USD',
         ];
     }
 }

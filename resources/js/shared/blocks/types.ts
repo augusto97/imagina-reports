@@ -13,7 +13,11 @@ export type BlockType =
     | 'worklog_timeline'
     | 'image'
     | 'divider'
+    | 'pagebreak'
     | 'sales_summary'
+    | 'goal'
+    | 'cta'
+    | 'comments'
     | 'custom';
 
 export interface BlockBinding {

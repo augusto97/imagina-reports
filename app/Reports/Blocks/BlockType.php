@@ -21,7 +21,11 @@ enum BlockType: string
     case WorklogTimeline = 'worklog_timeline';
     case Image = 'image';
     case Divider = 'divider';
+    case PageBreak = 'pagebreak';
     case SalesSummary = 'sales_summary';
+    case Goal = 'goal';
+    case Cta = 'cta';
+    case Comments = 'comments';
     case Custom = 'custom';
 
     /**
@@ -31,7 +35,7 @@ enum BlockType: string
      */
     public static function dataBound(): array
     {
-        return [self::Kpi, self::Chart, self::Table, self::SalesSummary];
+        return [self::Kpi, self::Chart, self::Table, self::SalesSummary, self::Goal];
     }
 
     public function requiresBinding(): bool

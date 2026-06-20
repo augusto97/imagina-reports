@@ -12,11 +12,14 @@ use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicReportController;
+use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
+use App\Http\Controllers\Api\V1\ReportInsightsController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\SiteWorkLogController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\TrendsController;
 use App\Http\Controllers\Api\V1\WorkLogController;
@@ -71,6 +74,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('sites', [SiteController::class, 'index'])->name('api.sites.index');
     Route::post('sites', [SiteController::class, 'store'])->name('api.sites.store');
     Route::get('sites/{site}', [SiteController::class, 'show'])->name('api.sites.show');
+    Route::put('sites/{site}', [SiteController::class, 'update'])->name('api.sites.update');
+
+    // Fast day-to-day work logging per site (hours invested) — CLAUDE.md §11.5.
+    Route::get('sites/{site}/work-logs', [SiteWorkLogController::class, 'index'])->name('api.sites.work-logs.index');
+    Route::post('sites/{site}/work-logs', [SiteWorkLogController::class, 'store'])->name('api.sites.work-logs.store');
+    Route::delete('work-logs/{workLog}', [SiteWorkLogController::class, 'destroy'])->name('api.work-logs.destroy');
 
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
@@ -103,6 +112,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('api.reports.show');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
+    Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');
+    Route::get('reports/{report}/comments', [ReportCommentController::class, 'index'])->name('api.reports.comments.index');
+    Route::post('reports/{report}/comments', [ReportCommentController::class, 'store'])->name('api.reports.comments.store');
+    Route::delete('comments/{comment}', [ReportCommentController::class, 'destroy'])->name('api.comments.destroy');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 

@@ -10,7 +10,10 @@
 #
 set -euo pipefail
 
-BASE_PATH="${BASE_PATH:-$(cd "$(dirname "$0")/.." && pwd)}"
+# The script lives at <base>/releases/<ts>_<ver>/deploy.sh, so the base (which
+# holds releases/, shared/ and the current symlink) is TWO levels up. Callers
+# (the in-app updater) pass BASE_PATH explicitly; this default is for standalone runs.
+BASE_PATH="${BASE_PATH:-$(cd "$(dirname "$0")/../.." && pwd)}"
 SHARED="${BASE_PATH}/shared"
 CURRENT="${BASE_PATH}/current"
 RELEASE_DIR="${RELEASE_DIR:?Set RELEASE_DIR to the new release directory}"

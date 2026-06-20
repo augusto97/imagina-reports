@@ -7,6 +7,89 @@
 ---
 
 ## Where I left off (read me first)
+**🕒 TRABAJO/HORAS + COMENTARIOS (2026-06-19, rama):** servicio de soporte por horas — registrar trabajo y
+demostrar que valió la pena. **Fase 1:** work logs con `minutes` (opcional) + `category`; `ir_sites.plan_hours`;
+API de alta rápida por sitio (`GET/POST /sites/{site}/work-logs`, `DELETE /work-logs/{id}`, filtro por periodo);
+pantalla **«Trabajo»** (elige sitio, escribe qué hiciste + minutos/categoría opcionales, Enter; cabecera con
+horas, nº tareas y barra horas-vs-plan del mes). **Fase 2:** `WorkLogMetrics` agrega el periodo en una fuente
+`worklog` (hours, tasks, by_category, hours_vs_plan{value,target}) inyectada en preview y generación (+ periodo
+anterior para comparar); bindable desde el catálogo → KPIs, dona por categoría y bloque meta horas-vs-plan; el
+timeline superpone los logs del SITIO en el periodo (incluye altas rápidas) con tiempo+categoría y total;
+plantilla de galería «Soporte por horas». **Fase 3:** comentarios `ir_report_comments` (internal|client) + API +
+bloque `comments` (solo los visibles para el cliente salen al reporte; las notas internas nunca) + panel
+«Comentarios» en ReportsScreen. **207 PHP verde (+15), PHPStan max + Pint + TS + ESLint + build limpios.** Todo
+en rama → próximo release **1.2.0**.
+
+**💱 MONEDA POR SITIO (2026-06-19, rama):** corrección del enfoque — **no hay conversión FX**; cada sitio
+reporta en **su propia moneda** (COP, CLP, PEN, VES, USD, EUR…) y se muestra tal cual (§5). Añadido
+`ir_sites.currency` (ISO 4217, default USD) + `Site::CURRENCIES` (lista LATAM-first) + validación en
+StoreSiteRequest + SiteResource + factory; `ReportResource` expone la moneda del sitio; el render compartido
+formatea los importes `currency` vía un **`ReportSettingsProvider`/contexto** (moneda + locale) que consumen
+los bloques KPI/ventas/meta; portal, página de reporte y **lienzo del editor** renderizan en la moneda del
+sitio; el formulario de sitio tiene selector de moneda y la tabla una columna «Moneda». **192 PHP verde,
+PHPStan max + Pint + TS + ESLint + build limpios.** (Reemplaza el pendiente «conversión de moneda».)
+
+**✨ EDITOR v2 · Ideas de competidores (2026-06-19, rama):** sobre los clusters A–E, añadidas 4 funciones de
+paridad competitiva, cada una con gate verde: **(1) bloque `goal`/Meta** (vincula métrica + objetivo →
+barra de progreso on-track/atrasado) y **bloque `pagebreak`** (salto de página A4 en el PDF, etiqueta oculta
+en impresión); **(2) AI insights** — `AiReportBuilder::insights()` + `POST /reports/{id}/insights`
+(tenant-scoped, lee `resolved_blocks` sin tocar APIs externas, pasa a la IA un mapa label→valor + health
+score; la IA responde JSON array de strings) + botón «Insights» por fila en ReportsScreen; **(3) merge-fields
+dinámicos** — `{{client}} {{site}} {{period}} {{score}} {{agency}}` resueltos en el render compartido (portal
++ PDF) vía `BlockList context`, con `context` expuesto en `ReportResource` (eager-load definition.site.client)
+y pista en el inspector. **192 PHP verde (+3), PHPStan max + Pint + TS + ESLint + build limpios.** Pendientes
+de la lista (más pesadas, requieren scoping): **conversión de moneda con FX real** (hoy solo hay formato
+`currency`) y **anotaciones/comentarios** (colaboración). Todo en rama → próximo release **1.2.0**.
+
+**🧩 EDITOR v2 · Clusters C+D+E COMPLETOS (2026-06-19, rama):** **C · contenido & layout:** nuevo bloque
+**`cta`** (banner de retención §11.5, en enum PHP+TS, renderer, paleta, inspector con titular/texto/botón),
+bloque **imagen** en paleta (url/alt), y **galería de plantillas** (3 verticales: e-commerce, SEO/tráfico,
+seguridad) vinculadas a claves de métricas REALES → 1 clic carga un layout listo (los bloques sin datos se
+ocultan). El ancho full/half/third (grid de 6 col) ya estaba. **E · UX del editor:** **duplicar bloque**
+(clon con id nuevo) + **deshacer/rehacer** (pila de historial + botones + Cmd/Ctrl+Z y Ctrl+Shift+Z/Ctrl+Y;
+los cambios estructurales se registran, cargar plantilla/IA resetea el historial). **D · portal:** el **selector
+de periodos** ya existía (endpoint `periods` + `PortalApp`); añadido **tablas ordenables** por columna en el
+render compartido (interactivo en el portal, estático en PDF/editor). **189 PHP verde, PHPStan max + Pint + TS +
+ESLint + build limpios.** **Editor v2 = clusters A–E hechos.** Todo acumulado en rama (builder WYSIWYG, estilos,
+fórmulas, gráficos, bloques, UX, portal) → próximo release **1.2.0** para verlo en producción.
+
+**🧮 EDITOR v2 · Clusters A+B (2026-06-19, rama):** análisis competitivo (Looker/Power BI/Whatagraph/
+AgencyAnalytics/DashThis) → más capacidades. **A · gráficos:** nuevos tipos **dona/pastel** (Recharts PieChart +
+paleta desde el accent), **leyenda** opcional, **tabla con barras de valor**; línea/barra más pulidas. **B ·
+métricas calculadas + mezclar fuentes (el diferenciador):** `FormulaEvaluator` SEGURO (sin eval — tokeniza →
+shunting-yard → RPN; soporta `+ - * / ( )`, números e identificadores tipo `woocommerce.revenue/ga4.sessions`;
+6 unit tests) + `CalculatedMetrics` que las computa sobre el metric bag agregado (NO sobre filas crudas, §3.3) y
+las inyecta como fuente **`calc`** → los bloques las vinculan como cualquier métrica. Cableado en **preview**
+(`PreviewController` + request) y **generación** (`ReportGenerator` usa las de la definición o su plantilla);
+persistidas en `ir_report_templates`/`ir_report_definitions` (migración `calculated_metrics` json + modelos +
+requests + resource). Editor: tarjeta «Métricas calculadas» (clave/etiqueta/fórmula) que entran al selector de
+binding como fuente «calc». **189 PHP verde (+7), PHPStan max + Pint + TS + ESLint + build limpios.** **Quedan
+del Editor v2:** C (bloques imagen/CTA/portada + redimensionar + galería de plantillas) y D (filtros/drill-down en
+el portal). Acumulado en rama con builder WYSIWYG + estilos + fix updater → próximo release (1.2.0).
+
+**🎨 EDITOR v2 · Fase 1 — sistema de estilos por bloque + formato de números (2026-06-19, rama):** hacia un editor
+tipo Looker/Power BI ("estilos ajustables para casi todo"). Cada bloque ahora tiene overrides de **estilo** en
+`block.style`: **fondo, texto (color), relleno (sm/md/lg), esquinas (none/sm/md/lg), borde on/off, alineación,
+ocultar título**, y para KPI/ventas **formato de número** (1,234 / 1.2K / 95% / $1,234). El `BlockRenderer`
+(`Section` + header) los aplica vía clases + inline-style; el `Inspector` tiene una sección **«Estilo»** con color
+pickers (con «quitar» para heredar), selects y checkboxes. Sin cambios de backend (el validador ya acepta
+`style` como objeto libre). tsc + ESLint + build + 182 PHP verde. **Roadmap Editor v2 acordado:** A visualizaciones
+& estilos (estilos ✅; faltan más tipos de gráfico: donut/combo/scorecard-sparkline/tabla-con-barras/formato
+condicional), B métricas calculadas + mezclar fuentes (fórmulas sobre el metric bag — NO BI sobre filas crudas,
+§3.3), C más contenido & layout (bloques imagen/CTA/portada + redimensionar + galería plantillas), D filtros &
+drill-down en el portal, E UX (undo/redo, duplicar, temas). Acumulado en rama con editor-builder + fix updater.
+
+**🧰 EDITOR REHECHO como builder visual WYSIWYG (2026-06-19, rama):** crítica válida del owner — el *resultado*
+(preview) se veía pro pero la *superficie de edición* seguía siendo una pila de tarjetas en una columna. Rehecho a
+**3 paneles**: izquierda (paleta «Añadir bloque» + settings: nombre/sitio/IA/plantilla-por-defecto/guardar), centro
+**lienzo WYSIWYG** (los bloques se renderizan de verdad con el `BlockRenderer` y datos reales, en el grid de
+columnas; cada bloque seleccionable, con barra flotante **mover (drag) · ancho (ciclo) · borrar**; reordenar con
+dnd-kit `rectSortingStrategy`), derecha **Inspector** (edita el bloque: métrica, comparar, título/etiqueta, tipo de
+gráfico, texto Tiptap, ancho). Nuevos `CanvasBlock` + `Inspector`; `SortableBlock` eliminado. El lienzo muestra
+TODOS los bloques (no oculta los sin-dato — eso es solo del reporte final). tsc + ESLint + build + 182 PHP verde.
+Acumulado en rama junto al **fix de base-path del updater** (commit 670ae78) → próximo release (1.1.1/1.2.0).
+**Nota:** no se verificó en navegador; listo para iterar detalles visuales.
+
 **🏷️ WHITE-LABEL COMPLETO — logo + color al reporte (2026-06-19, rama, acumulado v1.1.0):** el `brand_color` ya
 se aplicaba al render (`applyBrandAccent` → `--ir-primary`); faltaba el **logo**. Añadido: `POST /api/v1/agency/logo`
 (sube imagen png/jpg/svg/webp ≤1MB al disco `public`, set `logo_path`), `Agency::logoUrl()` (URL pública), y

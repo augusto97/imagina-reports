@@ -33,8 +33,33 @@ final class MetricCatalogController extends Controller
             }
         }
 
+        // Work-log metrics (CLAUDE.md §11.5) — not a connector, but bindable like one
+        // so the editor can place "hours invested", "tasks", the category breakdown
+        // and "hours vs plan" anywhere.
+        foreach (self::WORKLOG_METRICS as [$metric, $label, $type, $unit]) {
+            $catalog[] = [
+                'source' => 'worklog',
+                'metric' => $metric,
+                'key' => "worklog.{$metric}",
+                'label' => $label,
+                'type' => $type,
+                'unit' => $unit,
+                'dimensions' => [],
+            ];
+        }
+
         return response()->json($catalog);
     }
+
+    /**
+     * @var list<array{0: string, 1: string, 2: string, 3: string|null}>
+     */
+    private const WORKLOG_METRICS = [
+        ['hours', 'Horas invertidas', 'number', 'h'],
+        ['tasks', 'Tareas realizadas', 'number', null],
+        ['by_category', 'Horas por categoría', 'table', null],
+        ['hours_vs_plan', 'Horas vs plan', 'number', 'h'],
+    ];
 
     /**
      * @return array<string, mixed>

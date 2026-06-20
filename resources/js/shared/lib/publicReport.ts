@@ -20,6 +20,8 @@ export interface PublicReport {
     blocks: Block[];
     data: Record<string, unknown>;
     agency: PublicReportAgency | null;
+    context?: Record<string, string>;
+    currency?: string;
 }
 
 export interface ReportPeriod {

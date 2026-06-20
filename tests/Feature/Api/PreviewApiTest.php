@@ -13,6 +13,7 @@ use App\Models\DataSource;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
 use App\Models\User;
+use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
@@ -183,6 +184,72 @@ class PreviewApiTest extends TestCase
 
         $response->assertJsonPath('data.s1.threats_blocked', 1840);
         $response->assertJsonPath('data.s1.attacks_blocked', 96);
+    }
+
+    public function test_it_resolves_a_calculated_metric_from_a_formula(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        $source = DataSource::factory()->create([
+            'agency_id' => $agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::WooCommerce,
+        ]);
+
+        $start = now()->startOfMonth();
+        MetricSnapshot::factory()->create([
+            'agency_id' => $agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => $start,
+            'period_end' => $start->copy()->endOfMonth(),
+            'payload' => [
+                'status' => MetricSetStatus::Ok->value,
+                'error' => null,
+                'metrics' => ['woocommerce.revenue' => 300000, 'woocommerce.orders' => 120],
+            ],
+        ]);
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/preview", [
+            'blocks' => [
+                ['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'aov'], 'props' => [], 'style' => []],
+            ],
+            'calculated_metrics' => [
+                ['key' => 'aov', 'label' => 'Ticket medio', 'formula' => 'woocommerce.revenue / woocommerce.orders'],
+            ],
+        ])->assertOk();
+
+        // 300000 / 120 = 2500.
+        $response->assertJsonPath('data.k1', 2500);
+        $this->assertContains('calc', $response->json('sources_with_data'));
+    }
+
+    public function test_it_resolves_work_log_metrics(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id, 'plan_hours' => 5]);
+
+        $start = now()->startOfMonth();
+        WorkLog::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'performed_at' => $start, 'minutes' => 60]);
+        WorkLog::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'performed_at' => $start->copy()->addDay(), 'minutes' => 30]);
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/preview", [
+            'blocks' => [
+                ['id' => 'h', 'type' => 'kpi', 'binding' => ['source' => 'worklog', 'metric' => 'hours'], 'props' => [], 'style' => []],
+                ['id' => 't', 'type' => 'kpi', 'binding' => ['source' => 'worklog', 'metric' => 'tasks'], 'props' => [], 'style' => []],
+                ['id' => 'g', 'type' => 'goal', 'binding' => ['source' => 'worklog', 'metric' => 'hours_vs_plan'], 'props' => [], 'style' => []],
+            ],
+        ])->assertOk();
+
+        $response->assertJsonPath('data.h', 1.5);   // 90 min = 1.5 h
+        $response->assertJsonPath('data.t', 2);      // 2 tasks
+        $response->assertJsonPath('data.g.value', 1.5);
+        $response->assertJsonPath('data.g.target', 5); // plan hours
     }
 
     public function test_it_hides_blocks_whose_metric_has_no_data(): void
