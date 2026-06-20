@@ -14,6 +14,14 @@ export function makeBlock(type: BlockType): Block {
     if (type === 'chart') {
         block.props = { chartType: 'line', title: 'Gráfico' };
     }
+    if (type === 'cta') {
+        block.props = {
+            headline: 'Tu plan de soporte está activo y protegiendo tu sitio.',
+            text: '',
+            buttonLabel: '',
+            buttonUrl: '',
+        };
+    }
     // KPI cards read best three-per-row with a "vs previous period" trend.
     if (type === 'kpi') {
         block.style = { width: 'third' };
@@ -55,6 +63,8 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'security_shield', label: 'Seguridad' },
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
+    { type: 'image', label: 'Imagen' },
+    { type: 'cta', label: 'CTA' },
     { type: 'divider', label: 'Separador' },
 ];
 

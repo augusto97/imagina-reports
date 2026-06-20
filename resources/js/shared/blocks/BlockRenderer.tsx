@@ -417,6 +417,32 @@ function CustomBlock({ block }: BlockComponentProps): ReactElement {
     );
 }
 
+/**
+ * Retention call-to-action banner — the §11.5 closing block ("Your support plan is
+ * active and protecting your site"). Accent-tinted, with an optional button.
+ */
+function CtaBlock({ block }: BlockComponentProps): ReactElement {
+    const headline = str(prop(block, 'headline'), 'Tu plan de soporte está activo y protegiendo tu sitio.');
+    const text = str(prop(block, 'text'));
+    const buttonLabel = str(prop(block, 'buttonLabel'));
+    const buttonUrl = str(prop(block, 'buttonUrl'), '#');
+
+    return (
+        <div className="ir-rounded-xl ir-border-2 ir-border-primary ir-bg-muted ir-p-6 ir-text-center">
+            <p className="ir-text-lg ir-font-semibold ir-text-primary">{headline}</p>
+            {text !== '' && <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">{text}</p>}
+            {buttonLabel !== '' && (
+                <a
+                    href={buttonUrl}
+                    className="ir-mt-4 ir-inline-block ir-rounded-lg ir-bg-primary ir-px-5 ir-py-2 ir-text-sm ir-font-medium ir-text-primary-foreground"
+                >
+                    {buttonLabel}
+                </a>
+            )}
+        </div>
+    );
+}
+
 /* ------------------------------- dispatcher -------------------------------- */
 
 const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement | null> = {
@@ -431,6 +457,7 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     image: ImageBlock,
     divider: DividerBlock,
     sales_summary: SalesSummaryBlock,
+    cta: CtaBlock,
     custom: CustomBlock,
 };
 

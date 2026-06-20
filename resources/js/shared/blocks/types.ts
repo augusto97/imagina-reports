@@ -14,6 +14,7 @@ export type BlockType =
     | 'image'
     | 'divider'
     | 'sales_summary'
+    | 'cta'
     | 'custom';
 
 export interface BlockBinding {

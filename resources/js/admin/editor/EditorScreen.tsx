@@ -23,6 +23,7 @@ import type { CatalogEntry } from '../types';
 import { useAdminUi } from '../store';
 import { CanvasBlock } from './CanvasBlock';
 import { makeBlock, nextWidth, PALETTE, sampleData, WIDTH_SPAN, widthOf } from './blockFactory';
+import { GALLERY } from './templateGallery';
 import { Inspector } from './Inspector';
 
 function currentMonth(): string {
@@ -136,6 +137,15 @@ export function EditorScreen(): ReactElement {
     };
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+    const loadTemplate = (build: () => Block[]): void => {
+        if (blocks.length > 1 && !window.confirm('Esto reemplazará el lienzo actual. ¿Continuar?')) {
+            return;
+        }
+        const next = build();
+        setBlocks(next);
+        setSelectedId(next[0]?.id ?? null);
+    };
 
     const addBlock = (type: BlockType): void => {
         const block = makeBlock(type);
@@ -280,6 +290,22 @@ export function EditorScreen(): ReactElement {
                             <p key={error} className="ir-text-xs ir-text-red-500">
                                 {error}
                             </p>
+                        ))}
+                    </div>
+                </Card>
+
+                <Card title="Galería de plantillas">
+                    <div className="ir-flex ir-flex-col ir-gap-2">
+                        {GALLERY.map((template) => (
+                            <button
+                                key={template.key}
+                                type="button"
+                                onClick={() => loadTemplate(template.build)}
+                                className="ir-rounded-md ir-border ir-p-2 ir-text-left hover:ir-border-primary"
+                            >
+                                <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
+                                <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
+                            </button>
                         ))}
                     </div>
                 </Card>

@@ -22,6 +22,7 @@ enum BlockType: string
     case Image = 'image';
     case Divider = 'divider';
     case SalesSummary = 'sales_summary';
+    case Cta = 'cta';
     case Custom = 'custom';
 
     /**

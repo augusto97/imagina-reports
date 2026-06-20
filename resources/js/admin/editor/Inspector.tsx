@@ -43,9 +43,13 @@ const TYPE_LABELS: Record<string, string> = {
     worklog_timeline: 'Trabajo del mes',
     sales_summary: 'Ventas',
     image: 'Imagen',
+    cta: 'Llamada a la acción',
     divider: 'Separador',
     custom: 'Personalizado',
 };
+
+/** Block types that manage their own content fields (no generic title field). */
+const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image']);
 
 const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
@@ -97,10 +101,40 @@ export function Inspector({
                 {TYPE_LABELS[block.type] ?? block.type}
             </p>
 
-            {block.type !== 'divider' && block.type !== 'narrative' && (
+            {!NO_TITLE.has(block.type) && (
                 <Field label={titleKey === 'label' ? 'Etiqueta' : 'Título'}>
                     <Input value={str(block.props?.[titleKey])} onChange={(event) => setProp(titleKey, event.target.value)} />
                 </Field>
+            )}
+
+            {block.type === 'image' && (
+                <>
+                    <Field label="URL de la imagen">
+                        <Input value={str(block.props?.url)} onChange={(event) => setProp('url', event.target.value)} placeholder="https://…" />
+                    </Field>
+                    <Field label="Texto alternativo">
+                        <Input value={str(block.props?.alt)} onChange={(event) => setProp('alt', event.target.value)} />
+                    </Field>
+                </>
+            )}
+
+            {block.type === 'cta' && (
+                <>
+                    <Field label="Titular">
+                        <Input value={str(block.props?.headline)} onChange={(event) => setProp('headline', event.target.value)} />
+                    </Field>
+                    <Field label="Texto (opcional)">
+                        <Input value={str(block.props?.text)} onChange={(event) => setProp('text', event.target.value)} />
+                    </Field>
+                    <div className="ir-grid ir-grid-cols-2 ir-gap-3">
+                        <Field label="Botón">
+                            <Input value={str(block.props?.buttonLabel)} onChange={(event) => setProp('buttonLabel', event.target.value)} placeholder="Contactar" />
+                        </Field>
+                        <Field label="Enlace del botón">
+                            <Input value={str(block.props?.buttonUrl)} onChange={(event) => setProp('buttonUrl', event.target.value)} placeholder="https://…" />
+                        </Field>
+                    </div>
+                </>
             )}
 
             {isData && (
