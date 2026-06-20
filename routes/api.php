@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
+use App\Http\Controllers\Api\V1\ReportInsightsController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
@@ -103,6 +104,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('api.reports.show');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
+    Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 

@@ -1,11 +1,14 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
+import { Sparkles } from 'lucide-react';
+
 import {
     useApproveReport,
     useCreateReportDefinition,
     useGenerateReport,
     useReportDefinitions,
+    useReportInsights,
     useReportTemplates,
     useReports,
     useSendReport,
@@ -32,6 +35,13 @@ export function ReportsScreen(): ReactElement {
     const generate = useGenerateReport();
     const approve = useApproveReport();
     const send = useSendReport();
+    const insights = useReportInsights();
+
+    const [insightsFor, setInsightsFor] = useState<number | null>(null);
+    const showInsights = (reportId: number): void => {
+        setInsightsFor(reportId);
+        insights.mutate(reportId);
+    };
 
     const [defSite, setDefSite] = useState('');
     const [defName, setDefName] = useState('');
@@ -60,6 +70,10 @@ export function ReportsScreen(): ReactElement {
                         <a className="ir-font-medium ir-underline" href={`/reports/${report.public_token}`} target="_blank" rel="noreferrer">
                             Ver
                         </a>
+                        <Button variant="ghost" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
+                            <Sparkles className="ir-size-4" />
+                            Insights
+                        </Button>
                         {report.status === 'draft' ? (
                             <Button variant="ghost" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
                                 Aprobar
@@ -193,6 +207,27 @@ export function ReportsScreen(): ReactElement {
                 )}
                 <DataTable columns={columns} data={reports} />
             </Card>
+
+            {insightsFor !== null && (
+                <Card title="Insights de IA">
+                    {insights.isPending ? (
+                        <p className="ir-text-sm ir-text-muted-foreground">Analizando los datos del reporte…</p>
+                    ) : insights.isError ? (
+                        <p className="ir-text-sm ir-text-red-500">No se pudieron generar los insights.</p>
+                    ) : (insights.data ?? []).length === 0 ? (
+                        <p className="ir-text-sm ir-text-muted-foreground">Sin datos suficientes para generar insights.</p>
+                    ) : (
+                        <ul className="ir-flex ir-flex-col ir-gap-2">
+                            {(insights.data ?? []).map((insight, index) => (
+                                <li key={index} className="ir-flex ir-gap-2 ir-text-sm">
+                                    <Sparkles className="ir-mt-0.5 ir-size-4 ir-shrink-0 ir-text-primary" />
+                                    <span>{insight}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </Card>
+            )}
         </div>
     );
 }

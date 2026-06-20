@@ -211,6 +211,14 @@ export function useSendReport() {
     });
 }
 
+/** AI insights for a generated report (CLAUDE.md §10.6). */
+export function useReportInsights() {
+    return useMutation({
+        mutationFn: (reportId: number) =>
+            api.post<{ insights: string[] }>(`/reports/${reportId}/insights`).then((r) => r.data.insights),
+    });
+}
+
 /* --------------------------------- reports --------------------------------- */
 
 export function useReports() {
