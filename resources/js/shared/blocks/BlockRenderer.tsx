@@ -691,32 +691,54 @@ export function BlockList({
     // templates without coordinates keep the legacy width-flow so they still render.
     const useGrid = resolved.length > 0 && resolved.every((block) => block.layout != null);
 
+    // Multi-page: group blocks by their page index; each page prints on its own sheet.
+    const pages = groupByPage(resolved);
+
     return (
         <ReportSettingsProvider currency={currency} locale={locale}>
-            {useGrid ? (
-                <div
-                    className="ir-grid"
-                    style={{
-                        gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-                        gridAutoRows: `${GRID_ROW_HEIGHT}px`,
-                        gap: `${GRID_MARGIN}px`,
-                    }}
-                >
-                    {resolved.map((block) => (
-                        <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-overflow-hidden">
-                            <BlockRenderer block={block} data={data[block.id]} />
+            {pages.map((pageBlocks, pageIndex) => (
+                <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
+                    {useGrid ? (
+                        <div
+                            className="ir-grid"
+                            style={{
+                                gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                                gridAutoRows: `${GRID_ROW_HEIGHT}px`,
+                                gap: `${GRID_MARGIN}px`,
+                            }}
+                        >
+                            {pageBlocks.map((block) => (
+                                <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-overflow-hidden">
+                                    <BlockRenderer block={block} data={data[block.id]} />
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="ir-grid ir-grid-cols-6 ir-gap-6">
-                    {resolved.map((block) => (
-                        <div key={block.id} className={widthSpan(block)}>
-                            <BlockRenderer block={block} data={data[block.id]} />
+                    ) : (
+                        <div className="ir-grid ir-grid-cols-6 ir-gap-6">
+                            {pageBlocks.map((block) => (
+                                <div key={block.id} className={widthSpan(block)}>
+                                    <BlockRenderer block={block} data={data[block.id]} />
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    )}
                 </div>
-            )}
+            ))}
         </ReportSettingsProvider>
     );
+}
+
+/** Group blocks into ordered pages by their `page` index (default 0), dropping empty pages. */
+function groupByPage(blocks: Block[]): Block[][] {
+    const maxPage = blocks.reduce((max, block) => Math.max(max, block.page ?? 0), 0);
+    const pages: Block[][] = [];
+
+    for (let index = 0; index <= maxPage; index += 1) {
+        const pageBlocks = blocks.filter((block) => (block.page ?? 0) === index);
+        if (pageBlocks.length > 0) {
+            pages.push(pageBlocks);
+        }
+    }
+
+    return pages.length > 0 ? pages : [[]];
 }

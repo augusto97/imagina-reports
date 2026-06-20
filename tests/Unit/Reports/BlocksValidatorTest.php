@@ -93,6 +93,19 @@ class BlocksValidatorTest extends TestCase
         $this->assertNull($blocks[0]->layout);
     }
 
+    public function test_it_parses_and_clamps_the_page_index(): void
+    {
+        $blocks = $this->validator->validate([
+            ['id' => 'a', 'type' => 'divider', 'page' => 2],
+            ['id' => 'b', 'type' => 'divider', 'page' => -5],
+            ['id' => 'c', 'type' => 'divider'],
+        ]);
+
+        $this->assertSame(2, $blocks[0]->page);
+        $this->assertSame(0, $blocks[1]->page); // negative clamped to 0
+        $this->assertSame(0, $blocks[2]->page); // absent defaults to 0
+    }
+
     public function test_it_rejects_a_non_numeric_layout(): void
     {
         try {

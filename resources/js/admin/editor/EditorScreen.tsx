@@ -1,4 +1,4 @@
-import { LayoutTemplate, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
+import { LayoutTemplate, Plus, Redo2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 import GridLayout, { type Layout, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -83,6 +83,9 @@ export function EditorScreen(): ReactElement {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [preview_, setPreview] = useState<PreviewResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
+    // Multi-page: the page currently shown on the canvas + how many pages exist.
+    const [currentPage, setCurrentPage] = useState(0);
+    const [pageCount, setPageCount] = useState(1);
     // Undo/redo history — snapshots of the blocks array.
     const [past, setPast] = useState<Block[][]>([]);
     const [future, setFuture] = useState<Block[][]>([]);
@@ -96,9 +99,12 @@ export function EditorScreen(): ReactElement {
 
     /** Replace the canvas wholesale (load/AI/reset) and clear the undo history. */
     const resetBlocks = (next: Block[]): void => {
+        const prepared = ensureLayouts(next);
         setPast([]);
         setFuture([]);
-        setBlocks(ensureLayouts(next));
+        setBlocks(prepared);
+        setCurrentPage(0);
+        setPageCount(Math.max(1, ...prepared.map((block) => (block.page ?? 0) + 1)));
     };
 
     const undo = (): void => {
@@ -210,9 +216,30 @@ export function EditorScreen(): ReactElement {
     };
 
     const addBlock = (type: BlockType): void => {
-        const block = makeBlock(type);
+        const block = { ...makeBlock(type), page: currentPage };
         commit([...blocks, block]);
         setSelectedId(block.id);
+    };
+
+    const addPage = (): void => {
+        setPageCount((count) => count + 1);
+        setCurrentPage(pageCount);
+        setSelectedId(null);
+    };
+
+    /** Delete a page: drop its blocks and renumber the pages after it. */
+    const removePage = (page: number): void => {
+        if (pageCount <= 1) {
+            return;
+        }
+        commit(
+            blocks
+                .filter((block) => (block.page ?? 0) !== page)
+                .map((block) => ((block.page ?? 0) > page ? { ...block, page: (block.page ?? 0) - 1 } : block)),
+        );
+        setPageCount((count) => Math.max(1, count - 1));
+        setCurrentPage((current) => (current >= page && current > 0 ? current - 1 : current));
+        setSelectedId(null);
     };
     const updateBlock = (next: Block): void => commit(blocks.map((b) => (b.id === next.id ? next : b)));
     const removeBlock = (id: string): void => {
@@ -331,6 +358,8 @@ export function EditorScreen(): ReactElement {
 
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
     const siteCurrency = sites.find((site) => site.id === siteId)?.currency ?? 'USD';
+    // Only the current page's blocks are shown/edited on the canvas (multi-page).
+    const pageBlocks = blocks.filter((block) => (block.page ?? 0) === currentPage);
 
     return (
         <div className="ir-grid ir-grid-cols-[15rem_1fr_19rem] ir-gap-5">
@@ -473,14 +502,50 @@ export function EditorScreen(): ReactElement {
                     <p className="ir-text-xs ir-text-muted-foreground">Cargando datos…</p>
                 )}
 
+                {/* Page navigator (multi-page reports, Looker-style) */}
+                <div className="ir-flex ir-items-center ir-gap-1">
+                    {Array.from({ length: pageCount }, (_, index) => (
+                        <div key={index} className="ir-group ir-relative">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setCurrentPage(index);
+                                    setSelectedId(null);
+                                }}
+                                className={
+                                    index === currentPage
+                                        ? 'ir-rounded-md ir-border ir-border-primary ir-bg-primary/5 ir-px-3 ir-py-1 ir-text-sm ir-font-medium'
+                                        : 'ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-border-primary/60'
+                                }
+                            >
+                                Página {index + 1}
+                            </button>
+                            {pageCount > 1 && (
+                                <button
+                                    type="button"
+                                    title="Eliminar página"
+                                    onClick={() => removePage(index)}
+                                    className="ir-absolute -ir-right-1 -ir-top-1 ir-hidden ir-size-4 ir-items-center ir-justify-center ir-rounded-full ir-bg-muted ir-text-xs ir-text-muted-foreground group-hover:ir-flex hover:ir-text-red-500"
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    <Button variant="ghost" onClick={addPage} title="Añadir página">
+                        <Plus className="ir-size-4" />
+                    </Button>
+                </div>
+
                 <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5">
                     <ReportSettingsProvider currency={siteCurrency}>
                         <Grid
+                            key={currentPage}
                             cols={GRID_COLS}
                             rowHeight={GRID_ROW_HEIGHT}
                             margin={[GRID_MARGIN, GRID_MARGIN]}
                             containerPadding={[0, 0]}
-                            layout={blocks.map((block) => ({
+                            layout={pageBlocks.map((block) => ({
                                 i: block.id,
                                 x: block.layout?.x ?? 0,
                                 y: block.layout?.y ?? 0,
@@ -494,7 +559,7 @@ export function EditorScreen(): ReactElement {
                             compactType="vertical"
                             onLayoutChange={syncLayouts}
                         >
-                            {blocks.map((block) => (
+                            {pageBlocks.map((block) => (
                                 <div key={block.id} className="ir-h-full">
                                     <CanvasBlock
                                         block={block}
@@ -508,9 +573,9 @@ export function EditorScreen(): ReactElement {
                             ))}
                         </Grid>
                     </ReportSettingsProvider>
-                    {blocks.length === 0 && (
+                    {pageBlocks.length === 0 && (
                         <p className="ir-py-12 ir-text-center ir-text-sm ir-text-muted-foreground">
-                            Lienzo vacío. Añade bloques desde la izquierda o empieza con la plantilla por defecto.
+                            Página vacía. Añade bloques desde la izquierda.
                         </p>
                     )}
                 </div>

@@ -50,6 +50,8 @@ export interface Block {
     props?: Record<string, unknown>;
     style?: Record<string, unknown>;
     layout?: BlockLayout | null;
+    /** Zero-based page index for multi-page reports (CLAUDE.md §11). Defaults to 0. */
+    page?: number;
 }
 
 /** Resolved metric values keyed by block id (produced by the ReportGenerator, Task 9). */

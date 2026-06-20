@@ -65,9 +65,10 @@ final class BlocksValidator
             $props = $this->objectOrError($raw['props'] ?? [], $label, 'props', $errors);
             $style = $this->objectOrError($raw['style'] ?? [], $label, 'style', $errors);
             $layout = $this->layoutOrError($raw['layout'] ?? null, $label, $errors);
+            $page = isset($raw['page']) && is_numeric($raw['page']) ? max(0, (int) $raw['page']) : 0;
 
             if (is_string($id) && $id !== '' && $type !== null) {
-                $result[] = new Block($id, $type, is_array($binding) ? $binding : null, $props, $style, $layout);
+                $result[] = new Block($id, $type, is_array($binding) ? $binding : null, $props, $style, $layout, $page);
             }
         }
 
