@@ -198,11 +198,20 @@ function Section({ title, style: s, children }: { title?: string; style?: Style;
 /* --------------------------------- blocks ---------------------------------- */
 
 function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
-    const title = str((data as Record<string, unknown> | undefined)?.title, str(prop(block, 'title'), 'Reporte'));
+    const record = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+    const title = str(record?.title, str(prop(block, 'title'), 'Reporte'));
+    // Eyebrow (e.g. agency) + subtitle (client · site · period) make the header read like a
+    // real branded report cover rather than a bare title. Both resolve {{merge-fields}}.
+    const eyebrow = str(record?.eyebrow, str(prop(block, 'eyebrow')));
+    const subtitle = str(record?.subtitle, str(prop(block, 'subtitle')));
 
     return (
-        <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-pb-5" style={styleCss(block.style)}>
-            <h1 className="ir-text-2xl ir-font-bold ir-tracking-tight">{title}</h1>
+        <header className="ir-flex ir-flex-col ir-gap-1 ir-border-b-2 ir-border-primary/60 ir-pb-4" style={styleCss(block.style)}>
+            {eyebrow !== '' && (
+                <span className="ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{eyebrow}</span>
+            )}
+            <h1 className="ir-text-3xl ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
+            {subtitle !== '' && <p className="ir-text-sm ir-text-muted-foreground">{subtitle}</p>}
         </header>
     );
 }

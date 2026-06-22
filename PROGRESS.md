@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 PLANTILLAS + LIENZO (2026-06-22, rama `claude/templates-and-canvas` → release v1.11.0):** tras desplegar
+v1.10.0, el owner aclaró que el redondeado que le molestaba era el del **lienzo** (el artboard), no un bloque, y
+pidió **mejorar las plantillas** y **un reporte específico de WooCommerce**. Hecho: **(1) Lienzo como hoja de
+documento:** se quitó `ir-rounded-xl` del artboard en `EditorScreen` → esquinas rectas estilo Looker/Power BI.
+**(2) Cabecera premium:** `HeaderBlock` ahora es portada de marca (eyebrow `{{agency}}` + título grande + subtítulo
+`{{client}} · {{site}} · {{period}}` con borde inferior de acento); +caso `header` en `sampleData` para una vista
+realista en el editor. **(3) Galería reescrita** (`templateGallery.ts`) con **layouts de grid explícitos** (abren
+como dashboards intencionales, no auto-fluidos): **Tienda WooCommerce** (NUEVA, completa: ingresos brutos/netos,
+pedidos, clientes, artículos, venta media, impuestos/envíos/descuentos/reembolsos, series ingresos/pedidos por día,
+productos top), **SEO y tráfico** (GA4+GSC con CTR/posición/fuentes/top), **Soporte por horas** (horas vs plan +
+donut por categoría + timeline), **Seguridad** (healthscore+shield+KPIs+tipos de ataque). **(4) Plantilla por
+defecto (PHP) enriquecida:** 19 bloques con layout de grid + formato correcto (`style.format` percent/currency/
+number — antes los KPIs salían sin formato) + métricas nuevas de Woo. Bindings verificados contra catálogos reales.
+92 tests verdes, PHPStan+TS+ESLint+Vitest(11)+build limpios. **Siguiente:** validar conectores 2.x con credenciales
+reales del owner; feedback del editor/plantillas en uso.
+
 **🛠️ REFINAMIENTOS POST-OVERHAUL (2026-06-22, rama `claude/editor-refinements-woo` → release v1.10.0):** tres
 mejoras pedidas por el owner tras desplegar v1.9.4. **(1) Borde del lienzo controlable:** el wrapper de
 `CanvasBlock` tenía `ir-rounded-lg` fijo que ignoraba «Esquinas» del inspector; ahora deriva el radio de

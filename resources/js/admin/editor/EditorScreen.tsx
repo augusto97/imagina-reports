@@ -78,6 +78,7 @@ import { cn } from "@shared/lib/utils";
 
 /** A small icon per gallery template (keeps templateGallery.ts pure data). */
 const GALLERY_ICONS: Record<string, LucideIcon> = {
+    woocommerce: ShoppingCart,
     ecommerce: ShoppingCart,
     seo: Search,
     hourly_support: Clock,
@@ -883,7 +884,7 @@ export function EditorScreen(): ReactElement {
                     {/* Scrollable workspace with the centered artboard */}
                     <div className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
                         <div
-                            className="ir-mx-auto ir-w-full ir-max-w-5xl ir-rounded-xl ir-border ir-bg-card ir-p-6 ir-shadow-sm"
+                            className="ir-mx-auto ir-w-full ir-max-w-5xl ir-border ir-bg-card ir-p-6 ir-shadow-sm"
                             style={canvasThemeStyle}
                         >
                             <ReportSettingsProvider
