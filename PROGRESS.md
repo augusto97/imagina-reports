@@ -7,7 +7,15 @@
 ---
 
 ## Where I left off (read me first)
-**🖨️ PDF VUELVE A BROWSERSHOT (2026-06-22, rama `claude/github-app-analysis-a7b2bd`):** el owner confirmó que su
+**🩹 FIX v1.5.1 — Browsershot necesita `puppeteer`, no `puppeteer-core` (2026-06-22):** tras desplegar v1.5.0 el
+PDF fallaba con `node ... browser.cjs` exit 1. Causa: `vendor/spatie/browsershot/bin/browser.cjs:75` hace
+`require('puppeteer')` (el paquete COMPLETO), y yo había cableado `puppeteer-core`. Corregido: `deploy.sh` instala
+`puppeteer` con `PUPPETEER_SKIP_DOWNLOAD=true` (usa el Chrome del sistema, no baja Chromium); `.env.example` y el
+docblock de `BrowsershotPdfRenderer` actualizados. **Fix manual en el VPS:**
+`cd /home/<appuser> && PUPPETEER_SKIP_DOWNLOAD=true npm install puppeteer` y reintentar (el job lanza un node
+nuevo, no hace falta reiniciar). → release **v1.5.1**.
+
+**🖨️ PDF VUELVE A BROWSERSHOT (2026-06-22, v1.5.0):** el owner confirmó que su
 instancia OLS de ServerAvatar **sí permite instalar Node**, así que se revierte la desviación a "Chromium directo"
 (v1.4.2–v1.4.4, forzada por la regla "sin Node") y se vuelve a **Spatie Browsershot** — que es lo que el spec
 original (`CLAUDE.md` §10.7 y la tabla §2) siempre pidió. **Por qué:** el renderer directo esperaba con
