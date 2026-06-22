@@ -157,6 +157,12 @@ export const PALETTE: { type: BlockType; label: string }[] = [
 /** Placeholder data so the live preview shows something for each block type. */
 export function sampleData(block: Block): unknown {
     switch (block.type) {
+        case 'header': {
+            // Realistic preview so merge-field headers read as a real cover in the editor.
+            const headerTitle = typeof block.props?.title === 'string' && block.props.title !== '' ? block.props.title : 'Informe mensual';
+
+            return { title: headerTitle, eyebrow: 'Tu Agencia', subtitle: 'Cliente · misitio.com · junio 2026' };
+        }
         case 'kpi':
         case 'sales_summary':
             // Rich shape so the sample preview shows the professional card with a trend.

@@ -1,4 +1,4 @@
-import type { Block, BlockBinding, BlockType } from '@shared/blocks/types';
+import type { Block, BlockBinding, BlockLayout, BlockType } from '@shared/blocks/types';
 
 import { makeBlock } from './blockFactory';
 
@@ -7,27 +7,48 @@ interface BlockSpec {
     binding?: BlockBinding;
     props?: Record<string, unknown>;
     style?: Record<string, unknown>;
+    layout?: BlockLayout;
 }
 
 /** Build a fresh block (new id) from a spec, merging over the factory defaults. */
-function spec({ type, binding, props, style }: BlockSpec): Block {
+function spec({ type, binding, props, style, layout }: BlockSpec): Block {
     const block = makeBlock(type);
     if (binding !== undefined) {
         block.binding = binding;
     }
     block.props = { ...block.props, ...props };
     block.style = { ...block.style, ...style };
+    if (layout !== undefined) {
+        block.layout = layout;
+    }
 
     return block;
 }
 
-const kpi = (source: string, metric: string, label: string, style: Record<string, unknown> = {}): Block =>
+/** A branded report header (eyebrow + title + client·site·period subtitle, via merge fields). */
+const header = (title = 'Informe mensual'): Block =>
+    spec({
+        type: 'header',
+        props: { title, eyebrow: '{{agency}}', subtitle: '{{client}} · {{site}} · {{period}}' },
+        layout: { x: 0, y: 0, w: 12, h: 2 },
+    });
+
+/** A KPI card bound to a metric, compared vs. the previous period. */
+const kpi = (source: string, metric: string, label: string, layout: BlockLayout, style: Record<string, unknown> = {}): Block =>
     spec({
         type: 'kpi',
         binding: { source, metric, compare: 'prev_period' },
         props: { label },
-        style: { width: 'third', ...style },
+        style,
+        layout,
     });
+
+/** The AI-filled executive summary narrative (the §11.5 plain-language paragraph). */
+const summary = (layout: BlockLayout): Block =>
+    spec({ type: 'narrative', props: { variant: 'executive_summary', title: 'Resumen del mes' }, layout });
+
+/** The retention CTA that closes every report. */
+const cta = (y: number): Block => spec({ type: 'cta', layout: { x: 0, y, w: 12, h: 3 } });
 
 export interface GalleryTemplate {
     key: string;
@@ -38,72 +59,148 @@ export interface GalleryTemplate {
 
 /**
  * Starter templates by vertical (CLAUDE.md §10.2 / §11.5 — "ready starting points").
- * Bindings use real connector metric keys; blocks whose metric has no data are
- * gracefully hidden at generation, so a template never shows an empty box.
+ * Each ships an explicit 12-column grid layout so it opens as a polished, intentional
+ * dashboard (not auto-flowed). Bindings use real connector metric keys; blocks whose
+ * metric has no data are gracefully hidden at generation, so a template never shows an
+ * empty box.
  */
 export const GALLERY: GalleryTemplate[] = [
     {
-        key: 'ecommerce',
-        name: 'E-commerce',
-        description: 'Ventas, pedidos y tráfico para tiendas WooCommerce.',
+        key: 'woocommerce',
+        name: 'Tienda WooCommerce',
+        description: 'Reporte completo de e-commerce: ingresos, pedidos, productos y tendencia diaria.',
         build: () => [
-            spec({ type: 'header' }),
-            spec({ type: 'healthscore' }),
-            kpi('woocommerce', 'revenue', 'Ingresos', { format: 'currency' }),
-            kpi('woocommerce', 'orders', 'Pedidos'),
-            kpi('ga4', 'sessions', 'Visitas'),
-            spec({ type: 'chart', binding: { source: 'ga4', metric: 'sessions_by_date' }, props: { chartType: 'area', title: 'Visitas' } }),
-            spec({ type: 'table', binding: { source: 'woocommerce', metric: 'top_products' }, props: { title: 'Productos top' }, style: { bars: true } }),
-            spec({ type: 'cta' }),
+            header('Reporte de tu tienda'),
+            kpi('woocommerce', 'revenue', 'Ingresos', { x: 0, y: 2, w: 3, h: 4 }, { format: 'currency' }),
+            kpi('woocommerce', 'net_revenue', 'Ingresos netos', { x: 3, y: 2, w: 3, h: 4 }, { format: 'currency' }),
+            kpi('woocommerce', 'orders', 'Pedidos', { x: 6, y: 2, w: 3, h: 4 }),
+            kpi('woocommerce', 'new_customers', 'Clientes nuevos', { x: 9, y: 2, w: 3, h: 4 }),
+            spec({
+                type: 'chart',
+                binding: { source: 'woocommerce', metric: 'revenue_by_date' },
+                props: { chartType: 'area', title: 'Ingresos por día' },
+                style: { format: 'currency' },
+                layout: { x: 0, y: 6, w: 8, h: 8 },
+            }),
+            kpi('woocommerce', 'items_sold', 'Artículos vendidos', { x: 8, y: 6, w: 4, h: 4 }),
+            kpi('woocommerce', 'average_sales', 'Venta media diaria', { x: 8, y: 10, w: 4, h: 4 }, { format: 'currency' }),
+            spec({
+                type: 'table',
+                binding: { source: 'woocommerce', metric: 'top_products' },
+                props: { title: 'Productos más vendidos' },
+                layout: { x: 0, y: 14, w: 6, h: 7 },
+            }),
+            spec({
+                type: 'chart',
+                binding: { source: 'woocommerce', metric: 'orders_by_date' },
+                props: { chartType: 'bar', title: 'Pedidos por día' },
+                layout: { x: 6, y: 14, w: 6, h: 7 },
+            }),
+            kpi('woocommerce', 'tax', 'Impuestos', { x: 0, y: 21, w: 3, h: 4 }, { format: 'currency' }),
+            kpi('woocommerce', 'shipping', 'Envíos', { x: 3, y: 21, w: 3, h: 4 }, { format: 'currency' }),
+            kpi('woocommerce', 'discount', 'Descuentos', { x: 6, y: 21, w: 3, h: 4 }, { format: 'currency' }),
+            kpi('woocommerce', 'refunds', 'Reembolsos', { x: 9, y: 21, w: 3, h: 4 }),
+            summary({ x: 0, y: 25, w: 12, h: 4 }),
+            cta(29),
         ],
     },
     {
         key: 'seo',
         name: 'SEO y tráfico',
-        description: 'Posicionamiento y audiencia: GA4 + Search Console.',
+        description: 'Posicionamiento y audiencia: GA4 + Search Console con tendencia y top de búsquedas.',
         build: () => [
-            spec({ type: 'header' }),
-            kpi('ga4', 'sessions', 'Visitas'),
-            kpi('gsc', 'clicks', 'Clics'),
-            kpi('gsc', 'position', 'Posición media'),
-            spec({ type: 'chart', binding: { source: 'ga4', metric: 'sessions_by_date' }, props: { chartType: 'line', title: 'Tendencia de visitas' } }),
-            spec({ type: 'table', binding: { source: 'gsc', metric: 'top_queries' }, props: { title: 'Búsquedas top' }, style: { bars: true } }),
-            spec({ type: 'narrative' }),
-            spec({ type: 'cta' }),
+            header('Tráfico y posicionamiento'),
+            kpi('ga4', 'sessions', 'Visitas', { x: 0, y: 2, w: 3, h: 4 }),
+            kpi('ga4', 'users', 'Usuarios', { x: 3, y: 2, w: 3, h: 4 }),
+            kpi('gsc', 'clicks', 'Clics en Google', { x: 6, y: 2, w: 3, h: 4 }),
+            kpi('gsc', 'impressions', 'Impresiones', { x: 9, y: 2, w: 3, h: 4 }, { format: 'compact' }),
+            spec({
+                type: 'chart',
+                binding: { source: 'ga4', metric: 'sessions_by_date' },
+                props: { chartType: 'area', title: 'Tendencia de visitas' },
+                layout: { x: 0, y: 6, w: 8, h: 7 },
+            }),
+            kpi('gsc', 'position', 'Posición media', { x: 8, y: 6, w: 4, h: 3 }),
+            kpi('gsc', 'ctr', 'CTR', { x: 8, y: 9, w: 4, h: 4 }, { format: 'percent' }),
+            spec({
+                type: 'table',
+                binding: { source: 'gsc', metric: 'top_queries' },
+                props: { title: 'Búsquedas que te encuentran' },
+                layout: { x: 0, y: 13, w: 6, h: 7 },
+            }),
+            spec({
+                type: 'table',
+                binding: { source: 'ga4', metric: 'top_pages' },
+                props: { title: 'Páginas más vistas' },
+                style: { bars: true },
+                layout: { x: 6, y: 13, w: 6, h: 7 },
+            }),
+            spec({
+                type: 'chart',
+                binding: { source: 'ga4', metric: 'traffic_sources' },
+                props: { chartType: 'donut', title: 'Fuentes de tráfico' },
+                style: { legend: true },
+                layout: { x: 0, y: 20, w: 5, h: 7 },
+            }),
+            summary({ x: 5, y: 20, w: 7, h: 7 }),
+            cta(27),
         ],
     },
     {
         key: 'hourly_support',
         name: 'Soporte por horas',
-        description: 'Justifica el plan: horas invertidas, tareas y desglose del trabajo.',
+        description: 'Justifica el plan: horas invertidas vs. plan, desglose por categoría y trabajo realizado.',
         build: () => [
-            spec({ type: 'header' }),
-            kpi('worklog', 'hours', 'Horas invertidas'),
-            kpi('worklog', 'tasks', 'Tareas realizadas'),
-            spec({ type: 'goal', binding: { source: 'worklog', metric: 'hours_vs_plan' }, props: { label: 'Horas vs plan' }, style: { width: 'third' } }),
+            header('Tu plan de soporte este mes'),
+            kpi('worklog', 'hours', 'Horas invertidas', { x: 0, y: 2, w: 4, h: 4 }),
+            kpi('worklog', 'tasks', 'Tareas realizadas', { x: 4, y: 2, w: 4, h: 4 }),
+            spec({
+                type: 'goal',
+                binding: { source: 'worklog', metric: 'hours_vs_plan' },
+                props: { label: 'Horas vs. plan' },
+                layout: { x: 8, y: 2, w: 4, h: 4 },
+            }),
             spec({
                 type: 'chart',
                 binding: { source: 'worklog', metric: 'by_category' },
                 props: { chartType: 'donut', title: 'Horas por categoría' },
-                style: { width: 'half', legend: true },
+                style: { legend: true },
+                layout: { x: 0, y: 6, w: 5, h: 8 },
             }),
-            spec({ type: 'worklog_timeline', props: { title: 'Lo que hicimos este mes' }, style: { width: 'half' } }),
-            spec({ type: 'cta' }),
+            spec({
+                type: 'worklog_timeline',
+                props: { title: 'Lo que hicimos este mes' },
+                layout: { x: 5, y: 6, w: 7, h: 8 },
+            }),
+            summary({ x: 0, y: 14, w: 12, h: 4 }),
+            cta(18),
         ],
     },
     {
         key: 'security',
         name: 'Seguridad y mantenimiento',
-        description: 'El trabajo invisible: ataques bloqueados, uptime y updates.',
+        description: 'El trabajo invisible: salud del sitio, ataques bloqueados, uptime y updates aplicadas.',
         build: () => [
-            spec({ type: 'header' }),
-            spec({ type: 'healthscore' }),
-            spec({ type: 'security_shield' }),
-            kpi('cloudflare', 'threats_blocked', 'Amenazas bloqueadas'),
-            kpi('mainwp', 'updates_available', 'Updates pendientes'),
-            kpi('betteruptime', 'uptime_percent', 'Uptime', { format: 'percent' }),
-            spec({ type: 'worklog_timeline', props: { title: 'Lo que hicimos este mes' }, style: { width: 'full' } }),
-            spec({ type: 'cta' }),
+            header('Seguridad y mantenimiento'),
+            spec({ type: 'healthscore', props: { title: 'Estado general' }, layout: { x: 0, y: 2, w: 4, h: 7 } }),
+            spec({ type: 'security_shield', props: { title: 'Tu sitio, protegido' }, layout: { x: 4, y: 2, w: 8, h: 7 } }),
+            kpi('cloudflare', 'threats_blocked', 'Amenazas bloqueadas', { x: 0, y: 9, w: 3, h: 4 }),
+            kpi('crowdsec', 'attacks_blocked', 'Ataques bloqueados', { x: 3, y: 9, w: 3, h: 4 }),
+            kpi('mainwp', 'updates_applied', 'Updates aplicadas', { x: 6, y: 9, w: 3, h: 4 }),
+            kpi('betteruptime', 'uptime_percent', 'Disponibilidad', { x: 9, y: 9, w: 3, h: 4 }, { format: 'percent' }),
+            spec({
+                type: 'table',
+                binding: { source: 'crowdsec', metric: 'attack_types' },
+                props: { title: 'Tipos de ataque bloqueados' },
+                layout: { x: 0, y: 13, w: 6, h: 7 },
+            }),
+            spec({
+                type: 'worklog_timeline',
+                props: { title: 'Lo que hicimos este mes' },
+                layout: { x: 6, y: 13, w: 6, h: 7 },
+            }),
+            summary({ x: 0, y: 20, w: 12, h: 4 }),
+            cta(24),
         ],
     },
 ];
