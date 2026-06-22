@@ -75,6 +75,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test (Vitest)
+        run: npm test
+
       - name: Build (admin + portal)
         run: npm run build:assets
 

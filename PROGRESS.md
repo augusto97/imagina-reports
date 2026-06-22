@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🧪 VITEST + RTL — v1.7.0 (2026-06-22, rama `claude/frontend-vitest`):** backlog 5.1 — cierra el hueco histórico
+«sin tests de frontend» (el gate front era solo typecheck+lint+build). Añadido **Vitest 2 + React Testing Library +
+jsdom**: `vitest.config.ts` (separado de `vite.config.ts` para que el build de assets no arrastre tooling de test;
+comparte los alias `@/@admin/@portal/@shared`), `resources/js/test/setup.ts` (jest-dom + cleanup), scripts
+`npm test`/`test:watch`. **7 tests** iniciales: `color.test.ts` (hex→HSL), `utils.test.ts` (`cn`/twMerge), y un
+**smoke de componente** `BlockRenderer.test.tsx` (renderiza un bloque narrative desde data y desde props.text). CI
+ejecuta `npm test` entre lint y build. TSC+ESLint limpios (los `.test` entran en sus globs). Nuevas devDeps:
+vitest, jsdom, @testing-library/{react,jest-dom,dom}. → release **v1.7.0**. Restante del backlog seguro: 5.2
+code-splitting, 5.3 OpenAPI (en curso esta misma tanda).
+
 **📸 SCREENSHOTS EN WORK LOGS — v1.6.6 (2026-06-22, rama `claude/worklog-screenshots`):** backlog 4.2 — prueba
 visual del trabajo (alinea con "hacer visible el trabajo invisible"). El modelo ya tenía `screenshot_path` pero no
 había forma de subir ni mostrar. **Backend:** `StoreWorkLogRequest` acepta un archivo `screenshot`
