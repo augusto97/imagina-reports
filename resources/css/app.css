@@ -85,4 +85,24 @@
     ::selection {
         background: hsl(var(--ir-accent) / 0.18);
     }
+
+    /* PDF print (headless Chromium --print-to-pdf): keep brand/accent colours and
+       chart fills, and let the page margins own the whitespace so the report fills
+       the printable width edge to edge. */
+    @media print {
+        * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        @page {
+            margin: 12mm;
+        }
+
+        .ir-max-w-5xl {
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+    }
 }

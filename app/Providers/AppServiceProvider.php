@@ -10,7 +10,7 @@ use App\Events\ReportGenerated;
 use App\Listeners\DetectReportAnomalies;
 use App\Listeners\DetectUpsellOpportunities;
 use App\Listeners\ReportWebhookSubscriber;
-use App\Services\Pdf\BrowsershotPdfRenderer;
+use App\Services\Pdf\HeadlessChromiumPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
 use App\Services\Update\Deployer;
 use App\Services\Update\SymlinkDeployer;
@@ -32,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TenantContext::class);
 
         // Headless-Chromium PDF rendering (CLAUDE.md §10.7); faked in tests.
-        $this->app->bind(PdfRenderer::class, BrowsershotPdfRenderer::class);
+        $this->app->bind(PdfRenderer::class, HeadlessChromiumPdfRenderer::class);
 
         // AI report builder backend (CLAUDE.md §10.6, Claude API); faked in tests.
         $this->app->bind(AiClient::class, AnthropicAiClient::class);
