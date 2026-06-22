@@ -45,7 +45,7 @@ import {
 } from "../api";
 import { hexToHslString } from "@shared/lib/color";
 
-import { Button, Card, Field, Input } from "../components/ui";
+import { Button, Field, Input } from "../components/ui";
 import type { CatalogEntry, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
@@ -898,14 +898,14 @@ export function EditorScreen(): ReactElement {
 
                 {/* ---- Right panel (collapsible): inspector for the selected block ---- */}
                 {rightOpen && (
-                    <aside className="ir-w-72 ir-shrink-0 ir-overflow-y-auto ir-border-l ir-bg-card ir-p-3">
-                        <Card title="Bloque">
+                    <aside className="ir-w-72 ir-shrink-0 ir-overflow-y-auto ir-border-l ir-bg-card">
+                        <div className="ir-p-3">
                             <Inspector
                                 block={selectedBlock}
                                 catalog={fullCatalog}
                                 onChange={updateBlock}
                             />
-                        </Card>
+                        </div>
                     </aside>
                 )}
             </div>

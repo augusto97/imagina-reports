@@ -122,3 +122,77 @@ export function ToolbarButton({
 export function ToolbarDivider(): ReactElement {
     return <span className="ir-mx-1 ir-h-5 ir-w-px ir-bg-border" />;
 }
+
+/** A pill switch toggle (premium replacement for bare checkboxes). */
+export function Toggle({
+    checked,
+    onChange,
+    label,
+}: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    label: ReactNode;
+}): ReactElement {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className="ir-flex ir-w-full ir-items-center ir-justify-between ir-gap-3 ir-text-sm"
+        >
+            <span className="ir-text-left ir-text-foreground">{label}</span>
+            <span className={cn('ir-relative ir-h-5 ir-w-9 ir-shrink-0 ir-rounded-full ir-transition', checked ? 'ir-bg-primary' : 'ir-bg-muted-foreground/30')}>
+                <span className={cn('ir-absolute ir-top-0.5 ir-size-4 ir-rounded-full ir-bg-white ir-shadow ir-transition-all', checked ? 'ir-left-[1.125rem]' : 'ir-left-0.5')} />
+            </span>
+        </button>
+    );
+}
+
+const DEFAULT_SWATCHES = ['#ffffff', '#f1f5f9', '#0f172a', '#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444'];
+
+/** A colour swatch row (presets + custom picker + clear) — Looker/Power-BI style. */
+export function ColorSwatch({
+    value,
+    onChange,
+    presets = DEFAULT_SWATCHES,
+}: {
+    value: string;
+    onChange: (value: string | undefined) => void;
+    presets?: string[];
+}): ReactElement {
+    return (
+        <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-1.5">
+            {presets.map((color) => (
+                <button
+                    key={color}
+                    type="button"
+                    title={color}
+                    onClick={() => onChange(color)}
+                    className={cn(
+                        'ir-size-6 ir-rounded-md ir-border ir-transition',
+                        value.toLowerCase() === color.toLowerCase() ? 'ir-ring-2 ir-ring-primary ir-ring-offset-1' : 'hover:ir-scale-110',
+                    )}
+                    style={{ backgroundColor: color }}
+                />
+            ))}
+            <label className="ir-relative ir-size-6 ir-cursor-pointer ir-overflow-hidden ir-rounded-md ir-border" title="Color personalizado">
+                <span
+                    className="ir-block ir-size-full"
+                    style={{ background: value !== '' ? value : 'conic-gradient(from 90deg, #ef4444, #f59e0b, #10b981, #0ea5e9, #6366f1, #ef4444)' }}
+                />
+                <input
+                    type="color"
+                    value={value !== '' ? value : '#ffffff'}
+                    onChange={(event) => onChange(event.target.value)}
+                    className="ir-absolute ir-inset-0 ir-size-full ir-cursor-pointer ir-opacity-0"
+                />
+            </label>
+            {value !== '' && (
+                <button type="button" onClick={() => onChange(undefined)} className="ir-text-[11px] ir-text-muted-foreground hover:ir-text-foreground">
+                    quitar
+                </button>
+            )}
+        </div>
+    );
+}
