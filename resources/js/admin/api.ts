@@ -578,6 +578,14 @@ export function useSyncSite(siteId: number) {
     });
 }
 
+/** Sync a site for a period from anywhere (siteId provided per call, e.g. a report row). */
+export function useSyncSiteById() {
+    return useMutation({
+        mutationFn: ({ siteId, period_start, period_end }: { siteId: number; period_start: string; period_end: string }) =>
+            api.post<{ queued: number }>(`/sites/${siteId}/sync`, { period_start, period_end }).then((r) => r.data),
+    });
+}
+
 export function useGenerateReport() {
     const queryClient = useQueryClient();
 

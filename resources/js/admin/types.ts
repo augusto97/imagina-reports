@@ -68,6 +68,7 @@ export interface ReportDefinitionDto {
     name: string;
     template_id: number | null;
     locale: string;
+    recipients: string[];
 }
 
 export interface ReportSummary {
