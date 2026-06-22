@@ -1,4 +1,14 @@
-import { AreaChart, BarChart3, BarChartHorizontal, LineChart, PieChart, type LucideIcon } from 'lucide-react';
+import {
+    AlignCenter,
+    AlignLeft,
+    AlignRight,
+    AreaChart,
+    BarChart3,
+    BarChartHorizontal,
+    LineChart,
+    type LucideIcon,
+    PieChart,
+} from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import type { Block } from '@shared/blocks/types';
@@ -6,7 +16,9 @@ import { cn } from '@shared/lib/utils';
 
 import { Field, Input } from '../components/ui';
 import type { CatalogEntry } from '../types';
+import { BLOCK_META } from './BlockPalette';
 import { DATA_BLOCKS } from './blockFactory';
+import { ColorSwatch, Section, SegmentedControl, Toggle } from './controls';
 import { NarrativeEditor } from './NarrativeEditor';
 
 function str(value: unknown): string {
@@ -17,32 +29,11 @@ function str(value: unknown): string {
 const CHART_TYPES: { type: string; label: string; Icon: LucideIcon }[] = [
     { type: 'line', label: 'Línea', Icon: LineChart },
     { type: 'bar', label: 'Barras', Icon: BarChart3 },
-    { type: 'hbar', label: 'Barras horizontales', Icon: BarChartHorizontal },
+    { type: 'hbar', label: 'Horizontal', Icon: BarChartHorizontal },
     { type: 'area', label: 'Área', Icon: AreaChart },
     { type: 'donut', label: 'Dona', Icon: PieChart },
     { type: 'pie', label: 'Pastel', Icon: PieChart },
 ];
-
-/** A colour picker with a "clear" action so a block can inherit (no override). */
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string | undefined) => void }): ReactElement {
-    return (
-        <Field label={label}>
-            <div className="ir-flex ir-items-center ir-gap-2">
-                <input
-                    type="color"
-                    value={value === '' ? '#ffffff' : value}
-                    onChange={(event) => onChange(event.target.value)}
-                    className="ir-h-8 ir-w-10 ir-rounded ir-border"
-                />
-                {value !== '' && (
-                    <button type="button" className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground" onClick={() => onChange(undefined)}>
-                        quitar
-                    </button>
-                )}
-            </div>
-        </Field>
-    );
-}
 
 const TYPE_LABELS: Record<string, string> = {
     header: 'Cabecera',
@@ -73,9 +64,10 @@ const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom']);
 const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
 /**
- * The right-hand inspector: edits the currently-selected block (binding, labels,
- * comparison, width…). The metric binding picker reads from the connected sources'
- * MetricCatalog — the "free metrics" UX (CLAUDE.md §11.3).
+ * The right-hand inspector: edits the currently-selected block. Two tabs — **Datos**
+ * (binding, labels, drill-down, comparison) and **Estilo** (accordion sections with
+ * premium controls: segmented buttons, swatches, toggles). The metric binding picker
+ * reads from the connected sources' MetricCatalog — the "free metrics" UX (§11.3).
  */
 export function Inspector({
     block,
@@ -100,6 +92,8 @@ export function Inspector({
     const isData = DATA_BLOCKS.includes(block.type);
     const canCompare = block.type === 'kpi' || block.type === 'sales_summary';
     const titleKey = block.type === 'kpi' || block.type === 'goal' ? 'label' : 'title';
+    const meta = BLOCK_META[block.type];
+    const BlockIcon = meta.icon;
 
     // Dimensions available for the bound metric → the drill-down picker (CLAUDE.md §11.3).
     const boundEntry = block.binding != null ? catalog.find((entry) => entry.source === block.binding?.source && entry.metric === block.binding?.metric) : undefined;
@@ -143,33 +137,28 @@ export function Inspector({
         onChange({ ...block, style: nextStyle });
     };
 
-    const tabBtn = (id: 'config' | 'style', label: string): ReactElement => (
-        <button
-            type="button"
-            onClick={() => setTab(id)}
-            className={cn(
-                'ir-flex-1 ir-rounded-md ir-px-3 ir-py-1.5 ir-text-sm ir-transition',
-                tab === id ? 'ir-bg-card ir-font-medium ir-shadow-sm' : 'ir-text-muted-foreground hover:ir-text-foreground',
-            )}
-        >
-            {label}
-        </button>
-    );
-
     return (
-        <div className="ir-flex ir-flex-col ir-gap-4">
-            <p className="ir-text-xs ir-font-medium ir-uppercase ir-tracking-wide ir-text-muted-foreground">
-                {TYPE_LABELS[block.type] ?? block.type}
-            </p>
-
-            {/* Configuración / Estilo tabs (Looker-style) */}
-            <div className="ir-flex ir-gap-1 ir-rounded-lg ir-bg-muted ir-p-1">
-                {tabBtn('config', 'Configuración')}
-                {tabBtn('style', 'Estilo')}
+        <div className="ir-flex ir-flex-col ir-gap-3">
+            {/* Block header: type icon + name */}
+            <div className="ir-flex ir-items-center ir-gap-2">
+                <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
+                    <BlockIcon className="ir-size-4" />
+                </span>
+                <span className="ir-text-sm ir-font-semibold ir-text-foreground">{TYPE_LABELS[block.type] ?? block.type}</span>
             </div>
 
+            {/* Datos / Estilo tabs */}
+            <SegmentedControl
+                value={tab}
+                onChange={setTab}
+                options={[
+                    { value: 'config', label: 'Datos' },
+                    { value: 'style', label: 'Estilo' },
+                ]}
+            />
+
             {tab === 'config' && (
-                <div className="ir-flex ir-flex-col ir-gap-4">
+                <div className="ir-flex ir-flex-col ir-gap-4 ir-pt-1">
                     {TEXT_BLOCKS.has(block.type) && (
                         <p className="ir-rounded-md ir-bg-muted ir-px-2 ir-py-1.5 ir-text-xs ir-text-muted-foreground">
                             Campos dinámicos: <code>{'{{client}}'}</code> <code>{'{{site}}'}</code> <code>{'{{period}}'}</code>{' '}
@@ -215,6 +204,11 @@ export function Inspector({
 
                     {isData && (
                         <Field label="Métrica">
+                            {block.binding != null && (
+                                <span className="ir-mb-1.5 ir-inline-flex ir-items-center ir-gap-1 ir-rounded ir-bg-primary/10 ir-px-1.5 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-primary">
+                                    {block.binding.source}
+                                </span>
+                            )}
                             {catalog.length > 6 && (
                                 <Input
                                     className="ir-mb-2"
@@ -263,11 +257,17 @@ export function Inspector({
                         </Field>
                     )}
 
-                    {canCompare && block.binding !== undefined && block.binding !== null && (
-                        <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
-                            <input type="checkbox" checked={block.binding.compare === 'prev_period'} onChange={(event) => setCompare(event.target.checked)} />
-                            Comparar vs periodo anterior
-                        </label>
+                    {canCompare && block.binding != null && (
+                        <Field label="Comparación">
+                            <SegmentedControl
+                                value={block.binding.compare === 'prev_period' ? 'prev' : 'none'}
+                                onChange={(value) => setCompare(value === 'prev')}
+                                options={[
+                                    { value: 'none', label: 'Solo valor' },
+                                    { value: 'prev', label: 'vs. anterior' },
+                                ]}
+                            />
+                        </Field>
                     )}
 
                     {block.type === 'chart' && (
@@ -329,66 +329,85 @@ export function Inspector({
             )}
 
             {tab === 'style' && (
-                <div className="ir-flex ir-flex-col ir-gap-3">
-                    {block.type === 'chart' && (
-                        <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
-                            <input type="checkbox" checked={block.style?.legend === true} onChange={(event) => setStyle('legend', event.target.checked ? true : undefined)} />
-                            Mostrar leyenda
-                        </label>
-                    )}
-                    {block.type === 'table' && (
-                        <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
-                            <input type="checkbox" checked={block.style?.bars === true} onChange={(event) => setStyle('bars', event.target.checked ? true : undefined)} />
-                            Barras en la columna de valor
-                        </label>
-                    )}
+                <div className="-ir-mx-3 ir-border-t ir-border-border/60">
+                    <Section title="Apariencia">
+                        <div className="ir-flex ir-flex-col ir-gap-3">
+                            <Toggle checked={block.style?.border !== false} onChange={(on) => setStyle('border', on ? undefined : false)} label="Mostrar borde" />
+                            {block.type !== 'divider' && block.type !== 'header' && (
+                                <Toggle checked={block.style?.hideTitle === true} onChange={(on) => setStyle('hideTitle', on ? true : undefined)} label="Ocultar título" />
+                            )}
+                            {block.type === 'chart' && (
+                                <Toggle checked={block.style?.legend === true} onChange={(on) => setStyle('legend', on ? true : undefined)} label="Mostrar leyenda" />
+                            )}
+                            {block.type === 'table' && (
+                                <Toggle checked={block.style?.bars === true} onChange={(on) => setStyle('bars', on ? true : undefined)} label="Barras en la columna de valor" />
+                            )}
+                        </div>
+                    </Section>
+
+                    <Section title="Color">
+                        <div className="ir-flex ir-flex-col ir-gap-3">
+                            <Field label="Fondo">
+                                <ColorSwatch value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
+                            </Field>
+                            <Field label="Texto">
+                                <ColorSwatch value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
+                            </Field>
+                        </div>
+                    </Section>
+
+                    <Section title="Disposición">
+                        <div className="ir-flex ir-flex-col ir-gap-3">
+                            <Field label="Alineación">
+                                <SegmentedControl
+                                    value={str(block.style?.align) || 'left'}
+                                    onChange={(value) => setStyle('align', value)}
+                                    options={[
+                                        { value: 'left', icon: <AlignLeft className="ir-size-4" />, title: 'Izquierda' },
+                                        { value: 'center', icon: <AlignCenter className="ir-size-4" />, title: 'Centro' },
+                                        { value: 'right', icon: <AlignRight className="ir-size-4" />, title: 'Derecha' },
+                                    ]}
+                                />
+                            </Field>
+                            <Field label="Relleno">
+                                <SegmentedControl
+                                    value={str(block.style?.pad) || 'md'}
+                                    onChange={(value) => setStyle('pad', value)}
+                                    options={[
+                                        { value: 'sm', label: 'Compacto' },
+                                        { value: 'md', label: 'Normal' },
+                                        { value: 'lg', label: 'Amplio' },
+                                    ]}
+                                />
+                            </Field>
+                            <Field label="Esquinas">
+                                <SegmentedControl
+                                    value={str(block.style?.radius) || 'md'}
+                                    onChange={(value) => setStyle('radius', value)}
+                                    options={[
+                                        { value: 'none', label: 'Rectas' },
+                                        { value: 'sm', label: 'Suaves' },
+                                        { value: 'md', label: 'Media' },
+                                        { value: 'lg', label: 'Máx' },
+                                    ]}
+                                />
+                            </Field>
+                        </div>
+                    </Section>
+
                     {isData && (
-                        <Field label="Formato de número">
-                            <select className={selectClass} value={str(block.style?.format) || 'number'} onChange={(event) => setStyle('format', event.target.value)}>
-                                <option value="number">1,234</option>
-                                <option value="compact">1.2 K</option>
-                                <option value="percent">95 %</option>
-                                <option value="currency">$ 1,234</option>
-                            </select>
-                        </Field>
-                    )}
-                    <div className="ir-grid ir-grid-cols-2 ir-gap-3">
-                        <ColorField label="Fondo" value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
-                        <ColorField label="Texto" value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
-                    </div>
-                    <div className="ir-grid ir-grid-cols-2 ir-gap-3">
-                        <Field label="Relleno">
-                            <select className={selectClass} value={str(block.style?.pad) || 'md'} onChange={(event) => setStyle('pad', event.target.value)}>
-                                <option value="sm">Compacto</option>
-                                <option value="md">Normal</option>
-                                <option value="lg">Amplio</option>
-                            </select>
-                        </Field>
-                        <Field label="Esquinas">
-                            <select className={selectClass} value={str(block.style?.radius) || 'md'} onChange={(event) => setStyle('radius', event.target.value)}>
-                                <option value="none">Rectas</option>
-                                <option value="sm">Suaves</option>
-                                <option value="md">Redondeadas</option>
-                                <option value="lg">Muy redondeadas</option>
-                            </select>
-                        </Field>
-                    </div>
-                    <Field label="Alineación">
-                        <select className={selectClass} value={str(block.style?.align) || 'left'} onChange={(event) => setStyle('align', event.target.value)}>
-                            <option value="left">Izquierda</option>
-                            <option value="center">Centro</option>
-                            <option value="right">Derecha</option>
-                        </select>
-                    </Field>
-                    <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
-                        <input type="checkbox" checked={block.style?.border !== false} onChange={(event) => setStyle('border', event.target.checked ? undefined : false)} />
-                        Mostrar borde
-                    </label>
-                    {block.type !== 'divider' && block.type !== 'header' && (
-                        <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
-                            <input type="checkbox" checked={block.style?.hideTitle === true} onChange={(event) => setStyle('hideTitle', event.target.checked ? true : undefined)} />
-                            Ocultar título
-                        </label>
+                        <Section title="Formato de número">
+                            <SegmentedControl
+                                value={str(block.style?.format) || 'number'}
+                                onChange={(value) => setStyle('format', value)}
+                                options={[
+                                    { value: 'number', label: '1,234' },
+                                    { value: 'compact', label: '1.2K' },
+                                    { value: 'percent', label: '95%' },
+                                    { value: 'currency', label: '$' },
+                                ]}
+                            />
+                        </Section>
                     )}
                 </div>
             )}

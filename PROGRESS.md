@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR PREMIUM · FASE C — inspector rico (2026-06-22, rama `claude/editor-premium-phase-c`):** el mayor salto
+de «ajustes básicos» a premium. El `Inspector` se reconstruye: **cabecera con icono+nombre del bloque**, pestañas
+**Datos/Estilo** como `SegmentedControl`, y el **tab Estilo en acordeones** (`Section`: Apariencia · Color ·
+Disposición · Formato de número). Controles nuevos: **`Toggle`** (switch en vez de checkbox), **`ColorSwatch`**
+(rejilla de presets + custom + quitar), y **`SegmentedControl`** para alineación (iconos), relleno, esquinas y
+formato numérico. La comparación KPI pasa de checkbox a segmented (Solo valor / vs. anterior); la métrica vinculada
+muestra un **chip de fuente**. Se quita el wrapper `Card "Bloque"` (el inspector ya trae su cabecera) para que los
+acordeones vayan a todo el ancho. Primitivas nuevas en `controls.tsx` (`Toggle`, `ColorSwatch`). Sin backend.
+TS+ESLint+Vitest(7)+build limpios. → release **v1.9.2**. **Siguiente: Fase D** (editor fx de métricas calculadas:
+validación en vivo + insertar métrica + operadores).
+
 **🎨 EDITOR PREMIUM · FASE B — paleta visual de bloques (2026-06-22, rama `claude/editor-premium-phase-b`):**
 sustituye la lista de botones-texto por una **paleta de tiles con icono, agrupada** por categoría (KPIs & datos ·
 Gráficos & tablas · Texto & marca · Seguridad & soporte · Interacción & layout). Nuevo `editor/BlockPalette.tsx`
