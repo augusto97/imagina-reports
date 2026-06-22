@@ -49,6 +49,7 @@ final class ReportSummaryResource extends JsonResource
             'period_end' => $report->period_end->toIso8601String(),
             'health_score' => $report->health_score,
             'status' => $report->status->value,
+            'executive_summary' => $report->executive_summary,
             'public_token' => $report->public_token,
             'pdf_path' => $report->pdf_path,
             'hidden_metrics' => $hiddenMetrics,

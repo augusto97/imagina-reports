@@ -67,7 +67,7 @@ final readonly class ReportGenerator
         // is fully resilient — a failure leaves the summary empty and never breaks the report.
         $summary = $this->narrative($definition, $visibleBlocks, $data, $score);
         if ($summary !== null) {
-            $data = $this->injectSummary($visibleBlocks, $data, $summary);
+            $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
         }
 
         // Per-report theme (accent + density): the definition's, falling back to its template's.
@@ -156,7 +156,7 @@ final readonly class ReportGenerator
      */
     private function narrative(ReportDefinition $definition, array $visibleBlocks, array $data, int $score): ?string
     {
-        if (! $this->hasSummaryBlock($visibleBlocks)) {
+        if (! ExecutiveSummary::present($visibleBlocks)) {
             return null;
         }
 
@@ -195,56 +195,8 @@ final readonly class ReportGenerator
     }
 
     /**
-     * Whether the layout contains a narrative block flagged as the AI executive summary
-     * (props.variant === 'executive_summary', per the default template §11.5).
-     *
      * @param  list<array<string, mixed>>  $visibleBlocks
-     */
-    private function hasSummaryBlock(array $visibleBlocks): bool
-    {
-        foreach ($visibleBlocks as $block) {
-            if ($this->isSummaryBlock($block)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Write the generated summary into every AI executive-summary narrative block's data
-     * slot — the shared NarrativeBlock renders `data[id]` (falling back to props.text), so
-     * the text shows in the portal and the PDF with no renderer change.
-     *
-     * @param  list<array<string, mixed>>  $visibleBlocks
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    private function injectSummary(array $visibleBlocks, array $data, string $summary): array
-    {
-        foreach ($visibleBlocks as $block) {
-            if ($this->isSummaryBlock($block) && is_string($block['id'] ?? null)) {
-                $data[$block['id']] = $summary;
-            }
-        }
-
-        return $data;
-    }
-
-    /**
-     * @param  array<string, mixed>  $block
-     */
-    private function isSummaryBlock(array $block): bool
-    {
-        $props = is_array($block['props'] ?? null) ? $block['props'] : [];
-
-        return ($block['type'] ?? null) === 'narrative'
-            && ($props['variant'] ?? null) === 'executive_summary';
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $visibleBlocks
-     * @param  array<string, mixed>  $data
+     * @param  array<array-key, mixed>  $data
      * @param  array<string, mixed>|null  $theme
      * @param  list<array<string, mixed>>  $diagnostics
      */

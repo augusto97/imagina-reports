@@ -316,6 +316,28 @@ export function useReportInsights() {
     });
 }
 
+/** Save an operator-edited executive summary (CLAUDE.md §10.6 "always editable"). */
+export function useUpdateReportNarrative() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ reportId, text }: { reportId: number; text: string }) =>
+            api.put<{ executive_summary: string | null }>(`/reports/${reportId}/narrative`, { text }).then((r) => r.data.executive_summary),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
+/** Re-write the executive summary with the AI from the report's stored figures. */
+export function useRegenerateReportNarrative() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) =>
+            api.post<{ executive_summary: string | null }>(`/reports/${reportId}/narrative/regenerate`).then((r) => r.data.executive_summary),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
 /* -------------------------------- comments --------------------------------- */
 
 export function useReportComments(reportId: number | null) {

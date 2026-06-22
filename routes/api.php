@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportInsightsController;
+use App\Http\Controllers\Api\V1\ReportNarrativeController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteController;
@@ -117,6 +118,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
     Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');
+    Route::put('reports/{report}/narrative', [ReportNarrativeController::class, 'update'])->name('api.reports.narrative.update');
+    Route::post('reports/{report}/narrative/regenerate', [ReportNarrativeController::class, 'regenerate'])->name('api.reports.narrative.regenerate');
     Route::get('reports/{report}/comments', [ReportCommentController::class, 'index'])->name('api.reports.comments.index');
     Route::post('reports/{report}/comments', [ReportCommentController::class, 'store'])->name('api.reports.comments.store');
     Route::delete('comments/{comment}', [ReportCommentController::class, 'destroy'])->name('api.comments.destroy');

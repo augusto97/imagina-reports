@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**✏️ EDICIÓN/REGENERACIÓN DE LA NARRATIVA — v1.6.1 (2026-06-22, rama `claude/narrative-editing`):** completa el
+follow-up de §10.6 ("always editable"). Antes el resumen ejecutivo se congelaba en la generación; ahora la agencia
+puede **editarlo a mano o regenerarlo con IA por reporte** antes de enviar. **Backend:** `PUT /reports/{id}/narrative`
+(guarda texto) y `POST /reports/{id}/narrative/regenerate` (re-corre la IA sobre las cifras FROZEN, nunca una API de
+datos en vivo §3.1; 502 si la IA falla). Ambos inyectan el texto en `resolved_blocks.data` de los bloques
+`variant=executive_summary` vía helper compartido nuevo **`ExecutiveSummary`** (refactor: el generador deja de
+duplicar esa lógica). `executive_summary` ahora se expone en `ReportSummaryResource`. **Frontend:** panel «Resumen
+ejecutivo (IA)» en `ReportsScreen` (textarea + Guardar + Regenerar con IA), botón «Resumen» por fila. **+5 tests**
+(guardar+inyectar, validación, regenerar con IA, no-op sin facts, aislamiento de tenant). **233 tests verdes,
+PHPStan max + Pint + TS + ESLint + build limpios.** → release **v1.6.1**.
+
 **🤖 NARRATIVA IA EN LA GENERACIÓN — v1.6.0 (2026-06-22, rama `claude/ai-narrative-generation`):** cableada la
 función estrella que faltaba (§10.6): cada reporte nace con **resumen ejecutivo auto-generado** desde las cifras
 resueltas. Antes `ReportGenerator` fijaba `executive_summary = null` ("Phase 2") y `AiReportBuilder::narrative()`

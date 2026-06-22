@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
-import { FileDown, MessageSquare, Sparkles, Trash2 } from 'lucide-react';
+import { FileDown, MessageSquare, PenLine, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
@@ -9,6 +9,7 @@ import {
     useCreateReportDefinition,
     useDeleteComment,
     useGenerateReport,
+    useRegenerateReportNarrative,
     useReportComments,
     useReportDefinitions,
     useReportInsights,
@@ -20,6 +21,7 @@ import {
     useSendReport,
     useSites,
     useSnapshotPeriods,
+    useUpdateReportNarrative,
     useUpdateReportDefinition,
 } from '../api';
 import { DataTable } from '../components/DataTable';
@@ -93,6 +95,43 @@ function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
     );
 }
 
+/** Edit or AI-regenerate a report's executive summary before sending (CLAUDE.md §10.6). */
+function ReportNarrativePanel({ report }: { report: ReportSummary }): ReactElement {
+    const update = useUpdateReportNarrative();
+    const regenerate = useRegenerateReportNarrative();
+    const [text, setText] = useState(report.executive_summary ?? '');
+
+    const onRegenerate = (): void => {
+        regenerate.mutate(report.id, { onSuccess: (next) => setText(next ?? '') });
+    };
+
+    return (
+        <Card title="Resumen ejecutivo (IA)">
+            <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
+                Es el texto que el cliente lee al inicio del reporte. Edítalo o regenéralo con IA antes de enviar.
+            </p>
+            <textarea
+                className={inputClass}
+                rows={4}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="El resumen se escribe solo al generar el reporte con IA. También puedes redactarlo a mano aquí."
+            />
+            <div className="ir-mt-3 ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                <Button onClick={() => update.mutate({ reportId: report.id, text })} disabled={update.isPending}>
+                    {update.isPending ? 'Guardando…' : 'Guardar'}
+                </Button>
+                <Button variant="ghost" onClick={onRegenerate} disabled={regenerate.isPending}>
+                    <Sparkles className="ir-size-3.5" />
+                    {regenerate.isPending ? 'Regenerando…' : 'Regenerar con IA'}
+                </Button>
+                {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Guardado.</span>}
+                {regenerate.isError && <span className="ir-text-xs ir-text-red-500">No se pudo regenerar (revisa la API key de la agencia).</span>}
+            </div>
+        </Card>
+    );
+}
+
 /** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
 function parseRecipients(raw: string): string[] {
     return raw
@@ -123,6 +162,7 @@ export function ReportsScreen(): ReactElement {
 
     const [insightsFor, setInsightsFor] = useState<number | null>(null);
     const [commentsFor, setCommentsFor] = useState<number | null>(null);
+    const [narrativeFor, setNarrativeFor] = useState<number | null>(null);
     const showInsights = (reportId: number): void => {
         setInsightsFor(reportId);
         insights.mutate(reportId);
@@ -203,6 +243,10 @@ export function ReportsScreen(): ReactElement {
                         <Button variant="ghost" size="sm" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
                             <Sparkles className="ir-size-3.5" />
                             Insights
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setNarrativeFor((current) => (current === report.id ? null : report.id))}>
+                            <PenLine className="ir-size-3.5" />
+                            Resumen
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
                             <MessageSquare className="ir-size-3.5" />
@@ -422,6 +466,13 @@ export function ReportsScreen(): ReactElement {
                 )}
                 <DataTable columns={columns} data={reports} />
             </Card>
+
+            {narrativeFor !== null &&
+                (() => {
+                    const report = reports.find((item) => item.id === narrativeFor);
+
+                    return report !== undefined ? <ReportNarrativePanel key={report.id} report={report} /> : null;
+                })()}
 
             {commentsFor !== null && <ReportCommentsPanel key={commentsFor} reportId={commentsFor} />}
 
