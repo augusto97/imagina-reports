@@ -17,7 +17,8 @@ calvario del binario (snap → v1.4.3, open_basedir → v1.4.4). Browsershot usa
 ya emite — y Puppeteer gestiona el handshake con Chrome (adiós al probing de rutas). **Cambios:** nuevo
 `BrowsershotPdfRenderer` (apunta a Node/Chrome/node_modules vía `config('services.browsershot.*')`, A4, márgenes,
 `noSandbox`, timeout 120s, espera 30s a `window.reportReady`); binding `PdfRenderer` → Browsershot en
-`AppServiceProvider`; `HeadlessChromiumPdfRenderer` se conserva como **fallback sin-Node** (ya no enlazado).
+`AppServiceProvider`; el viejo `HeadlessChromiumPdfRenderer` **se elimina** (junto con su test, que era frágil:
+caía a `/usr/bin/google-chrome` del runner `ubuntu-latest` y no lanzaba la excepción esperada).
 `config/services.php` + `.env.example` ganan `BROWSERSHOT_NODE_PATH`/`NPM_PATH`/`NODE_MODULE_PATH`. `deploy.sh`
 aprovisiona `puppeteer-core` en `shared/node_modules` (idempotente, best-effort — **no toca el lockfile del build
 de CI**, así `npm ci` sigue intacto). **Verde:** 227 tests (incluye binding test nuevo), PHPStan max, TS, ESLint,
@@ -583,8 +584,9 @@ start-from-default-template. Needs a release to reach the live VPS.
   workaround is reverted. Rationale: the direct-CLI renderer waited with a fixed `--virtual-time-budget` (prints
   too early/late) and had to hunt for a non-snap binary across `open_basedir` (v1.4.3/v1.4.4 churn). Browsershot's
   `waitForFunction('window.reportReady === true')` is a deterministic wait on the signal the report SPA already
-  emits, and Puppeteer manages the Chrome handshake. `HeadlessChromiumPdfRenderer` kept as an unbound no-Node
-  fallback. Runtime needs: Node + `puppeteer-core` (provisioned into `shared/node_modules` by `deploy.sh`, NOT in
+  emits, and Puppeteer manages the Chrome handshake. The old `HeadlessChromiumPdfRenderer` (and its
+  environment-fragile test) was removed — Node is confirmed on the VPS, so the no-Node escape hatch is dead code.
+  Runtime needs: Node + `puppeteer-core` (provisioned into `shared/node_modules` by `deploy.sh`, NOT in
   the CI build ZIP) + a non-snap Chrome (`BROWSERSHOT_CHROME_PATH`). This narrows the locked "no Node on server"
   decision to "no asset *build* on server" — assets are still CI-built.
 - (2026-06-19) **Effective PHP version is 8.4** (CI + VPS LSPHP), not 8.3. Rationale: the dependency lock
