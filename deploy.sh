@@ -2,8 +2,10 @@
 #
 # deploy.sh — mirrors UpdateManager steps 5–9 (CLAUDE.md §12.3/§12.5) for the
 # operator's own pushes via ServerAvatar Git deploy. Atomic: builds the new
-# release beside the old and flips the `current` symlink. Node is NOT required on
-# the server — assets are built in CI; here we only wire and cache.
+# release beside the old and flips the `current` symlink. Assets are still built
+# in CI (no Vite build here), but Node IS now used at runtime for the PDF: Browsershot
+# (Puppeteer) drives headless Chromium, so we provision `puppeteer-core` once into the
+# shared dir below (CLAUDE.md §10.7).
 #
 # Usage (from the release directory that was just checked out):
 #   RELEASE_DIR=/home/user/imagina-reports/releases/<ts> ./deploy.sh
@@ -22,6 +24,21 @@ echo "→ Linking shared (.env, storage) into the release"
 ln -sfn "${SHARED}/.env" "${RELEASE_DIR}/.env"
 rm -rf "${RELEASE_DIR}/storage"
 ln -sfn "${SHARED}/storage" "${RELEASE_DIR}/storage"
+
+echo "→ Ensuring puppeteer-core for the PDF renderer (shared, install once)"
+# Browsershot needs puppeteer-core present at runtime (CLAUDE.md §10.7). We keep it in
+# the shared dir so it survives releases and never bloats the CI build ZIP. Point
+# BROWSERSHOT_NODE_MODULE_PATH at ${SHARED}/node_modules in .env. Best-effort: a missing
+# Node or no network must not abort the deploy (the report page/portal still work).
+if command -v npm >/dev/null 2>&1; then
+    if [ ! -d "${SHARED}/node_modules/puppeteer-core" ]; then
+        echo "  installing puppeteer-core into ${SHARED}"
+        ( cd "${SHARED}" && npm install --no-save --no-audit --no-fund puppeteer-core ) || \
+            echo "  ⚠ puppeteer-core install failed — install it manually if PDF export errors"
+    fi
+else
+    echo "  ⚠ npm not found — install Node + puppeteer-core for PDF export (see .env.example)"
+fi
 
 echo "→ Migrating"
 php "${RELEASE_DIR}/artisan" migrate --force

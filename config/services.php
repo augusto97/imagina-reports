@@ -39,6 +39,9 @@ return [
 
     'browsershot' => [
         'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
+        'node_path' => env('BROWSERSHOT_NODE_PATH', '/usr/bin/node'),
+        'npm_path' => env('BROWSERSHOT_NPM_PATH'),
+        'node_module_path' => env('BROWSERSHOT_NODE_MODULE_PATH'),
     ],
 
     // AI report builder (CLAUDE.md §10.6). Uses the Claude API.

@@ -72,7 +72,7 @@ These are **decided**. Do not relitigate them in code.
 | Backend | **Laravel 11**, PHP **8.4** (deps lock requires ≥8.4; `composer.json` keeps `^8.3`), strict types everywhere. |
 | Architecture | **API-first**: versioned REST API (`/api/v1`) is the core; everything consumes it. |
 | Auth | **Laravel Sanctum** — cookie sessions for own SPAs, API tokens for third-party integrations. |
-| Frontend | **Two React 18 + TypeScript SPAs** (admin panel + interactive client portal). Built in **GitHub Actions** — Node.js is NOT installed on the server. |
+| Frontend | **Two React 18 + TypeScript SPAs** (admin panel + interactive client portal). **Built in GitHub Actions** — the server does NOT build assets. _(Owner override 2026-06-22: Node IS installed on the VPS, used only at runtime for the Browsershot PDF — see §10.7; assets are still CI-built.)_ |
 | Multi-tenancy | **Agency = tenant.** Every domain row is scoped by `agency_id`. Internal use first, commercial-ready. |
 | Queues/cache/sessions | **Redis** + **persistent queue worker** + **Horizon**. |
 | Scheduler | Laravel scheduler via one cron (`* * * * * php artisan schedule:run`). |
@@ -80,7 +80,7 @@ These are **decided**. Do not relitigate them in code.
 | Metrics | **Not hardcoded.** Connectors expose a `MetricCatalog`; editor + AI pick freely from it. |
 | AI builder | **`AiReportBuilder`** assembles a full draft report (validated block JSON) + per-period narrative via the **Claude API (Anthropic)** — "create a report in seconds". Always editable. _(Owner override 2026-06-18: replaces the originally-specced `gpt.imagina.cloud`.)_ |
 | Report rendering | **Single source of truth**: a shared React `BlockRenderer`; the **PDF is produced by headless Chromium printing that same page** (pixel-perfect). |
-| PDF engine | Spatie **Browsershot** (headless Chromium installed on the VPS). VPS isolation contains RAM spikes. |
+| PDF engine | Spatie **Browsershot** (Puppeteer → headless Chromium on the VPS), waiting on `window.reportReady` (§10.7). Needs Node + `puppeteer-core` + a non-snap Chrome. VPS isolation contains RAM spikes. |
 | Deployment | **Atomic releases** (CI builds a self-contained ZIP → symlink swap) with in-app **Update** + **Rollback** (see §12). |
 
 ---
