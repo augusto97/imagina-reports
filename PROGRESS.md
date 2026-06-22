@@ -7,6 +7,25 @@
 ---
 
 ## Where I left off (read me first)
+**🖨️ PDF VUELVE A BROWSERSHOT (2026-06-22, rama `claude/github-app-analysis-a7b2bd`):** el owner confirmó que su
+instancia OLS de ServerAvatar **sí permite instalar Node**, así que se revierte la desviación a "Chromium directo"
+(v1.4.2–v1.4.4, forzada por la regla "sin Node") y se vuelve a **Spatie Browsershot** — que es lo que el spec
+original (`CLAUDE.md` §10.7 y la tabla §2) siempre pidió. **Por qué:** el renderer directo esperaba con
+`--virtual-time-budget=20000` (un reloj fijo de 20 s, imprime incompleto si los datos tardan), y sufría el
+calvario del binario (snap → v1.4.3, open_basedir → v1.4.4). Browsershot usa
+`waitForFunction('window.reportReady === true')` — espera **determinista** sobre la señal que la página de reporte
+ya emite — y Puppeteer gestiona el handshake con Chrome (adiós al probing de rutas). **Cambios:** nuevo
+`BrowsershotPdfRenderer` (apunta a Node/Chrome/node_modules vía `config('services.browsershot.*')`, A4, márgenes,
+`noSandbox`, timeout 120s, espera 30s a `window.reportReady`); binding `PdfRenderer` → Browsershot en
+`AppServiceProvider`; el viejo `HeadlessChromiumPdfRenderer` **se elimina** (junto con su test, que era frágil:
+caía a `/usr/bin/google-chrome` del runner `ubuntu-latest` y no lanzaba la excepción esperada).
+`config/services.php` + `.env.example` ganan `BROWSERSHOT_NODE_PATH`/`NPM_PATH`/`NODE_MODULE_PATH`. `deploy.sh`
+aprovisiona `puppeteer-core` en `shared/node_modules` (idempotente, best-effort — **no toca el lockfile del build
+de CI**, así `npm ci` sigue intacto). **Verde:** 227 tests (incluye binding test nuevo), PHPStan max, TS, ESLint,
+build. **Ojo producción:** instalar Node + Google Chrome no-snap en el VPS, `npm install puppeteer-core` en
+`shared/`, y apuntar `BROWSERSHOT_CHROME_PATH`/`BROWSERSHOT_NODE_MODULE_PATH` en `shared/.env`. Sin desplegar aún
+(rama) → candidato a v1.5.0.
+
 **🖥️ EDITOR FULL-BLEED + PANELES COLAPSABLES (2026-06-20, rama, post v1.3.0):** feedback del owner — el editor se
 veía "de juguete" por estar metido en el shell `max-w-6xl` con 3 columnas fijas (el lienzo solo recibía la franja
 central). Rehecho como **app shell de editor real (Figma/Looker)**: `App.tsx` saca la vista `editor` a **pantalla
@@ -560,6 +579,16 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-06-22) **PDF engine = Spatie Browsershot again** (re-aligns with the original spec §10.7). Owner confirmed
+  their ServerAvatar OLS instance allows installing Node, so the v1.4.2 "drive Chromium directly (no Node)"
+  workaround is reverted. Rationale: the direct-CLI renderer waited with a fixed `--virtual-time-budget` (prints
+  too early/late) and had to hunt for a non-snap binary across `open_basedir` (v1.4.3/v1.4.4 churn). Browsershot's
+  `waitForFunction('window.reportReady === true')` is a deterministic wait on the signal the report SPA already
+  emits, and Puppeteer manages the Chrome handshake. The old `HeadlessChromiumPdfRenderer` (and its
+  environment-fragile test) was removed — Node is confirmed on the VPS, so the no-Node escape hatch is dead code.
+  Runtime needs: Node + `puppeteer-core` (provisioned into `shared/node_modules` by `deploy.sh`, NOT in
+  the CI build ZIP) + a non-snap Chrome (`BROWSERSHOT_CHROME_PATH`). This narrows the locked "no Node on server"
+  decision to "no asset *build* on server" — assets are still CI-built.
 - (2026-06-19) **Effective PHP version is 8.4** (CI + VPS LSPHP), not 8.3. Rationale: the dependency lock
   (Symfony 8.x, Carbon 3.13, recent Laravel 11) requires PHP ≥ 8.4 and everything was built/tested on 8.4.19.
   Bumped both workflows to 8.4; kept `composer.json` at `^8.3` (lock hash untouched). Alternative (regenerate
