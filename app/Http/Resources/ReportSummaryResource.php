@@ -53,6 +53,8 @@ final class ReportSummaryResource extends JsonResource
             'public_token' => $report->public_token,
             'pdf_path' => $report->pdf_path,
             'hidden_metrics' => $hiddenMetrics,
+            // When the report was generated, so the list shows the exact moment (not just the period).
+            'created_at' => $report->created_at?->toIso8601String(),
         ];
     }
 }

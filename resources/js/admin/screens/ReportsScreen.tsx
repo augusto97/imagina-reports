@@ -1,5 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
+import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { FileDown, MessageSquare, PenLine, RefreshCw, RotateCw, Sparkles, Trash2 } from 'lucide-react';
 
@@ -30,6 +30,19 @@ import { Button, Card, Field, Input } from '../components/ui';
 import type { ReportDefinitionDto, ReportSummary } from '../types';
 
 const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
+
+/** Human, Spanish status labels (the API stores the English enum value). */
+const STATUS_LABEL: Record<string, string> = { draft: 'Borrador', approved: 'Aprobado', sent: 'Enviado' };
+
+/** Format the generation timestamp as a readable date + time (or «—» when absent). */
+function formatGeneratedAt(value: string | null): string {
+    if (value === null || value === '') {
+        return '—';
+    }
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 /** Internal notes + client-visible comments for a report (CLAUDE.md §11). */
 function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
@@ -188,6 +201,9 @@ export function ReportsScreen(): ReactElement {
     const templateLabel = (templateId: number | null): string =>
         templateId === null ? 'Plantilla por defecto' : (templates.find((template) => template.id === templateId)?.name ?? `Plantilla #${templateId}`);
     const siteLabel = (id: number): string => sites.find((site) => site.id === id)?.name ?? `Sitio #${id}`;
+    // A report's own name comes from its definition; the site comes from that definition.
+    const definitionName = (definitionId: number): string =>
+        definitions.find((definition) => definition.id === definitionId)?.name ?? `Reporte #${definitionId}`;
     const approve = useApproveReport();
     const send = useSendReport();
     const insights = useReportInsights();
@@ -199,6 +215,15 @@ export function ReportsScreen(): ReactElement {
         setInsightsFor(reportId);
         insights.mutate(reportId);
     };
+
+    // The detail panels (Resumen / Comentarios / Insights) render below the table; scroll them
+    // into view when opened so a click visibly does something instead of seeming to do nothing.
+    const panelsRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (narrativeFor !== null || commentsFor !== null || insightsFor !== null) {
+            panelsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [narrativeFor, commentsFor, insightsFor]);
 
     const [defSite, setDefSite] = useState('');
     const [defName, setDefName] = useState('');
@@ -231,12 +256,38 @@ export function ReportsScreen(): ReactElement {
 
     const columns: ColumnDef<ReportSummary>[] = [
         {
+            id: 'report',
+            header: 'Reporte',
+            accessorFn: (row) => definitionName(row.report_definition_id),
+            cell: ({ row }) => {
+                const report = row.original;
+                const siteId = siteIdForDefinition(report.report_definition_id);
+
+                return (
+                    <div className="ir-min-w-0">
+                        <p className="ir-font-medium">{definitionName(report.report_definition_id)}</p>
+                        <p className="ir-text-xs ir-text-muted-foreground">{siteId !== null ? siteLabel(siteId) : '—'}</p>
+                    </div>
+                );
+            },
+        },
+        {
             id: 'period',
             header: 'Periodo',
             accessorFn: (row) => `${row.period_start.slice(0, 10)} → ${row.period_end.slice(0, 10)}`,
         },
+        {
+            id: 'generated',
+            header: 'Generado',
+            accessorFn: (row) => row.created_at ?? '',
+            cell: ({ row }) => <span className="ir-text-xs ir-text-muted-foreground">{formatGeneratedAt(row.original.created_at)}</span>,
+        },
         { header: 'Salud', accessorKey: 'health_score' },
-        { header: 'Estado', accessorKey: 'status' },
+        {
+            id: 'status',
+            header: 'Estado',
+            accessorFn: (row) => STATUS_LABEL[row.status] ?? row.status,
+        },
         {
             id: 'data',
             header: 'Datos',
@@ -287,18 +338,18 @@ export function ReportsScreen(): ReactElement {
 
                 return (
                     <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
-                        <Button variant="outline" size="sm" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')}>
+                        <Button variant="outline" size="sm" title="Abrir el reporte interactivo del cliente en una pestaña nueva" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')}>
                             Ver
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => downloadPdf.mutate(report.id)} disabled={downloadPdf.isPending}>
+                        <Button variant="outline" size="sm" title="Descargar el PDF del reporte" onClick={() => downloadPdf.mutate(report.id)} disabled={downloadPdf.isPending}>
                             <FileDown className="ir-size-3.5" />
                             {downloadPdf.isPending && downloadPdf.variables === report.id ? 'Generando…' : 'PDF'}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
+                        <Button variant="ghost" size="sm" title="Análisis de IA con observaciones del periodo" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
                             <Sparkles className="ir-size-3.5" />
                             Insights
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setNarrativeFor((current) => (current === report.id ? null : report.id))}>
+                        <Button variant="ghost" size="sm" title="Editar o regenerar el resumen ejecutivo" onClick={() => setNarrativeFor((current) => (current === report.id ? null : report.id))}>
                             <PenLine className="ir-size-3.5" />
                             Resumen
                         </Button>
@@ -318,16 +369,16 @@ export function ReportsScreen(): ReactElement {
                             <RotateCw className="ir-size-3.5" />
                             Regenerar
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
+                        <Button variant="ghost" size="sm" title="Notas internas y comentarios visibles para el cliente" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
                             <MessageSquare className="ir-size-3.5" />
                             Comentarios
                         </Button>
                         {report.status === 'draft' ? (
-                            <Button variant="accent" size="sm" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
+                            <Button variant="accent" size="sm" title="Marcar como aprobado para poder enviarlo" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
                                 Aprobar
                             </Button>
                         ) : (
-                            <Button variant="accent" size="sm" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
+                            <Button variant="accent" size="sm" title="Enviar el reporte por email a los destinatarios" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
                                 {report.status === 'sent' ? 'Reenviar' : 'Enviar'}
                             </Button>
                         )}
@@ -545,38 +596,47 @@ export function ReportsScreen(): ReactElement {
                         Sincronización encolada. Espera unos segundos y pulsa «Regenerar» en ese reporte.
                     </p>
                 )}
+                {approve.isSuccess && (
+                    <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">Reporte aprobado. Ya puedes enviarlo.</p>
+                )}
+                <p className="ir-mb-3 ir-text-xs ir-text-muted-foreground">
+                    Acciones por reporte: <strong>Ver</strong> (portal del cliente) · <strong>PDF</strong> · <strong>Insights</strong> /
+                    <strong> Resumen</strong> / <strong>Comentarios</strong> (abren un panel debajo) · <strong>Aprobar</strong> → <strong>Enviar</strong>.
+                </p>
                 <DataTable columns={columns} data={reports} />
             </Card>
 
-            {narrativeFor !== null &&
-                (() => {
-                    const report = reports.find((item) => item.id === narrativeFor);
+            <div ref={panelsRef} className="ir-flex ir-flex-col ir-gap-6">
+                {narrativeFor !== null &&
+                    (() => {
+                        const report = reports.find((item) => item.id === narrativeFor);
 
-                    return report !== undefined ? <ReportNarrativePanel key={report.id} report={report} /> : null;
-                })()}
+                        return report !== undefined ? <ReportNarrativePanel key={report.id} report={report} /> : null;
+                    })()}
 
-            {commentsFor !== null && <ReportCommentsPanel key={commentsFor} reportId={commentsFor} />}
+                {commentsFor !== null && <ReportCommentsPanel key={commentsFor} reportId={commentsFor} />}
 
-            {insightsFor !== null && (
-                <Card title="Insights de IA">
-                    {insights.isPending ? (
-                        <p className="ir-text-sm ir-text-muted-foreground">Analizando los datos del reporte…</p>
-                    ) : insights.isError ? (
-                        <p className="ir-text-sm ir-text-red-500">No se pudieron generar los insights.</p>
-                    ) : (insights.data ?? []).length === 0 ? (
-                        <p className="ir-text-sm ir-text-muted-foreground">Sin datos suficientes para generar insights.</p>
-                    ) : (
-                        <ul className="ir-flex ir-flex-col ir-gap-2">
-                            {(insights.data ?? []).map((insight, index) => (
-                                <li key={index} className="ir-flex ir-gap-2 ir-text-sm">
-                                    <Sparkles className="ir-mt-0.5 ir-size-4 ir-shrink-0 ir-text-primary" />
-                                    <span>{insight}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </Card>
-            )}
+                {insightsFor !== null && (
+                    <Card title="Insights de IA">
+                        {insights.isPending ? (
+                            <p className="ir-text-sm ir-text-muted-foreground">Analizando los datos del reporte…</p>
+                        ) : insights.isError ? (
+                            <p className="ir-text-sm ir-text-red-500">No se pudieron generar los insights.</p>
+                        ) : (insights.data ?? []).length === 0 ? (
+                            <p className="ir-text-sm ir-text-muted-foreground">Sin datos suficientes para generar insights.</p>
+                        ) : (
+                            <ul className="ir-flex ir-flex-col ir-gap-2">
+                                {(insights.data ?? []).map((insight, index) => (
+                                    <li key={index} className="ir-flex ir-gap-2 ir-text-sm">
+                                        <Sparkles className="ir-mt-0.5 ir-size-4 ir-shrink-0 ir-text-primary" />
+                                        <span>{insight}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </Card>
+                )}
+            </div>
         </div>
     );
 }
