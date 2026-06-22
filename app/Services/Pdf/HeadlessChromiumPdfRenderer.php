@@ -43,7 +43,7 @@ final class HeadlessChromiumPdfRenderer implements PdfRenderer
         foreach ($this->binaries() as $binary) {
             try {
                 return $this->printWith($binary, $url);
-            } catch (RuntimeException $e) {
+            } catch (\Throwable $e) {
                 $errors[$binary] = $e->getMessage();
             }
         }
@@ -52,7 +52,13 @@ final class HeadlessChromiumPdfRenderer implements PdfRenderer
     }
 
     /**
-     * @return list<string> Executable Chromium/Chrome paths to attempt, configured first.
+     * @return list<string> Chromium/Chrome paths to attempt, configured first.
+     *
+     * We deliberately do NOT stat these with is_executable(): ServerAvatar sets PHP's
+     * open_basedir to the app dir + /tmp, so stating /usr/bin/* raises a warning and
+     * would (with the error suppressed) hide the real Chrome. open_basedir restricts
+     * PHP file ops, not proc_open — so we just try to launch each and let a missing
+     * binary fail fast, falling through to the next.
      */
     private function binaries(): array
     {
@@ -60,7 +66,7 @@ final class HeadlessChromiumPdfRenderer implements PdfRenderer
         $paths = is_string($configured) && $configured !== '' ? [$configured] : [];
 
         foreach (self::CANDIDATES as $candidate) {
-            if (! in_array($candidate, $paths, true) && is_executable($candidate)) {
+            if (! in_array($candidate, $paths, true)) {
                 $paths[] = $candidate;
             }
         }
