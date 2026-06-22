@@ -27,7 +27,7 @@ final readonly class AiReportBuilder
     ) {}
 
     /**
-     * @return array{blocks: list<array<string, mixed>>, narrative: string}
+     * @return array{blocks: list<array<string, mixed>>, narrative: string, dropped: list<array{type: string, metric: string}>}
      *
      * @throws AiReportException
      */
@@ -52,9 +52,22 @@ final readonly class AiReportBuilder
         $catalogKeys = array_map(static fn (array $entry): string => $entry['key'], $catalog);
 
         $visible = [];
+        $dropped = [];
         foreach ($blocks as $block) {
             if (! $this->bindingExists($block, $catalogKeys)) {
-                continue; // drop blocks the AI tried to bind to a non-existent metric
+                // The AI bound this block to a metric the site doesn't have — drop it so it
+                // can never invent data (§10.6), but record it so the editor can tell the
+                // user *what* was left out instead of silently shrinking their layout.
+                $binding = is_array($block->binding) ? $block->binding : [];
+                $source = is_string($binding['source'] ?? null) ? $binding['source'] : '';
+                $metric = is_string($binding['metric'] ?? null) ? $binding['metric'] : '';
+
+                $dropped[] = [
+                    'type' => $block->type->value,
+                    'metric' => $source !== '' && $metric !== '' ? "{$source}.{$metric}" : $metric,
+                ];
+
+                continue;
             }
 
             $visible[] = $block->toArray();
@@ -65,6 +78,7 @@ final readonly class AiReportBuilder
         return [
             'blocks' => $visible,
             'narrative' => is_string($narrative) ? $narrative : '',
+            'dropped' => $dropped,
         ];
     }
 
