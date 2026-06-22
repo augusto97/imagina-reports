@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Report;
 use App\Reports\AiReportBuilder;
+use App\Reports\ReportFacts;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -29,8 +30,9 @@ final class ReportInsightsController extends Controller
     }
 
     /**
-     * Build a compact, semantic metric map (label + metric key + value) from the
-     * report's resolved blocks so the AI reasons over named figures, not block ids.
+     * Build a compact, semantic metric map (label + value) from the report's resolved
+     * blocks so the AI reasons over named figures, not block ids (shared with the
+     * per-period narrative via ReportFacts).
      *
      * @return array<string, mixed>
      */
@@ -40,25 +42,6 @@ final class ReportInsightsController extends Controller
         $blocks = is_array($resolved['blocks'] ?? null) ? $resolved['blocks'] : [];
         $data = is_array($resolved['data'] ?? null) ? $resolved['data'] : [];
 
-        $facts = ['health_score' => $report->health_score];
-
-        foreach ($blocks as $block) {
-            if (! is_array($block)) {
-                continue;
-            }
-
-            $id = $block['id'] ?? null;
-            $binding = $block['binding'] ?? null;
-            $props = is_array($block['props'] ?? null) ? $block['props'] : [];
-
-            if (! is_string($id) || ! is_array($binding) || ! array_key_exists($id, $data) || is_array($data[$id])) {
-                continue;
-            }
-
-            $label = $props['label'] ?? $props['title'] ?? ($binding['metric'] ?? 'metric');
-            $facts[is_string($label) ? $label : 'metric'] = $data[$id];
-        }
-
-        return $facts;
+        return ReportFacts::build($blocks, $data, $report->health_score);
     }
 }

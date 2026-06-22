@@ -15,7 +15,9 @@ use App\Reports\Calc\CalculatedMetrics;
 use App\Reports\Templates\DefaultTemplate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * The GENERATE stage (CLAUDE.md §3.1/§10.4): resolves a definition's blocks against
@@ -32,6 +34,7 @@ final readonly class ReportGenerator
         private BlockResolver $resolver,
         private CalculatedMetrics $calculated,
         private WorkLogMetrics $workLogs,
+        private AiReportBuilder $ai,
     ) {}
 
     public function generate(ReportDefinition $definition, Period $period): Report
@@ -58,10 +61,19 @@ final readonly class ReportGenerator
         // editor preview uses, so the preview matches the generated report exactly.
         ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags);
 
+        // AI per-period narrative (§10.6): regenerate the executive-summary text from the
+        // resolved figures and inject it into the report's narrative block(s). This is the
+        // one acknowledged exception to "no external APIs during GENERATE" (§3.1/§10.6); it
+        // is fully resilient — a failure leaves the summary empty and never breaks the report.
+        $summary = $this->narrative($definition, $visibleBlocks, $data, $score);
+        if ($summary !== null) {
+            $data = $this->injectSummary($visibleBlocks, $data, $summary);
+        }
+
         // Per-report theme (accent + density): the definition's, falling back to its template's.
         $theme = $definition->theme ?? $definition->template?->theme;
 
-        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, is_array($theme) ? $theme : null, $diagnostics);
+        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, is_array($theme) ? $theme : null, $diagnostics, $summary);
 
         // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
         // webhook and run anomaly detection — keeping this generator free of delivery
@@ -134,12 +146,109 @@ final readonly class ReportGenerator
     }
 
     /**
+     * Generate the AI executive-summary text for the period from the resolved figures,
+     * in the report's locale — but only when the layout has an AI-fillable summary block
+     * and there is data to summarize. Returns null (no narrative) on any failure, an empty
+     * result, or when there's nothing to write — never throwing, so GENERATE always finishes.
+     *
+     * @param  list<array<string, mixed>>  $visibleBlocks
+     * @param  array<string, mixed>  $data
+     */
+    private function narrative(ReportDefinition $definition, array $visibleBlocks, array $data, int $score): ?string
+    {
+        if (! $this->hasSummaryBlock($visibleBlocks)) {
+            return null;
+        }
+
+        $facts = ReportFacts::build($visibleBlocks, $data, $score);
+
+        if ($facts === []) {
+            return null;
+        }
+
+        try {
+            $text = $this->ai->narrative($facts, $this->locale($definition));
+        } catch (Throwable $e) {
+            Log::warning('Report narrative generation failed; leaving the summary empty.', [
+                'definition_id' => $definition->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * The report's locale: the definition's, falling back to the agency default, then 'es'.
+     */
+    private function locale(ReportDefinition $definition): string
+    {
+        if ($definition->locale !== '') {
+            return $definition->locale;
+        }
+
+        $agencyLocale = $definition->agency?->default_locale;
+
+        return is_string($agencyLocale) && $agencyLocale !== '' ? $agencyLocale : 'es';
+    }
+
+    /**
+     * Whether the layout contains a narrative block flagged as the AI executive summary
+     * (props.variant === 'executive_summary', per the default template §11.5).
+     *
+     * @param  list<array<string, mixed>>  $visibleBlocks
+     */
+    private function hasSummaryBlock(array $visibleBlocks): bool
+    {
+        foreach ($visibleBlocks as $block) {
+            if ($this->isSummaryBlock($block)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Write the generated summary into every AI executive-summary narrative block's data
+     * slot — the shared NarrativeBlock renders `data[id]` (falling back to props.text), so
+     * the text shows in the portal and the PDF with no renderer change.
+     *
+     * @param  list<array<string, mixed>>  $visibleBlocks
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function injectSummary(array $visibleBlocks, array $data, string $summary): array
+    {
+        foreach ($visibleBlocks as $block) {
+            if ($this->isSummaryBlock($block) && is_string($block['id'] ?? null)) {
+                $data[$block['id']] = $summary;
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $block
+     */
+    private function isSummaryBlock(array $block): bool
+    {
+        $props = is_array($block['props'] ?? null) ? $block['props'] : [];
+
+        return ($block['type'] ?? null) === 'narrative'
+            && ($props['variant'] ?? null) === 'executive_summary';
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $visibleBlocks
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>|null  $theme
      * @param  list<array<string, mixed>>  $diagnostics
      */
-    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null, array $diagnostics = []): Report
+    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null, array $diagnostics = [], ?string $summary = null): Report
     {
         $report = new Report;
         $report->agency_id = $definition->agency_id;
@@ -148,7 +257,7 @@ final readonly class ReportGenerator
         $report->period_end = Carbon::instance($period->end);
         $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data, 'theme' => $theme, 'diagnostics' => $diagnostics];
         $report->health_score = $score;
-        $report->executive_summary = null; // AI narrative is Phase 2
+        $report->executive_summary = $summary; // AI per-period narrative (§10.6), null if unavailable
         $report->public_token = Str::random(48);
         $report->status = ReportStatus::Draft;
         $report->save();
