@@ -87,6 +87,7 @@ export function Inspector({
     onChange: (block: Block) => void;
 }): ReactElement {
     const [tab, setTab] = useState<'config' | 'style'>('config');
+    const [metricQuery, setMetricQuery] = useState('');
 
     if (block === null) {
         return (
@@ -102,6 +103,18 @@ export function Inspector({
 
     // Dimensions available for the bound metric → the drill-down picker (CLAUDE.md §11.3).
     const boundEntry = block.binding != null ? catalog.find((entry) => entry.source === block.binding?.source && entry.metric === block.binding?.metric) : undefined;
+
+    // Filter the binding picker so large multi-source catalogs stay usable. The currently
+    // bound metric is always kept in the list so it never vanishes while filtering.
+    const metricFilter = metricQuery.trim().toLowerCase();
+    const filteredCatalog =
+        metricFilter === ''
+            ? catalog
+            : catalog.filter(
+                  (entry) =>
+                      (entry.source === block.binding?.source && entry.metric === block.binding?.metric) ||
+                      `${entry.label} ${entry.source} ${entry.metric}`.toLowerCase().includes(metricFilter),
+              );
     const dimensions = boundEntry?.dimensions ?? [];
 
     const setProp = (key: string, value: string): void => onChange({ ...block, props: { ...block.props, [key]: value } });
@@ -202,6 +215,14 @@ export function Inspector({
 
                     {isData && (
                         <Field label="Métrica">
+                            {catalog.length > 6 && (
+                                <Input
+                                    className="ir-mb-2"
+                                    value={metricQuery}
+                                    onChange={(event) => setMetricQuery(event.target.value)}
+                                    placeholder="Buscar métrica…"
+                                />
+                            )}
                             <select
                                 className={selectClass}
                                 value={block.binding ? `${block.binding.source}|${block.binding.metric}` : ''}
@@ -217,12 +238,15 @@ export function Inspector({
                                 }}
                             >
                                 <option value="">Vincular métrica…</option>
-                                {catalog.map((entry) => (
+                                {filteredCatalog.map((entry) => (
                                     <option key={entry.key} value={`${entry.source}|${entry.metric}`}>
                                         {entry.label} ({entry.source})
                                     </option>
                                 ))}
                             </select>
+                            {metricFilter !== '' && filteredCatalog.length === 0 && (
+                                <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">Sin métricas que coincidan.</p>
+                            )}
                         </Field>
                     )}
 

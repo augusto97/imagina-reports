@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🔍 BUSCADOR EN EL SELECTOR DE MÉTRICAS — v1.6.5 (2026-06-22, rama `claude/editor-metric-search`):** backlog 4.1,
+solo frontend. El binding picker del Inspector era un `<select>` plano que no escalaba con catálogos de muchas
+fuentes×métricas. Ahora, cuando el catálogo tiene >6 entradas, aparece un **input «Buscar métrica…»** que acota las
+opciones por etiqueta/fuente/métrica; la **métrica ya vinculada siempre se mantiene en la lista** (no desaparece al
+filtrar) y se muestra «Sin métricas que coincidan» si el filtro no devuelve nada. Cero backend. **TS + ESLint +
+build limpios.** → release **v1.6.5**. Pendientes seguros restantes: 4.2 (screenshots de work logs), 5.x
+(Vitest/code-split/OpenAPI).
+
 **🤖 FEEDBACK DE BLOQUES DESCARTADOS POR LA IA — v1.6.4 (2026-06-22, rama `claude/ai-dropped-blocks-feedback`):**
 backlog 3.3. Al «Generar con IA», `AiReportBuilder::assembleTemplate` ya descartaba bloques cuya métrica no existe
 en el catálogo del sitio (no puede inventar datos, §10.6) **pero en silencio**. Ahora devuelve también
