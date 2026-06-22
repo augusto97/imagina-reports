@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**📦 CODE-SPLITTING DEL BUNDLE — v1.7.1 (2026-06-22, rama `claude/build-code-splitting`):** backlog 5.2. El build
+avisaba de chunks >500 KB (el `BlockRenderer` compartido pesaba ~690 KB con recharts inline). Añadido
+`build.rollupOptions.output.manualChunks` en `vite.config.ts` que separa vendor pesado en chunks propios:
+`charts` (recharts/d3, 112 KB), `editor-richtext` (tiptap/prosemirror, 93 KB), `editor-grid` (dnd-kit/grid, 65 KB),
+`tanstack` (28 KB), `motion`. **Resultado: `BlockRenderer` 690 KB → 30,7 KB y el warning desaparece.** **Solo chunks
+estáticos (sin import dinámico)** → el portal/PDF cargan su código eager, `window.reportReady` (§10.7) intacto; las
+libs solo-editor no entran en los entries de report/portal. TSC + ESLint + Vitest (7) + build limpios; manifest
+válido. → release **v1.7.1**. **Restante del backlog seguro: 5.3 OpenAPI** (último).
+
 **🧪 VITEST + RTL — v1.7.0 (2026-06-22, rama `claude/frontend-vitest`):** backlog 5.1 — cierra el hueco histórico
 «sin tests de frontend» (el gate front era solo typecheck+lint+build). Añadido **Vitest 2 + React Testing Library +
 jsdom**: `vitest.config.ts` (separado de `vite.config.ts` para que el build de assets no arrastre tooling de test;
