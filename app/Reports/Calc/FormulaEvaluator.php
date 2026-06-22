@@ -24,8 +24,15 @@ final class FormulaEvaluator
     public function evaluate(string $formula, array $values): float
     {
         $rpn = $this->toRpn($this->tokenize($formula));
+        $result = $this->evaluateRpn($rpn, $values);
 
-        return $this->evaluateRpn($rpn, $values);
+        // Overflow (e.g. huge * huge → INF) or NaN must not be stored in a report —
+        // the renderer would choke. Treat it like any other incomputable formula.
+        if (! is_finite($result)) {
+            throw new FormulaException('Formula produced a non-finite result (overflow or NaN).');
+        }
+
+        return $result;
     }
 
     /**

@@ -58,4 +58,11 @@ class FormulaEvaluatorTest extends TestCase
         $this->expectException(FormulaException::class);
         $this->eval->evaluate('2 ; 3', []);
     }
+
+    public function test_it_rejects_a_non_finite_overflow_result(): void
+    {
+        // huge * huge overflows to INF — must not be stored in a report.
+        $this->expectException(FormulaException::class);
+        $this->eval->evaluate('big * big', ['big' => 1e308]);
+    }
 }

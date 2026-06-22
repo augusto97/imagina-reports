@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Reports\Calc;
 
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -38,8 +39,15 @@ final readonly class CalculatedMetrics
 
             try {
                 $result["calc.{$key}"] = $this->evaluator->evaluate($formula, $flat);
-            } catch (Throwable) {
-                // Skip invalid/incomputable metrics — the bound block is gracefully hidden.
+            } catch (Throwable $e) {
+                // Skip invalid/incomputable metrics — the bound block is gracefully hidden —
+                // but log WHY, so a bad formula in a template/definition is diagnosable
+                // instead of silently producing an empty block.
+                Log::warning('Calculated metric skipped: its formula could not be computed.', [
+                    'key' => $key,
+                    'formula' => $formula,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
