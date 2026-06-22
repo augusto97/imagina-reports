@@ -55,9 +55,19 @@ final class WooCommerceConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('woocommerce.revenue', 'Revenue', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.orders', 'Orders', MetricType::Scalar, 'count'),
-            new MetricDefinition('woocommerce.top_products', 'Top products', MetricType::Table),
+            new MetricDefinition('woocommerce.revenue', 'Ingresos (brutos)', MetricType::Scalar, 'currency'),
+            new MetricDefinition('woocommerce.net_revenue', 'Ingresos netos', MetricType::Scalar, 'currency'),
+            new MetricDefinition('woocommerce.orders', 'Pedidos', MetricType::Scalar, 'count'),
+            new MetricDefinition('woocommerce.items_sold', 'Artículos vendidos', MetricType::Scalar, 'count'),
+            new MetricDefinition('woocommerce.average_sales', 'Venta media diaria', MetricType::Scalar, 'currency'),
+            new MetricDefinition('woocommerce.tax', 'Impuestos', MetricType::Scalar, 'currency'),
+            new MetricDefinition('woocommerce.shipping', 'Envíos', MetricType::Scalar, 'currency'),
+            new MetricDefinition('woocommerce.discount', 'Descuentos', MetricType::Scalar, 'currency'),
+            new MetricDefinition('woocommerce.refunds', 'Reembolsos', MetricType::Scalar, 'count'),
+            new MetricDefinition('woocommerce.new_customers', 'Clientes nuevos', MetricType::Scalar, 'count'),
+            new MetricDefinition('woocommerce.revenue_by_date', 'Ingresos por día', MetricType::Series, 'currency'),
+            new MetricDefinition('woocommerce.orders_by_date', 'Pedidos por día', MetricType::Series, 'count'),
+            new MetricDefinition('woocommerce.top_products', 'Productos más vendidos', MetricType::Table),
         );
     }
 
@@ -87,15 +97,49 @@ final class WooCommerceConnector implements DataSourceConnector
             return MetricSet::failed('WooCommerce sales request failed: HTTP '.$sales->status());
         }
 
-        $totals = $this->listOf($sales->json())[0] ?? [];
+        $report = $this->listOf($sales->json())[0] ?? [];
 
         $metrics = [
-            'woocommerce.revenue' => $this->toFloat(Arr::get($totals, 'total_sales')),
-            'woocommerce.orders' => $this->toInt(Arr::get($totals, 'total_orders')),
+            'woocommerce.revenue' => $this->toFloat(Arr::get($report, 'total_sales')),
+            'woocommerce.net_revenue' => $this->toFloat(Arr::get($report, 'net_sales')),
+            'woocommerce.orders' => $this->toInt(Arr::get($report, 'total_orders')),
+            'woocommerce.items_sold' => $this->toInt(Arr::get($report, 'total_items')),
+            'woocommerce.average_sales' => $this->toFloat(Arr::get($report, 'average_sales')),
+            'woocommerce.tax' => $this->toFloat(Arr::get($report, 'total_tax')),
+            'woocommerce.shipping' => $this->toFloat(Arr::get($report, 'total_shipping')),
+            'woocommerce.discount' => $this->toFloat(Arr::get($report, 'total_discount')),
+            'woocommerce.refunds' => $this->toInt(Arr::get($report, 'total_refunds')),
+            'woocommerce.new_customers' => $this->toInt(Arr::get($report, 'total_customers')),
+            'woocommerce.revenue_by_date' => $this->series(Arr::get($report, 'totals'), 'sales'),
+            'woocommerce.orders_by_date' => $this->series(Arr::get($report, 'totals'), 'orders'),
             'woocommerce.top_products' => $this->topProducts($top->failed() ? null : $top->json()),
         ];
 
         return MetricSet::ok($metrics);
+    }
+
+    /**
+     * Build a date-keyed series from the `/reports/sales` `totals` map, e.g.
+     * `{"2026-06-01": {"sales": "10.00", "orders": "2", ...}, ...}` → a normalized
+     * `[{date, value}]` series the chart blocks consume (matches the ga4.*_by_date shape).
+     *
+     * @return list<array{date: string, value: float}>
+     */
+    private function series(mixed $totals, string $field): array
+    {
+        if (! is_array($totals)) {
+            return [];
+        }
+
+        $series = [];
+        foreach ($totals as $date => $row) {
+            $series[] = [
+                'date' => $this->toStr($date),
+                'value' => $this->toFloat(Arr::get($this->arrayOf($row), $field)),
+            ];
+        }
+
+        return $series;
     }
 
     /**

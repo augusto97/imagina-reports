@@ -111,6 +111,19 @@ export function Inspector({
               );
     const dimensions = boundEntry?.dimensions ?? [];
 
+    // Selectable fields for a `control` (filter) block, so the user picks visually instead
+    // of typing a raw row-key. Built from every dimension the connected sources expose
+    // (§11.3) plus the universal row keys tables/worklogs carry, and always the block's
+    // current field so a legacy/custom value stays selected.
+    const filterFields = Array.from(
+        new Set<string>([
+            'name',
+            'category',
+            ...catalog.flatMap((entry) => entry.dimensions ?? []),
+            ...(typeof block.props?.field === 'string' && block.props.field !== '' ? [block.props.field] : []),
+        ]),
+    );
+
     const setProp = (key: string, value: string): void => onChange({ ...block, props: { ...block.props, [key]: value } });
     const setCompare = (on: boolean): void => {
         if (block.binding !== undefined && block.binding !== null) {
@@ -301,8 +314,14 @@ export function Inspector({
                             <Field label="Etiqueta del filtro">
                                 <Input value={str(block.props?.label)} onChange={(event) => setProp('label', event.target.value)} placeholder="Filtrar por…" />
                             </Field>
-                            <Field label="Campo a filtrar (clave de fila)">
-                                <Input value={str(block.props?.field) || 'name'} onChange={(event) => setProp('field', event.target.value)} placeholder="name" />
+                            <Field label="Campo a filtrar">
+                                <select className={selectClass} value={str(block.props?.field) || 'name'} onChange={(event) => setProp('field', event.target.value)}>
+                                    {filterFields.map((field) => (
+                                        <option key={field} value={field}>
+                                            {field}
+                                        </option>
+                                    ))}
+                                </select>
                             </Field>
                             <p className="ir-text-xs ir-text-muted-foreground">
                                 El filtro acota las filas de las tablas, gráficos y la línea de trabajo de esta página por el campo elegido.

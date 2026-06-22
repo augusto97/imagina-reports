@@ -6,6 +6,13 @@ import type { Block } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
 
 /**
+ * Corner-radius classes, mirroring the renderer's `Section` (single source of truth).
+ * The canvas tile clips its content, so it must follow the block's own `style.radius`
+ * — otherwise the wrapper's rounding would override "Esquinas → Rectas" in the editor.
+ */
+const RADIUS: Record<string, string> = { none: 'ir-rounded-none', sm: 'ir-rounded', md: 'ir-rounded-lg', lg: 'ir-rounded-2xl' };
+
+/**
  * A widget on the dashboard grid: renders the REAL block (WYSIWYG) filling its tile,
  * with a floating toolbar to drag (the grip is react-grid-layout's drag handle),
  * duplicate or remove. Clicking selects it for the inspector; inner content is
@@ -32,11 +39,14 @@ export function CanvasBlock({
         handler();
     };
 
+    const radius = RADIUS[typeof block.style?.radius === 'string' ? block.style.radius : ''] ?? 'ir-rounded-lg';
+
     return (
         <div
             onClick={onSelect}
             className={cn(
-                'ir-group ir-relative ir-h-full ir-cursor-pointer ir-overflow-hidden ir-rounded-lg ir-transition',
+                'ir-group ir-relative ir-h-full ir-cursor-pointer ir-overflow-hidden ir-transition',
+                radius,
                 selected ? 'ir-ring-2 ir-ring-primary' : 'hover:ir-ring-1 hover:ir-ring-border',
             )}
         >

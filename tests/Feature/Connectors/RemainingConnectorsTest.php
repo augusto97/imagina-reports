@@ -35,7 +35,18 @@ class RemainingConnectorsTest extends TestCase
     public function test_woocommerce_aggregates_sales_and_top_products(): void
     {
         Http::fake([
-            '*/reports/sales*' => Http::response([['total_sales' => '1500.50', 'total_orders' => 12]]),
+            '*/reports/sales*' => Http::response([[
+                'total_sales' => '1500.50',
+                'net_sales' => '1320.00',
+                'total_orders' => 12,
+                'total_items' => 30,
+                'total_tax' => '120.00',
+                'total_customers' => 8,
+                'totals' => [
+                    '2026-06-01' => ['sales' => '500.50', 'orders' => '4'],
+                    '2026-06-02' => ['sales' => '1000.00', 'orders' => '8'],
+                ],
+            ]]),
             '*/reports/top_sellers*' => Http::response([['name' => 'Camiseta', 'quantity' => 5]]),
         ]);
 
@@ -47,7 +58,15 @@ class RemainingConnectorsTest extends TestCase
 
         $this->assertTrue($set->isOk());
         $this->assertSame(1500.5, $set->get('woocommerce.revenue'));
+        $this->assertSame(1320.0, $set->get('woocommerce.net_revenue'));
         $this->assertSame(12, $set->get('woocommerce.orders'));
+        $this->assertSame(30, $set->get('woocommerce.items_sold'));
+        $this->assertSame(120.0, $set->get('woocommerce.tax'));
+        $this->assertSame(8, $set->get('woocommerce.new_customers'));
+        $this->assertSame(
+            [['date' => '2026-06-01', 'value' => 500.5], ['date' => '2026-06-02', 'value' => 1000.0]],
+            $set->get('woocommerce.revenue_by_date'),
+        );
         $this->assertSame([['name' => 'Camiseta', 'quantity' => 5]], $set->get('woocommerce.top_products'));
     }
 
