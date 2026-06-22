@@ -10,6 +10,8 @@ use App\Models\Site;
 use App\Models\User;
 use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -57,6 +59,33 @@ class SiteWorkLogApiTest extends TestCase
         $this->postJson("/api/v1/sites/{$site->id}/work-logs", ['description' => 'Revisé un correo del cliente'])
             ->assertCreated()
             ->assertJsonPath('minutes', null);
+    }
+
+    public function test_it_attaches_a_proof_of_work_screenshot(): void
+    {
+        Storage::fake('public');
+        $site = $this->site();
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/work-logs", [
+            'description' => 'Reparé el checkout',
+            'screenshot' => UploadedFile::fake()->image('checkout.png'),
+        ])->assertCreated();
+
+        $path = $response->json('screenshot_path');
+        $this->assertIsString($path);
+        $this->assertNotNull($response->json('screenshot_url'));
+        Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_it_rejects_a_non_image_screenshot(): void
+    {
+        Storage::fake('public');
+        $site = $this->site();
+
+        $this->postJson("/api/v1/sites/{$site->id}/work-logs", [
+            'description' => 'x',
+            'screenshot' => UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf'),
+        ])->assertStatus(422);
     }
 
     public function test_it_lists_logs_filtered_by_period(): void

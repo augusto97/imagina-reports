@@ -40,7 +40,16 @@ final class SiteWorkLogController extends Controller
     public function store(StoreWorkLogRequest $request, Site $site): JsonResponse
     {
         $data = $request->validated();
+        unset($data['screenshot']); // the uploaded file is handled below, not mass-assigned
         $data['performed_at'] ??= now();
+
+        if ($request->hasFile('screenshot')) {
+            $path = $request->file('screenshot')?->store('worklogs', 'public');
+
+            if (is_string($path)) {
+                $data['screenshot_path'] = $path;
+            }
+        }
 
         $log = $site->workLogs()->create($data);
 

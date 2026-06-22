@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**📸 SCREENSHOTS EN WORK LOGS — v1.6.6 (2026-06-22, rama `claude/worklog-screenshots`):** backlog 4.2 — prueba
+visual del trabajo (alinea con "hacer visible el trabajo invisible"). El modelo ya tenía `screenshot_path` pero no
+había forma de subir ni mostrar. **Backend:** `StoreWorkLogRequest` acepta un archivo `screenshot`
+(png/jpeg/webp ≤4MB); `SiteWorkLogController::store` lo sube al disco `public` (carpeta `worklogs/`) — nunca acepta
+un path del cliente; `WorkLog::screenshotUrl()` (helper) + `screenshot_url` expuesto en `WorkLogResource` y en el
+overlay del `worklog_timeline` del `ReportResource` (portal/PDF). **Frontend:** input de archivo en «Registrar
+trabajo» (se limpia tras enviar; `useCreateSiteWorkLog` manda **multipart** solo si hay imagen, JSON si no);
+miniatura clicable en la lista de Trabajo y en el bloque timeline del reporte. **+2 tests** (sube imagen y la
+guarda; rechaza no-imagen 422). **238 tests verdes, PHPStan max + Pint + TS + ESLint + build limpios.** **Ojo
+producción:** requiere el symlink `public/storage` (lo crea `deploy.sh` con `storage:link`). → release **v1.6.6**.
+**Backlog seguro restante (solo infra/tooling, requiere tu OK):** 5.1 Vitest, 5.2 code-splitting del bundle, 5.3 OpenAPI.
+
 **🔍 BUSCADOR EN EL SELECTOR DE MÉTRICAS — v1.6.5 (2026-06-22, rama `claude/editor-metric-search`):** backlog 4.1,
 solo frontend. El binding picker del Inspector era un `<select>` plano que no escalaba con catálogos de muchas
 fuentes×métricas. Ahora, cuando el catálogo tiene >6 entradas, aparece un **input «Buscar métrica…»** que acota las

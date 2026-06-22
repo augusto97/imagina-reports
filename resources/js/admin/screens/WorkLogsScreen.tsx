@@ -49,6 +49,8 @@ export function WorkLogsScreen(): ReactElement {
     const [minutes, setMinutes] = useState('');
     const [category, setCategory] = useState('');
     const [date, setDate] = useState(today());
+    const [screenshot, setScreenshot] = useState<File | null>(null);
+    const [fileKey, setFileKey] = useState(0); // bumped to clear the file input after submit
 
     const site = sites.find((candidate) => candidate.id === siteId);
     const totalMinutes = logs.reduce((sum, log) => sum + (log.minutes ?? 0), 0);
@@ -65,11 +67,14 @@ export function WorkLogsScreen(): ReactElement {
                 minutes: minutes === '' ? null : Number(minutes),
                 category: category === '' ? null : category,
                 performed_at: date,
+                screenshot,
             },
             {
                 onSuccess: () => {
                     setDescription('');
                     setMinutes('');
+                    setScreenshot(null);
+                    setFileKey((key) => key + 1);
                 },
             },
         );
@@ -121,6 +126,15 @@ export function WorkLogsScreen(): ReactElement {
                         <Field label="Fecha">
                             <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="ir-w-40" />
                         </Field>
+                        <Field label="Captura (opc.)">
+                            <input
+                                key={fileKey}
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                onChange={(event) => setScreenshot(event.target.files?.[0] ?? null)}
+                                className="ir-w-44 ir-text-xs ir-text-muted-foreground file:ir-mr-2 file:ir-rounded file:ir-border-0 file:ir-bg-muted file:ir-px-2 file:ir-py-1"
+                            />
+                        </Field>
                         <Button type="submit" disabled={create.isPending || description.trim() === ''}>
                             Añadir
                         </Button>
@@ -169,6 +183,11 @@ export function WorkLogsScreen(): ReactElement {
                                         <span className="ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground">{log.category}</span>
                                     )}
                                     <span className="ir-w-16 ir-text-right ir-tabular-nums">{log.minutes != null ? `${formatHours(log.minutes)} h` : '—'}</span>
+                                    {log.screenshot_url != null && (
+                                        <a href={log.screenshot_url} target="_blank" rel="noopener noreferrer" title="Ver captura" className="ir-shrink-0">
+                                            <img src={log.screenshot_url} alt="Captura del trabajo" className="ir-size-8 ir-rounded ir-border ir-object-cover" />
+                                        </a>
+                                    )}
                                     <button
                                         type="button"
                                         className="ir-text-muted-foreground hover:ir-text-red-500"

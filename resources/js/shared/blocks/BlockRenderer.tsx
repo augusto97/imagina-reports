@@ -509,6 +509,9 @@ function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElemen
                     <li key={index} className="ir-flex ir-items-baseline ir-gap-3 ir-text-sm">
                         <span className="ir-w-20 ir-shrink-0 ir-text-muted-foreground">{str(entry.performed_at)}</span>
                         <span className="ir-flex-1">{str(entry.description)}</span>
+                        {typeof entry.screenshot_url === 'string' && entry.screenshot_url !== '' && (
+                            <img src={entry.screenshot_url} alt="" className="ir-size-9 ir-shrink-0 ir-self-center ir-rounded ir-border ir-object-cover" />
+                        )}
                         {typeof entry.category === 'string' && entry.category !== '' && (
                             <span className="ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground">{entry.category}</span>
                         )}

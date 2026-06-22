@@ -31,6 +31,7 @@ final class WorkLogResource extends JsonResource
             'minutes' => $log->minutes,
             'category' => $log->category,
             'screenshot_path' => $log->screenshot_path,
+            'screenshot_url' => $log->screenshotUrl(),
         ];
     }
 }
