@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🧾 CLARIDAD DE LA LISTA DE REPORTES (2026-06-22, rama `claude/reports-list-clarity` → release v1.12.0):** el owner
+no entendía qué reporte era cada fila (solo salía el periodo) ni qué hacían los botones (varios abrían paneles
+**al final de la página**, fuera de vista → «no hacen nada»). Hecho: **backend** `ReportSummaryResource` ahora expone
+`created_at` (momento de generación). **Lista**: nueva columna **«Reporte»** (nombre de la definición + sitio) y
+**«Generado»** (fecha+hora formateada); el estado se muestra en español (Borrador/Aprobado/Enviado). **Acciones**:
+Resumen/Comentarios/Insights ahora **hacen scroll** al panel al abrirlo (el clic se ve), los botones llevan
+**tooltips** explicativos + una línea-leyenda, y se añadió banner de éxito al **Aprobar**. 89 tests backend +
+PHPStan + TS + ESLint + Vitest(11) + build limpios. **Siguiente:** validar conectores 2.x con credenciales reales.
+
 **🎨 PLANTILLAS + LIENZO (2026-06-22, rama `claude/templates-and-canvas` → release v1.11.0):** tras desplegar
 v1.10.0, el owner aclaró que el redondeado que le molestaba era el del **lienzo** (el artboard), no un bloque, y
 pidió **mejorar las plantillas** y **un reporte específico de WooCommerce**. Hecho: **(1) Lienzo como hoja de

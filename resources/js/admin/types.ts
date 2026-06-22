@@ -83,6 +83,7 @@ export interface ReportSummary {
     public_token: string;
     pdf_path: string | null;
     hidden_metrics: string[];
+    created_at: string | null;
 }
 
 export interface CatalogEntry {
