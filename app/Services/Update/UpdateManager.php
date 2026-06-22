@@ -22,7 +22,37 @@ final readonly class UpdateManager
 {
     private const STATE_KEY = 'ir:update:last_run';
 
+    private const WORKER_KEY = 'ir:update:worker_version';
+
     public function __construct(private Deployer $deployer) {}
+
+    /**
+     * Record the version the QUEUE WORKER is running (called by a queued job). The web
+     * layer and the worker are separate processes; after an update the worker only picks
+     * up new code once Horizon is restarted, so surfacing its version reveals a stale
+     * worker — the cause of "the web is updated but generated reports use the old logic".
+     */
+    public function recordWorkerVersion(): void
+    {
+        Cache::forever(self::WORKER_KEY, ['version' => $this->currentVersion(), 'at' => now()->toIso8601String()]);
+    }
+
+    /**
+     * @return array{version: string|null, at: string|null}
+     */
+    public function workerState(): array
+    {
+        $state = Cache::get(self::WORKER_KEY);
+
+        if (is_array($state) && array_key_exists('version', $state)) {
+            $version = is_string($state['version']) ? $state['version'] : null;
+            $at = isset($state['at']) && is_string($state['at']) ? $state['at'] : null;
+
+            return ['version' => $version, 'at' => $at];
+        }
+
+        return ['version' => null, 'at' => null];
+    }
 
     public function currentVersion(): string
     {
@@ -54,17 +84,20 @@ final readonly class UpdateManager
     }
 
     /**
-     * @return array{current: string, available: string|null, update_available: bool, last_run: RunState}
+     * @return array{current: string, available: string|null, update_available: bool, worker_version: string|null, worker_checked_at: string|null, last_run: RunState}
      */
     public function status(): array
     {
         $current = $this->currentVersion();
         $release = $this->availableRelease();
+        $worker = $this->workerState();
 
         return [
             'current' => $current,
             'available' => $release?->version,
             'update_available' => $release !== null && version_compare($release->version, $current, '>'),
+            'worker_version' => $worker['version'],
+            'worker_checked_at' => $worker['at'],
             'last_run' => $this->lastRun(),
         ];
     }

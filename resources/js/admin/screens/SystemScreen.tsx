@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react';
 import { type ReactElement } from 'react';
 
-import { useAuthUser, useCheckUpdates, useRollback, useRunUpdate, useUpdateStatus } from '../api';
+import { useAuthUser, useCheckUpdates, useRestartWorkers, useRollback, useRunUpdate, useUpdateStatus } from '../api';
 import { Button, Card } from '../components/ui';
 
 export function SystemScreen(): ReactElement {
@@ -10,6 +10,7 @@ export function SystemScreen(): ReactElement {
     const check = useCheckUpdates();
     const runUpdate = useRunUpdate();
     const rollback = useRollback();
+    const restartWorkers = useRestartWorkers();
 
     const privileged = user?.role === 'owner' || user?.role === 'admin';
 
@@ -60,6 +61,38 @@ export function SystemScreen(): ReactElement {
                             <p className="ir-text-xs ir-text-muted-foreground">La más reciente registrada desde GitHub.</p>
                         </div>
                     </div>
+
+                    {/* Worker version vs web version — a mismatch means generation runs old code. */}
+                    {status.worker_version !== null && status.worker_version !== status.current && (
+                        <div className="ir-rounded-md ir-border ir-border-red-300 ir-bg-red-50 ir-p-3 ir-text-sm ir-text-red-700">
+                            ⚠ <strong>El worker de la cola corre v{status.worker_version.replace(/^v/, '')}</strong> pero el servidor web corre
+                            v{(status.current ?? '').replace(/^v/, '')}. Los reportes los genera el worker, así que saldrán con el código viejo
+                            hasta reiniciarlo. Pulsa <strong>«Reiniciar trabajadores»</strong> y vuelve a generar.
+                        </div>
+                    )}
+                    <p className="ir-text-xs ir-text-muted-foreground">
+                        Worker de la cola (genera los reportes):{' '}
+                        <span className="ir-font-mono">{status.worker_version !== null ? `v${status.worker_version.replace(/^v/, '')}` : 'sin comprobar'}</span>
+                        {' · '}
+                        <button type="button" className="ir-underline hover:ir-text-foreground" onClick={() => check.mutate()}>
+                            comprobar
+                        </button>
+                    </p>
+
+                    {privileged && (
+                        <div>
+                            <Button variant="ghost" onClick={() => restartWorkers.mutate()} disabled={restartWorkers.isPending}>
+                                <RefreshCw className={restartWorkers.isPending ? 'ir-size-4 ir-animate-spin' : 'ir-size-4'} />
+                                {restartWorkers.isPending ? 'Reiniciando…' : 'Reiniciar trabajadores'}
+                            </Button>
+                            {restartWorkers.isSuccess && (
+                                <span className="ir-ml-2 ir-text-xs ir-text-emerald-600">
+                                    Señal enviada. El worker se reinicia con el código actual en unos segundos.
+                                </span>
+                            )}
+                            {restartWorkers.isError && <span className="ir-ml-2 ir-text-xs ir-text-red-500">No se pudo reiniciar.</span>}
+                        </div>
+                    )}
 
                     <div className="ir-flex ir-items-center ir-gap-3">
                         <Button variant="ghost" onClick={() => check.mutate()} disabled={check.isPending}>

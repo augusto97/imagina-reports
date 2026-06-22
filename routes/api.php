@@ -124,5 +124,6 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('system/update/status', [SystemUpdateController::class, 'status'])->name('api.system.update.status');
     Route::post('system/update/check', [SystemUpdateController::class, 'check'])->name('api.system.update.check');
     Route::post('system/update/run', [SystemUpdateController::class, 'run'])->name('api.system.update.run');
+    Route::post('system/update/restart-workers', [SystemUpdateController::class, 'restartWorkers'])->name('api.system.update.restart-workers');
     Route::post('system/update/rollback', [SystemUpdateController::class, 'rollback'])->name('api.system.update.rollback');
 });

@@ -38,6 +38,12 @@ echo "→ Flipping the current symlink (atomic)"
 ln -sfn "${RELEASE_DIR}" "${CURRENT}"
 
 echo "→ Restarting the queue worker (final step)"
+# Horizon (CLAUDE.md §2) does NOT reload its workers' code on `queue:restart` — the
+# long-running master keeps the old autoloader and respawns stale workers. Supervisor
+# (ServerAvatar) restarts the master with the new release on `horizon:terminate`, so the
+# code that runs report generation actually updates. `queue:restart` is the fallback for
+# plain workers / when Horizon isn't running.
+php "${CURRENT}/artisan" horizon:terminate || true
 php "${CURRENT}/artisan" queue:restart
 
 echo "✓ Deployed ${RELEASE_DIR}"

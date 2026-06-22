@@ -56,6 +56,8 @@ final class SymlinkDeployer implements Deployer
 
             $this->process(['ln', '-sfn', $previous, $this->path('current_link')]);
             $this->restoreDatabase();
+            // Horizon needs terminate (not just queue:restart) to reload code — see deploy.sh.
+            Process::timeout(120)->run([PHP_BINARY, $previous.'/artisan', 'horizon:terminate']);
             $this->process([PHP_BINARY, $previous.'/artisan', 'queue:restart']);
         } catch (Throwable $exception) {
             report($exception);

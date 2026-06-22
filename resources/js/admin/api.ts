@@ -382,6 +382,16 @@ export function useRollback() {
     });
 }
 
+export function useRestartWorkers() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post('/system/update/restart-workers').then((r) => r.data),
+        // Give Horizon a few seconds to respawn and the worker to re-record its version.
+        onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['update-status'] }), 4000),
+    });
+}
+
 /* ------------------------------ editor: catalog ---------------------------- */
 
 export function useMetricCatalog(siteId: number | null) {
