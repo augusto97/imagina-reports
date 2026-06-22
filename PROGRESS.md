@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🔎 OBSERVABILIDAD DE FÓRMULAS — v1.6.2 (2026-06-22, rama `claude/observability-hardening`):** quita fallos
+silenciosos en las métricas calculadas (backlog 3.1/3.2). **`FormulaEvaluator`** ahora rechaza resultados **no
+finitos** (overflow `huge*huge`→INF, o NaN) con `FormulaException` — antes podían guardarse en el reporte y romper
+el render. **`CalculatedMetrics`** ahora **loguea un warning** (key+fórmula+error) cuando una fórmula no se puede
+computar, en vez de tragar la excepción en silencio (el bloque se sigue ocultando con elegancia). **+3 tests**
+(overflow rechazado; computa válidas; loguea+omite la mala). **236 tests verdes, PHPStan max + Pint limpios.** Solo
+backend. → release **v1.6.2**. **Backlog restante de observabilidad (no incluido):** feedback de bloques
+descartados por la IA (3.3, cambia shape+UI) y thresholds de config mal formados en anomalías/upsell (3.4).
+
 **✏️ EDICIÓN/REGENERACIÓN DE LA NARRATIVA — v1.6.1 (2026-06-22, rama `claude/narrative-editing`):** completa el
 follow-up de §10.6 ("always editable"). Antes el resumen ejecutivo se congelaba en la generación; ahora la agencia
 puede **editarlo a mano o regenerarlo con IA por reporte** antes de enviar. **Backend:** `PUT /reports/{id}/narrative`
