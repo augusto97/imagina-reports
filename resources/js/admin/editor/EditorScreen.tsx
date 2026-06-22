@@ -1,7 +1,10 @@
 import {
     Calendar,
+    Clock,
+    Copy,
     FunctionSquare,
     Globe,
+    Layers,
     LayoutTemplate,
     PanelLeftClose,
     PanelLeftOpen,
@@ -12,10 +15,15 @@ import {
     Redo2,
     RefreshCw,
     Save,
+    Search,
     Shapes,
+    ShieldCheck,
+    ShoppingCart,
     Sparkles,
+    Trash2,
     Undo2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
     type CSSProperties,
     type ReactElement,
@@ -55,16 +63,26 @@ import {
     makeBlock,
     sampleData,
 } from "./blockFactory";
-import { BlockPalette } from "./BlockPalette";
+import { BlockPalette, BLOCK_META } from "./BlockPalette";
 import { CalcMetricsEditor } from "./CalcMetricsEditor";
 import { GALLERY } from "./templateGallery";
 import { Inspector } from "./Inspector";
 import {
+    ColorSwatch,
     Section,
     SegmentedControl,
     ToolbarButton,
     ToolbarDivider,
 } from "./controls";
+import { cn } from "@shared/lib/utils";
+
+/** A small icon per gallery template (keeps templateGallery.ts pure data). */
+const GALLERY_ICONS: Record<string, LucideIcon> = {
+    ecommerce: ShoppingCart,
+    seo: Search,
+    hourly_support: Clock,
+    security: ShieldCheck,
+};
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
 const Grid = WidthProvider(GridLayout);
@@ -627,6 +645,63 @@ export function EditorScreen(): ReactElement {
                             <BlockPalette onAdd={addBlock} onDragType={setDraggingType} />
                         </Section>
 
+                        <Section
+                            title={`Capas · página ${currentPage + 1}`}
+                            icon={<Layers className="ir-size-4" />}
+                            defaultOpen={false}
+                        >
+                            {pageBlocks.length === 0 ? (
+                                <p className="ir-text-[11px] ir-text-muted-foreground">Sin bloques en esta página.</p>
+                            ) : (
+                                <div className="ir-flex ir-flex-col ir-gap-0.5">
+                                    {pageBlocks.map((block) => {
+                                        const meta = BLOCK_META[block.type];
+                                        const LayerIcon = meta.icon;
+                                        const isSelected = block.id === selectedId;
+
+                                        return (
+                                            <div
+                                                key={block.id}
+                                                onClick={() => setSelectedId(block.id)}
+                                                className={cn(
+                                                    "ir-group ir-flex ir-cursor-pointer ir-items-center ir-gap-2 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-xs ir-transition",
+                                                    isSelected ? "ir-bg-primary/10 ir-text-foreground" : "ir-text-muted-foreground hover:ir-bg-muted",
+                                                )}
+                                            >
+                                                <LayerIcon className="ir-size-3.5 ir-shrink-0" />
+                                                <span className="ir-flex-1 ir-truncate">
+                                                    {meta.label}
+                                                    {block.binding != null && <span className="ir-text-muted-foreground/70"> · {block.binding.metric}</span>}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    title="Duplicar"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        duplicateBlock(block.id);
+                                                    }}
+                                                    className="ir-hidden ir-text-muted-foreground hover:ir-text-foreground group-hover:ir-block"
+                                                >
+                                                    <Copy className="ir-size-3.5" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    title="Eliminar"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        removeBlock(block.id);
+                                                    }}
+                                                    className="ir-hidden ir-text-muted-foreground hover:ir-text-red-500 group-hover:ir-block"
+                                                >
+                                                    <Trash2 className="ir-size-3.5" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </Section>
+
                         <Section title="Plantillas e IA" icon={<LayoutTemplate className="ir-size-4" />}>
                             <div className="ir-flex ir-flex-col ir-gap-2.5">
                                 <div className="ir-flex ir-gap-2">
@@ -648,17 +723,26 @@ export function EditorScreen(): ReactElement {
                                     Plantilla por defecto
                                 </Button>
                                 <div className="ir-flex ir-flex-col ir-gap-1.5">
-                                    {GALLERY.map((template) => (
-                                        <button
-                                            key={template.key}
-                                            type="button"
-                                            onClick={() => loadTemplate(template.build)}
-                                            className="ir-rounded-md ir-border ir-bg-background ir-p-2 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
-                                        >
-                                            <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
-                                            <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
-                                        </button>
-                                    ))}
+                                    {GALLERY.map((template) => {
+                                        const GalleryIcon = GALLERY_ICONS[template.key] ?? LayoutTemplate;
+
+                                        return (
+                                            <button
+                                                key={template.key}
+                                                type="button"
+                                                onClick={() => loadTemplate(template.build)}
+                                                className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-2 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
+                                            >
+                                                <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
+                                                    <GalleryIcon className="ir-size-4" />
+                                                </span>
+                                                <span className="ir-min-w-0">
+                                                    <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
+                                                    <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                                 {(create.isSuccess || update.isSuccess) && (
                                     <p className="ir-text-xs ir-text-emerald-600">Guardada.</p>
@@ -679,23 +763,11 @@ export function EditorScreen(): ReactElement {
                         <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />} defaultOpen={false}>
                             <div className="ir-flex ir-flex-col ir-gap-3">
                                 <Field label="Color de acento">
-                                    <div className="ir-flex ir-items-center ir-gap-2">
-                                        <input
-                                            type="color"
-                                            value={theme.accent ?? "#6366f1"}
-                                            onChange={(event) => setTheme((current) => ({ ...current, accent: event.target.value }))}
-                                            className="ir-h-8 ir-w-10 ir-cursor-pointer ir-rounded ir-border"
-                                        />
-                                        {theme.accent != null && (
-                                            <button
-                                                type="button"
-                                                className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
-                                                onClick={() => setTheme((current) => ({ ...current, accent: null }))}
-                                            >
-                                                usar marca de agencia
-                                            </button>
-                                        )}
-                                    </div>
+                                    <ColorSwatch
+                                        value={theme.accent ?? ""}
+                                        onChange={(value) => setTheme((current) => ({ ...current, accent: value ?? null }))}
+                                    />
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">Sin color = usa la marca de la agencia.</p>
                                 </Field>
                                 <Field label="Densidad">
                                     <SegmentedControl
@@ -875,10 +947,17 @@ export function EditorScreen(): ReactElement {
                                 </Grid>
                             </ReportSettingsProvider>
                             {pageBlocks.length === 0 && (
-                                <p className="ir-py-12 ir-text-center ir-text-sm ir-text-muted-foreground">
-                                    Página vacía. Añade bloques desde la
-                                    izquierda.
-                                </p>
+                                <div className="ir-flex ir-flex-col ir-items-center ir-justify-center ir-gap-3 ir-py-16 ir-text-center">
+                                    <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
+                                        <Shapes className="ir-size-6" />
+                                    </span>
+                                    <div>
+                                        <p className="ir-text-sm ir-font-medium ir-text-foreground">Página en blanco</p>
+                                        <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                                            Arrastra un bloque desde «Insertar» o haz clic para añadirlo.
+                                        </p>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>

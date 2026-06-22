@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR PREMIUM · FASE E — capas + presets + galería + empty-state (2026-06-22, rama `claude/editor-premium-phase-e`):**
+cierra el overhaul del editor (A–E completas). **Lista de «Capas»**: nueva `Section` que lista los bloques de la
+página con icono (`BLOCK_META`) + métrica vinculada, seleccionar/duplicar/eliminar (paridad Power BI, ayuda con
+bloques solapados). **Presets de acento**: el input de color del Tema pasa a `ColorSwatch` (presets + custom +
+quitar=marca de agencia). **Galería de plantillas** con icono por vertical (e-commerce/SEO/soporte/seguridad).
+**Empty-state** del lienzo rediseñado (icono + CTA «arrastra o haz clic»). Sin backend. TS+ESLint+Vitest(11)+build
+limpios. → release **v1.9.4**. **🎉 OVERHAUL DEL EDITOR COMPLETO** (A shell · B paleta visual+drag · C inspector
+rico · D fx calc · E capas/presets/galería). Listo para que el owner despliegue (Sistema→Actualizar) y lo evalúe.
+
 **🎨 EDITOR PREMIUM · FASE D — editor fx de métricas calculadas (2026-06-22, rama `claude/editor-premium-phase-d`):**
 sustituye los 3 inputs pelados por un **editor fx**: nuevo `editor/CalcMetricsEditor.tsx` con, por métrica,
 clave (prefijo `calc.`) + etiqueta + fórmula, **botones de operador** (`+ - * / ( )`), **insertar métrica** del
