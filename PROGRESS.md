@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 UX DEL FLUJO DE REPORTES — v1.6.3 (2026-06-22, rama `claude/reports-workflow-ux`):** dos huecos del backlog,
+solo frontend (reusa endpoints existentes). **1.3 — métricas ocultas accionables:** la celda «⚠ N sin datos» ahora
+trae un botón **«Sincronizar periodo»** (encola `POST /sites/{site}/sync` para el periodo del reporte, vía
+`useSyncSiteById` nuevo) y cada fila gana **«Regenerar»** (re-corre `reports/generate` con la definición+periodo del
+reporte) — cierra el lazo sincronizar→regenerar sin volver a teclear el formulario. **4.4 — destinatarios
+editables:** antes eran write-only; la lista «Definiciones existentes» ahora muestra y **edita los destinatarios**
+inline (guarda al perder foco vía `useUpdateReportDefinition`, que ya aceptaba `recipients`); `recipients` añadido
+al tipo `ReportDefinitionDto`. **TS + ESLint + build limpios; sin cambios de backend** (228… los tests PHP no
+cambian). → release **v1.6.3**. Pendientes seguros restantes: 4.1 (buscador en el selector de métricas del editor),
+3.3 (feedback de bloques que la IA descarta), 4.2 (screenshots de work logs), 5.x (Vitest, code-split, OpenAPI).
+
 **🔎 OBSERVABILIDAD DE FÓRMULAS — v1.6.2 (2026-06-22, rama `claude/observability-hardening`):** quita fallos
 silenciosos en las métricas calculadas (backlog 3.1/3.2). **`FormulaEvaluator`** ahora rechaza resultados **no
 finitos** (overflow `huge*huge`→INF, o NaN) con `FormulaException` — antes podían guardarse en el reporte y romper

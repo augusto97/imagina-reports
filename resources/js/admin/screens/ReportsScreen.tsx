@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
-import { FileDown, MessageSquare, PenLine, Sparkles, Trash2 } from 'lucide-react';
+import { FileDown, MessageSquare, PenLine, RefreshCw, RotateCw, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
@@ -11,6 +11,7 @@ import {
     useGenerateReport,
     useRegenerateReportNarrative,
     useReportComments,
+    useSyncSiteById,
     useReportDefinitions,
     useReportInsights,
     useReportTemplates,
@@ -26,7 +27,7 @@ import {
 } from '../api';
 import { DataTable } from '../components/DataTable';
 import { Button, Card, Field, Input } from '../components/ui';
-import type { ReportSummary } from '../types';
+import type { ReportDefinitionDto, ReportSummary } from '../types';
 
 const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
@@ -132,6 +133,32 @@ function ReportNarrativePanel({ report }: { report: ReportSummary }): ReactEleme
     );
 }
 
+/** Inline view/edit of a definition's email recipients (saved on blur). */
+function DefinitionRecipientsEditor({ definition }: { definition: ReportDefinitionDto }): ReactElement {
+    const update = useUpdateReportDefinition();
+    const [value, setValue] = useState((definition.recipients ?? []).join(', '));
+
+    const save = (): void => {
+        const next = parseRecipients(value);
+        if (next.join(',') !== (definition.recipients ?? []).join(',')) {
+            update.mutate({ id: definition.id, recipients: next });
+        }
+    };
+
+    return (
+        <div className="ir-flex ir-flex-1 ir-items-center ir-gap-2">
+            <input
+                className={`${inputClass} ir-max-w-md`}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                onBlur={save}
+                placeholder="cliente@empresa.com, pm@agencia.com"
+            />
+            {update.isSuccess && <span className="ir-shrink-0 ir-text-xs ir-text-emerald-600">Guardado</span>}
+        </div>
+    );
+}
+
 /** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
 function parseRecipients(raw: string): string[] {
     return raw
@@ -148,7 +175,12 @@ export function ReportsScreen(): ReactElement {
     const createDefinition = useCreateReportDefinition();
     const updateDefinition = useUpdateReportDefinition();
     const generate = useGenerateReport();
+    const syncSite = useSyncSiteById();
     const downloadPdf = useDownloadReportPdf();
+
+    // Map a report's definition → its site, so per-row sync/regenerate know where to act.
+    const siteIdForDefinition = (definitionId: number): number | null =>
+        definitions.find((definition) => definition.id === definitionId)?.site_id ?? null;
     const deleteReport = useDeleteReport();
     const deleteDefinition = useDeleteReportDefinition();
 
@@ -209,19 +241,41 @@ export function ReportsScreen(): ReactElement {
             id: 'data',
             header: 'Datos',
             cell: ({ row }) => {
-                const hidden = row.original.hidden_metrics ?? [];
+                const report = row.original;
+                const hidden = report.hidden_metrics ?? [];
 
                 if (hidden.length === 0) {
                     return <span className="ir-text-xs ir-text-emerald-600">OK</span>;
                 }
 
+                const siteId = siteIdForDefinition(report.report_definition_id);
+
                 return (
-                    <span
-                        className="ir-cursor-help ir-text-xs ir-text-amber-600"
-                        title={`Sin datos para el periodo (bloques ocultos): ${hidden.join(', ')}. Sincroniza el sitio para ese periodo y regenera.`}
-                    >
-                        ⚠ {hidden.length} sin datos
-                    </span>
+                    <div className="ir-flex ir-flex-col ir-items-start ir-gap-1">
+                        <span
+                            className="ir-cursor-help ir-text-xs ir-text-amber-600"
+                            title={`Sin datos para el periodo (bloques ocultos): ${hidden.join(', ')}. Sincroniza el periodo y luego «Regenerar».`}
+                        >
+                            ⚠ {hidden.length} sin datos
+                        </span>
+                        {siteId !== null && (
+                            <button
+                                type="button"
+                                className="ir-text-left ir-text-xs ir-text-primary hover:ir-underline"
+                                onClick={() =>
+                                    syncSite.mutate({
+                                        siteId,
+                                        period_start: report.period_start.slice(0, 10),
+                                        period_end: report.period_end.slice(0, 10),
+                                    })
+                                }
+                                disabled={syncSite.isPending}
+                            >
+                                <RefreshCw className="ir-mr-1 ir-inline ir-size-3" />
+                                {syncSite.isPending && syncSite.variables?.siteId === siteId ? 'Sincronizando…' : 'Sincronizar periodo'}
+                            </button>
+                        )}
+                    </div>
                 );
             },
         },
@@ -247,6 +301,22 @@ export function ReportsScreen(): ReactElement {
                         <Button variant="ghost" size="sm" onClick={() => setNarrativeFor((current) => (current === report.id ? null : report.id))}>
                             <PenLine className="ir-size-3.5" />
                             Resumen
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Volver a generar este reporte para el mismo periodo (tras sincronizar o editar la plantilla)"
+                            onClick={() =>
+                                generate.mutate({
+                                    report_definition_id: report.report_definition_id,
+                                    period_start: report.period_start.slice(0, 10),
+                                    period_end: report.period_end.slice(0, 10),
+                                })
+                            }
+                            disabled={generate.isPending}
+                        >
+                            <RotateCw className="ir-size-3.5" />
+                            Regenerar
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
                             <MessageSquare className="ir-size-3.5" />
@@ -366,43 +436,49 @@ export function ReportsScreen(): ReactElement {
                             La <strong>plantilla</strong> de cada definición es la que usa el reporte generado. Puedes cambiarla aquí.
                         </p>
                         {definitions.map((definition) => (
-                            <div key={definition.id} className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3 ir-rounded-md ir-border ir-p-3">
-                                <div className="ir-min-w-0">
-                                    <p className="ir-text-sm ir-font-medium">{definition.name}</p>
-                                    <p className="ir-text-xs ir-text-muted-foreground">{siteLabel(definition.site_id)}</p>
-                                </div>
-                                <div className="ir-flex ir-items-center ir-gap-2">
-                                    <span className="ir-text-xs ir-text-muted-foreground">Plantilla:</span>
-                                    <select
-                                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-sm"
-                                        value={definition.template_id ?? ''}
-                                        onChange={(event) =>
-                                            updateDefinition.mutate({
-                                                id: definition.id,
-                                                template_id: event.target.value === '' ? null : Number(event.target.value),
-                                            })
-                                        }
-                                    >
-                                        <option value="">Plantilla por defecto</option>
-                                        {templates.map((template) => (
-                                            <option key={template.id} value={template.id}>
-                                                {template.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        title="Eliminar definición"
-                                        onClick={() => {
-                                            if (window.confirm('¿Eliminar esta definición y todos sus reportes generados? No se puede deshacer.')) {
-                                                deleteDefinition.mutate(definition.id);
+                            <div key={definition.id} className="ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-border ir-p-3">
+                                <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
+                                    <div className="ir-min-w-0">
+                                        <p className="ir-text-sm ir-font-medium">{definition.name}</p>
+                                        <p className="ir-text-xs ir-text-muted-foreground">{siteLabel(definition.site_id)}</p>
+                                    </div>
+                                    <div className="ir-flex ir-items-center ir-gap-2">
+                                        <span className="ir-text-xs ir-text-muted-foreground">Plantilla:</span>
+                                        <select
+                                            className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-sm"
+                                            value={definition.template_id ?? ''}
+                                            onChange={(event) =>
+                                                updateDefinition.mutate({
+                                                    id: definition.id,
+                                                    template_id: event.target.value === '' ? null : Number(event.target.value),
+                                                })
                                             }
-                                        }}
-                                        disabled={deleteDefinition.isPending}
-                                    >
-                                        <Trash2 className="ir-size-3.5 ir-text-danger" />
-                                    </Button>
+                                        >
+                                            <option value="">Plantilla por defecto</option>
+                                            {templates.map((template) => (
+                                                <option key={template.id} value={template.id}>
+                                                    {template.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            title="Eliminar definición"
+                                            onClick={() => {
+                                                if (window.confirm('¿Eliminar esta definición y todos sus reportes generados? No se puede deshacer.')) {
+                                                    deleteDefinition.mutate(definition.id);
+                                                }
+                                            }}
+                                            disabled={deleteDefinition.isPending}
+                                        >
+                                            <Trash2 className="ir-size-3.5 ir-text-danger" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                                    <span className="ir-shrink-0 ir-text-xs ir-text-muted-foreground">Destinatarios:</span>
+                                    <DefinitionRecipientsEditor key={definition.recipients.join(',')} definition={definition} />
                                 </div>
                             </div>
                         ))}
@@ -462,6 +538,11 @@ export function ReportsScreen(): ReactElement {
                 {send.isSuccess && (
                     <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">
                         Envío encolado: el reporte se enviará por email a los destinatarios.
+                    </p>
+                )}
+                {syncSite.isSuccess && (
+                    <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">
+                        Sincronización encolada. Espera unos segundos y pulsa «Regenerar» en ese reporte.
                     </p>
                 )}
                 <DataTable columns={columns} data={reports} />
