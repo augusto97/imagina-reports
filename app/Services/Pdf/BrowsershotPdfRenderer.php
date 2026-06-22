@@ -19,12 +19,14 @@ use Spatie\Browsershot\Browsershot;
  * the direct-CLI renderer needed.
  *
  * Runtime requirements (the locked "no build on server" decision still holds —
- * assets are built in CI; this only needs Node + puppeteer-core *present*):
+ * assets are built in CI; this only needs Node + puppeteer *present*):
  *   - Node.js on the VPS (`BROWSERSHOT_NODE_PATH`, default /usr/bin/node).
- *   - `puppeteer-core` available (ship node_modules in the release, or
- *     `npm install puppeteer-core` once into the shared dir → BROWSERSHOT_NODE_MODULE_PATH).
- *   - A real (non-snap) Chrome/Chromium binary (`BROWSERSHOT_CHROME_PATH`); with
- *     puppeteer-core this is required since no Chromium is downloaded.
+ *   - The FULL `puppeteer` package available — Browsershot's bin/browser.cjs does
+ *     `require('puppeteer')`, so puppeteer-core is NOT enough. Install it with
+ *     `PUPPETEER_SKIP_DOWNLOAD=true npm install puppeteer` (skips its bundled Chromium)
+ *     into a node_modules dir pointed to by BROWSERSHOT_NODE_MODULE_PATH.
+ *   - A real (non-snap) Chrome/Chromium binary (`BROWSERSHOT_CHROME_PATH`), required
+ *     since the bundled Chromium download is skipped.
  */
 final class BrowsershotPdfRenderer implements PdfRenderer
 {

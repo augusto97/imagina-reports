@@ -25,19 +25,21 @@ ln -sfn "${SHARED}/.env" "${RELEASE_DIR}/.env"
 rm -rf "${RELEASE_DIR}/storage"
 ln -sfn "${SHARED}/storage" "${RELEASE_DIR}/storage"
 
-echo "→ Ensuring puppeteer-core for the PDF renderer (shared, install once)"
-# Browsershot needs puppeteer-core present at runtime (CLAUDE.md §10.7). We keep it in
-# the shared dir so it survives releases and never bloats the CI build ZIP. Point
-# BROWSERSHOT_NODE_MODULE_PATH at ${SHARED}/node_modules in .env. Best-effort: a missing
+echo "→ Ensuring puppeteer for the PDF renderer (shared, install once)"
+# Browsershot's bin/browser.cjs does `require('puppeteer')` — the FULL package, not
+# puppeteer-core (CLAUDE.md §10.7). We install it into the shared dir so it survives
+# releases and never bloats the CI build ZIP; PUPPETEER_SKIP_DOWNLOAD skips its bundled
+# Chromium since we point Browsershot at the system Chrome (BROWSERSHOT_CHROME_PATH).
+# Set BROWSERSHOT_NODE_MODULE_PATH to this node_modules in .env. Best-effort: a missing
 # Node or no network must not abort the deploy (the report page/portal still work).
 if command -v npm >/dev/null 2>&1; then
-    if [ ! -d "${SHARED}/node_modules/puppeteer-core" ]; then
-        echo "  installing puppeteer-core into ${SHARED}"
-        ( cd "${SHARED}" && npm install --no-save --no-audit --no-fund puppeteer-core ) || \
-            echo "  ⚠ puppeteer-core install failed — install it manually if PDF export errors"
+    if [ ! -d "${SHARED}/node_modules/puppeteer" ]; then
+        echo "  installing puppeteer (no bundled Chromium) into ${SHARED}"
+        ( cd "${SHARED}" && PUPPETEER_SKIP_DOWNLOAD=true npm install --no-save --no-audit --no-fund puppeteer ) || \
+            echo "  ⚠ puppeteer install failed — install it manually if PDF export errors"
     fi
 else
-    echo "  ⚠ npm not found — install Node + puppeteer-core for PDF export (see .env.example)"
+    echo "  ⚠ npm not found — install Node + puppeteer for PDF export (see .env.example)"
 fi
 
 echo "→ Migrating"
