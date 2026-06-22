@@ -102,6 +102,7 @@ final class ReportResource extends JsonResource
                 'minutes' => $log->minutes,
                 'category' => $log->category,
                 'screenshot_path' => $log->screenshot_path,
+                'screenshot_url' => $log->screenshotUrl(),
             ])->all();
 
         foreach ($blocks as $block) {

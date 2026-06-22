@@ -35,6 +35,7 @@ export interface WorkLog {
     minutes: number | null;
     category: string | null;
     screenshot_path: string | null;
+    screenshot_url: string | null;
 }
 
 export interface ConfigFieldDef {

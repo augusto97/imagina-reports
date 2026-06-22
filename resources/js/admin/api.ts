@@ -159,6 +159,7 @@ export interface WorkLogInput {
     minutes?: number | null;
     category?: string | null;
     performed_at?: string;
+    screenshot?: File | null;
 }
 
 /** Work logs for a site within a period (CLAUDE.md §11.5). */
@@ -180,7 +181,21 @@ export function useCreateSiteWorkLog(siteId: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: WorkLogInput) => api.post<WorkLog>(`/sites/${siteId}/work-logs`, payload).then((r) => r.data),
+        mutationFn: ({ screenshot, ...fields }: WorkLogInput) => {
+            // Multipart only when a proof-of-work screenshot is attached; otherwise JSON.
+            if (screenshot instanceof File) {
+                const form = new FormData();
+                form.append('description', fields.description);
+                if (fields.minutes != null) form.append('minutes', String(fields.minutes));
+                if (fields.category != null && fields.category !== '') form.append('category', fields.category);
+                if (fields.performed_at != null) form.append('performed_at', fields.performed_at);
+                form.append('screenshot', screenshot);
+
+                return api.post<WorkLog>(`/sites/${siteId}/work-logs`, form).then((r) => r.data);
+            }
+
+            return api.post<WorkLog>(`/sites/${siteId}/work-logs`, fields).then((r) => r.data);
+        },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
     });
 }

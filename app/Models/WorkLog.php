@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * A "what we did this month" entry (CLAUDE.md §5/§11.5).
@@ -62,5 +63,13 @@ class WorkLog extends Model
     public function report(): BelongsTo
     {
         return $this->belongsTo(Report::class);
+    }
+
+    /**
+     * Public URL of the proof-of-work screenshot, or null when none was attached.
+     */
+    public function screenshotUrl(): ?string
+    {
+        return $this->screenshot_path !== null ? Storage::disk('public')->url($this->screenshot_path) : null;
     }
 }
