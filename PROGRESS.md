@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🛠️ REFINAMIENTOS POST-OVERHAUL (2026-06-22, rama `claude/editor-refinements-woo` → release v1.10.0):** tres
+mejoras pedidas por el owner tras desplegar v1.9.4. **(1) Borde del lienzo controlable:** el wrapper de
+`CanvasBlock` tenía `ir-rounded-lg` fijo que ignoraba «Esquinas» del inspector; ahora deriva el radio de
+`block.style.radius` (mismo mapa `RADIUS` que el renderer), así «Rectas» da esquinas rectas también en el área de
+trabajo. **(2) WooCommerce ampliado de 3 a 13 métricas:** `metricCatalog` ahora expone ingresos brutos/netos,
+pedidos, artículos, venta media diaria, impuestos, envíos, descuentos, reembolsos, clientes nuevos, **series
+ingresos/pedidos por día** (de `totals` de `/reports/sales`) y productos top — todo de los **mismos 2 endpoints
+ya llamados** (`/reports/sales` + `/reports/top_sellers`, campos documentados; sigue pendiente validación con
+tienda real). **(3) Picker visual de campo en filtros:** el bloque `control` ya no pide teclear la clave de fila;
+es un `<select>` poblado con las dimensiones del catálogo + `name`/`category` + el valor actual. Backend: +6
+aserciones en `RemainingConnectorsTest`. PHPStan + TS + ESLint + Vitest(11) + build limpios. **Siguiente:** validar
+conectores 2.x con credenciales reales del owner; recoger feedback del editor en uso.
+
 **🎨 EDITOR PREMIUM · FASE E — capas + presets + galería + empty-state (2026-06-22, rama `claude/editor-premium-phase-e`):**
 cierra el overhaul del editor (A–E completas). **Lista de «Capas»**: nueva `Section` que lista los bloques de la
 página con icono (`BLOCK_META`) + métrica vinculada, seleccionar/duplicar/eliminar (paridad Power BI, ayuda con
