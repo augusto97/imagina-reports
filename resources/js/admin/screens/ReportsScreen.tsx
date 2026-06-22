@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
-import { MessageSquare, Sparkles, Trash2 } from 'lucide-react';
+import { FileDown, MessageSquare, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
@@ -13,6 +13,9 @@ import {
     useReportDefinitions,
     useReportInsights,
     useReportTemplates,
+    useDeleteReport,
+    useDeleteReportDefinition,
+    useDownloadReportPdf,
     useReports,
     useSendReport,
     useSites,
@@ -106,6 +109,9 @@ export function ReportsScreen(): ReactElement {
     const createDefinition = useCreateReportDefinition();
     const updateDefinition = useUpdateReportDefinition();
     const generate = useGenerateReport();
+    const downloadPdf = useDownloadReportPdf();
+    const deleteReport = useDeleteReport();
+    const deleteDefinition = useDeleteReportDefinition();
 
     // Surface which template each definition uses, so the association is verifiable.
     const templateLabel = (templateId: number | null): string =>
@@ -186,27 +192,44 @@ export function ReportsScreen(): ReactElement {
                 const report = row.original;
 
                 return (
-                    <div className="ir-flex ir-items-center ir-gap-3">
-                        <a className="ir-font-medium ir-underline" href={`/reports/${report.public_token}`} target="_blank" rel="noreferrer">
+                    <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                        <Button variant="outline" size="sm" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')}>
                             Ver
-                        </a>
-                        <Button variant="ghost" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
-                            <Sparkles className="ir-size-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => downloadPdf.mutate(report.id)} disabled={downloadPdf.isPending}>
+                            <FileDown className="ir-size-3.5" />
+                            {downloadPdf.isPending && downloadPdf.variables === report.id ? 'Generando…' : 'PDF'}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
+                            <Sparkles className="ir-size-3.5" />
                             Insights
                         </Button>
-                        <Button variant="ghost" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
-                            <MessageSquare className="ir-size-4" />
+                        <Button variant="ghost" size="sm" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
+                            <MessageSquare className="ir-size-3.5" />
                             Comentarios
                         </Button>
                         {report.status === 'draft' ? (
-                            <Button variant="ghost" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
+                            <Button variant="accent" size="sm" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
                                 Aprobar
                             </Button>
                         ) : (
-                            <Button variant="ghost" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
+                            <Button variant="accent" size="sm" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
                                 {report.status === 'sent' ? 'Reenviar' : 'Enviar'}
                             </Button>
                         )}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Eliminar reporte"
+                            onClick={() => {
+                                if (window.confirm('¿Eliminar este reporte? No se puede deshacer.')) {
+                                    deleteReport.mutate(report.id);
+                                }
+                            }}
+                            disabled={deleteReport.isPending}
+                        >
+                            <Trash2 className="ir-size-3.5 ir-text-danger" />
+                        </Button>
                     </div>
                 );
             },
@@ -323,6 +346,19 @@ export function ReportsScreen(): ReactElement {
                                             </option>
                                         ))}
                                     </select>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Eliminar definición"
+                                        onClick={() => {
+                                            if (window.confirm('¿Eliminar esta definición y todos sus reportes generados? No se puede deshacer.')) {
+                                                deleteDefinition.mutate(definition.id);
+                                            }
+                                        }}
+                                        disabled={deleteDefinition.isPending}
+                                    >
+                                        <Trash2 className="ir-size-3.5 ir-text-danger" />
+                                    </Button>
                                 </div>
                             </div>
                         ))}

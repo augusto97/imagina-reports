@@ -12,8 +12,11 @@ use App\Jobs\DeliverReportJob;
 use App\Jobs\GenerateReportJob;
 use App\Models\Report;
 use App\Models\ReportDefinition;
+use App\Services\ReportPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class ReportController extends Controller
 {
@@ -62,5 +65,28 @@ final class ReportController extends Controller
         DeliverReportJob::dispatch($report->id);
 
         return response()->json(['message' => 'Report delivery queued.'], 202);
+    }
+
+    /**
+     * Render the report to PDF on demand (headless Chromium prints the same page the
+     * portal shows, CLAUDE.md §10.7) and stream it as a download. Regenerated each
+     * time so it reflects any work logs / comments added since generation.
+     */
+    public function pdf(Report $report, ReportPdfService $service): StreamedResponse
+    {
+        $path = $service->generate($report);
+
+        return Storage::download($path, "reporte-{$report->id}.pdf");
+    }
+
+    public function destroy(Report $report): JsonResponse
+    {
+        if ($report->pdf_path !== null) {
+            Storage::delete($report->pdf_path);
+        }
+
+        $report->delete();
+
+        return response()->json(['message' => 'Report deleted.']);
     }
 }

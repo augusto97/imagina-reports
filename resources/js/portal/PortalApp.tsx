@@ -31,7 +31,7 @@ export function PortalApp({ token }: { token: string }): ReactElement {
     }
 
     return (
-        <div className="ir-mx-auto ir-max-w-3xl ir-bg-background ir-p-8 ir-text-foreground">
+        <div className="ir-mx-auto ir-max-w-5xl ir-bg-card ir-p-8 ir-text-foreground">
             <header className="ir-mb-6 ir-flex ir-items-center ir-justify-between">
                 <div className="ir-flex ir-items-center ir-gap-3">
                     {data.agency?.logo_path != null && (

@@ -43,4 +43,12 @@ final class ReportDefinitionController extends Controller
 
         return new ReportDefinitionResource($reportDefinition);
     }
+
+    public function destroy(ReportDefinition $reportDefinition): JsonResponse
+    {
+        // Cascade deletes its generated reports (FK), so this clears the definition end to end.
+        $reportDefinition->delete();
+
+        return response()->json(['message' => 'Definition deleted.']);
+    }
 }

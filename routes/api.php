@@ -101,6 +101,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('report-definitions', [ReportDefinitionController::class, 'store'])->name('api.report-definitions.store');
     Route::get('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'show'])->name('api.report-definitions.show');
     Route::put('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'update'])->name('api.report-definitions.update');
+    Route::delete('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'destroy'])->name('api.report-definitions.destroy');
 
     Route::get('schedules', [ScheduleController::class, 'index'])->name('api.schedules.index');
     Route::post('schedules', [ScheduleController::class, 'store'])->name('api.schedules.store');
@@ -111,6 +112,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('reports', [ReportController::class, 'index'])->name('api.reports.index');
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('api.reports.show');
+    Route::delete('reports/{report}', [ReportController::class, 'destroy'])->name('api.reports.destroy');
+    Route::get('reports/{report}/pdf', [ReportController::class, 'pdf'])->name('api.reports.pdf');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
     Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');

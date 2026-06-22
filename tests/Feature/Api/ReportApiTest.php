@@ -12,9 +12,11 @@ use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Models\Site;
 use App\Models\User;
+use App\Services\Pdf\PdfRenderer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
+use Tests\Support\FakePdfRenderer;
 use Tests\TestCase;
 
 class ReportApiTest extends TestCase
@@ -136,5 +138,51 @@ class ReportApiTest extends TestCase
             'name' => 'Mensual',
             'recipients' => ['no-es-un-email'],
         ])->assertStatus(422)->assertJsonValidationErrors('recipients.0');
+    }
+
+    public function test_a_report_can_be_deleted(): void
+    {
+        $report = Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $this->definition()->id,
+        ]);
+
+        $this->deleteJson("/api/v1/reports/{$report->id}")->assertOk();
+        $this->assertDatabaseMissing('ir_reports', ['id' => $report->id]);
+    }
+
+    public function test_it_cannot_delete_another_agencys_report(): void
+    {
+        $other = Report::factory()->create();
+
+        $this->deleteJson("/api/v1/reports/{$other->id}")->assertNotFound();
+        $this->assertDatabaseHas('ir_reports', ['id' => $other->id]);
+    }
+
+    public function test_deleting_a_definition_cascades_its_reports(): void
+    {
+        $definition = $this->definition();
+        $report = Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $definition->id,
+        ]);
+
+        $this->deleteJson("/api/v1/report-definitions/{$definition->id}")->assertOk();
+        $this->assertDatabaseMissing('ir_report_definitions', ['id' => $definition->id]);
+        $this->assertDatabaseMissing('ir_reports', ['id' => $report->id]);
+    }
+
+    public function test_it_downloads_a_report_pdf(): void
+    {
+        $this->app->instance(PdfRenderer::class, new FakePdfRenderer);
+
+        $report = Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $this->definition()->id,
+        ]);
+
+        $this->get("/api/v1/reports/{$report->id}/pdf")
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
     }
 }

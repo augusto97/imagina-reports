@@ -179,15 +179,17 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
 
 function Section({ title, style: s, children }: { title?: string; style?: Style; children: React.ReactNode }): ReactElement {
     const settings = useContext(ReportSettingsContext);
-    const pad = PAD[str(s?.pad)] ?? (settings.density === 'compact' ? 'ir-p-4' : 'ir-p-6');
-    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-lg';
+    const pad = PAD[str(s?.pad)] ?? (settings.density === 'compact' ? 'ir-p-4' : 'ir-p-5');
+    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-xl';
     const align = ALIGN[str(s?.align)] ?? '';
-    const border = s?.border === false ? '' : 'ir-border';
+    const border = s?.border === false ? '' : 'ir-border ir-shadow-ir-xs';
     const showTitle = title !== undefined && title !== '' && s?.hideTitle !== true;
 
     return (
         <section className={cn('ir-flex ir-h-full ir-flex-col ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
-            {showTitle && <h3 className="ir-mb-3 ir-text-sm ir-font-semibold ir-text-muted-foreground">{title}</h3>}
+            {showTitle && (
+                <h3 className="ir-mb-3 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">{title}</h3>
+            )}
             <div className="ir-min-h-0 ir-flex-1">{children}</div>
         </section>
     );
@@ -199,8 +201,8 @@ function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
     const title = str((data as Record<string, unknown> | undefined)?.title, str(prop(block, 'title'), 'Reporte'));
 
     return (
-        <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-pb-6" style={styleCss(block.style)}>
-            <h1 className="ir-text-2xl ir-font-semibold">{title}</h1>
+        <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-pb-5" style={styleCss(block.style)}>
+            <h1 className="ir-text-2xl ir-font-bold ir-tracking-tight">{title}</h1>
         </header>
     );
 }
@@ -264,18 +266,17 @@ function asKpi(data: unknown): Kpi {
     return { value: typeof data === 'number' ? data : Number(data) || 0, changePercent: null };
 }
 
-/** A trend pill: green/red arrow + signed percent vs the previous period. */
+/** A compact trend pill: tinted green/red arrow + signed percent vs the previous period. */
 function TrendBadge({ percent }: { percent: number }): ReactElement {
     const up = percent >= 0;
     const Arrow = up ? ArrowUpRight : ArrowDownRight;
-    const tone = up ? 'ir-text-emerald-600' : 'ir-text-red-500';
+    const tone = up ? 'ir-bg-success/10 ir-text-success' : 'ir-bg-danger/10 ir-text-danger';
 
     return (
-        <span className={cn('ir-mt-1 ir-inline-flex ir-items-center ir-gap-1 ir-text-sm ir-font-medium', tone)}>
-            <Arrow className="ir-size-4" />
+        <span className={cn('ir-inline-flex ir-w-fit ir-items-center ir-gap-0.5 ir-rounded-full ir-px-1.5 ir-py-0.5 ir-text-xs ir-font-semibold ir-tabular-nums', tone)}>
+            <Arrow className="ir-size-3" />
             {up ? '+' : ''}
             {percent.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
-            <span className="ir-text-xs ir-font-normal ir-text-muted-foreground">vs. periodo anterior</span>
         </span>
     );
 }
@@ -286,9 +287,20 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 
     return (
         <Section style={block.style}>
-            <p className="ir-text-sm ir-text-muted-foreground">{str(prop(block, 'label'))}</p>
-            <p className="ir-text-3xl ir-font-semibold">{formatNumber(value, str(block.style?.format), settings)}</p>
-            {changePercent !== null && <TrendBadge percent={changePercent} />}
+            <div className="ir-flex ir-h-full ir-flex-col ir-justify-center ir-gap-1.5">
+                <p className="ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                    {str(prop(block, 'label'))}
+                </p>
+                <p className="ir-text-[1.75rem] ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums">
+                    {formatNumber(value, str(block.style?.format), settings)}
+                </p>
+                {changePercent !== null && (
+                    <div className="ir-flex ir-items-center ir-gap-1.5">
+                        <TrendBadge percent={changePercent} />
+                        <span className="ir-text-[11px] ir-text-muted-foreground">vs. anterior</span>
+                    </div>
+                )}
+            </div>
         </Section>
     );
 }
@@ -389,6 +401,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     }
 
     const columns = Object.keys(rows[0] ?? {});
+    const numeric = new Set(columns.filter((col) => rows.every((row) => row[col] === undefined || typeof row[col] === 'number' || (row[col] !== '' && !Number.isNaN(Number(row[col]))))));
     const bars = block.style?.bars === true;
     const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
     const toggleSort = (col: string): void =>
@@ -398,12 +411,16 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
         <Section title={str(prop(block, 'title'))} style={block.style}>
             <table className="ir-w-full ir-text-left ir-text-sm">
                 <thead>
-                    <tr className="ir-text-muted-foreground">
+                    <tr className="ir-border-b ir-text-[11px] ir-uppercase ir-tracking-wide ir-text-muted-foreground">
                         {columns.map((col) => (
-                            <th key={col} className="ir-py-1 ir-font-medium">
-                                <button type="button" className="ir-inline-flex ir-items-center ir-gap-1 hover:ir-text-foreground" onClick={() => toggleSort(col)}>
+                            <th key={col} className={cn('ir-pb-2 ir-font-semibold', numeric.has(col) && 'ir-text-right')}>
+                                <button
+                                    type="button"
+                                    className="ir-inline-flex ir-items-center ir-gap-1 hover:ir-text-foreground"
+                                    onClick={() => toggleSort(col)}
+                                >
                                     {col}
-                                    {sort?.col === col && <span className="ir-text-xs">{sort.dir === 1 ? '▲' : '▼'}</span>}
+                                    {sort?.col === col && <span className="ir-text-[10px]">{sort.dir === 1 ? '▲' : '▼'}</span>}
                                 </button>
                             </th>
                         ))}
@@ -411,9 +428,9 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                 </thead>
                 <tbody>
                     {sorted.map((row, index) => (
-                        <tr key={index} className="ir-border-t">
+                        <tr key={index} className="ir-border-b ir-border-border/50 last:ir-border-0">
                             {columns.map((col) => (
-                                <td key={col} className="ir-py-1.5">
+                                <td key={col} className={cn('ir-py-2', numeric.has(col) && 'ir-text-right ir-tabular-nums')}>
                                     {bars && col === 'value' && typeof row[col] !== 'undefined' ? (
                                         <div className="ir-flex ir-items-center ir-gap-2">
                                             <div className="ir-h-1.5 ir-flex-1 ir-overflow-hidden ir-rounded ir-bg-muted">
