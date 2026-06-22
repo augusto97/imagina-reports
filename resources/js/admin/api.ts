@@ -536,6 +536,7 @@ export function useDeleteReportTemplate() {
 export interface AiTemplateResult {
     blocks: Block[];
     narrative: string;
+    dropped: { type: string; metric: string }[];
 }
 
 export function useAiTemplate(siteId: number) {

@@ -112,6 +112,7 @@ export function EditorScreen(): ReactElement {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [preview_, setPreview] = useState<PreviewResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
+    const [aiNotice, setAiNotice] = useState<string | null>(null);
     // Multi-page: the page currently shown on the canvas + how many pages exist.
     const [currentPage, setCurrentPage] = useState(0);
     const [pageCount, setPageCount] = useState(1);
@@ -253,9 +254,20 @@ export function EditorScreen(): ReactElement {
                 );
                 setSelectedId(null);
                 setErrors([]);
+                // Tell the user which blocks the AI proposed but were dropped because the
+                // site has no data for them (so the layout shrank for a reason).
+                setAiNotice(
+                    result.dropped.length > 0
+                        ? `La IA propuso ${result.dropped.length} bloque(s) con métricas que este sitio no tiene y se omitieron: ${result.dropped
+                              .map((block) => block.metric || block.type)
+                              .join(", ")}.`
+                        : null,
+                );
             },
-            onError: () =>
-                setErrors(["La IA no pudo generar un borrador válido."]),
+            onError: () => {
+                setAiNotice(null);
+                setErrors(["La IA no pudo generar un borrador válido."]);
+            },
         });
     };
 
@@ -887,6 +899,19 @@ export function EditorScreen(): ReactElement {
                                     {error}
                                 </p>
                             ))}
+                        </div>
+                    )}
+
+                    {aiNotice !== null && (
+                        <div className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-border-amber-200 ir-bg-amber-50 ir-px-4 ir-py-2">
+                            <p className="ir-text-xs ir-text-amber-700">{aiNotice}</p>
+                            <button
+                                type="button"
+                                className="ir-shrink-0 ir-text-xs ir-text-amber-700 hover:ir-underline"
+                                onClick={() => setAiNotice(null)}
+                            >
+                                Cerrar
+                            </button>
                         </div>
                     )}
 

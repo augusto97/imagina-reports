@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🤖 FEEDBACK DE BLOQUES DESCARTADOS POR LA IA — v1.6.4 (2026-06-22, rama `claude/ai-dropped-blocks-feedback`):**
+backlog 3.3. Al «Generar con IA», `AiReportBuilder::assembleTemplate` ya descartaba bloques cuya métrica no existe
+en el catálogo del sitio (no puede inventar datos, §10.6) **pero en silencio**. Ahora devuelve también
+`dropped: [{type, metric}]`; el `AiTemplateController` lo expone tal cual; el **editor muestra un banner ámbar**
+(«La IA propuso N bloque(s)… y se omitieron: …») con botón Cerrar, en vez de encoger el lienzo sin explicación.
+`AiTemplateResult` (TS) gana `dropped`. **+1 assert** en `AiReportBuilderTest` (verifica `dropped`). **236 tests
+verdes, PHPStan max + Pint + TS + ESLint + build limpios.** → release **v1.6.4**. Pendientes seguros restantes:
+4.1 (buscador en el selector de métricas del editor), 4.2 (screenshots de work logs), 5.x (Vitest/code-split/OpenAPI).
+
 **🧭 UX DEL FLUJO DE REPORTES — v1.6.3 (2026-06-22, rama `claude/reports-workflow-ux`):** dos huecos del backlog,
 solo frontend (reusa endpoints existentes). **1.3 — métricas ocultas accionables:** la celda «⚠ N sin datos» ahora
 trae un botón **«Sincronizar periodo»** (encola `POST /sites/{site}/sync` para el periodo del reporte, vía

@@ -56,6 +56,9 @@ class AiReportBuilderTest extends TestCase
         $ids = array_map(static fn (array $block): mixed => $block['id'], $result['blocks']);
         $this->assertSame(['h', 'k1'], $ids); // the invented woocommerce binding (k2) is dropped
         $this->assertSame('Buen mes.', $result['narrative']);
+
+        // The dropped block is reported back so the editor can tell the user what was left out.
+        $this->assertSame([['type' => 'kpi', 'metric' => 'woocommerce.revenue']], $result['dropped']);
     }
 
     public function test_it_throws_on_unparseable_output(): void
