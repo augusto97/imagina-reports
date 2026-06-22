@@ -1,11 +1,14 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
-import { useConnectors, useCreateDataSource, useSiteDataSources, useTestConnection } from '../api';
-import { Button, Card, Field, Input } from '../components/ui';
+import { useConnectors, useCreateDataSource, useSiteDataSources, useSites, useTestConnection } from '../api';
+import { Button, Card, Field, Select } from '../components/ui';
+import { Input } from '../components/ui';
 import { useAdminUi } from '../store';
 
 export function DataSourcesScreen(): ReactElement {
     const siteId = useAdminUi((state) => state.selectedSiteId);
+    const selectSite = useAdminUi((state) => state.selectSite);
+    const { data: sites = [] } = useSites();
     const { data: connectors = [] } = useConnectors();
     const { data: sources = [] } = useSiteDataSources(siteId);
     const create = useCreateDataSource(siteId ?? 0);
@@ -15,8 +18,30 @@ export function DataSourcesScreen(): ReactElement {
     const [values, setValues] = useState<Record<string, string>>({});
     const [results, setResults] = useState<Record<number, string>>({});
 
+    const sitePicker = (
+        <Card title="Sitio" description="Elige el sitio cuyas fuentes de datos quieres configurar.">
+            <Field label="Sitio">
+                <Select value={siteId ?? ''} onChange={(event) => event.target.value !== '' && selectSite(Number(event.target.value))}>
+                    <option value="">Selecciona un sitio…</option>
+                    {sites.map((site) => (
+                        <option key={site.id} value={site.id}>
+                            {site.name}
+                        </option>
+                    ))}
+                </Select>
+            </Field>
+        </Card>
+    );
+
     if (siteId === null) {
-        return <Card>Selecciona un sitio en la pestaña «Sitios» para configurar sus fuentes de datos.</Card>;
+        return (
+            <div className="ir-flex ir-flex-col ir-gap-6">
+                {sitePicker}
+                <p className="ir-text-sm ir-text-muted-foreground">
+                    Selecciona un sitio arriba para añadir y probar sus conectores (GA4, MainWP, WooCommerce…).
+                </p>
+            </div>
+        );
     }
 
     const connector = connectors.find((item) => item.key === type);
@@ -57,6 +82,7 @@ export function DataSourcesScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
+            {sitePicker}
             <Card title="Añadir fuente de datos">
                 <form onSubmit={submit} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
                     <Field label="Conector">

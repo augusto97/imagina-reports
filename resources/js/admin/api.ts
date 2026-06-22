@@ -272,6 +272,24 @@ export function useUpdateReportDefinition() {
     });
 }
 
+export function useDeleteReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) => api.delete(`/reports/${reportId}`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
+export function useDeleteReportDefinition() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (definitionId: number) => api.delete(`/report-definitions/${definitionId}`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
 export function useApproveReport() {
     const queryClient = useQueryClient();
 
@@ -379,6 +397,23 @@ export function useRollback() {
     return useMutation({
         mutationFn: () => api.post('/system/update/rollback').then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['update-status'] }),
+    });
+}
+
+/** Generate (headless Chromium) and download a report's PDF. */
+export function useDownloadReportPdf() {
+    return useMutation({
+        mutationFn: async (reportId: number) => {
+            const response = await api.get(`/reports/${reportId}/pdf`, { responseType: 'blob' });
+            const url = URL.createObjectURL(response.data as Blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `reporte-${reportId}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        },
     });
 }
 

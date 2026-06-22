@@ -97,30 +97,41 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
 
     return (
         <div className="ir-flex ir-h-screen ir-overflow-hidden ir-bg-background ir-text-foreground">
-            <aside className="ir-flex ir-w-48 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-p-4">
-                <div className="ir-mb-6 ir-flex ir-items-center ir-gap-2">
-                    <LayoutDashboard className="ir-size-5 ir-text-primary" />
-                    <span className="ir-font-semibold">Imagina Reports</span>
+            <aside className="ir-flex ir-w-56 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-px-3 ir-py-4">
+                <div className="ir-mb-5 ir-flex ir-items-center ir-gap-2.5 ir-px-2">
+                    <span className="ir-flex ir-size-8 ir-items-center ir-justify-center ir-rounded-lg ir-bg-primary ir-text-primary-foreground ir-shadow-ir-sm">
+                        <LayoutDashboard className="ir-size-4" />
+                    </span>
+                    <span className="ir-text-sm ir-font-semibold ir-tracking-tight">Imagina Reports</span>
                 </div>
-                <nav className="ir-flex ir-flex-col ir-gap-1">
-                    {NAV.map((item) => (
-                        <button
-                            key={item.view}
-                            type="button"
-                            onClick={() => setView(item.view)}
-                            className={cn(
-                                "ir-flex ir-items-center ir-gap-2 ir-rounded-md ir-px-3 ir-py-2 ir-text-left ir-text-sm",
-                                view === item.view
-                                    ? "ir-bg-muted ir-font-medium"
-                                    : "ir-text-muted-foreground hover:ir-bg-muted",
-                            )}
-                        >
-                            <item.icon className="ir-size-4" />
-                            {item.label}
-                        </button>
-                    ))}
+                <nav className="ir-flex ir-flex-col ir-gap-0.5">
+                    {NAV.map((item) => {
+                        const active = view === item.view;
+
+                        return (
+                            <button
+                                key={item.view}
+                                type="button"
+                                onClick={() => setView(item.view)}
+                                className={cn(
+                                    "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-lg ir-px-2.5 ir-py-2 ir-text-left ir-text-sm ir-transition-colors",
+                                    active
+                                        ? "ir-bg-accent/10 ir-font-medium ir-text-accent"
+                                        : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
+                                )}
+                            >
+                                <item.icon
+                                    className={cn(
+                                        "ir-size-4",
+                                        active ? "ir-text-accent" : "ir-text-muted-foreground group-hover:ir-text-foreground",
+                                    )}
+                                />
+                                {item.label}
+                            </button>
+                        );
+                    })}
                 </nav>
-                <div className="ir-mt-6 ir-border-t ir-pt-4 ir-text-xs ir-text-muted-foreground">
+                <div className="ir-mt-auto ir-border-t ir-pt-4 ir-text-xs ir-text-muted-foreground">
                     <p className="ir-mb-2 ir-truncate" title={email}>
                         {email}
                     </p>
