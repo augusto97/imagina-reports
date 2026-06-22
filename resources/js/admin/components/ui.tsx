@@ -102,7 +102,7 @@ export function Card({
     children: ReactNode;
 }): ReactElement {
     return (
-        <section className={cn('ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-sm', className)}>
+        <section className={cn('ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm', className)}>
             {(title !== undefined || actions !== undefined) && (
                 <header className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
                     <div>

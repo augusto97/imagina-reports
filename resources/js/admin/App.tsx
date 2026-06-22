@@ -7,12 +7,14 @@ import {
     LayoutDashboard,
     LayoutTemplate,
     LogOut,
+    PanelLeftClose,
+    PanelLeftOpen,
     PencilRuler,
     Settings,
     TrendingUp,
     Users,
 } from "lucide-react";
-import { type ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 
 import { cn } from "@shared/lib/utils";
 
@@ -91,19 +93,47 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
     const setView = useAdminUi((state) => state.setView);
     const logout = useLogout();
 
+    // Collapsible sidebar (Cloudflare/Linear style), persisted across reloads.
+    const [collapsed, setCollapsed] = useState(() => localStorage.getItem("ir-sidebar-collapsed") === "1");
+    const toggleCollapsed = (): void =>
+        setCollapsed((current) => {
+            const next = !current;
+            localStorage.setItem("ir-sidebar-collapsed", next ? "1" : "0");
+            return next;
+        });
+
     // The editor is a full-bleed, full-height workspace (Figma/Looker style); every
     // other screen keeps the centered, max-width document layout.
     const fullBleed = view === "editor";
 
     return (
         <div className="ir-flex ir-h-screen ir-overflow-hidden ir-bg-background ir-text-foreground">
-            <aside className="ir-flex ir-w-56 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-px-3 ir-py-4">
-                <div className="ir-mb-5 ir-flex ir-items-center ir-gap-2.5 ir-px-2">
-                    <span className="ir-flex ir-size-8 ir-items-center ir-justify-center ir-rounded-lg ir-bg-primary ir-text-primary-foreground ir-shadow-ir-sm">
+            <aside
+                className={cn(
+                    "ir-flex ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-py-4 ir-transition-all ir-duration-200",
+                    collapsed ? "ir-w-16 ir-px-2" : "ir-w-56 ir-px-3",
+                )}
+            >
+                <div className={cn("ir-mb-5 ir-flex ir-items-center ir-px-1", collapsed ? "ir-justify-center" : "ir-gap-2.5 ir-px-2")}>
+                    <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground ir-shadow-ir-sm">
                         <LayoutDashboard className="ir-size-4" />
                     </span>
-                    <span className="ir-text-sm ir-font-semibold ir-tracking-tight">Imagina Reports</span>
+                    {!collapsed && <span className="ir-text-sm ir-font-semibold ir-tracking-tight">Imagina Reports</span>}
                 </div>
+
+                <button
+                    type="button"
+                    onClick={toggleCollapsed}
+                    title={collapsed ? "Expandir menú" : "Colapsar menú"}
+                    className={cn(
+                        "ir-mb-3 ir-flex ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground",
+                        collapsed && "ir-justify-center",
+                    )}
+                >
+                    {collapsed ? <PanelLeftOpen className="ir-size-4" /> : <PanelLeftClose className="ir-size-4" />}
+                    {!collapsed && "Colapsar"}
+                </button>
+
                 <nav className="ir-flex ir-flex-col ir-gap-0.5">
                     {NAV.map((item) => {
                         const active = view === item.view;
@@ -113,8 +143,10 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
                                 key={item.view}
                                 type="button"
                                 onClick={() => setView(item.view)}
+                                title={collapsed ? item.label : undefined}
                                 className={cn(
-                                    "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-lg ir-px-2.5 ir-py-2 ir-text-left ir-text-sm ir-transition-colors",
+                                    "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-md ir-py-2 ir-text-left ir-text-sm ir-transition-colors",
+                                    collapsed ? "ir-justify-center ir-px-0" : "ir-px-2.5",
                                     active
                                         ? "ir-bg-accent/10 ir-font-medium ir-text-accent"
                                         : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
@@ -122,36 +154,43 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
                             >
                                 <item.icon
                                     className={cn(
-                                        "ir-size-4",
+                                        "ir-size-4 ir-shrink-0",
                                         active ? "ir-text-accent" : "ir-text-muted-foreground group-hover:ir-text-foreground",
                                     )}
                                 />
-                                {item.label}
+                                {!collapsed && item.label}
                             </button>
                         );
                     })}
                 </nav>
-                <div className="ir-mt-auto ir-border-t ir-pt-4 ir-text-xs ir-text-muted-foreground">
-                    <p className="ir-mb-2 ir-truncate" title={email}>
-                        {email}
-                    </p>
+
+                <div className={cn("ir-mt-auto ir-border-t ir-pt-4 ir-text-xs ir-text-muted-foreground", collapsed && "ir-flex ir-flex-col ir-items-center")}>
+                    {!collapsed && (
+                        <p className="ir-mb-2 ir-truncate" title={email}>
+                            {email}
+                        </p>
+                    )}
                     <button
                         type="button"
                         onClick={() => logout.mutate()}
                         disabled={logout.isPending}
-                        className="ir-mb-3 ir-flex ir-items-center ir-gap-2 ir-text-left hover:ir-text-foreground"
+                        title="Cerrar sesión"
+                        className={cn("ir-mb-3 ir-flex ir-items-center ir-gap-2 ir-text-left hover:ir-text-foreground", collapsed && "ir-justify-center")}
                     >
                         <LogOut className="ir-size-4" />
-                        Cerrar sesión
+                        {!collapsed && "Cerrar sesión"}
                     </button>
                     <button
                         type="button"
-                        onClick={() => setView('system')}
+                        onClick={() => setView("system")}
                         title="Versión instalada en este servidor — clic para ir a Sistema"
-                        className="ir-flex ir-items-center ir-gap-1.5 ir-rounded ir-bg-muted ir-px-2 ir-py-1 ir-font-mono ir-text-[11px] hover:ir-text-foreground"
+                        className={cn(
+                            "ir-flex ir-items-center ir-gap-1.5 ir-rounded ir-bg-muted ir-px-2 ir-py-1 ir-font-mono ir-text-[11px] hover:ir-text-foreground",
+                            collapsed && "ir-justify-center",
+                        )}
                     >
                         <DownloadCloud className="ir-size-3" />
-                        v{(version ?? '—').replace(/^v/, '')}
+                        {!collapsed && `v${(version ?? "—").replace(/^v/, "")}`}
                     </button>
                 </div>
             </aside>

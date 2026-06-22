@@ -180,7 +180,7 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
 function Section({ title, style: s, children }: { title?: string; style?: Style; children: React.ReactNode }): ReactElement {
     const settings = useContext(ReportSettingsContext);
     const pad = PAD[str(s?.pad)] ?? (settings.density === 'compact' ? 'ir-p-4' : 'ir-p-5');
-    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-xl';
+    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-lg';
     const align = ALIGN[str(s?.align)] ?? '';
     const border = s?.border === false ? '' : 'ir-border ir-shadow-ir-xs';
     const showTitle = title !== undefined && title !== '' && s?.hideTitle !== true;

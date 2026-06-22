@@ -16,6 +16,10 @@ final class BrowsershotPdfRenderer implements PdfRenderer
     public function render(string $url): string
     {
         $browsershot = Browsershot::url($url)
+            // Chromium run as the web user on a VPS (ServerAvatar/OLS) crashes on
+            // startup without this — the usual cause of "PDF won't generate" (§12.5).
+            ->noSandbox()
+            ->timeout(120)
             ->waitUntilNetworkIdle()
             ->waitForFunction('window.reportReady === true');
 
