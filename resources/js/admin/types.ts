@@ -77,6 +77,7 @@ export interface ReportSummary {
     period_end: string;
     health_score: number | null;
     status: string;
+    executive_summary: string | null;
     public_token: string;
     pdf_path: string | null;
     hidden_metrics: string[];
