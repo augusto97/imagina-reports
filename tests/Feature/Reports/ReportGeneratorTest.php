@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Reports;
 
+use App\Ai\AiClient;
 use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Enums\ReportStatus;
@@ -18,6 +19,8 @@ use App\Models\Site;
 use App\Reports\ReportGenerator;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use RuntimeException;
+use Tests\Support\FakeAiClient;
 use Tests\TestCase;
 
 class ReportGeneratorTest extends TestCase
@@ -163,6 +166,54 @@ class ReportGeneratorTest extends TestCase
 
         $this->assertSame(4321, $report->resolved_blocks['data']['k1'] ?? null);
         $this->assertSame([], $report->resolved_blocks['diagnostics'] ?? null);
+    }
+
+    public function test_it_writes_the_ai_narrative_into_the_executive_summary_block(): void
+    {
+        $this->app->instance(AiClient::class, new FakeAiClient('Este mes tu sitio recibió 1.500 visitas y se mantuvo protegido.'));
+
+        $ga4 = $this->dataSource(DataSourceType::Ga4);
+        $this->snapshot($ga4, '2026-06-15 00:00:00', '2026-06-15 23:59:59', ['ga4.sessions' => 1500]);
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'locale' => 'es',
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        // Stored on the column AND injected into the default template's `summary` block so
+        // the shared renderer shows it in the portal/PDF (data falls back to props.text).
+        $this->assertSame('Este mes tu sitio recibió 1.500 visitas y se mantuvo protegido.', $report->executive_summary);
+        $this->assertSame($report->executive_summary, $report->resolved_blocks['data']['summary'] ?? null);
+        $this->assertContains('summary', $this->visibleIds($report));
+    }
+
+    public function test_generation_survives_a_failing_ai_narrative(): void
+    {
+        // An AI client that throws must not break GENERATE — the summary stays empty.
+        $this->app->instance(AiClient::class, new class implements AiClient
+        {
+            public function complete(string $system, string $prompt): string
+            {
+                throw new RuntimeException('Claude API down');
+            }
+        });
+
+        $ga4 = $this->dataSource(DataSourceType::Ga4);
+        $this->snapshot($ga4, '2026-06-15 00:00:00', '2026-06-15 23:59:59', ['ga4.sessions' => 1500]);
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $this->assertNull($report->executive_summary);
+        $this->assertSame(1500, $report->resolved_blocks['data']['kpi_visits']['value'] ?? null);
+        $this->assertArrayNotHasKey('summary', $report->resolved_blocks['data']);
     }
 
     public function test_it_records_diagnostics_when_a_bound_metric_has_no_data(): void

@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🤖 NARRATIVA IA EN LA GENERACIÓN — v1.6.0 (2026-06-22, rama `claude/ai-narrative-generation`):** cableada la
+función estrella que faltaba (§10.6): cada reporte nace con **resumen ejecutivo auto-generado** desde las cifras
+resueltas. Antes `ReportGenerator` fijaba `executive_summary = null` ("Phase 2") y `AiReportBuilder::narrative()`
+nunca se llamaba. Ahora: tras resolver bloques, el generador arma un mapa label→valor (`ReportFacts`, helper nuevo
+compartido con Insights), llama a `narrative()` en el locale del reporte (definición → agencia → 'es'), guarda el
+texto en `ir_reports.executive_summary` y lo **inyecta en `resolved_blocks.data[id]`** de los bloques `narrative`
+con `props.variant='executive_summary'` (el `NarrativeBlock` ya pinta `data` sobre `props.text`, así que sale en
+portal/PDF/editor **sin tocar el renderer**). **Resiliencia (clave):** la llamada IA — única excepción a "sin APIs
+externas en GENERATE", §3.1/§10.6 — va en try/catch; si falla (sin key, API caída, JSON vacío) el reporte se
+genera igual con el resumen vacío y se loguea un warning. Solo se llama si hay bloque resumen Y hay datos. Corre
+dentro de `GenerateReportJob` (cola, tenant atado → resuelve la key de la agencia). `TestCase` ahora ata un
+`FakeAiClient` global (ningún test golpea la red, §14). **+2 tests** (inyecta narrativa; sobrevive a IA que lanza).
+**228 tests verdes, PHPStan max + Pint limpios.** **Pendiente (follow-up):** edición/regeneración del resumen por
+reporte desde la UI ("always editable", §10.6) — hoy se congela en la generación. → release **v1.6.0**.
+
 **🩹 FIX v1.5.1 — Browsershot necesita `puppeteer`, no `puppeteer-core` (2026-06-22):** tras desplegar v1.5.0 el
 PDF fallaba con `node ... browser.cjs` exit 1. Causa: `vendor/spatie/browsershot/bin/browser.cjs:75` hace
 `require('puppeteer')` (el paquete COMPLETO), y yo había cableado `puppeteer-core`. Corregido: `deploy.sh` instala
