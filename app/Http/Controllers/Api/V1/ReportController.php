@@ -83,7 +83,7 @@ final class ReportController extends Controller
             Log::error('Report PDF generation failed', ['report_id' => $report->id, 'error' => $e->getMessage()]);
 
             return response()->json([
-                'message' => 'No se pudo generar el PDF. Revisa que Chromium/Browsershot esté instalado en el servidor. Detalle: '.$e->getMessage(),
+                'message' => 'No se pudo generar el PDF. Revisa que Chromium esté instalado y que BROWSERSHOT_CHROME_PATH apunte al binario. Detalle: '.$e->getMessage(),
             ], 500);
         }
 
