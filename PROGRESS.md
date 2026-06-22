@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR PREMIUM · FASE B — paleta visual de bloques (2026-06-22, rama `claude/editor-premium-phase-b`):**
+sustituye la lista de botones-texto por una **paleta de tiles con icono, agrupada** por categoría (KPIs & datos ·
+Gráficos & tablas · Texto & marca · Seguridad & soporte · Interacción & layout). Nuevo `editor/BlockPalette.tsx`
+con `BLOCK_META` (label+icono por tipo, reutilizable en la futura lista de capas). **Click añade** el bloque a la
+página actual y **arrastrar suelta** el bloque en la posición del lienzo (react-grid-layout `isDroppable`+`onDrop`+
+`onDropDragOver`, dimensionado por `defaultSize`; nuevo estado `draggingType` + handler `dropBlock`). El
+click-to-add es 100% fiable; el drag es el extra premium. Sin backend. TS+ESLint+Vitest(7)+build limpios. → release
+**v1.9.1**. **Siguiente: Fase C** (inspector rico: Datos/Estilo, acordeones, segmented, swatches, combobox métrica).
+
 **🎨 EDITOR PREMIUM · FASE A — shell + primitivas + reubicar selector (2026-06-22, rama `claude/editor-premium-phase-a`):**
 arranca el overhaul del editor (owner: «se ve básico y pobre, lo quiero premium tipo Power BI/Looker»). Plan
 acordado: 5 fases (A shell+primitivas · B paleta visual de tiles con drag · C inspector rico · D editor fx de

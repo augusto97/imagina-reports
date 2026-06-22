@@ -49,7 +49,13 @@ import { Button, Card, Field, Input } from "../components/ui";
 import type { CatalogEntry, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
-import { ensureLayouts, makeBlock, PALETTE, sampleData } from "./blockFactory";
+import {
+    defaultSize,
+    ensureLayouts,
+    makeBlock,
+    sampleData,
+} from "./blockFactory";
+import { BlockPalette } from "./BlockPalette";
 import { GALLERY } from "./templateGallery";
 import { Inspector } from "./Inspector";
 import {
@@ -132,6 +138,8 @@ export function EditorScreen(): ReactElement {
     // Collapsible side panels — let the canvas take (almost) the whole workspace.
     const [leftOpen, setLeftOpen] = useState(true);
     const [rightOpen, setRightOpen] = useState(true);
+    // The block type being dragged from the palette onto the canvas (null = none).
+    const [draggingType, setDraggingType] = useState<BlockType | null>(null);
     // Undo/redo history — snapshots of the blocks array.
     const [past, setPast] = useState<Block[][]>([]);
     const [future, setFuture] = useState<Block[][]>([]);
@@ -298,6 +306,22 @@ export function EditorScreen(): ReactElement {
         const block = { ...makeBlock(type), page: currentPage };
         commit([...blocks, block]);
         setSelectedId(block.id);
+    };
+
+    /** Drop a palette tile onto the grid at the released position (drag-to-canvas). */
+    const dropBlock = (_layout: Layout[], item: Layout): void => {
+        if (draggingType === null) {
+            return;
+        }
+        const size = defaultSize(draggingType);
+        const block: Block = {
+            ...makeBlock(draggingType),
+            page: currentPage,
+            layout: { x: item.x, y: item.y, w: size.w, h: size.h },
+        };
+        commit([...blocks, block]);
+        setSelectedId(block.id);
+        setDraggingType(null);
     };
 
     const addPage = (): void => {
@@ -599,19 +623,7 @@ export function EditorScreen(): ReactElement {
                 {leftOpen && (
                     <aside className="ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card">
                         <Section title="Insertar bloque" icon={<Shapes className="ir-size-4" />}>
-                            <div className="ir-grid ir-grid-cols-2 ir-gap-1.5">
-                                {PALETTE.map((item) => (
-                                    <button
-                                        key={item.type}
-                                        type="button"
-                                        onClick={() => addBlock(item.type)}
-                                        className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-text-foreground ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
-                                    >
-                                        <Plus className="ir-size-3 ir-shrink-0 ir-text-muted-foreground" />
-                                        <span className="ir-truncate">{item.label}</span>
-                                    </button>
-                                ))}
-                            </div>
+                            <BlockPalette onAdd={addBlock} onDragType={setDraggingType} />
                         </Section>
 
                         <Section title="Plantillas e IA" icon={<LayoutTemplate className="ir-size-4" />}>
@@ -841,6 +853,13 @@ export function EditorScreen(): ReactElement {
                                     resizeHandles={["se"]}
                                     compactType="vertical"
                                     onLayoutChange={syncLayouts}
+                                    isDroppable={draggingType !== null}
+                                    onDrop={dropBlock}
+                                    onDropDragOver={() =>
+                                        draggingType !== null
+                                            ? defaultSize(draggingType)
+                                            : false
+                                    }
                                 >
                                     {pageBlocks.map((block) => (
                                         <div
