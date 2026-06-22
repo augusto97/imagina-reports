@@ -404,7 +404,8 @@ export function useRollback() {
 export function useDownloadReportPdf() {
     return useMutation({
         mutationFn: async (reportId: number) => {
-            const response = await api.get(`/reports/${reportId}/pdf`, { responseType: 'blob' });
+            // Chromium rendering can take a while; don't abort early.
+            const response = await api.get(`/reports/${reportId}/pdf`, { responseType: 'blob', timeout: 120000 });
             const url = URL.createObjectURL(response.data as Blob);
             const link = document.createElement('a');
             link.href = url;
@@ -413,6 +414,22 @@ export function useDownloadReportPdf() {
             link.click();
             link.remove();
             URL.revokeObjectURL(url);
+        },
+        onError: async (error) => {
+            // The server sends a JSON reason, but responseType:'blob' wraps it — unwrap it.
+            let message = 'No se pudo generar el PDF.';
+            const data = (error as { response?: { data?: unknown } }).response?.data;
+            if (data instanceof Blob) {
+                try {
+                    const parsed = JSON.parse(await data.text()) as { message?: string };
+                    if (typeof parsed.message === 'string') {
+                        message = parsed.message;
+                    }
+                } catch {
+                    /* keep default */
+                }
+            }
+            window.alert(message);
         },
     });
 }

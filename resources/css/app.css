@@ -29,7 +29,7 @@
         --ir-border: 220 16% 90%;
         --ir-input: 220 16% 88%;
         --ir-ring: 243 75% 59%;
-        --ir-radius: 0.7rem;
+        --ir-radius: 0.375rem;
     }
 
     .ir-dark {

@@ -15,6 +15,7 @@ use App\Models\ReportDefinition;
 use App\Services\ReportPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -72,9 +73,19 @@ final class ReportController extends Controller
      * portal shows, CLAUDE.md §10.7) and stream it as a download. Regenerated each
      * time so it reflects any work logs / comments added since generation.
      */
-    public function pdf(Report $report, ReportPdfService $service): StreamedResponse
+    public function pdf(Report $report, ReportPdfService $service): StreamedResponse|JsonResponse
     {
-        $path = $service->generate($report);
+        try {
+            $path = $service->generate($report);
+        } catch (\Throwable $e) {
+            // Surface a readable reason instead of a silent 500 (usually a Chromium /
+            // Browsershot misconfig on the server, CLAUDE.md §12.5).
+            Log::error('Report PDF generation failed', ['report_id' => $report->id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'message' => 'No se pudo generar el PDF. Revisa que Chromium/Browsershot esté instalado en el servidor. Detalle: '.$e->getMessage(),
+            ], 500);
+        }
 
         return Storage::download($path, "reporte-{$report->id}.pdf");
     }
