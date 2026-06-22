@@ -56,6 +56,7 @@ import {
     sampleData,
 } from "./blockFactory";
 import { BlockPalette } from "./BlockPalette";
+import { CalcMetricsEditor } from "./CalcMetricsEditor";
 import { GALLERY } from "./templateGallery";
 import { Inspector } from "./Inspector";
 import {
@@ -666,26 +667,13 @@ export function EditorScreen(): ReactElement {
                         </Section>
 
                         <Section title="Métricas calculadas" icon={<FunctionSquare className="ir-size-4" />} defaultOpen={false}>
-                            <div className="ir-flex ir-flex-col ir-gap-3">
-                                {calcMetrics.map((metric, index) => (
-                                    <div key={index} className="ir-flex ir-flex-col ir-gap-1 ir-rounded-md ir-border ir-bg-background ir-p-2">
-                                        <div className="ir-flex ir-gap-1">
-                                            <Input placeholder="clave" value={metric.key} onChange={(event) => updateCalc(index, { key: event.target.value })} />
-                                            <button type="button" className="ir-px-2 ir-text-muted-foreground hover:ir-text-red-500" onClick={() => removeCalc(index)}>
-                                                ×
-                                            </button>
-                                        </div>
-                                        <Input placeholder="Etiqueta" value={metric.label} onChange={(event) => updateCalc(index, { label: event.target.value })} />
-                                        <Input placeholder="ga4.sessions / woocommerce.orders" value={metric.formula} onChange={(event) => updateCalc(index, { formula: event.target.value })} />
-                                    </div>
-                                ))}
-                                <Button variant="ghost" onClick={addCalc}>
-                                    + Añadir métrica
-                                </Button>
-                                <p className="ir-text-[11px] ir-text-muted-foreground">
-                                    Usa claves de métricas (p. ej. <code>ga4.sessions</code>) y <code>+ - * / ( )</code>. Aparecen como fuente «calc» al vincular un bloque.
-                                </p>
-                            </div>
+                            <CalcMetricsEditor
+                                metrics={calcMetrics}
+                                catalog={catalog}
+                                onAdd={addCalc}
+                                onUpdate={updateCalc}
+                                onRemove={removeCalc}
+                            />
                         </Section>
 
                         <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />} defaultOpen={false}>

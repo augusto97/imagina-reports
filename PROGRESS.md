@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR PREMIUM · FASE D — editor fx de métricas calculadas (2026-06-22, rama `claude/editor-premium-phase-d`):**
+sustituye los 3 inputs pelados por un **editor fx**: nuevo `editor/CalcMetricsEditor.tsx` con, por métrica,
+clave (prefijo `calc.`) + etiqueta + fórmula, **botones de operador** (`+ - * / ( )`), **insertar métrica** del
+catálogo, y **validación en vivo** (badge ✓ válida / ⚠ con el error) vía nuevo `editor/calcFormula.ts`
+(`validateFormula`, refleja el `FormulaEvaluator` PHP: tokeniza, paréntesis balanceados, identificadores del
+catálogo). La validación se omite si no hay sitio (sin catálogo) — el server sigue siendo la verdad. **+4 Vitest**
+(`calcFormula.test.ts` → 11 en total). Sin backend. TS+ESLint+build limpios. → release **v1.9.3**. **Siguiente y
+último: Fase E** (presets de tema + galería de plantillas con miniaturas + lista de capas + empty-states).
+
 **🎨 EDITOR PREMIUM · FASE C — inspector rico (2026-06-22, rama `claude/editor-premium-phase-c`):** el mayor salto
 de «ajustes básicos» a premium. El `Inspector` se reconstruye: **cabecera con icono+nombre del bloque**, pestañas
 **Datos/Estilo** como `SegmentedControl`, y el **tab Estilo en acordeones** (`Section`: Apariencia · Color ·
