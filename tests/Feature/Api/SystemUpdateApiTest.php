@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Enums\UserRole;
+use App\Jobs\RecordWorkerVersionJob;
 use App\Jobs\RunUpdateJob;
 use App\Models\Agency;
 use App\Models\User;
@@ -31,7 +32,23 @@ class SystemUpdateApiTest extends TestCase
 
         $this->getJson('/api/v1/system/update/status')
             ->assertOk()
-            ->assertJsonStructure(['current', 'available', 'update_available']);
+            ->assertJsonStructure(['current', 'available', 'update_available', 'worker_version', 'worker_checked_at']);
+    }
+
+    public function test_restart_workers_is_forbidden_for_non_privileged_users(): void
+    {
+        $this->loginAs(UserRole::Collaborator);
+
+        $this->postJson('/api/v1/system/update/restart-workers')->assertForbidden();
+    }
+
+    public function test_a_privileged_user_can_restart_workers(): void
+    {
+        Queue::fake();
+        $this->loginAs(UserRole::Owner);
+
+        $this->postJson('/api/v1/system/update/restart-workers')->assertStatus(202);
+        Queue::assertPushed(RecordWorkerVersionJob::class);
     }
 
     public function test_run_is_forbidden_for_non_privileged_users(): void

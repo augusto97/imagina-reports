@@ -161,5 +161,7 @@ export interface UpdateStatus {
     current: string | null;
     available: string | null;
     update_available: boolean;
+    worker_version: string | null;
+    worker_checked_at: string | null;
     last_run: UpdateRunState;
 }
