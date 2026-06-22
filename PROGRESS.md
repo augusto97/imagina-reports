@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**📖 OPENAPI (SCRAMBLE) — v1.8.0 (2026-06-22, rama `claude/openapi-docs`):** backlog 5.3 — cierra el §8
+("documentar la API con OpenAPI, generado desde rutas/resources"). Añadido **dedoc/scramble** que **auto-genera**
+el spec OpenAPI 3.1 desde los controladores/FormRequests/Resources tipados (47 paths cubriendo las 63 rutas, sin
+anotar a mano). Servido en **`/docs/api`** (UI Stoplight Elements) y **`/docs/api.json`** (spec). Config publicada
+(`config/scramble.php`): título «Imagina Reports API», versión `env(API_VERSION, v1)`, descripción (auth Sanctum +
+tenant). **Acceso restringido** a entorno local o al gate `viewApiDocs` (definirlo para exponer en producción) —
+seguro por defecto. **+2 tests** (genera el spec con las rutas v1 reales con el gate abierto; 403 fuera de local).
+**240 tests verdes, PHPStan max + Pint limpios.** `API_VERSION` en `.env.example`. **Nota:** Scramble introspecciona
+la BD al generar; en local/CI usa sqlite, en prod la BD real (solo cuando se piden los docs, gateados). → release
+**v1.8.0**. **🎉 BACKLOG SEGURO SIN CONECTORES: COMPLETO.** Lo único pendiente es **2.x conectores reales**
+(requiere credenciales de prueba del owner).
+
 **📦 CODE-SPLITTING DEL BUNDLE — v1.7.1 (2026-06-22, rama `claude/build-code-splitting`):** backlog 5.2. El build
 avisaba de chunks >500 KB (el `BlockRenderer` compartido pesaba ~690 KB con recharts inline). Añadido
 `build.rollupOptions.output.manualChunks` en `vite.config.ts` que separa vendor pesado en chunks propios:

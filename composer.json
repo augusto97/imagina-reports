@@ -7,6 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "dedoc/scramble": "^0.13.28",
         "google/apiclient": "^2.18",
         "laravel/framework": "^11.31",
         "laravel/horizon": "^5.0",
