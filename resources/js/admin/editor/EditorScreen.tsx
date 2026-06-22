@@ -1,13 +1,18 @@
 import {
+    Calendar,
+    FunctionSquare,
+    Globe,
     LayoutTemplate,
     PanelLeftClose,
     PanelLeftOpen,
     PanelRightClose,
     PanelRightOpen,
+    Palette,
     Plus,
     Redo2,
     RefreshCw,
     Save,
+    Shapes,
     Sparkles,
     Undo2,
 } from "lucide-react";
@@ -47,6 +52,12 @@ import { CanvasBlock } from "./CanvasBlock";
 import { ensureLayouts, makeBlock, PALETTE, sampleData } from "./blockFactory";
 import { GALLERY } from "./templateGallery";
 import { Inspector } from "./Inspector";
+import {
+    Section,
+    SegmentedControl,
+    ToolbarButton,
+    ToolbarDivider,
+} from "./controls";
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
 const Grid = WidthProvider(GridLayout);
@@ -498,103 +509,87 @@ export function EditorScreen(): ReactElement {
     return (
         <div className="ir-flex ir-h-full ir-min-h-0 ir-flex-col ir-bg-background">
             {/* ---- Top toolbar (full width) ---- */}
-            <header className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-border-b ir-px-3 ir-py-2">
-                <button
-                    type="button"
+            <header className="ir-flex ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2">
+                <ToolbarButton
+                    icon={leftOpen ? <PanelLeftClose className="ir-size-4" /> : <PanelLeftOpen className="ir-size-4" />}
+                    title={leftOpen ? "Ocultar panel" : "Mostrar panel"}
                     onClick={() => setLeftOpen((open) => !open)}
-                    title={
-                        leftOpen
-                            ? "Ocultar panel izquierdo"
-                            : "Mostrar panel izquierdo"
-                    }
-                    className="ir-rounded-md ir-p-2 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
-                >
-                    {leftOpen ? (
-                        <PanelLeftClose className="ir-size-4" />
-                    ) : (
-                        <PanelLeftOpen className="ir-size-4" />
-                    )}
-                </button>
-                <Input
+                    active={leftOpen}
+                />
+
+                {/* Template name as an inline document-style title. */}
+                <input
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    placeholder="Nombre de la plantilla"
-                    className="ir-w-56"
+                    placeholder="Plantilla sin título"
+                    className="ir-w-52 ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
                 />
-                <span className="ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground">
-                    {editingTemplateId !== null ? "Editando" : "Nueva"}
+                <span className="ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
+                    {editingTemplateId !== null ? "Editando" : "Borrador"}
                 </span>
                 {editingTemplateId !== null && (
-                    <Button variant="ghost" onClick={() => editTemplate(null)}>
-                        Nueva
-                    </Button>
+                    <button
+                        type="button"
+                        onClick={() => editTemplate(null)}
+                        className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
+                    >
+                        + Nueva
+                    </button>
                 )}
 
                 <div className="ir-ml-auto ir-flex ir-items-center ir-gap-2">
-                    <Input
-                        type="month"
-                        value={month}
-                        onChange={(event) => setMonth(event.target.value)}
-                        className="ir-w-40"
-                        title="Periodo de la vista previa"
-                    />
-                    <button
-                        type="button"
-                        onClick={undo}
-                        disabled={past.length === 0}
-                        title="Deshacer (Ctrl+Z)"
-                        className="ir-rounded-md ir-p-2 ir-text-muted-foreground hover:ir-bg-muted disabled:ir-opacity-40"
-                    >
-                        <Undo2 className="ir-size-4" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={redo}
-                        disabled={future.length === 0}
-                        title="Rehacer (Ctrl+Shift+Z)"
-                        className="ir-rounded-md ir-p-2 ir-text-muted-foreground hover:ir-bg-muted disabled:ir-opacity-40"
-                    >
-                        <Redo2 className="ir-size-4" />
-                    </button>
-                    <Button
-                        variant="ghost"
-                        onClick={triggerSync}
-                        disabled={siteId === null || syncSite.isPending}
-                    >
-                        <RefreshCw
-                            className={
-                                syncSite.isPending
-                                    ? "ir-size-4 ir-animate-spin"
-                                    : "ir-size-4"
+                    {/* Compact preview-data control — site + period live here (preview only),
+                        not as a giant panel widget. */}
+                    <div className="ir-flex ir-h-8 ir-items-center ir-rounded-lg ir-border ir-bg-background ir-pl-2 ir-text-sm">
+                        <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                        <select
+                            value={siteId ?? ""}
+                            onChange={(event) =>
+                                setSiteId(event.target.value === "" ? null : Number(event.target.value))
                             }
+                            title="Sitio para la vista previa (los datos reales)"
+                            className="ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
+                        >
+                            <option value="">Datos de ejemplo</option>
+                            {sites.map((site) => (
+                                <option key={site.id} value={site.id}>
+                                    {site.name}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="ir-h-5 ir-w-px ir-bg-border" />
+                        <Calendar className="ir-ml-1.5 ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                        <input
+                            type="month"
+                            value={month}
+                            onChange={(event) => setMonth(event.target.value)}
+                            title="Periodo de la vista previa"
+                            className="ir-w-[8.5rem] ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1 ir-pr-2 ir-text-sm focus:ir-outline-none"
                         />
+                    </div>
+
+                    <ToolbarDivider />
+
+                    <ToolbarButton icon={<Undo2 className="ir-size-4" />} title="Deshacer (Ctrl+Z)" onClick={undo} disabled={past.length === 0} />
+                    <ToolbarButton icon={<Redo2 className="ir-size-4" />} title="Rehacer (Ctrl+Shift+Z)" onClick={redo} disabled={future.length === 0} />
+
+                    <ToolbarDivider />
+
+                    <Button variant="ghost" onClick={triggerSync} disabled={siteId === null || syncSite.isPending}>
+                        <RefreshCw className={syncSite.isPending ? "ir-size-4 ir-animate-spin" : "ir-size-4"} />
                         Sincronizar
                     </Button>
-                    <Button
-                        onClick={save}
-                        disabled={
-                            create.isPending || update.isPending || name === ""
-                        }
-                    >
+                    <Button onClick={save} disabled={create.isPending || update.isPending || name === ""}>
                         <Save className="ir-size-4" />
                         {editingTemplateId !== null ? "Actualizar" : "Guardar"}
                     </Button>
-                    <button
-                        type="button"
+
+                    <ToolbarButton
+                        icon={rightOpen ? <PanelRightClose className="ir-size-4" /> : <PanelRightOpen className="ir-size-4" />}
+                        title={rightOpen ? "Ocultar inspector" : "Mostrar inspector"}
                         onClick={() => setRightOpen((open) => !open)}
-                        title={
-                            rightOpen
-                                ? "Ocultar inspector"
-                                : "Mostrar inspector"
-                        }
-                        className="ir-rounded-md ir-p-2 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
-                    >
-                        {rightOpen ? (
-                            <PanelRightClose className="ir-size-4" />
-                        ) : (
-                            <PanelRightOpen className="ir-size-4" />
-                        )}
-                    </button>
+                        active={rightOpen}
+                    />
                 </div>
             </header>
 
@@ -602,98 +597,100 @@ export function EditorScreen(): ReactElement {
             <div className="ir-flex ir-min-h-0 ir-flex-1">
                 {/* ---- Left panel (collapsible): config + blocks ---- */}
                 {leftOpen && (
-                    <aside className="ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-gap-4 ir-overflow-y-auto ir-border-r ir-bg-card ir-p-3">
-                        <Card title="Plantilla">
-                            <div className="ir-flex ir-flex-col ir-gap-3">
-                                <Field label="Sitio (datos y métricas)">
-                                    <select
-                                        className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
-                                        value={siteId ?? ""}
-                                        onChange={(event) =>
-                                            setSiteId(
-                                                event.target.value === ""
-                                                    ? null
-                                                    : Number(
-                                                          event.target.value,
-                                                      ),
-                                            )
-                                        }
+                    <aside className="ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card">
+                        <Section title="Insertar bloque" icon={<Shapes className="ir-size-4" />}>
+                            <div className="ir-grid ir-grid-cols-2 ir-gap-1.5">
+                                {PALETTE.map((item) => (
+                                    <button
+                                        key={item.type}
+                                        type="button"
+                                        onClick={() => addBlock(item.type)}
+                                        className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-text-foreground ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
                                     >
-                                        <option value="">Selecciona…</option>
-                                        {sites.map((site) => (
-                                            <option
-                                                key={site.id}
-                                                value={site.id}
-                                            >
-                                                {site.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Field>
-                                <p className="ir-text-xs ir-text-muted-foreground">
-                                    Solo para la vista previa. Para que un reporte use esta plantilla, asóciala en
-                                    <strong> Reportes → Nueva definición</strong>.
-                                </p>
+                                        <Plus className="ir-size-3 ir-shrink-0 ir-text-muted-foreground" />
+                                        <span className="ir-truncate">{item.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </Section>
+
+                        <Section title="Plantillas e IA" icon={<LayoutTemplate className="ir-size-4" />}>
+                            <div className="ir-flex ir-flex-col ir-gap-2.5">
                                 <div className="ir-flex ir-gap-2">
                                     <Input
                                         placeholder="Enfoque para la IA…"
                                         value={aiPrompt}
-                                        onChange={(event) =>
-                                            setAiPrompt(event.target.value)
-                                        }
+                                        onChange={(event) => setAiPrompt(event.target.value)}
                                     />
-                                    <Button
-                                        variant="ghost"
-                                        onClick={generateWithAi}
-                                        disabled={
-                                            siteId === null || ai.isPending
-                                        }
-                                    >
+                                    <Button variant="ghost" onClick={generateWithAi} disabled={siteId === null || ai.isPending}>
                                         <Sparkles className="ir-size-4" />
                                         IA
                                     </Button>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    onClick={loadDefaultTemplate}
-                                    disabled={defaultTpl.isPending}
-                                >
+                                {siteId === null && (
+                                    <p className="ir-text-[11px] ir-text-muted-foreground">Elige un sitio en la barra superior para generar con IA.</p>
+                                )}
+                                <Button variant="ghost" onClick={loadDefaultTemplate} disabled={defaultTpl.isPending}>
                                     <LayoutTemplate className="ir-size-4" />
                                     Plantilla por defecto
                                 </Button>
+                                <div className="ir-flex ir-flex-col ir-gap-1.5">
+                                    {GALLERY.map((template) => (
+                                        <button
+                                            key={template.key}
+                                            type="button"
+                                            onClick={() => loadTemplate(template.build)}
+                                            className="ir-rounded-md ir-border ir-bg-background ir-p-2 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
+                                        >
+                                            <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
+                                            <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
+                                        </button>
+                                    ))}
+                                </div>
                                 {(create.isSuccess || update.isSuccess) && (
-                                    <p className="ir-text-xs ir-text-emerald-600">
-                                        Guardada.
-                                    </p>
+                                    <p className="ir-text-xs ir-text-emerald-600">Guardada.</p>
                                 )}
                             </div>
-                        </Card>
+                        </Section>
 
-                        <Card title="Tema del reporte">
+                        <Section title="Métricas calculadas" icon={<FunctionSquare className="ir-size-4" />} defaultOpen={false}>
+                            <div className="ir-flex ir-flex-col ir-gap-3">
+                                {calcMetrics.map((metric, index) => (
+                                    <div key={index} className="ir-flex ir-flex-col ir-gap-1 ir-rounded-md ir-border ir-bg-background ir-p-2">
+                                        <div className="ir-flex ir-gap-1">
+                                            <Input placeholder="clave" value={metric.key} onChange={(event) => updateCalc(index, { key: event.target.value })} />
+                                            <button type="button" className="ir-px-2 ir-text-muted-foreground hover:ir-text-red-500" onClick={() => removeCalc(index)}>
+                                                ×
+                                            </button>
+                                        </div>
+                                        <Input placeholder="Etiqueta" value={metric.label} onChange={(event) => updateCalc(index, { label: event.target.value })} />
+                                        <Input placeholder="ga4.sessions / woocommerce.orders" value={metric.formula} onChange={(event) => updateCalc(index, { formula: event.target.value })} />
+                                    </div>
+                                ))}
+                                <Button variant="ghost" onClick={addCalc}>
+                                    + Añadir métrica
+                                </Button>
+                                <p className="ir-text-[11px] ir-text-muted-foreground">
+                                    Usa claves de métricas (p. ej. <code>ga4.sessions</code>) y <code>+ - * / ( )</code>. Aparecen como fuente «calc» al vincular un bloque.
+                                </p>
+                            </div>
+                        </Section>
+
+                        <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />} defaultOpen={false}>
                             <div className="ir-flex ir-flex-col ir-gap-3">
                                 <Field label="Color de acento">
                                     <div className="ir-flex ir-items-center ir-gap-2">
                                         <input
                                             type="color"
                                             value={theme.accent ?? "#6366f1"}
-                                            onChange={(event) =>
-                                                setTheme((current) => ({
-                                                    ...current,
-                                                    accent: event.target.value,
-                                                }))
-                                            }
-                                            className="ir-h-8 ir-w-10 ir-rounded ir-border"
+                                            onChange={(event) => setTheme((current) => ({ ...current, accent: event.target.value }))}
+                                            className="ir-h-8 ir-w-10 ir-cursor-pointer ir-rounded ir-border"
                                         />
                                         {theme.accent != null && (
                                             <button
                                                 type="button"
                                                 className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
-                                                onClick={() =>
-                                                    setTheme((current) => ({
-                                                        ...current,
-                                                        accent: null,
-                                                    }))
-                                                }
+                                                onClick={() => setTheme((current) => ({ ...current, accent: null }))}
                                             >
                                                 usar marca de agencia
                                             </button>
@@ -701,121 +698,17 @@ export function EditorScreen(): ReactElement {
                                     </div>
                                 </Field>
                                 <Field label="Densidad">
-                                    <select
-                                        className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                                    <SegmentedControl
                                         value={theme.density ?? "normal"}
-                                        onChange={(event) =>
-                                            setTheme((current) => ({
-                                                ...current,
-                                                density: event.target.value as
-                                                    | "normal"
-                                                    | "compact",
-                                            }))
-                                        }
-                                    >
-                                        <option value="normal">Normal</option>
-                                        <option value="compact">
-                                            Compacta
-                                        </option>
-                                    </select>
+                                        onChange={(value) => setTheme((current) => ({ ...current, density: value }))}
+                                        options={[
+                                            { value: "normal", label: "Normal" },
+                                            { value: "compact", label: "Compacta" },
+                                        ]}
+                                    />
                                 </Field>
                             </div>
-                        </Card>
-
-                        <Card title="Galería de plantillas">
-                            <div className="ir-flex ir-flex-col ir-gap-2">
-                                {GALLERY.map((template) => (
-                                    <button
-                                        key={template.key}
-                                        type="button"
-                                        onClick={() =>
-                                            loadTemplate(template.build)
-                                        }
-                                        className="ir-rounded-md ir-border ir-p-2 ir-text-left hover:ir-border-primary"
-                                    >
-                                        <span className="ir-block ir-text-sm ir-font-medium">
-                                            {template.name}
-                                        </span>
-                                        <span className="ir-block ir-text-xs ir-text-muted-foreground">
-                                            {template.description}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </Card>
-
-                        <Card title="Añadir bloque">
-                            <div className="ir-flex ir-flex-wrap ir-gap-2">
-                                {PALETTE.map((item) => (
-                                    <Button
-                                        key={item.type}
-                                        variant="ghost"
-                                        onClick={() => addBlock(item.type)}
-                                    >
-                                        + {item.label}
-                                    </Button>
-                                ))}
-                            </div>
-                        </Card>
-
-                        <Card title="Métricas calculadas">
-                            <div className="ir-flex ir-flex-col ir-gap-3">
-                                {calcMetrics.map((metric, index) => (
-                                    <div
-                                        key={index}
-                                        className="ir-flex ir-flex-col ir-gap-1 ir-rounded-md ir-border ir-p-2"
-                                    >
-                                        <div className="ir-flex ir-gap-1">
-                                            <Input
-                                                placeholder="clave"
-                                                value={metric.key}
-                                                onChange={(event) =>
-                                                    updateCalc(index, {
-                                                        key: event.target.value,
-                                                    })
-                                                }
-                                            />
-                                            <button
-                                                type="button"
-                                                className="ir-px-2 ir-text-muted-foreground hover:ir-text-red-500"
-                                                onClick={() =>
-                                                    removeCalc(index)
-                                                }
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                        <Input
-                                            placeholder="Etiqueta"
-                                            value={metric.label}
-                                            onChange={(event) =>
-                                                updateCalc(index, {
-                                                    label: event.target.value,
-                                                })
-                                            }
-                                        />
-                                        <Input
-                                            placeholder="ga4.sessions / woocommerce.orders"
-                                            value={metric.formula}
-                                            onChange={(event) =>
-                                                updateCalc(index, {
-                                                    formula: event.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                ))}
-                                <Button variant="ghost" onClick={addCalc}>
-                                    + Añadir métrica
-                                </Button>
-                                <p className="ir-text-xs ir-text-muted-foreground">
-                                    Usa claves de métricas (p. ej.{" "}
-                                    <code>ga4.sessions</code>) y{" "}
-                                    <code>+ - * / ( )</code>. Aparecen como
-                                    fuente «calc» al vincular un bloque.
-                                </p>
-                            </div>
-                        </Card>
+                        </Section>
                     </aside>
                 )}
 

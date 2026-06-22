@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR PREMIUM · FASE A — shell + primitivas + reubicar selector (2026-06-22, rama `claude/editor-premium-phase-a`):**
+arranca el overhaul del editor (owner: «se ve básico y pobre, lo quiero premium tipo Power BI/Looker»). Plan
+acordado: 5 fases (A shell+primitivas · B paleta visual de tiles con drag · C inspector rico · D editor fx de
+métricas calculadas · E presets de tema + galería con miniaturas). Estética: **mezcla Looker-limpio + Power-BI-rico**.
+**Fase A hecha:** nuevas **primitivas reutilizables** (`editor/controls.tsx`: `Section` acordeón, `SegmentedControl`,
+`ToolbarButton`, `ToolbarDivider`). **Toolbar reconstruida**: título de plantilla estilo documento, chips de estado,
+y un **control de vista previa compacto** `[🌐 Sitio ▾][📅 Mes ▾]` que **saca el `<select>` gigante** del panel
+izquierdo (era solo para preview). **Panel izquierdo** pasa de 5 Cards apiladas a **Sections en acordeón**
+(Insertar/Plantillas e IA/Métricas calculadas/Tema), con la paleta en **rejilla 2-col** y densidad como
+`SegmentedControl`. Sin cambios de backend ni de lógica (preview/IA/sync/undo/save intactos). TS+ESLint+Vitest(7)+
+build limpios. → release **v1.9.0**. **Siguiente: Fase B** (paleta visual con iconos + arrastrar al lienzo).
+
 **📖 OPENAPI (SCRAMBLE) — v1.8.0 (2026-06-22, rama `claude/openapi-docs`):** backlog 5.3 — cierra el §8
 ("documentar la API con OpenAPI, generado desde rutas/resources"). Añadido **dedoc/scramble** que **auto-genera**
 el spec OpenAPI 3.1 desde los controladores/FormRequests/Resources tipados (47 paths cubriendo las 63 rutas, sin
