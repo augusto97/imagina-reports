@@ -62,6 +62,7 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             new MetricDefinition('betteruptime.average_incident', 'Incidente medio', MetricType::Scalar, 'duration', description: 'Duración media de los incidentes, en segundos; formatéalo como «duración».'),
             new MetricDefinition('betteruptime.avg_response_time', 'Tiempo de respuesta medio (ms)', MetricType::Scalar, 'ms'),
             new MetricDefinition('betteruptime.response_times', 'Tiempo de respuesta (ms/día)', MetricType::Series, dimensions: ['date']),
+            new MetricDefinition('betteruptime.incidents_list', 'Incidentes (detalle)', MetricType::Table, description: 'Cada caída del periodo con inicio, duración, causa y estado.'),
         );
     }
 
@@ -120,7 +121,99 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             $metrics += $this->responseTimeMetrics($source, $period);
         }
 
+        if ($requestedMetrics === [] || in_array('betteruptime.incidents_list', $requestedMetrics, true)) {
+            $metrics['betteruptime.incidents_list'] = $this->incidentRows($source, $period);
+        }
+
         return MetricSet::ok($metrics);
+    }
+
+    /**
+     * The period's incidents as a table (start, duration, cause, status), from the
+     * account-level /incidents endpoint filtered by monitor. Newest first; filtered to
+     * the period by each incident's start. A failure yields an empty table, never a
+     * failed set.
+     *
+     * @return list<array{Inicio: string, Duración: string, Causa: string, Estado: string}>
+     */
+    private function incidentRows(DataSource $source, Period $period): array
+    {
+        try {
+            $response = $this->incidents($source, $period);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($this->listOf(Arr::get($this->arrayOf($response->json()), 'data')) as $incident) {
+            $attributes = $this->arrayOf(Arr::get($incident, 'attributes'));
+            $startedAt = $this->toStr(Arr::get($attributes, 'started_at'));
+            if ($startedAt === '') {
+                continue;
+            }
+
+            if (! $period->contains(substr($startedAt, 0, 10))) {
+                continue;
+            }
+
+            $resolvedAt = $this->toStr(Arr::get($attributes, 'resolved_at'));
+            $start = strtotime($startedAt);
+            $end = $resolvedAt !== '' ? strtotime($resolvedAt) : false;
+
+            $rows[] = [
+                'Inicio' => $start !== false ? gmdate('d/m/Y H:i', $start).' UTC' : $startedAt,
+                'Duración' => $start !== false && $end !== false
+                    ? $this->humanizeSeconds($end - $start)
+                    : 'En curso',
+                'Causa' => $this->toStr(Arr::get($attributes, 'cause')),
+                'Estado' => $resolvedAt !== '' ? 'Resuelto' : 'En curso',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Seconds as "30 s" / "45 min" / "1 h 30 min" (matches the editor's duration format).
+     */
+    private function humanizeSeconds(int $seconds): string
+    {
+        $seconds = max(0, $seconds);
+        if ($seconds < 60) {
+            return $seconds.' s';
+        }
+
+        $minutes = (int) round($seconds / 60);
+        if ($minutes < 60) {
+            return $minutes.' min';
+        }
+
+        $restMinutes = $minutes % 60;
+
+        return $restMinutes === 0
+            ? intdiv($minutes, 60).' h'
+            : intdiv($minutes, 60).' h '.$restMinutes.' min';
+    }
+
+    private function incidents(DataSource $source, Period $period): Response
+    {
+        $config = $source->config ?? [];
+        $credentials = $source->credentials ?? [];
+        $monitorId = $this->toStr(Arr::get($config, 'monitor_id'));
+
+        return Http::withToken($this->toStr(Arr::get($credentials, 'api_token')))
+            ->acceptJson()
+            ->timeout(20)
+            ->get(self::API_BASE.'/incidents', [
+                'monitor_id' => $monitorId,
+                'from' => $period->start->toDateString(),
+                'to' => $period->end->toDateString(),
+                'per_page' => 50,
+            ]);
     }
 
     /**
