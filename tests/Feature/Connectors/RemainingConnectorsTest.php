@@ -116,8 +116,8 @@ class RemainingConnectorsTest extends TestCase
     public function test_crowdsec_counts_alerts_and_decisions(): void
     {
         Http::fake(['*' => Http::response([
-            ['scenario' => 'ssh-bf', 'decisions' => [['id' => 1]]],
-            ['scenario' => 'ssh-bf', 'decisions' => [['id' => 2], ['id' => 3]]],
+            ['scenario' => 'ssh-bf', 'events_count' => 6, 'source' => ['value' => '1.1.1.1', 'cn' => 'CN'], 'decisions' => [['id' => 1]]],
+            ['scenario' => 'ssh-bf', 'events_count' => 4, 'source' => ['value' => '2.2.2.2', 'cn' => 'CN'], 'decisions' => [['id' => 2], ['id' => 3]]],
         ])]);
 
         $set = (new CrowdSecConnector)->fetch(
@@ -128,7 +128,10 @@ class RemainingConnectorsTest extends TestCase
 
         $this->assertSame(2, $set->get('crowdsec.alerts'));
         $this->assertSame(3, $set->get('crowdsec.attacks_blocked'));
-        $this->assertSame([['scenario' => 'ssh-bf', 'count' => 2]], $set->get('crowdsec.attack_types'));
+        $this->assertSame(10, $set->get('crowdsec.events'));
+        $this->assertSame(2, $set->get('crowdsec.unique_ips'));
+        $this->assertSame([['label' => 'ssh-bf', 'value' => 2]], $set->get('crowdsec.attack_types'));
+        $this->assertSame([['label' => 'CN', 'value' => 2]], $set->get('crowdsec.attacks_by_country'));
     }
 
     public function test_better_uptime_reads_sla(): void

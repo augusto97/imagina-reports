@@ -51,9 +51,13 @@ final class CrowdSecConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('crowdsec.alerts', 'Alerts', MetricType::Scalar, 'count'),
-            new MetricDefinition('crowdsec.attacks_blocked', 'Attacks blocked', MetricType::Scalar, 'count'),
-            new MetricDefinition('crowdsec.attack_types', 'Attack types', MetricType::Table, dimensions: ['scenario']),
+            new MetricDefinition('crowdsec.alerts', 'Alertas', MetricType::Scalar, 'count'),
+            new MetricDefinition('crowdsec.attacks_blocked', 'Ataques bloqueados', MetricType::Scalar, 'count'),
+            new MetricDefinition('crowdsec.events', 'Eventos maliciosos', MetricType::Scalar, 'count'),
+            new MetricDefinition('crowdsec.unique_ips', 'IPs atacantes', MetricType::Scalar, 'count'),
+            new MetricDefinition('crowdsec.attack_types', 'Tipos de ataque', MetricType::Table, dimensions: ['scenario']),
+            new MetricDefinition('crowdsec.attacks_by_country', 'Ataques por país', MetricType::Table, dimensions: ['country']),
+            new MetricDefinition('crowdsec.top_attacker_ips', 'IPs más activas', MetricType::Table, dimensions: ['ip']),
         );
     }
 
@@ -88,24 +92,61 @@ final class CrowdSecConnector implements DataSourceConnector
         $alerts = $this->listOf($response->json());
 
         $blocked = 0;
+        $events = 0;
+        /** @var array<string, int> $byScenario */
         $byScenario = [];
+        /** @var array<string, int> $byCountry */
+        $byCountry = [];
+        /** @var array<string, int> $byIp */
+        $byIp = [];
 
         foreach ($alerts as $alert) {
             $blocked += count($this->listOf(Arr::get($alert, 'decisions')));
-            $scenario = $this->toStr(Arr::get($alert, 'scenario'));
-            $byScenario[$scenario] = ($byScenario[$scenario] ?? 0) + 1;
-        }
+            $events += $this->toInt(Arr::get($alert, 'events_count'));
 
-        $attackTypes = [];
-        foreach ($byScenario as $scenario => $count) {
-            $attackTypes[] = ['scenario' => $scenario, 'count' => $count];
+            $scenario = $this->toStr(Arr::get($alert, 'scenario'));
+            if ($scenario !== '') {
+                $byScenario[$scenario] = ($byScenario[$scenario] ?? 0) + 1;
+            }
+
+            $country = $this->toStr(Arr::get($alert, 'source.cn'));
+            if ($country !== '') {
+                $byCountry[$country] = ($byCountry[$country] ?? 0) + 1;
+            }
+
+            $ip = $this->toStr(Arr::get($alert, 'source.value'));
+            if ($ip !== '') {
+                $byIp[$ip] = ($byIp[$ip] ?? 0) + 1;
+            }
         }
 
         return MetricSet::ok([
             'crowdsec.alerts' => count($alerts),
             'crowdsec.attacks_blocked' => $blocked,
-            'crowdsec.attack_types' => $attackTypes,
+            'crowdsec.events' => $events,
+            'crowdsec.unique_ips' => count($byIp),
+            'crowdsec.attack_types' => $this->topTable($byScenario),
+            'crowdsec.attacks_by_country' => $this->topTable($byCountry),
+            'crowdsec.top_attacker_ips' => $this->topTable($byIp),
         ]);
+    }
+
+    /**
+     * Sort a label→total map descending and keep the top 10 as normalized table rows.
+     *
+     * @param  array<string, int>  $map
+     * @return list<array{label: string, value: int}>
+     */
+    private function topTable(array $map): array
+    {
+        arsort($map);
+
+        $rows = [];
+        foreach (array_slice($map, 0, 10, true) as $label => $value) {
+            $rows[] = ['label' => $label, 'value' => $value];
+        }
+
+        return $rows;
     }
 
     private function client(DataSource $source): PendingRequest

@@ -18,6 +18,7 @@ import {
     Save,
     Search,
     Shapes,
+    ShieldAlert,
     ShieldCheck,
     ShoppingCart,
     Sparkles,
@@ -90,6 +91,7 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     security: ShieldCheck,
     cloudflare: Zap,
     uptime: Activity,
+    crowdsec: ShieldAlert,
 };
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
