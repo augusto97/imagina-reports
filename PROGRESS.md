@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🔄 EDITOR — PANEL DE SINCRONIZACIÓN CON ESTADO REAL (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el
+owner señaló que el botón «Sincronizar» era opaco (no decía qué fuentes, cuándo fue la última sync, si terminó, si
+fue en tiempo real, ni si alguna falló). Los datos ya existían en `ir_data_sources` (`status`/`last_synced_at`/
+`last_error`, expuestos por `DataSourceResource` y `GET /sites/{site}/data-sources`) — solo no se mostraban. Nuevo
+componente **`SyncStatus.tsx`**: botón + panel desplegable que lista **cada fuente** del sitio con su **estado**
+(✓ ok / ✗ error / ⏳ pendiente / spinner en curso), **última sincronización** en relativo ("hace 2 min"), el
+**mensaje de error** si falló, y un resumen "N/total al día". Al sincronizar captura un **baseline** de
+`last_synced_at` por fuente y **detecta fin por avance** de ese sello (robusto a desfase de reloj; `SyncService`
+siempre lo estampa, ok o error), con timeout de 45 s; muestra progreso `done/total` en vivo (poll cada 2 s) y al
+terminar refresca la vista previa (`onSynced`). Se quitó el `triggerSync` con delays fijos y el `useSyncSite`/
+`RefreshCw` huérfanos de `EditorScreen`; `useSiteDataSources` admite `refetchInterval`. TS+ESLint+Vitest(11)+build
+limpios. Responde directo a las dudas del owner: qué fuente, hasta qué fecha, en tiempo real, y si solo una sincronizó.
+
 **🖼️ EDITOR — LIENZO YA NO SE VE VACÍO (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner reportó que
 en el editor la plantilla «Mantenimiento» y las tablas enlazadas (p. ej. `mainwp.work_log`) salían **vacías**. Causa:
 el lienzo entra en **modo datos-reales** apenas se elige un sitio (`hasRealData = siteId && preview_`), y un bloque

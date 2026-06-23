@@ -15,7 +15,6 @@ import {
     Palette,
     Plus,
     Redo2,
-    RefreshCw,
     Save,
     Search,
     Shapes,
@@ -33,6 +32,7 @@ import type { LucideIcon } from "lucide-react";
 import {
     type CSSProperties,
     type ReactElement,
+    useCallback,
     useEffect,
     useState,
 } from "react";
@@ -54,10 +54,10 @@ import {
     usePreview,
     useReportTemplate,
     useSites,
-    useSyncSite,
     useUpdateReportTemplate,
 } from "../api";
 import { hexToHslString } from "@shared/lib/color";
+import { SyncStatus } from "./SyncStatus";
 
 import { Button, Field, Input } from "../components/ui";
 import type { CatalogEntry, ReportTheme } from "../types";
@@ -152,7 +152,6 @@ export function EditorScreen(): ReactElement {
     const update = useUpdateReportTemplate(editingTemplateId ?? 0);
 
     const preview = usePreview(siteId ?? 0);
-    const syncSite = useSyncSite(siteId ?? 0);
 
     const [name, setName] = useState("");
     const [aiPrompt, setAiPrompt] = useState("");
@@ -502,38 +501,21 @@ export function EditorScreen(): ReactElement {
             })),
     ];
 
-    const triggerSync = (): void => {
+    // Re-run the live preview against the freshly-synced snapshots. Driven by the
+    // SyncStatus panel once it detects every source has finished.
+    const refreshPreview = useCallback((): void => {
         if (siteId === null) {
             return;
         }
-        syncSite.mutate(monthPeriod(month), {
-            onSuccess: () => {
-                const delays = [2500, 3000, 4000, 5000, 6000];
-                delays.forEach((_, index) => {
-                    const elapsed = delays
-                        .slice(0, index + 1)
-                        .reduce((sum, value) => sum + value, 0);
-                    setTimeout(() => {
-                        runPreview(
-                            {
-                                blocks,
-                                calculated_metrics: calcMetrics,
-                                ...monthPeriod(month),
-                            },
-                            {
-                                onSuccess: (result) =>
-                                    setPreview((current) =>
-                                        current?.has_data === true
-                                            ? current
-                                            : result,
-                                    ),
-                            },
-                        );
-                    }, elapsed);
-                });
+        runPreview(
+            {
+                blocks,
+                calculated_metrics: calcMetrics,
+                ...monthPeriod(month),
             },
-        });
-    };
+            { onSuccess: (result) => setPreview(result) },
+        );
+    }, [siteId, blocks, calcMetrics, month, runPreview]);
 
     const hasRealData = siteId !== null && preview_ !== null;
     const renderData: Record<string, unknown> = {};
@@ -641,10 +623,12 @@ export function EditorScreen(): ReactElement {
 
                     <ToolbarDivider />
 
-                    <Button variant="ghost" onClick={triggerSync} disabled={siteId === null || syncSite.isPending}>
-                        <RefreshCw className={syncSite.isPending ? "ir-size-4 ir-animate-spin" : "ir-size-4"} />
-                        Sincronizar
-                    </Button>
+                    <SyncStatus
+                        siteId={siteId}
+                        period={monthPeriod(month)}
+                        monthLabel={new Date(`${month}-01T00:00:00`).toLocaleDateString("es", { month: "long", year: "numeric" })}
+                        onSynced={refreshPreview}
+                    />
                     <Button onClick={save} disabled={create.isPending || update.isPending || name === ""}>
                         <Save className="ir-size-4" />
                         {editingTemplateId !== null ? "Actualizar" : "Guardar"}

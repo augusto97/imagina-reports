@@ -217,11 +217,12 @@ export function useConnectors() {
 
 /* ------------------------------- data sources ------------------------------ */
 
-export function useSiteDataSources(siteId: number | null) {
+export function useSiteDataSources(siteId: number | null, options?: { refetchInterval?: number | false }) {
     return useQuery({
         queryKey: ['data-sources', siteId],
         queryFn: () => get<DataSourceDto[]>(`/sites/${siteId}/data-sources`),
         enabled: siteId !== null,
+        refetchInterval: options?.refetchInterval ?? false,
     });
 }
 
