@@ -14,6 +14,36 @@ import { Input } from '../components/ui';
 import { useAdminUi } from '../store';
 import type { Connector, DataSourceDto } from '../types';
 
+/** Collapsible "how to connect" guide for the selected connector. */
+function SetupGuidePanel({ connector }: { connector: Connector }): ReactElement | null {
+    const guide = connector.guide;
+    if (guide == null) {
+        return null;
+    }
+
+    return (
+        <details className="ir-rounded-md ir-border ir-bg-muted/30 ir-p-3" open>
+            <summary className="ir-cursor-pointer ir-text-sm ir-font-medium">Cómo conectar {connector.label}</summary>
+            <p className="ir-mt-2 ir-text-xs ir-text-muted-foreground">{guide.intro}</p>
+            <ol className="ir-mt-2 ir-list-decimal ir-space-y-1 ir-pl-5 ir-text-xs ir-text-foreground">
+                {guide.steps.map((step, index) => (
+                    <li key={index}>{step}</li>
+                ))}
+            </ol>
+            {guide.docs_url != null && (
+                <a
+                    href={guide.docs_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ir-mt-2 ir-inline-block ir-text-xs ir-text-primary ir-underline"
+                >
+                    Documentación oficial ↗
+                </a>
+            )}
+        </details>
+    );
+}
+
 /** Inline edit form for an existing data source: reconfigure its URL/keys/token. */
 function DataSourceEditForm({
     source,
@@ -68,6 +98,7 @@ function DataSourceEditForm({
     return (
         <Card title={`Editar «${connector.label}»`} description="Actualiza la URL, claves o el token si caducó. Los campos secretos en blanco se conservan.">
             <form onSubmit={save} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
+                <SetupGuidePanel connector={connector} />
                 {connector.config_schema.map((field) => (
                     <Field key={field.key} label={field.label}>
                         <Input
@@ -198,6 +229,8 @@ export function DataSourcesScreen(): ReactElement {
                             ))}
                         </select>
                     </Field>
+
+                    {connector !== undefined && <SetupGuidePanel connector={connector} />}
 
                     {connector?.config_schema.map((field) => (
                         <Field key={field.key} label={field.label}>

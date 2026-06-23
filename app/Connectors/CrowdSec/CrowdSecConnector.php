@@ -8,11 +8,13 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -26,7 +28,7 @@ use Throwable;
  * alerts, decisions (bans) and attack types. Exact API shape is a documented
  * assumption (see PROGRESS Open Questions); parsing is defensive.
  */
-final class CrowdSecConnector implements DataSourceConnector
+final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -58,6 +60,20 @@ final class CrowdSecConnector implements DataSourceConnector
             new MetricDefinition('crowdsec.attack_types', 'Tipos de ataque', MetricType::Table, dimensions: ['scenario']),
             new MetricDefinition('crowdsec.attacks_by_country', 'Ataques por país', MetricType::Table, dimensions: ['country']),
             new MetricDefinition('crowdsec.top_attacker_ips', 'IPs más activas', MetricType::Table, dimensions: ['ip']),
+        );
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Usa un token de la CrowdSec Console (recomendado) o tu LAPI por VPS.',
+            [
+                'En app.crowdsec.net (Console) → Settings → API Keys → crea una clave de lectura.',
+                'En «api_url» pon la base de la API de la Console (https://admin.api.crowdsec.net) o la de tu LAPI.',
+                'Pega la clave en «token».',
+                'Guarda y pulsa «Probar conexión».',
+            ],
+            'https://docs.crowdsec.net/',
         );
     }
 

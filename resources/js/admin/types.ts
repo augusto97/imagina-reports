@@ -47,10 +47,17 @@ export interface ConfigFieldDef {
     help: string | null;
 }
 
+export interface ConnectorGuide {
+    intro: string;
+    steps: string[];
+    docs_url: string | null;
+}
+
 export interface Connector {
     key: string;
     label: string;
     config_schema: ConfigFieldDef[];
+    guide?: ConnectorGuide | null;
 }
 
 export interface DataSourceDto {

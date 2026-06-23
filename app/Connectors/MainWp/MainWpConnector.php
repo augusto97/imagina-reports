@@ -8,11 +8,13 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -39,7 +41,7 @@ use Throwable;
  * keyed by slug (one key per pending update), `wp_upgrades` to the core-update info,
  * and `plugins`/`themes` to a list of installed items.
  */
-final class MainWpConnector implements DataSourceConnector
+final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -61,6 +63,21 @@ final class MainWpConnector implements DataSourceConnector
             new ConfigField('dashboard_url', 'MainWP dashboard URL', ConfigFieldType::Url, help: 'URL del panel MainWP, p. ej. https://dash.tuagencia.com'),
             new ConfigField('token', 'API token (Bearer)', ConfigFieldType::Password, secret: true, help: 'En MainWP → Ajustes → REST API genera un token v2 (Bearer) con permisos de lectura.'),
         ];
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Usa la API REST v2 de tu panel MainWP (token Bearer). Para el historial de mantenimiento hace falta un plugin extra en cada sitio hijo.',
+            [
+                'En tu panel MainWP → Ajustes → REST API → activa la API y genera una clave v2 con permisos de lectura.',
+                'En «MainWP dashboard URL» pon la URL del panel (https://panel.tuagencia.com).',
+                'Pega la clave en «API token (Bearer)».',
+                'Importante: para «Lo que hicimos este mes» (historial de actualizaciones), instala y activa el plugin «MainWP Child Reports» en cada sitio hijo.',
+                'Guarda y pulsa «Probar conexión».',
+            ],
+            'https://kb.mainwp.com/docs/rest-api/',
+        );
     }
 
     public function testConnection(DataSource $source): ConnectionResult
