@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🔘 BLOQUE CTA REPARADO (2026-06-22, rama `claude/cta-block-styling` → release v1.12.1):** el owner reportó que el
+bloque «Llamada a la acción» se veía feo y **no tomaba los estilos** que se le aplicaban. Causa: `CtaBlock` no usaba
+`styleCss` ni los mapas de estilo (tenía clases hardcodeadas `ir-bg-muted ir-p-6 ir-text-center`), así que ignoraba
+fondo/color/esquinas/borde/alineación/relleno del inspector. Reescrito para **honrar `block.style`** (igual que el
+resto de bloques): fondo y color por `styleCss`, `PAD`/`RADIUS`/`ALIGN`, toggle de borde — con un **diseño por
+defecto premium** (tinte de acento `ir-bg-primary/[0.06]`, titular `ir-text-xl` en acento, botón con sombra y hover).
+Si se fija color/fondo custom, el titular hereda el color y el texto secundario usa opacidad. Sin backend. TS+ESLint+
+Vitest(11)+build limpios. **Siguiente:** validar conectores 2.x con credenciales reales del owner.
+
 **🧾 CLARIDAD DE LA LISTA DE REPORTES (2026-06-22, rama `claude/reports-list-clarity` → release v1.12.0):** el owner
 no entendía qué reporte era cada fila (solo salía el periodo) ni qué hacían los botones (varios abrían paneles
 **al final de la página**, fuera de vista → «no hacen nada»). Hecho: **backend** `ReportSummaryResource` ahora expone
