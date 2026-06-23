@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🛡️ CROWDSEC AMPLIADO (2026-06-23, rama `claude/crowdsec-full-metrics` → release v1.13.4):** quinto conector.
+**Conexión:** token de la CrowdSec Console (o LAPI) + `api_url`; lee `/alerts?since&until` (1 sola llamada).
+**Catálogo de 3 a 7 métricas** desde los campos documentados de cada alerta: alertas, **ataques bloqueados**
+(nº de `decisions`), **eventos maliciosos** (suma `events_count`), **IPs atacantes** (distintos `source.value`), y
+tablas **tipos de ataque** (`scenario`), **por país** (`source.cn`) e **IPs más activas** (`source.value`).
+**Cambio:** `attack_types` migra de `{scenario,count}` a `{label,value}` (consistente con el resto; ahora es
+graficable en donut) — test y plantilla de seguridad siguen OK (tabla). Nueva plantilla **«Seguridad de red
+(CrowdSec)»** (icono `ShieldAlert`): KPIs + donut de tipos + IPs/país + timeline. Test ampliado (+4 aserciones).
+PHPStan max + TS+ESLint+Vitest(11)+build limpios. **Pendiente del owner:** validar en vivo (forma de `/alerts`
+asumida; Console vs LAPI pueden diferir). Siguiente: MainWP / VirusDie.
+
 **⏱️ BETTER STACK AMPLIADO (2026-06-23, rama `claude/betterstack-full-metrics` → release v1.13.3):** cuarto conector.
 **Conexión:** Bearer token + `monitor_id`; usa `GET /monitors/{id}/sla?from&to`. El endpoint SLA expone pocos campos
 documentados, así que la ampliación es honesta: de 2 a **5 métricas** desde la **misma llamada** — disponibilidad
