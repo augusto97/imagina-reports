@@ -161,7 +161,18 @@ class RemainingConnectorsTest extends TestCase
 
     public function test_virusdie_reads_mainwp_summary(): void
     {
-        Http::fake(['*' => Http::response(['malware_found' => 3, 'infected_sites' => 1, 'firewall_active' => true])]);
+        Http::fake(['*' => Http::response([
+            'malware_found' => 3,
+            'threats_removed' => 5,
+            'infected_sites' => 1,
+            'clean_sites' => 4,
+            'scanned_sites' => 5,
+            'firewall_active' => true,
+            'sites' => [
+                ['name' => 'Site A', 'malware' => 3],
+                ['name' => 'Site B', 'malware' => 0],
+            ],
+        ])]);
 
         $set = (new VirusdieConnector)->fetch(
             $this->source(DataSourceType::Virusdie, ['dashboard_url' => 'https://dash.test'], ['token' => 't']),
@@ -170,8 +181,11 @@ class RemainingConnectorsTest extends TestCase
         );
 
         $this->assertSame(3, $set->get('virusdie.malware_found'));
+        $this->assertSame(5, $set->get('virusdie.threats_removed'));
         $this->assertSame(1, $set->get('virusdie.infected_sites'));
+        $this->assertSame(4, $set->get('virusdie.clean_sites'));
         $this->assertSame(1, $set->get('virusdie.firewall_active'));
+        $this->assertSame([['label' => 'Site A', 'value' => 3]], $set->get('virusdie.infected_sites_list'));
     }
 
     public function test_a_failed_http_response_yields_a_failed_set(): void

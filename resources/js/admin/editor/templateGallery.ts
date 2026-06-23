@@ -446,4 +446,31 @@ export const GALLERY: GalleryTemplate[] = [
             cta(24),
         ],
     },
+    {
+        key: 'virusdie',
+        name: 'Antimalware (VirusDie)',
+        description: 'Malware detectado y eliminado, sitios infectados/limpios y estado del firewall.',
+        build: () => [
+            header('Protección antimalware'),
+            kpi('virusdie', 'malware_found', 'Malware detectado', { x: 0, y: 2, w: 3, h: 4 }),
+            kpi('virusdie', 'threats_removed', 'Amenazas eliminadas', { x: 3, y: 2, w: 3, h: 4 }),
+            kpi('virusdie', 'infected_sites', 'Sitios infectados', { x: 6, y: 2, w: 3, h: 4 }),
+            kpi('virusdie', 'clean_sites', 'Sitios limpios', { x: 9, y: 2, w: 3, h: 4 }),
+            spec({ type: 'security_shield', props: { title: 'Tu sitio, protegido' }, layout: { x: 0, y: 6, w: 12, h: 5 } }),
+            spec({
+                type: 'table',
+                binding: { source: 'virusdie', metric: 'infected_sites_list' },
+                props: { title: 'Sitios con malware' },
+                style: { bars: true },
+                layout: { x: 0, y: 11, w: 6, h: 7 },
+            }),
+            spec({
+                type: 'worklog_timeline',
+                props: { title: 'Lo que hicimos este mes' },
+                layout: { x: 6, y: 11, w: 6, h: 7 },
+            }),
+            summary({ x: 0, y: 18, w: 12, h: 4 }),
+            cta(22),
+        ],
+    },
 ];
