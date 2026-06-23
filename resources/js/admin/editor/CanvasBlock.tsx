@@ -53,6 +53,12 @@ export function CanvasBlock({
             : typeof block.props?.label === 'string'
               ? block.props.label
               : '';
+    // The MainWP work log is empty when the child site has no activity history — point
+    // the agency at the cause (the Child Reports plugin) instead of a vague "Sin datos".
+    const emptyMessage =
+        block.binding?.source === 'mainwp' && block.binding?.metric === 'work_log'
+            ? 'Sin historial. Instala el plugin «MainWP Child Reports» en el sitio para registrar las actualizaciones aplicadas.'
+            : 'Sin datos para este periodo';
 
     return (
         <div
@@ -104,7 +110,7 @@ export function CanvasBlock({
                             </span>
                         )}
                         <div className="ir-flex ir-flex-1 ir-items-center ir-justify-center ir-rounded-lg ir-border ir-border-dashed ir-border-border ir-px-3 ir-text-center ir-text-xs ir-text-muted-foreground">
-                            Sin datos para este periodo
+                            {emptyMessage}
                         </div>
                     </div>
                 ) : (

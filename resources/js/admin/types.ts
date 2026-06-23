@@ -61,6 +61,8 @@ export interface DataSourceDto {
     config: Record<string, unknown> | null;
     last_synced_at: string | null;
     last_error: string | null;
+    /** MainWP only: child site records its activity history (null otherwise / unsynced). */
+    child_reports_active?: boolean | null;
 }
 
 export interface ReportDefinitionDto {

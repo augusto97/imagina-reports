@@ -48,6 +48,7 @@ class MainWpConnectorTest extends TestCase
                     ['name' => 'Yoast', 'slug' => 'wordpress-seo', 'version' => '21.0', 'active' => '1'],
                     ['name' => 'Akismet', 'slug' => 'akismet', 'version' => '5.0', 'active' => '0'],
                     ['name' => 'WP Rocket', 'slug' => 'wp-rocket', 'version' => '3.1', 'active' => true],
+                    ['name' => 'MainWP Child Reports', 'slug' => 'mainwp-child-reports/mainwp-child-reports.php', 'version' => '2.3', 'active' => 1],
                 ]),
                 'plugin_upgrades' => json_encode([
                     'wordpress-seo/wp-seo.php' => ['Name' => 'Yoast SEO', 'Version' => '21.0', 'update' => ['new_version' => '22.1']],
@@ -92,9 +93,10 @@ class MainWpConnectorTest extends TestCase
         $this->assertSame(1, $set->get('mainwp.theme_updates'));
         $this->assertSame(1, $set->get('mainwp.core_updates'));
         $this->assertSame(4, $set->get('mainwp.updates_available'));
-        $this->assertSame(3, $set->get('mainwp.plugins_total'));
-        $this->assertSame(2, $set->get('mainwp.plugins_active'));
+        $this->assertSame(4, $set->get('mainwp.plugins_total'));
+        $this->assertSame(3, $set->get('mainwp.plugins_active'));
         $this->assertSame(86, $set->get('mainwp.health_score'));
+        $this->assertSame(1, $set->get('mainwp.child_reports_active'));
 
         $pending = $set->get('mainwp.pending_updates');
         $this->assertCount(4, $pending); // 2 plugins + 1 theme + core

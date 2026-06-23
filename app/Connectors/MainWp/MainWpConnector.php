@@ -101,6 +101,7 @@ final class MainWpConnector implements DataSourceConnector
             new MetricDefinition('mainwp.plugins_total', 'Plugins instalados', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.plugins_active', 'Plugins activos', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.health_score', 'Salud del sitio', MetricType::Scalar, 'score'),
+            new MetricDefinition('mainwp.child_reports_active', 'MainWP Child Reports activo', MetricType::Scalar, 'bool', description: 'Indica si el sitio hijo registra el historial de actividad (necesario para «Lo que hicimos este mes»).'),
         );
     }
 
@@ -378,7 +379,36 @@ final class MainWpConnector implements DataSourceConnector
             'mainwp.plugins_total' => count($plugins),
             'mainwp.plugins_active' => $pluginsActive,
             'mainwp.health_score' => $this->toInt(Arr::get($site, 'health_score', 0)),
+            // Whether the child site runs MainWP Child Reports — required for the dated
+            // "what we did" history (the Pro Reports activity log). Drives the editor hint.
+            'mainwp.child_reports_active' => $this->childReportsActive($plugins),
         ];
+    }
+
+    /**
+     * 1 when the MainWP Child Reports plugin is installed and active on the child site
+     * (its slug/name appears in the plugin inventory) — the source of the work-log
+     * history. Without it MainWP records no per-site activity stream.
+     *
+     * @param  array<array-key, mixed>  $plugins
+     */
+    private function childReportsActive(array $plugins): int
+    {
+        foreach ($plugins as $plugin) {
+            if (! is_array($plugin)) {
+                continue;
+            }
+
+            $slug = strtolower($this->toStr(Arr::get($plugin, 'slug')));
+            $name = strtolower($this->toStr(Arr::get($plugin, 'name')));
+
+            if ((str_contains($slug, 'mainwp-child-reports') || str_contains($name, 'child reports'))
+                && $this->truthy(Arr::get($plugin, 'active'))) {
+                return 1;
+            }
+        }
+
+        return 0;
     }
 
     /**

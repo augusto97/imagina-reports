@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\ConnectorRegistry;
+use App\Enums\DataSourceType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDataSourceRequest;
 use App\Http\Resources\DataSourceResource;
 use App\Models\DataSource;
+use App\Models\MetricSnapshot;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -23,7 +25,34 @@ final class DataSourceController extends Controller
 
     public function index(Site $site): AnonymousResourceCollection
     {
-        return DataSourceResource::collection($site->dataSources()->latest()->get());
+        $sources = $site->dataSources()->latest()->get();
+
+        // Attach MainWP's "Child Reports active" flag from the latest snapshot so the
+        // sync panel can warn when the child site isn't recording its activity history.
+        foreach ($sources as $source) {
+            if ($source->type === DataSourceType::MainWp) {
+                $source->setAttribute('child_reports_active', $this->childReportsActive($source));
+            }
+        }
+
+        return DataSourceResource::collection($sources);
+    }
+
+    private function childReportsActive(DataSource $source): ?bool
+    {
+        $snapshot = MetricSnapshot::query()
+            ->where('data_source_id', $source->id)
+            ->latest('captured_at')
+            ->first();
+
+        $payload = $snapshot?->payload;
+        $metrics = is_array($payload) && is_array($payload['metrics'] ?? null) ? $payload['metrics'] : [];
+
+        if (! array_key_exists('mainwp.child_reports_active', $metrics)) {
+            return null;
+        }
+
+        return (bool) $metrics['mainwp.child_reports_active'];
     }
 
     public function store(StoreDataSourceRequest $request, Site $site): JsonResponse
