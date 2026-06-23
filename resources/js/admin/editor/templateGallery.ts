@@ -357,7 +357,7 @@ export const GALLERY: GalleryTemplate[] = [
     {
         key: 'uptime',
         name: 'Disponibilidad y SLA',
-        description: 'Uptime, incidentes y tiempo caído (Better Stack) + el trabajo del mes.',
+        description: 'Uptime, incidentes, tiempo caído y la gráfica de tiempos de respuesta (Better Stack) + el trabajo del mes.',
         build: () => [
             header('Disponibilidad de tu sitio'),
             spec({ type: 'healthscore', props: { title: 'Estado general' }, layout: { x: 0, y: 2, w: 4, h: 7 } }),
@@ -366,12 +366,19 @@ export const GALLERY: GalleryTemplate[] = [
             kpi('betteruptime', 'total_downtime', 'Tiempo caído', { x: 4, y: 6, w: 4, h: 3 }, { format: 'duration' }),
             kpi('betteruptime', 'longest_incident', 'Incidente más largo', { x: 8, y: 6, w: 4, h: 3 }, { format: 'duration' }),
             spec({
+                type: 'chart',
+                binding: { source: 'betteruptime', metric: 'response_times' },
+                props: { chartType: 'area', title: 'Tiempo de respuesta (ms)' },
+                layout: { x: 0, y: 9, w: 8, h: 7 },
+            }),
+            kpi('betteruptime', 'avg_response_time', 'Resp. media (ms)', { x: 8, y: 9, w: 4, h: 4 }),
+            spec({
                 type: 'worklog_timeline',
                 props: { title: 'Lo que hicimos este mes' },
-                layout: { x: 0, y: 9, w: 12, h: 7 },
+                layout: { x: 0, y: 16, w: 12, h: 7 },
             }),
-            summary({ x: 0, y: 16, w: 12, h: 4 }),
-            cta(20),
+            summary({ x: 0, y: 23, w: 12, h: 4 }),
+            cta(27),
         ],
     },
     {
