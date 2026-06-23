@@ -181,11 +181,29 @@ export function sampleData(block: Block): unknown {
                 { date: '02', value: 55 },
                 { date: '03', value: 48 },
             ];
-        case 'table':
+        case 'table': {
+            // Binding-aware placeholders so structured tables (e.g. the MainWP work log)
+            // preview with their real columns, not a generic label/value pair.
+            const metric = typeof block.binding?.metric === 'string' ? block.binding.metric : '';
+            if (metric === 'work_log') {
+                return [
+                    { Fecha: '22/06/2026', Tipo: 'Plugin', Elemento: 'WooCommerce', 'Versión': '10.7.0 → 10.8.1' },
+                    { Fecha: '21/06/2026', Tipo: 'Plugin', Elemento: 'Rank Math SEO', 'Versión': '1.0.271 → 1.0.272' },
+                    { Fecha: '18/06/2026', Tipo: 'Tema', Elemento: 'Astra', 'Versión': '4.0 → 4.6' },
+                    { Fecha: '14/06/2026', Tipo: 'WordPress', Elemento: 'Núcleo de WordPress', 'Versión': '6.4.2 → 6.5' },
+                ];
+            }
+            if (metric === 'pending_updates') {
+                return [
+                    { Tipo: 'Plugin', Elemento: 'Yoast SEO', Actual: '21.0', Nueva: '22.1' },
+                    { Tipo: 'Tema', Elemento: 'Astra', Actual: '4.0', Nueva: '4.6' },
+                ];
+            }
             return [
                 { label: '/home', value: 900 },
                 { label: '/precios', value: 120 },
             ];
+        }
         case 'control':
             return [{ name: 'Escritorio', value: 1 }, { name: 'Móvil', value: 1 }, { name: 'Tablet', value: 1 }];
         case 'comments':
