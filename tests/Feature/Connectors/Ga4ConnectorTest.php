@@ -92,6 +92,30 @@ class Ga4ConnectorTest extends TestCase
         ], $set->get('ga4.top_pages'));
     }
 
+    public function test_fetch_parses_currency_and_scaled_percent_metrics(): void
+    {
+        // Revenue keeps decimals; GA4's 0–1 engagement ratio becomes a 0–100 percentage.
+        Http::fake([self::RUN_REPORT => Http::sequence()
+            ->push(['rows' => [['metricValues' => [['value' => '1500.5']]]]], 200)
+            ->push(['rows' => [['metricValues' => [['value' => '0.5231']]]]], 200),
+        ]);
+
+        $set = $this->connector()->fetch($this->source(), $this->period(), ['ga4.revenue', 'ga4.engagement_rate']);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(1500.5, $set->get('ga4.revenue'));
+        $this->assertSame(52.31, $set->get('ga4.engagement_rate'));
+    }
+
+    public function test_catalog_lists_ecommerce_metrics(): void
+    {
+        $catalog = $this->connector()->metricCatalog($this->source());
+
+        $this->assertTrue($catalog->has('ga4.revenue'));
+        $this->assertTrue($catalog->has('ga4.transactions'));
+        $this->assertTrue($catalog->has('ga4.top_products'));
+    }
+
     public function test_a_partial_failure_keeps_the_succeeding_metric(): void
     {
         Http::fake([self::RUN_REPORT => Http::sequence()

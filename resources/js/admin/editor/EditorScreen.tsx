@@ -21,6 +21,7 @@ import {
     ShoppingCart,
     Sparkles,
     Trash2,
+    TrendingUp,
     Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -80,6 +81,8 @@ import { cn } from "@shared/lib/utils";
 const GALLERY_ICONS: Record<string, LucideIcon> = {
     woocommerce: ShoppingCart,
     ecommerce: ShoppingCart,
+    ga4_web: Globe,
+    ga4_ecommerce: TrendingUp,
     seo: Search,
     hourly_support: Clock,
     security: ShieldCheck,

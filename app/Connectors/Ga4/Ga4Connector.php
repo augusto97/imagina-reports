@@ -153,25 +153,59 @@ final class Ga4Connector implements DataSourceConnector
     }
 
     /**
-     * The GA4 metrics this connector exposes, mapped to Analytics Data API names.
+     * The GA4 metrics this connector exposes, mapped to Analytics Data API names. Covers
+     * both general/content analytics and the GA4 ecommerce set (revenue, transactions,
+     * purchases…). Ecommerce metrics simply return 0/empty on non-store properties, so the
+     * bound blocks hide gracefully (§10.4). `cast` controls int vs. 2-decimal output and
+     * `scale` turns GA4's 0–1 ratios into 0–100 percentages.
      *
-     * @return array<string, array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int}>
+     * @return array<string, array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int}>
      */
     private function specs(): array
     {
         return [
-            'ga4.sessions' => ['label' => 'Sessions', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => [], 'limit' => 1],
-            'ga4.users' => ['label' => 'Users', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['totalUsers'], 'dimensions' => [], 'limit' => 1],
-            'ga4.conversions' => ['label' => 'Conversions', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['conversions'], 'dimensions' => [], 'limit' => 1],
-            'ga4.screen_page_views' => ['label' => 'Page views', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['screenPageViews'], 'dimensions' => [], 'limit' => 1],
-            'ga4.sessions_by_date' => ['label' => 'Sessions by date', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['date'], 'limit' => 400],
-            'ga4.top_pages' => ['label' => 'Top pages', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['screenPageViews'], 'dimensions' => ['pagePath'], 'limit' => 10],
-            'ga4.traffic_sources' => ['label' => 'Traffic sources', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['sessionDefaultChannelGroup'], 'limit' => 10],
+            // ---- Audience & engagement (content sites) ----
+            'ga4.sessions' => ['label' => 'Sesiones', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.users' => ['label' => 'Usuarios', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['totalUsers'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.new_users' => ['label' => 'Usuarios nuevos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['newUsers'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.active_users' => ['label' => 'Usuarios activos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['activeUsers'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.screen_page_views' => ['label' => 'Páginas vistas', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['screenPageViews'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.engaged_sessions' => ['label' => 'Sesiones con interacción', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['engagedSessions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.engagement_rate' => ['label' => 'Tasa de interacción', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['engagementRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
+            'ga4.bounce_rate' => ['label' => 'Tasa de rebote', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['bounceRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
+            'ga4.avg_session_duration' => ['label' => 'Duración media de sesión (s)', 'type' => MetricType::Scalar, 'unit' => 'seconds', 'metrics' => ['averageSessionDuration'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.views_per_session' => ['label' => 'Páginas por sesión', 'type' => MetricType::Scalar, 'unit' => 'ratio', 'metrics' => ['screenPageViewsPerSession'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
+            'ga4.conversions' => ['label' => 'Conversiones', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['conversions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.event_count' => ['label' => 'Eventos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['eventCount'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+
+            // ---- Ecommerce ----
+            'ga4.revenue' => ['label' => 'Ingresos totales', 'type' => MetricType::Scalar, 'unit' => 'currency', 'metrics' => ['totalRevenue'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
+            'ga4.purchase_revenue' => ['label' => 'Ingresos por compras', 'type' => MetricType::Scalar, 'unit' => 'currency', 'metrics' => ['purchaseRevenue'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
+            'ga4.transactions' => ['label' => 'Transacciones', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['transactions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.purchases' => ['label' => 'Compras', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['ecommercePurchases'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.avg_purchase_revenue' => ['label' => 'Ticket medio', 'type' => MetricType::Scalar, 'unit' => 'currency', 'metrics' => ['averagePurchaseRevenue'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
+            'ga4.items_purchased' => ['label' => 'Artículos comprados', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['itemsPurchased'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.items_viewed' => ['label' => 'Artículos vistos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['itemsViewed'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.purchaser_conversion_rate' => ['label' => 'Conversión a compra', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['purchaserConversionRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
+
+            // ---- Time series ----
+            'ga4.sessions_by_date' => ['label' => 'Sesiones por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1],
+            'ga4.users_by_date' => ['label' => 'Usuarios por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['activeUsers'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1],
+            'ga4.revenue_by_date' => ['label' => 'Ingresos por día', 'type' => MetricType::Series, 'unit' => 'currency', 'metrics' => ['totalRevenue'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'float', 'scale' => 1],
+            'ga4.purchases_by_date' => ['label' => 'Compras por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['ecommercePurchases'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1],
+
+            // ---- Top-N tables ----
+            'ga4.top_pages' => ['label' => 'Páginas más vistas', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['screenPageViews'], 'dimensions' => ['pagePath'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.top_landing_pages' => ['label' => 'Páginas de entrada', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['landingPage'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.traffic_sources' => ['label' => 'Fuentes de tráfico', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['sessionDefaultChannelGroup'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.top_countries' => ['label' => 'Países', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['country'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.devices' => ['label' => 'Dispositivos', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['deviceCategory'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.top_products' => ['label' => 'Productos top (ingresos)', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['itemRevenue'], 'dimensions' => ['itemName'], 'limit' => 10, 'cast' => 'float', 'scale' => 1],
         ];
     }
 
     /**
-     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int}  $spec
+     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int}  $spec
      * @return array<string, mixed>
      */
     private function body(array $spec, Period $period): array
@@ -193,21 +227,26 @@ final class Ga4Connector implements DataSourceConnector
     }
 
     /**
-     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int}  $spec
-     * @return int|list<array{label: string, value: int}>|list<array{date: string, value: int}>
+     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int}  $spec
+     * @return int|float|list<array{label: string, value: int|float}>|list<array{date: string, value: int|float}>
      */
-    private function parse(array $spec, mixed $json): int|array
+    private function parse(array $spec, mixed $json): int|float|array
     {
         $rows = $this->rows($json);
+        $apply = function (float $raw) use ($spec): int|float {
+            $scaled = $raw * $spec['scale'];
+
+            return $spec['cast'] === 'int' ? (int) round($scaled) : round($scaled, 2);
+        };
 
         return match ($spec['type']) {
-            MetricType::Scalar => array_sum(array_map($this->metricValue(...), $rows)),
+            MetricType::Scalar => $apply(array_sum(array_map($this->numericValue(...), $rows))),
             MetricType::Series => array_map(
-                fn (array $row): array => ['date' => $this->dimensionValue($row), 'value' => $this->metricValue($row)],
+                fn (array $row): array => ['date' => $this->dimensionValue($row), 'value' => $apply($this->numericValue($row))],
                 $rows,
             ),
             MetricType::Table => array_map(
-                fn (array $row): array => ['label' => $this->dimensionValue($row), 'value' => $this->metricValue($row)],
+                fn (array $row): array => ['label' => $this->dimensionValue($row), 'value' => $apply($this->numericValue($row))],
                 $rows,
             ),
         };
@@ -230,11 +269,11 @@ final class Ga4Connector implements DataSourceConnector
     /**
      * @param  array<array-key, mixed>  $row
      */
-    private function metricValue(array $row): int
+    private function numericValue(array $row): float
     {
         $value = Arr::get($row, 'metricValues.0.value');
 
-        return is_numeric($value) ? (int) $value : 0;
+        return is_numeric($value) ? (float) $value : 0.0;
     }
 
     /**
