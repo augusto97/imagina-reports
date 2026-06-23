@@ -520,18 +520,14 @@ export function EditorScreen(): ReactElement {
     const hasRealData = siteId !== null && preview_ !== null;
     const renderData: Record<string, unknown> = {};
     if (hasRealData) {
+        // Real preview: show exactly what the site has. Empty blocks render an honest
+        // "Sin datos" state in CanvasBlock — never sample data, which would contradict
+        // the real KPI values (e.g. a populated table next to a "0 aplicadas" card).
         Object.assign(renderData, preview_.data);
-    }
-    // On the design canvas, fall back to representative sample data for any block whose
-    // real data is missing/empty — so a freshly-bound block (or one whose metric isn't in
-    // this site's snapshot yet) stays visible to design with, instead of rendering blank.
-    for (const block of blocks) {
-        const value = renderData[block.id];
-        const isEmpty =
-            value === undefined ||
-            value === null ||
-            (Array.isArray(value) && value.length === 0);
-        if (isEmpty) {
+    } else {
+        // Template-design mode (no site / no preview): representative sample data so the
+        // layout is meaningful while designing.
+        for (const block of blocks) {
             renderData[block.id] = sampleData(block);
         }
     }
