@@ -229,13 +229,25 @@ export const GALLERY: GalleryTemplate[] = [
             }),
             spec({
                 type: 'chart',
+                binding: { source: 'gsc', metric: 'clicks_by_date' },
+                props: { chartType: 'area', title: 'Clics en Google por día' },
+                layout: { x: 0, y: 20, w: 7, h: 7 },
+            }),
+            spec({
+                type: 'table',
+                binding: { source: 'gsc', metric: 'by_device' },
+                props: { title: 'Por dispositivo' },
+                layout: { x: 7, y: 20, w: 5, h: 7 },
+            }),
+            spec({
+                type: 'chart',
                 binding: { source: 'ga4', metric: 'traffic_sources' },
                 props: { chartType: 'donut', title: 'Fuentes de tráfico' },
                 style: { legend: true },
-                layout: { x: 0, y: 20, w: 5, h: 7 },
+                layout: { x: 0, y: 27, w: 5, h: 7 },
             }),
-            summary({ x: 5, y: 20, w: 7, h: 7 }),
-            cta(27),
+            summary({ x: 5, y: 27, w: 7, h: 7 }),
+            cta(34),
         ],
     },
     {

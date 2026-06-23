@@ -61,9 +61,27 @@ class GscConnectorTest extends TestCase
         $this->assertTrue($set->isOk());
         $this->assertSame(120, $set->get('gsc.clicks'));
         $this->assertSame(3400, $set->get('gsc.impressions'));
-        $this->assertSame(0.035, $set->get('gsc.ctr'));
+        $this->assertSame(3.5, $set->get('gsc.ctr')); // 0.035 ratio → 3.5 %
         $this->assertSame(12.5, $set->get('gsc.position'));
         Http::assertSentCount(1);
+    }
+
+    public function test_fetch_parses_a_clicks_series(): void
+    {
+        Http::fake([self::QUERY => Http::response([
+            'rows' => [
+                ['keys' => ['2026-06-01'], 'clicks' => 10, 'impressions' => 200],
+                ['keys' => ['2026-06-02'], 'clicks' => 14, 'impressions' => 260],
+            ],
+        ])]);
+
+        $set = $this->connector()->fetch($this->source(), $this->period(), ['gsc.clicks_by_date']);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame([
+            ['date' => '2026-06-01', 'value' => 10],
+            ['date' => '2026-06-02', 'value' => 14],
+        ], $set->get('gsc.clicks_by_date'));
     }
 
     public function test_fetch_parses_a_top_queries_table(): void

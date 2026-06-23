@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🔎 SEARCH CONSOLE AMPLIADO (2026-06-23, rama `claude/gsc-full-metrics` → release v1.13.1):** segundo conector real
+tras GA4 (el owner validará GA4+GSC juntos al terminar). **Conexión:** mismo Service Account JSON que GA4 + la
+propiedad `site_url` (el email del SA se añade como usuario en Search Console); usa `searchanalytics.query` (agrega en
+el servidor). **Catálogo de 6 a 10 métricas:** se mantienen clics/impresiones/CTR/posición + top búsquedas/páginas, y
+se añaden **series** (clics/impresiones por día, dimensión `date`, en 1 sola query reusada) y **tablas por país y por
+dispositivo**. **Fix importante:** el CTR ahora se **escala 0–1 → 0–100%** (antes salía «0.05%») y la posición se
+redondea a 1 decimal. Etiquetas del catálogo traducidas al español. **Plantilla SEO enriquecida** con gráfica de
+«Clics en Google por día» (GSC) + tabla «Por dispositivo». +1 test GSC (serie de clics) y CTR del test ajustado a
+3.5%. 56 tests de conectores + PHPStan max verdes; TS+ESLint+Vitest(11)+build limpios. **Pendiente del owner:**
+validar GA4 **y** GSC en vivo con el Service Account real (basta uno con acceso a ambas propiedades). Luego seguir
+con Cloudflare/Better Stack/CrowdSec/VirusDie/Woo.
+
 **📊 GA4 COMPLETO + PLANTILLAS NORMAL/ECOMMERCE (2026-06-23, rama `claude/ga4-full-metrics` → release v1.13.0):**
 arranca el desarrollo de conectores reales (2.x), empezando por **Google Analytics 4**. **Conexión:** Service
 Account JSON + `property_id` (el SA se añade como Lector en la propiedad GA4); usa el Analytics Data API `runReport`
