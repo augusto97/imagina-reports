@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🚨 BETTER STACK — TABLA DE INCIDENTES (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el endpoint correcto es
+**`/api/v2/incidents?monitor_id=`** (no `/monitors/{id}/incidents`). Con el JSON real (`data[].attributes`:
+`started_at`, `resolved_at`, `cause`, `status`) añadí **`betteruptime.incidents_list`** (tabla Inicio/Duración/Causa/
+Estado; duración humanizada «32 min»/«1 h 5 min» calculada de started→resolved; «En curso» si sin resolver; fechas en
+UTC; filtrada al periodo por `started_at`; `per_page=50`, newest-first). Template «Disponibilidad y SLA» ahora incluye
+la **tabla «Incidentes del periodo»** bajo la gráfica. Llamada gateada; fallo → tabla vacía, no tumba el SLA. Test
+nuevo (filtro de periodo + duración). 258 tests + PHPStan + Pint + TS+build limpios. **Better Stack queda completo**:
+SLA + duraciones min/h + gráfica de respuesta + incidentes.
+
 **📈 BETTER STACK — GRÁFICA DE TIEMPOS DE RESPUESTA (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** con el JSON
 real de `/monitors/{id}/response-times` (regiones → `response_times[]` con `at` + `response_time` en **segundos**, ej.
 0.028 = 28 ms) añadí: **`betteruptime.response_times`** (serie, promedio **diario** en **ms**, agregada en el

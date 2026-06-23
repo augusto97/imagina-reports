@@ -190,6 +190,46 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame(53.3, $set->get('betteruptime.avg_response_time'));
     }
 
+    public function test_better_uptime_builds_an_incidents_table(): void
+    {
+        Http::fake([
+            '*/incidents*' => Http::response(['data' => [
+                [
+                    'id' => '1',
+                    'attributes' => [
+                        'cause' => 'Timeout (no headers received)',
+                        'started_at' => '2026-06-10T10:00:00.000Z',
+                        'resolved_at' => '2026-06-10T10:32:00.000Z',
+                        'status' => 'Resolved',
+                    ],
+                ],
+                [   // May → outside the June period, must be filtered out
+                    'id' => '2',
+                    'attributes' => [
+                        'cause' => 'Timeout',
+                        'started_at' => '2026-05-06T16:47:10.000Z',
+                        'resolved_at' => '2026-05-06T17:19:28.000Z',
+                        'status' => 'Resolved',
+                    ],
+                ],
+            ]]),
+            '*' => Http::response(['data' => ['attributes' => ['availability' => 99.9]]]),
+        ]);
+
+        $set = (new BetterUptimeConnector)->fetch(
+            $this->source(DataSourceType::BetterUptime, ['monitor_id' => '123'], ['api_token' => 't']),
+            $this->period(),
+            [],
+        );
+
+        $incidents = $set->get('betteruptime.incidents_list');
+        $this->assertCount(1, $incidents);
+        $this->assertSame(
+            ['Inicio' => '10/06/2026 10:00 UTC', 'Duración' => '32 min', 'Causa' => 'Timeout (no headers received)', 'Estado' => 'Resuelto'],
+            $incidents[0],
+        );
+    }
+
     public function test_virusdie_reads_mainwp_summary(): void
     {
         Http::fake(['*' => Http::response([

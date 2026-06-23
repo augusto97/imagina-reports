@@ -373,12 +373,18 @@ export const GALLERY: GalleryTemplate[] = [
             }),
             kpi('betteruptime', 'avg_response_time', 'Resp. media (ms)', { x: 8, y: 9, w: 4, h: 4 }),
             spec({
+                type: 'table',
+                binding: { source: 'betteruptime', metric: 'incidents_list' },
+                props: { title: 'Incidentes del periodo' },
+                layout: { x: 0, y: 16, w: 12, h: 6 },
+            }),
+            spec({
                 type: 'worklog_timeline',
                 props: { title: 'Lo que hicimos este mes' },
-                layout: { x: 0, y: 16, w: 12, h: 7 },
+                layout: { x: 0, y: 22, w: 12, h: 7 },
             }),
-            summary({ x: 0, y: 23, w: 12, h: 4 }),
-            cta(27),
+            summary({ x: 0, y: 29, w: 12, h: 4 }),
+            cta(33),
         ],
     },
     {
