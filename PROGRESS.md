@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🧩 MAINWP CHILD REPORTS — DETECCIÓN + AVISOS (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner
+preguntó por qué imaginawp marcaba 0 actualizaciones aplicadas si actualiza cada semana. Diagnóstico: el historial
+fechado lo registra el plugin **MainWP Child Reports** en el sitio hijo (lo confirma que comercializadoraomicron —con
+166 updates— tiene ese plugin entre sus filas, e imaginawp no). Sin Child Reports, el endpoint Pro Reports
+`action=updated` viene vacío aunque el sitio lleve años conectado y se actualice. Implementado: (1) el conector
+detecta **`mainwp.child_reports_active`** (1/0) buscando ese plugin activo en el inventario `plugins` del sitio, y lo
+expone en el catálogo; (2) `DataSourceController@index` adjunta el flag desde el último snapshot y `DataSourceResource`
+lo publica (`child_reports_active`, null para no-MainWP); (3) el **panel de sincronización** muestra bajo la fuente
+MainWP un aviso ámbar «Instala MainWP Child Reports…» si está inactivo, o verde «Child Reports activo» si lo está;
+(4) el **bloque vacío** de `work_log` (en `CanvasBlock`) muestra el aviso específico de Child Reports en vez del
+genérico «Sin datos». Nota: Child Reports **no rellena hacia atrás** — registra desde que se instala; el KPID de
+conteo tiene además el respaldo del diff de snapshots (`MaintenanceDeltaCalculator`). 247 tests + PHPStan + Pint +
+TS+ESLint+Vitest(11)+build limpios.
+
 **🚫 EDITOR — FIN DE DATOS FALSOS EN MODO REAL + ESTADO «SIN DATOS» (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):**
 el owner mostró una incoherencia: con un sitio real (imaginawp, 3 fuentes) los **KPIs** salían en 0 pero las **tablas**
 mostraban filas (WooCommerce/Astra/… = mis placeholders de muestra). Causa: el fallback por-bloque a `sampleData`

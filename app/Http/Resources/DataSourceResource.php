@@ -33,6 +33,9 @@ final class DataSourceResource extends JsonResource
             'config' => $source->config,
             'last_synced_at' => $source->last_synced_at?->toIso8601String(),
             'last_error' => $source->last_error,
+            // MainWP only: whether the child site records its activity history
+            // (null for other source types / when never synced). See DataSourceController.
+            'child_reports_active' => $source->getAttribute('child_reports_active'),
         ];
     }
 }
