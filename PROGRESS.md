@@ -7,6 +7,28 @@
 ---
 
 ## Where I left off (read me first)
+**🔧 MAINWP REESCRITO A POR-SITIO + UPDATES REALES (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):**
+validando con credenciales reales, el owner detectó dos fallos de fondo en MainWP: (1) traía datos **agregados de
+los 28 sitios** del dashboard, pero los reportes son **por cliente/sitio**; (2) mostraba **0 actualizaciones
+pendientes** y nada en "lo que hicimos". Con el JSON crudo de `/wp-json/mainwp/v2/sites` confirmé la causa: los
+campos `plugin_upgrades`/`theme_upgrades`/`wp_upgrades`/`plugins` llegan como **STRINGS JSON** (no arrays), y
+`plugin_upgrades`/`theme_upgrades` decodifican a un **objeto indexado por slug** (1 clave = 1 update pendiente);
+el conector anterior hacía `toInt()` sobre el string → 0. **Reescritura:** (a) **scope por sitio** — `DataSource`
+ahora tiene relación `site()`; el conector busca el único sitio gestionado cuya `url` coincide con `ir_sites.url`
+(normalizando esquema/www/slash) y si no hay match devuelve `failed` con mensaje claro; (b) **`decode()`**
+json-decodifica cada campo y cuenta correctamente (plugins/temas = nº de claves; core = 1 si `wp_upgrades` no
+vacío); (c) nueva tabla **`mainwp.pending_updates`** estilo Modular DS (columnas Tipo/Elemento/Actual/Nueva, una
+fila por plugin/tema/core con versión actual→nueva); (d) nuevas métricas `plugins_total`, `plugins_active`,
+`health_score`; (e) eliminadas `sites_total`/`sites_with_updates`/`abandoned_plugins`/`ssl_expiring`/`sites`/
+`ssl_expiring_sites` (eran agregadas o no existen en el payload). `updates_applied` (delta de snapshots) sigue y
+ahora es **por-sitio** = más útil. Plantilla **«Mantenimiento (MainWP)»** reenfocada a un sitio (updates aplicadas/
+pendientes + plugins activos + salud + timeline del mes + tabla de detalle). Test reescrito (9 casos: scope,
+decode, match tolerante, fallos). PHPStan max + Pint limpios; 9/9 MainWP + suite de conectores/reportes verde.
+**Pendiente del owner:** validar en vivo el nuevo por-sitio. **Open Question abierta:** la **historia de updates
+aplicados / "lo que hiciste"** NO está en `/sites` (solo estado actual) — se aproxima con el diff de snapshots
+(`MaintenanceDeltaCalculator`); para paridad real con Modular DS hace falta o el **listado de rutas
+`/wp-json/mainwp/v2`** (por si hay endpoint de historial) o confirmar que el proxy por snapshots basta.
+
 **🦠 VIRUSDIE AMPLIADO — ¡CONECTORES 2.x COMPLETOS! (2026-06-23, rama `claude/virusdie-full-metrics` → release
 v1.13.6):** séptimo y último conector. **Conexión:** vía la **extensión VirusDie de MainWP** (mismo `dashboard_url`
 + token MainWP), endpoint `/wp-json/mainwp/v2/virusdie/summary`. **Catálogo de 3 a 7 métricas:** malware detectado,

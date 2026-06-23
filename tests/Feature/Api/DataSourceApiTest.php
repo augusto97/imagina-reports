@@ -56,8 +56,9 @@ class DataSourceApiTest extends TestCase
 
     public function test_test_connection_runs_the_connector(): void
     {
-        Http::fake(['*' => Http::response([])]);
         $site = $this->site();
+        // MainWP scopes per-site (CLAUDE.md §5): the dashboard must manage this URL.
+        Http::fake(['*' => Http::response(['data' => [['name' => $site->name, 'url' => $site->url]]])]);
         $source = DataSource::factory()->create([
             'agency_id' => $this->agency->id,
             'site_id' => $site->id,
