@@ -170,6 +170,20 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
             return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })}%`;
         case 'currency':
             return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+        case 'duration': {
+            // A value in seconds rendered human-friendly: "30 s", "45 min", "1 h 30 min".
+            const seconds = Math.max(0, Math.round(value));
+            if (seconds < 60) {
+                return `${seconds} s`;
+            }
+            const minutes = Math.round(seconds / 60);
+            if (minutes < 60) {
+                return `${minutes} min`;
+            }
+            const hours = Math.floor(minutes / 60);
+            const restMinutes = minutes % 60;
+            return restMinutes === 0 ? `${hours} h` : `${hours} h ${restMinutes} min`;
+        }
         default:
             return value.toLocaleString(locale);
     }

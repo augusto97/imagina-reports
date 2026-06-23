@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**⏱️ BETTER STACK — DURACIONES EN MIN/H (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner notó que el
+tiempo caído salía en **segundos** (ilegible para un cliente). Nuevo formato **`duration`** en el `BlockRenderer`
+(segundos → «30 s» / «45 min» / «1 h 30 min»), añadido al selector de formato del Inspector. Las KPIs de tiempo
+caído/incidente más largo del template «Disponibilidad y SLA» ahora usan `format:'duration'`; el catálogo de Better
+Stack relabela `total_downtime`/`longest_incident`/`average_incident` (sin «(s)») con unidad `duration`. Los valores
+siguen en segundos (precisos); solo cambia la presentación. **Pendiente (esperando muestras del owner):** enriquecer
+Better Stack con **serie de tiempos de respuesta** (gráfico) e **incidentes** (tabla) al estilo de sus status pages —
+pedí el JSON de `/api/v2/monitors/{id}/response-times` y `/api/v2/incidents?monitor_id=` para no inventar la forma.
+TS+build+PHPStan+Pint limpios.
+
 **📖 GUÍAS «CÓMO CONECTAR» POR CONECTOR (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner no encontraba
 el tutorial de cómo conectar GA4 (ni los demás). Nueva capability opcional **`ProvidesSetupGuide`** + value object
 **`SetupGuide`** (intro + pasos numerados + `docs_url`). Implementada en **los 8 conectores** (GA4 con el flujo completo

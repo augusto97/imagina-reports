@@ -424,6 +424,7 @@ export function Inspector({
                                     { value: 'compact', label: '1.2K' },
                                     { value: 'percent', label: '95%' },
                                     { value: 'currency', label: '$' },
+                                    { value: 'duration', label: '1 h 30 min' },
                                 ]}
                             />
                         </Section>

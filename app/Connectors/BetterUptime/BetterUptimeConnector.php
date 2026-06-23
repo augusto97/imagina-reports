@@ -57,9 +57,9 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
         return new MetricCatalog(
             new MetricDefinition('betteruptime.uptime_percent', 'Disponibilidad', MetricType::Scalar, 'percent'),
             new MetricDefinition('betteruptime.incidents', 'Incidentes', MetricType::Scalar, 'count'),
-            new MetricDefinition('betteruptime.total_downtime', 'Tiempo caído (s)', MetricType::Scalar, 'seconds'),
-            new MetricDefinition('betteruptime.longest_incident', 'Incidente más largo (s)', MetricType::Scalar, 'seconds'),
-            new MetricDefinition('betteruptime.average_incident', 'Incidente medio (s)', MetricType::Scalar, 'seconds'),
+            new MetricDefinition('betteruptime.total_downtime', 'Tiempo caído', MetricType::Scalar, 'duration', description: 'Segundos de caída en el periodo; usa el formato «duración» en el bloque para verlo en min/h.'),
+            new MetricDefinition('betteruptime.longest_incident', 'Incidente más largo', MetricType::Scalar, 'duration', description: 'Duración en segundos del incidente más largo; formatéalo como «duración».'),
+            new MetricDefinition('betteruptime.average_incident', 'Incidente medio', MetricType::Scalar, 'duration', description: 'Duración media de los incidentes, en segundos; formatéalo como «duración».'),
         );
     }
 
