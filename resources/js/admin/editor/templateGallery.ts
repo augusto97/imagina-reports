@@ -417,13 +417,13 @@ export const GALLERY: GalleryTemplate[] = [
     {
         key: 'maintenance',
         name: 'Mantenimiento (MainWP)',
-        description: 'El corazón de la retención: actualizaciones aplicadas, estado por sitio y trabajo del mes.',
+        description: 'El corazón de la retención: actualizaciones aplicadas a tu sitio, el detalle de lo pendiente y el trabajo del mes.',
         build: () => [
             header('Mantenimiento de tu sitio'),
             kpi('mainwp', 'updates_applied', 'Actualizaciones aplicadas', { x: 0, y: 2, w: 3, h: 4 }),
             kpi('mainwp', 'updates_available', 'Pendientes', { x: 3, y: 2, w: 3, h: 4 }),
-            kpi('mainwp', 'sites_total', 'Sitios gestionados', { x: 6, y: 2, w: 3, h: 4 }),
-            kpi('mainwp', 'sites_with_updates', 'Sitios por actualizar', { x: 9, y: 2, w: 3, h: 4 }),
+            kpi('mainwp', 'plugins_active', 'Plugins activos', { x: 6, y: 2, w: 3, h: 4 }),
+            kpi('mainwp', 'health_score', 'Salud del sitio', { x: 9, y: 2, w: 3, h: 4 }),
             spec({
                 type: 'worklog_timeline',
                 props: { title: 'Lo que hicimos este mes' },
@@ -431,16 +431,9 @@ export const GALLERY: GalleryTemplate[] = [
             }),
             spec({
                 type: 'table',
-                binding: { source: 'mainwp', metric: 'sites' },
-                props: { title: 'Estado por sitio' },
-                layout: { x: 0, y: 13, w: 7, h: 7 },
-            }),
-            spec({
-                type: 'table',
-                binding: { source: 'mainwp', metric: 'ssl_expiring_sites' },
-                props: { title: 'SSL próximo a vencer' },
-                style: { bars: true },
-                layout: { x: 7, y: 13, w: 5, h: 7 },
+                binding: { source: 'mainwp', metric: 'pending_updates' },
+                props: { title: 'Actualizaciones pendientes (detalle)' },
+                layout: { x: 0, y: 13, w: 12, h: 7 },
             }),
             summary({ x: 0, y: 20, w: 12, h: 4 }),
             cta(24),

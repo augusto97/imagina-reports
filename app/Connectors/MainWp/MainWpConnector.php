@@ -13,28 +13,36 @@ use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
 /**
- * MainWP connector (CLAUDE.md §9). Reads managed sites, available updates, the
- * plugin/theme/core inventory, abandoned plugins and SSL state from a MainWP
- * dashboard's REST API (v2, Bearer token) and returns an aggregated metric bag.
+ * MainWP connector (CLAUDE.md §9). Reads the single managed site that matches this
+ * data source's site URL from a MainWP dashboard's REST API (v2, Bearer token) and
+ * returns its maintenance metrics: pending plugin/theme/core updates, a per-item
+ * "pending updates" detail table (à la Modular DS), the plugin inventory and the
+ * site's health score.
  *
- * Aggregates at the source (§3.3) and catches its own errors → partial/failed
- * MetricSet (§7). The exact v2 endpoint paths and JSON field names are an
- * assumption to validate against a live dashboard — see PROGRESS Open Questions.
+ * Reports are per client/site, so this connector scopes to ONE site (matched by URL)
+ * rather than aggregating the whole dashboard. The "updates applied this month"
+ * number is NOT in the API — it is computed by MaintenanceDeltaCalculator from the
+ * period's snapshots (CLAUDE.md §9 "MainWP work-done deltas").
+ *
+ * MainWP returns the upgrade/inventory fields as JSON-ENCODED STRINGS (verified
+ * against a live dashboard): `plugin_upgrades`/`theme_upgrades` decode to an object
+ * keyed by slug (one key per pending update), `wp_upgrades` to the core-update info,
+ * and `plugins`/`themes` to a list of installed items.
  */
 final class MainWpConnector implements DataSourceConnector
 {
-    private const API_PREFIX = '/wp-json/mainwp/v2';
+    use ParsesValues;
 
-    private const SSL_EXPIRY_WARNING_DAYS = 30;
+    private const API_PREFIX = '/wp-json/mainwp/v2';
 
     public function key(): string
     {
@@ -58,19 +66,27 @@ final class MainWpConnector implements DataSourceConnector
     {
         try {
             $response = $this->client($source)->get('/sites');
-
-            return $response->successful()
-                ? ConnectionResult::success('MainWP dashboard reachable.')
-                : ConnectionResult::failure('MainWP responded with HTTP '.$response->status());
         } catch (Throwable $e) {
             return ConnectionResult::failure('Could not reach MainWP: '.$e->getMessage());
         }
+
+        if ($response->failed()) {
+            return ConnectionResult::failure('MainWP responded with HTTP '.$response->status());
+        }
+
+        $target = $this->targetUrl($source);
+        if ($target === '') {
+            return ConnectionResult::success('MainWP dashboard reachable. Asigna una URL al sitio para acotar el reporte.');
+        }
+
+        return $this->matchSite($this->extractSites($response->json()), $target) === null
+            ? ConnectionResult::failure("MainWP no gestiona ningún sitio que coincida con {$target}. Revisa la URL del sitio.")
+            : ConnectionResult::success('MainWP dashboard reachable; sitio localizado.');
     }
 
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('mainwp.sites_total', 'Sitios gestionados', MetricType::Scalar, 'count'),
             // Computed by the report engine (MaintenanceDeltaCalculator) from the period's
             // snapshots — the "what we did this month" number, not fetched from the API.
             new MetricDefinition('mainwp.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Calculada comparando los snapshots del periodo; no la devuelve la API.'),
@@ -78,11 +94,10 @@ final class MainWpConnector implements DataSourceConnector
             new MetricDefinition('mainwp.plugin_updates', 'Plugins por actualizar', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.theme_updates', 'Temas por actualizar', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.core_updates', 'Núcleo WordPress por actualizar', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.sites_with_updates', 'Sitios con actualizaciones pendientes', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.abandoned_plugins', 'Plugins abandonados', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.ssl_expiring', 'Sitios con SSL por vencer', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.sites', 'Estado por sitio', MetricType::Table),
-            new MetricDefinition('mainwp.ssl_expiring_sites', 'SSL próximo a vencer (sitios)', MetricType::Table, dimensions: ['site']),
+            new MetricDefinition('mainwp.pending_updates', 'Actualizaciones pendientes (detalle)', MetricType::Table, dimensions: ['type']),
+            new MetricDefinition('mainwp.plugins_total', 'Plugins instalados', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.plugins_active', 'Plugins activos', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.health_score', 'Salud del sitio', MetricType::Scalar, 'score'),
         );
     }
 
@@ -99,9 +114,18 @@ final class MainWpConnector implements DataSourceConnector
         }
 
         $sites = $this->extractSites($response->json());
-        $metrics = $this->aggregate($sites);
+        $target = $this->targetUrl($source);
 
-        return MetricSet::ok($this->only($metrics, $requestedMetrics));
+        if ($target === '') {
+            return MetricSet::failed('El sitio no tiene una URL configurada; MainWP necesita la URL para identificar el sitio gestionado.');
+        }
+
+        $site = $this->matchSite($sites, $target);
+        if ($site === null) {
+            return MetricSet::failed("MainWP no gestiona ningún sitio que coincida con {$target}.");
+        }
+
+        return MetricSet::ok($this->only($this->metricsFor($site), $requestedMetrics));
     }
 
     private function client(DataSource $source): PendingRequest
@@ -109,12 +133,20 @@ final class MainWpConnector implements DataSourceConnector
         $config = $source->config ?? [];
         $credentials = $source->credentials ?? [];
 
-        $baseUrl = rtrim($this->str(Arr::get($config, 'dashboard_url', '')), '/').self::API_PREFIX;
+        $baseUrl = rtrim($this->toStr(Arr::get($config, 'dashboard_url', '')), '/').self::API_PREFIX;
 
         return Http::baseUrl($baseUrl)
-            ->withToken($this->str(Arr::get($credentials, 'token', '')))
+            ->withToken($this->toStr(Arr::get($credentials, 'token', '')))
             ->acceptJson()
             ->timeout(20);
+    }
+
+    /**
+     * The site URL this data source reports on (CLAUDE.md §5: reports are per-site).
+     */
+    private function targetUrl(DataSource $source): string
+    {
+        return $this->normalizeUrl($this->toStr($source->site->url ?? ''));
     }
 
     /**
@@ -135,104 +167,152 @@ final class MainWpConnector implements DataSourceConnector
     }
 
     /**
+     * Find the managed site whose URL matches the target (host + path, scheme/www/slash
+     * insensitive), or null when none does.
+     *
      * @param  list<array<array-key, mixed>>  $sites
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>|null
      */
-    private function aggregate(array $sites): array
+    private function matchSite(array $sites, string $target): ?array
     {
-        $pluginUpdates = 0;
-        $themeUpdates = 0;
-        $coreUpdates = 0;
-        $abandoned = 0;
-        $sslExpiring = 0;
-        $sitesWithUpdates = 0;
-        $table = [];
-        $sslTable = [];
+        if ($target === '') {
+            return null;
+        }
 
         foreach ($sites as $site) {
-            $plugins = $this->countFor($site, 'plugins', 'plugin_upgrades');
-            $themes = $this->countFor($site, 'themes', 'theme_upgrades');
-            $core = $this->countFor($site, 'wp', 'wp_upgrades');
-
-            $pluginUpdates += $plugins;
-            $themeUpdates += $themes;
-            $coreUpdates += $core;
-            $abandoned += $this->toInt(Arr::get($site, 'abandoned_plugins', 0));
-
-            if ($plugins + $themes + $core > 0) {
-                $sitesWithUpdates++;
+            if ($this->normalizeUrl($this->toStr(Arr::get($site, 'url', ''))) === $target) {
+                return $site;
             }
+        }
 
-            $days = $this->sslDaysLeft($site);
-            if ($days !== null && $days <= self::SSL_EXPIRY_WARNING_DAYS) {
-                $sslExpiring++;
-                $sslTable[] = ['label' => $this->str(Arr::get($site, 'name', '')), 'value' => $days];
+        return null;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $site
+     * @return array<string, mixed>
+     */
+    private function metricsFor(array $site): array
+    {
+        $pluginUpgrades = $this->decode(Arr::get($site, 'plugin_upgrades'));
+        $themeUpgrades = $this->decode(Arr::get($site, 'theme_upgrades'));
+        $wpUpgrade = $this->decode(Arr::get($site, 'wp_upgrades'));
+        $plugins = $this->decode(Arr::get($site, 'plugins'));
+
+        $pluginCount = count($pluginUpgrades);
+        $themeCount = count($themeUpgrades);
+        $coreCount = $wpUpgrade === [] ? 0 : 1;
+
+        $pluginsActive = 0;
+        foreach ($plugins as $plugin) {
+            if (is_array($plugin) && $this->truthy(Arr::get($plugin, 'active'))) {
+                $pluginsActive++;
             }
-
-            $table[] = [
-                'name' => $this->str(Arr::get($site, 'name', '')),
-                'url' => $this->str(Arr::get($site, 'url', '')),
-                'plugin_updates' => $plugins,
-                'theme_updates' => $themes,
-                'core_updates' => $core,
-            ];
         }
 
         return [
-            'mainwp.sites_total' => count($sites),
-            'mainwp.updates_available' => $pluginUpdates + $themeUpdates + $coreUpdates,
-            'mainwp.plugin_updates' => $pluginUpdates,
-            'mainwp.theme_updates' => $themeUpdates,
-            'mainwp.core_updates' => $coreUpdates,
-            'mainwp.sites_with_updates' => $sitesWithUpdates,
-            'mainwp.abandoned_plugins' => $abandoned,
-            'mainwp.ssl_expiring' => $sslExpiring,
-            'mainwp.sites' => $table,
-            'mainwp.ssl_expiring_sites' => $sslTable,
+            'mainwp.updates_available' => $pluginCount + $themeCount + $coreCount,
+            'mainwp.plugin_updates' => $pluginCount,
+            'mainwp.theme_updates' => $themeCount,
+            'mainwp.core_updates' => $coreCount,
+            'mainwp.pending_updates' => $this->pendingTable($pluginUpgrades, $themeUpgrades, $wpUpgrade, $site),
+            'mainwp.plugins_total' => count($plugins),
+            'mainwp.plugins_active' => $pluginsActive,
+            'mainwp.health_score' => $this->toInt(Arr::get($site, 'health_score', 0)),
         ];
     }
 
     /**
+     * Build the per-item "pending updates" detail (Modular-DS style): one row per
+     * plugin/theme/core update with its current and target version.
+     *
+     * @param  array<array-key, mixed>  $pluginUpgrades
+     * @param  array<array-key, mixed>  $themeUpgrades
+     * @param  array<array-key, mixed>  $wpUpgrade
      * @param  array<array-key, mixed>  $site
+     * @return list<array{Tipo: string, Elemento: string, Actual: string, Nueva: string}>
      */
-    private function countFor(array $site, string $nestedKey, string $flatKey): int
+    private function pendingTable(array $pluginUpgrades, array $themeUpgrades, array $wpUpgrade, array $site): array
     {
-        $nested = Arr::get($site, "update_counts.{$nestedKey}");
+        $rows = [];
 
-        return $this->toInt($nested ?? Arr::get($site, $flatKey, 0));
+        foreach ($pluginUpgrades as $slug => $info) {
+            $rows[] = $this->upgradeRow('Plugin', $slug, $this->arrayOf($info));
+        }
+
+        foreach ($themeUpgrades as $slug => $info) {
+            $rows[] = $this->upgradeRow('Tema', $slug, $this->arrayOf($info));
+        }
+
+        if ($wpUpgrade !== []) {
+            $rows[] = [
+                'Tipo' => 'WordPress',
+                'Elemento' => 'Núcleo de WordPress',
+                'Actual' => $this->toStr(Arr::get($wpUpgrade, 'current', Arr::get($site, 'wp_version', ''))),
+                'Nueva' => $this->toStr(Arr::get($wpUpgrade, 'new', '')),
+            ];
+        }
+
+        return $rows;
     }
 
     /**
-     * Days until the site's SSL certificate expires (negative if already expired), or
-     * null when no/invalid expiry date is present.
-     *
-     * @param  array<array-key, mixed>  $site
+     * @param  array<array-key, mixed>  $info
+     * @return array{Tipo: string, Elemento: string, Actual: string, Nueva: string}
      */
-    private function sslDaysLeft(array $site): ?int
+    private function upgradeRow(string $type, int|string $slug, array $info): array
     {
-        $expiresAt = Arr::get($site, 'ssl.expires_at');
+        $name = $this->toStr(Arr::get($info, 'Name', Arr::get($info, 'name', (string) $slug)));
 
-        if (! is_string($expiresAt) || $expiresAt === '') {
-            return null;
-        }
-
-        try {
-            $expiry = CarbonImmutable::parse($expiresAt);
-        } catch (Throwable) {
-            return null;
-        }
-
-        return (int) CarbonImmutable::now()->startOfDay()->diffInDays($expiry->startOfDay(), false);
+        return [
+            'Tipo' => $type,
+            'Elemento' => $name !== '' ? $name : (string) $slug,
+            'Actual' => $this->toStr(Arr::get($info, 'Version', Arr::get($info, 'version', ''))),
+            'Nueva' => $this->toStr(Arr::get($info, 'update.new_version', '')),
+        ];
     }
 
-    private function toInt(mixed $value): int
+    /**
+     * Decode a MainWP field that may arrive as a JSON-encoded string, an array, or
+     * be absent. Always returns an array (empty when not decodable).
+     *
+     * @return array<array-key, mixed>
+     */
+    private function decode(mixed $value): array
     {
-        return is_numeric($value) ? (int) $value : 0;
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
     }
 
-    private function str(mixed $value): string
+    private function truthy(mixed $value): bool
     {
-        return is_string($value) ? $value : (is_scalar($value) ? (string) $value : '');
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool) $value;
+    }
+
+    /**
+     * Normalize a URL for matching: lowercase host+path, drop scheme, leading "www."
+     * and any trailing slash. Returns '' for empty/invalid input.
+     */
+    private function normalizeUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+
+        $url = preg_replace('#^https?://#i', '', $url) ?? $url;
+        $url = preg_replace('#^www\.#i', '', $url) ?? $url;
+
+        return strtolower(rtrim($url, '/'));
     }
 
     /**
