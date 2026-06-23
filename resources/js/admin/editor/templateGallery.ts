@@ -363,8 +363,8 @@ export const GALLERY: GalleryTemplate[] = [
             spec({ type: 'healthscore', props: { title: 'Estado general' }, layout: { x: 0, y: 2, w: 4, h: 7 } }),
             kpi('betteruptime', 'uptime_percent', 'Disponibilidad', { x: 4, y: 2, w: 4, h: 4 }, { format: 'percent' }),
             kpi('betteruptime', 'incidents', 'Incidentes', { x: 8, y: 2, w: 4, h: 4 }),
-            kpi('betteruptime', 'total_downtime', 'Tiempo caído (s)', { x: 4, y: 6, w: 4, h: 3 }),
-            kpi('betteruptime', 'longest_incident', 'Incidente más largo (s)', { x: 8, y: 6, w: 4, h: 3 }),
+            kpi('betteruptime', 'total_downtime', 'Tiempo caído', { x: 4, y: 6, w: 4, h: 3 }, { format: 'duration' }),
+            kpi('betteruptime', 'longest_incident', 'Incidente más largo', { x: 8, y: 6, w: 4, h: 3 }, { format: 'duration' }),
             spec({
                 type: 'worklog_timeline',
                 props: { title: 'Lo que hicimos este mes' },
