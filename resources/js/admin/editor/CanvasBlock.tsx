@@ -4,6 +4,7 @@ import { type MouseEvent, type ReactElement } from 'react';
 import { BlockRenderer } from '@shared/blocks/BlockRenderer';
 import type { Block } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
+import { DATA_BLOCKS } from './blockFactory';
 
 /**
  * Corner-radius classes, mirroring the renderer's `Section` (single source of truth).
@@ -40,6 +41,18 @@ export function CanvasBlock({
     };
 
     const radius = RADIUS[typeof block.style?.radius === 'string' ? block.style.radius : ''] ?? 'ir-rounded-lg';
+
+    // A data block whose bound metric has no value for the previewed period. Show an
+    // honest placeholder (keeps the block visible/selectable) instead of letting the
+    // renderer hide it — and never fake sample rows, which would contradict the KPIs.
+    const isEmpty = data === undefined || data === null || (Array.isArray(data) && data.length === 0);
+    const showEmptyState = isEmpty && DATA_BLOCKS.includes(block.type);
+    const emptyTitle =
+        typeof block.props?.title === 'string' && block.props.title !== ''
+            ? block.props.title
+            : typeof block.props?.label === 'string'
+              ? block.props.label
+              : '';
 
     return (
         <div
@@ -83,7 +96,20 @@ export function CanvasBlock({
             </div>
 
             <div className="ir-pointer-events-none ir-h-full ir-overflow-hidden">
-                <BlockRenderer block={block} data={data} />
+                {showEmptyState ? (
+                    <div className="ir-flex ir-h-full ir-flex-col ir-gap-2 ir-p-4">
+                        {emptyTitle !== '' && (
+                            <span className="ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground">
+                                {emptyTitle}
+                            </span>
+                        )}
+                        <div className="ir-flex ir-flex-1 ir-items-center ir-justify-center ir-rounded-lg ir-border ir-border-dashed ir-border-border ir-px-3 ir-text-center ir-text-xs ir-text-muted-foreground">
+                            Sin datos para este periodo
+                        </div>
+                    </div>
+                ) : (
+                    <BlockRenderer block={block} data={data} />
+                )}
             </div>
         </div>
     );

@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🚫 EDITOR — FIN DE DATOS FALSOS EN MODO REAL + ESTADO «SIN DATOS» (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):**
+el owner mostró una incoherencia: con un sitio real (imaginawp, 3 fuentes) los **KPIs** salían en 0 pero las **tablas**
+mostraban filas (WooCommerce/Astra/… = mis placeholders de muestra). Causa: el fallback por-bloque a `sampleData`
+(del fix anterior) inyectaba datos de muestra en bloques vacíos **incluso en modo datos-reales**, contradiciendo los
+KPIs reales. **Arreglo:** el fallback a muestra ahora **solo** aplica en modo diseño (sin sitio/sin preview); en modo
+real se muestran los datos reales tal cual. Para que un bloque vacío no desaparezca ni mienta, `CanvasBlock` pinta un
+**estado honesto «Sin datos para este periodo»** (con el título del bloque, recuadro punteado) para bloques de datos
+(`DATA_BLOCKS`) sin valor — visible y seleccionable, pero sin inventar filas. Así imaginawp (sin historial) muestra
+0/0 + tablas «Sin datos» coherentes; comercializadoraomicron (con 166 updates) mostrará las filas reales al
+sincronizar. Además, la 4ª KPI del template «Mantenimiento» pasa de **`health_score`** (MainWP devolvía un confuso
+**-12**, escala sin verificar) a **`plugins_total`** («Plugins instalados»), inequívoca; `health_score` sigue en el
+catálogo para quien lo quiera. TS+ESLint+Vitest(11)+build limpios.
+
 **🔄 EDITOR — PANEL DE SINCRONIZACIÓN CON ESTADO REAL (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el
 owner señaló que el botón «Sincronizar» era opaco (no decía qué fuentes, cuándo fue la última sync, si terminó, si
 fue en tiempo real, ni si alguna falló). Los datos ya existían en `ir_data_sources` (`status`/`last_synced_at`/

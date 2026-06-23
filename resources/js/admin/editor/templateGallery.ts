@@ -423,7 +423,7 @@ export const GALLERY: GalleryTemplate[] = [
             kpi('mainwp', 'updates_applied', 'Actualizaciones aplicadas', { x: 0, y: 2, w: 3, h: 4 }),
             kpi('mainwp', 'updates_available', 'Pendientes', { x: 3, y: 2, w: 3, h: 4 }),
             kpi('mainwp', 'plugins_active', 'Plugins activos', { x: 6, y: 2, w: 3, h: 4 }),
-            kpi('mainwp', 'health_score', 'Salud del sitio', { x: 9, y: 2, w: 3, h: 4 }),
+            kpi('mainwp', 'plugins_total', 'Plugins instalados', { x: 9, y: 2, w: 3, h: 4 }),
             summary({ x: 0, y: 6, w: 12, h: 4 }),
             spec({
                 type: 'table',
