@@ -41,10 +41,18 @@ final class GscConnector implements DataSourceConnector
         'gsc.position' => 'position',
     ];
 
+    /** Time series (dimension = date), keyed by the metric field to plot. @var array<string, string> */
+    private const SERIES = [
+        'gsc.clicks_by_date' => 'clicks',
+        'gsc.impressions_by_date' => 'impressions',
+    ];
+
     /** @var array<string, string> */
     private const TABLES = [
         'gsc.top_queries' => 'query',
         'gsc.top_pages' => 'page',
+        'gsc.by_country' => 'country',
+        'gsc.by_device' => 'device',
     ];
 
     public function __construct(private readonly GoogleTokenProvider $tokenProvider) {}
@@ -70,12 +78,16 @@ final class GscConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('gsc.clicks', 'Clicks', MetricType::Scalar, 'count'),
-            new MetricDefinition('gsc.impressions', 'Impressions', MetricType::Scalar, 'count'),
-            new MetricDefinition('gsc.ctr', 'CTR', MetricType::Scalar, 'ratio'),
-            new MetricDefinition('gsc.position', 'Average position', MetricType::Scalar, 'position'),
-            new MetricDefinition('gsc.top_queries', 'Top queries', MetricType::Table, dimensions: ['query']),
-            new MetricDefinition('gsc.top_pages', 'Top pages', MetricType::Table, dimensions: ['page']),
+            new MetricDefinition('gsc.clicks', 'Clics en Google', MetricType::Scalar, 'count'),
+            new MetricDefinition('gsc.impressions', 'Impresiones', MetricType::Scalar, 'count'),
+            new MetricDefinition('gsc.ctr', 'CTR', MetricType::Scalar, 'percent'),
+            new MetricDefinition('gsc.position', 'Posición media', MetricType::Scalar, 'position'),
+            new MetricDefinition('gsc.clicks_by_date', 'Clics por día', MetricType::Series, 'count'),
+            new MetricDefinition('gsc.impressions_by_date', 'Impresiones por día', MetricType::Series, 'count'),
+            new MetricDefinition('gsc.top_queries', 'Búsquedas top', MetricType::Table, dimensions: ['query']),
+            new MetricDefinition('gsc.top_pages', 'Páginas top', MetricType::Table, dimensions: ['page']),
+            new MetricDefinition('gsc.by_country', 'Por país', MetricType::Table, dimensions: ['country']),
+            new MetricDefinition('gsc.by_device', 'Por dispositivo', MetricType::Table, dimensions: ['device']),
         );
     }
 
@@ -123,13 +135,14 @@ final class GscConnector implements DataSourceConnector
         }
 
         $keys = $requestedMetrics === []
-            ? [...array_keys(self::SCALARS), ...array_keys(self::TABLES)]
+            ? [...array_keys(self::SCALARS), ...array_keys(self::SERIES), ...array_keys(self::TABLES)]
             : $requestedMetrics;
 
         $metrics = [];
         $errors = [];
 
         $this->collectScalars($token, $siteUrl, $period, $keys, $metrics, $errors);
+        $this->collectSeries($token, $siteUrl, $period, $keys, $metrics, $errors);
         $this->collectTables($token, $siteUrl, $period, $keys, $metrics, $errors);
 
         if ($metrics === [] && $errors !== []) {
@@ -174,9 +187,57 @@ final class GscConnector implements DataSourceConnector
 
         foreach ($requested as $key) {
             $field = self::SCALARS[$key];
-            $metrics[$key] = in_array($field, ['clicks', 'impressions'], true)
-                ? $this->intVal(Arr::get($row, $field))
-                : $this->floatVal(Arr::get($row, $field));
+            // GSC returns CTR as a 0–1 ratio → present it as a 0–100 percentage; round the
+            // average position to one decimal; clicks/impressions are integer counts.
+            $metrics[$key] = match ($field) {
+                'clicks', 'impressions' => $this->intVal(Arr::get($row, $field)),
+                'ctr' => round($this->floatVal(Arr::get($row, $field)) * 100, 2),
+                default => round($this->floatVal(Arr::get($row, $field)), 1),
+            };
+        }
+    }
+
+    /**
+     * Clicks/impressions over time come from a single date-dimension query, reused for
+     * every requested series.
+     *
+     * @param  list<string>  $keys
+     * @param  array<string, mixed>  $metrics
+     * @param  list<string>  $errors
+     */
+    private function collectSeries(string $token, string $siteUrl, Period $period, array $keys, array &$metrics, array &$errors): void
+    {
+        $requested = array_values(array_intersect(array_keys(self::SERIES), $keys));
+
+        if ($requested === []) {
+            return;
+        }
+
+        try {
+            $response = $this->query($token, $siteUrl, ['date'], 400, $period);
+        } catch (Throwable $e) {
+            $errors[] = 'gsc series: '.$e->getMessage();
+
+            return;
+        }
+
+        if ($response->failed()) {
+            $errors[] = 'gsc series: HTTP '.$response->status();
+
+            return;
+        }
+
+        $rows = $this->rows($response->json());
+
+        foreach ($requested as $key) {
+            $field = self::SERIES[$key];
+            $metrics[$key] = array_map(
+                fn (array $row): array => [
+                    'date' => $this->strVal(Arr::get($row, 'keys.0')),
+                    'value' => $this->intVal(Arr::get($row, $field)),
+                ],
+                $rows,
+            );
         }
     }
 
