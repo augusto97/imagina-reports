@@ -1,4 +1,5 @@
 import {
+    Activity,
     Calendar,
     Clock,
     Copy,
@@ -88,6 +89,7 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     hourly_support: Clock,
     security: ShieldCheck,
     cloudflare: Zap,
+    uptime: Activity,
 };
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */

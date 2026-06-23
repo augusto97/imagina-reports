@@ -354,4 +354,24 @@ export const GALLERY: GalleryTemplate[] = [
             cta(31),
         ],
     },
+    {
+        key: 'uptime',
+        name: 'Disponibilidad y SLA',
+        description: 'Uptime, incidentes y tiempo caído (Better Stack) + el trabajo del mes.',
+        build: () => [
+            header('Disponibilidad de tu sitio'),
+            spec({ type: 'healthscore', props: { title: 'Estado general' }, layout: { x: 0, y: 2, w: 4, h: 7 } }),
+            kpi('betteruptime', 'uptime_percent', 'Disponibilidad', { x: 4, y: 2, w: 4, h: 4 }, { format: 'percent' }),
+            kpi('betteruptime', 'incidents', 'Incidentes', { x: 8, y: 2, w: 4, h: 4 }),
+            kpi('betteruptime', 'total_downtime', 'Tiempo caído (s)', { x: 4, y: 6, w: 4, h: 3 }),
+            kpi('betteruptime', 'longest_incident', 'Incidente más largo (s)', { x: 8, y: 6, w: 4, h: 3 }),
+            spec({
+                type: 'worklog_timeline',
+                props: { title: 'Lo que hicimos este mes' },
+                layout: { x: 0, y: 9, w: 12, h: 7 },
+            }),
+            summary({ x: 0, y: 16, w: 12, h: 4 }),
+            cta(20),
+        ],
+    },
 ];

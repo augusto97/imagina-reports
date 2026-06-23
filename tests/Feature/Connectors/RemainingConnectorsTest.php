@@ -134,7 +134,13 @@ class RemainingConnectorsTest extends TestCase
     public function test_better_uptime_reads_sla(): void
     {
         Http::fake(['*' => Http::response([
-            'data' => ['attributes' => ['availability' => 99.95, 'number_of_incidents' => 2]],
+            'data' => ['attributes' => [
+                'availability' => 99.95,
+                'number_of_incidents' => 2,
+                'total_downtime' => 180,
+                'longest_incident' => 120,
+                'average_incident' => 90,
+            ]],
         ])]);
 
         $set = (new BetterUptimeConnector)->fetch(
@@ -145,6 +151,9 @@ class RemainingConnectorsTest extends TestCase
 
         $this->assertSame(99.95, $set->get('betteruptime.uptime_percent'));
         $this->assertSame(2, $set->get('betteruptime.incidents'));
+        $this->assertSame(180, $set->get('betteruptime.total_downtime'));
+        $this->assertSame(120, $set->get('betteruptime.longest_incident'));
+        $this->assertSame(90, $set->get('betteruptime.average_incident'));
     }
 
     public function test_virusdie_reads_mainwp_summary(): void

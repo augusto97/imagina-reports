@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**⏱️ BETTER STACK AMPLIADO (2026-06-23, rama `claude/betterstack-full-metrics` → release v1.13.3):** cuarto conector.
+**Conexión:** Bearer token + `monitor_id`; usa `GET /monitors/{id}/sla?from&to`. El endpoint SLA expone pocos campos
+documentados, así que la ampliación es honesta: de 2 a **5 métricas** desde la **misma llamada** — disponibilidad
+(`availability`), incidentes (`number_of_incidents`), **tiempo caído** (`total_downtime`, s), **incidente más largo**
+(`longest_incident`, s) e **incidente medio** (`average_incident`, s). No hay serie diaria en la API sin 30 llamadas,
+así que no se inventó. Nueva plantilla **«Disponibilidad y SLA»** (icono `Activity`): healthscore + KPIs de uptime +
+timeline del mes. Test ampliado (+3 aserciones). PHPStan max + TS+ESLint+Vitest(11)+build limpios. **Pendiente del
+owner:** validar en vivo (nombres de campo SLA asumidos). Siguiente: CrowdSec / MainWP / VirusDie.
+
 **🟧 CLOUDFLARE AMPLIADO (2026-06-23, rama `claude/cloudflare-full-metrics` → release v1.13.2):** tercer conector real.
 **Conexión:** API token con permiso **Zone Analytics:Read** + el **Zone ID**; usa el **GraphQL Analytics API**
 (`httpRequests1dGroups`, agrega en el servidor). **Catálogo de 4 a 14 métricas:** escalares (peticiones, en caché,
