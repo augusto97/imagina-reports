@@ -8,12 +8,14 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Support\Arr;
@@ -26,7 +28,7 @@ use Throwable;
  * the Analytics Data API (`runReport`), which aggregates server-side by design
  * (§3.3). Returns a normalized `ga4.*` metric bag; catches its own errors (§7).
  */
-final class Ga4Connector implements DataSourceConnector
+final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
 {
     private const API_BASE = 'https://analyticsdata.googleapis.com/v1beta';
 
@@ -50,6 +52,24 @@ final class Ga4Connector implements DataSourceConnector
             new ConfigField('property_id', 'GA4 property ID', ConfigFieldType::Text, help: 'ID numérico de la propiedad GA4, p. ej. 123456789 (Administrar → Configuración de la propiedad).'),
             new ConfigField('service_account', 'Service account JSON', ConfigFieldType::Json, secret: true, help: 'Pega el JSON completo de una cuenta de servicio de Google Cloud. Añade su email como Lector en la propiedad GA4.'),
         ];
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Conecta GA4 con una cuenta de servicio de Google Cloud (solo lectura). Tarda unos 5 minutos y sirve para todas las propiedades que compartas con esa cuenta.',
+            [
+                'En Google Cloud Console (console.cloud.google.com) crea o elige un proyecto.',
+                'Habilita la «Google Analytics Data API»: APIs y servicios → Biblioteca → busca «Analytics Data API» → Habilitar.',
+                'Crea una cuenta de servicio: IAM y administración → Cuentas de servicio → Crear cuenta de servicio. No necesita roles del proyecto.',
+                'En esa cuenta, pestaña Claves → Agregar clave → Crear clave nueva → JSON. Se descarga un archivo .json: ese es el contenido que pegarás en «Service account JSON».',
+                'Copia el email de la cuenta de servicio (termina en @…​.iam.gserviceaccount.com).',
+                'En Google Analytics (GA4) → Administrar → Acceso a la propiedad → «+» → añade ese email con rol «Lector» (Viewer).',
+                'Copia el ID de propiedad: Administrar → Configuración de la propiedad → «ID de la propiedad» (número de ~9 dígitos) y pégalo en «GA4 property ID».',
+                'Pega el JSON de la cuenta de servicio, guarda y pulsa «Probar conexión».',
+            ],
+            'https://developers.google.com/analytics/devguides/reporting/data/v1/quickstart-client-libraries',
+        );
     }
 
     public function testConnection(DataSource $source): ConnectionResult

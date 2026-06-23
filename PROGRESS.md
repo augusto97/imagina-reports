@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**📖 GUÍAS «CÓMO CONECTAR» POR CONECTOR (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner no encontraba
+el tutorial de cómo conectar GA4 (ni los demás). Nueva capability opcional **`ProvidesSetupGuide`** + value object
+**`SetupGuide`** (intro + pasos numerados + `docs_url`). Implementada en **los 8 conectores** (GA4 con el flujo completo
+de cuenta de servicio de Google Cloud paso a paso; GSC, Cloudflare, Better Stack, CrowdSec, VirusDie, WooCommerce,
+MainWP). `ConnectorController` expone `guide` (null si el conector no la trae). Frontend: `DataSourcesScreen` muestra un
+panel desplegable **«Cómo conectar {conector}»** (intro + lista ordenada + link a docs oficiales) tanto en el formulario
+de **alta** como en el de **edición**. Tipo `ConnectorGuide` añadido. Test del endpoint (+1). 256 tests + PHPStan + Pint
++ TS+ESLint+build limpios.
+
 **✏️ EDITAR/ELIMINAR FUENTES DE DATOS Y CLIENTES (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** faltaba poder
 **editar una fuente** (cambiar URL/clave/token caducado) o **eliminarla**, y **editar/eliminar clientes** — solo
 existían crear/listar. (Sitios ya tenían edición de URL.) **Backend:** `PUT/DELETE /data-sources/{ds}` y

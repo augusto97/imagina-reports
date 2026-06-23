@@ -8,11 +8,13 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -27,7 +29,7 @@ use Throwable;
  * API). Same dashboard_url + token as MainWP. The exact endpoint/fields are a
  * documented assumption (see PROGRESS Open Questions).
  */
-final class VirusdieConnector implements DataSourceConnector
+final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -61,6 +63,18 @@ final class VirusdieConnector implements DataSourceConnector
             new MetricDefinition('virusdie.scanned_sites', 'Sitios analizados', MetricType::Scalar, 'count'),
             new MetricDefinition('virusdie.firewall_active', 'Firewall activo', MetricType::Scalar),
             new MetricDefinition('virusdie.infected_sites_list', 'Sitios con malware', MetricType::Table, dimensions: ['site']),
+        );
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Virusdie se lee a través de la extensión Virusdie de MainWP — usa los MISMOS datos que tu fuente MainWP.',
+            [
+                'En tu panel MainWP ten activa la extensión «Virusdie» y los sitios protegidos con Virusdie.',
+                'En «dashboard_url» y «token» usa exactamente los mismos valores que en tu fuente MainWP (URL del panel + token REST v2).',
+                'Guarda y pulsa «Probar conexión».',
+            ],
         );
     }
 

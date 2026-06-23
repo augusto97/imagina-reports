@@ -8,11 +8,13 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -26,7 +28,7 @@ use Throwable;
  * SLA and incidents for a monitor. Field names are a documented assumption (see
  * PROGRESS Open Questions); parsing is defensive.
  */
-final class BetterUptimeConnector implements DataSourceConnector
+final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -58,6 +60,20 @@ final class BetterUptimeConnector implements DataSourceConnector
             new MetricDefinition('betteruptime.total_downtime', 'Tiempo caído (s)', MetricType::Scalar, 'seconds'),
             new MetricDefinition('betteruptime.longest_incident', 'Incidente más largo (s)', MetricType::Scalar, 'seconds'),
             new MetricDefinition('betteruptime.average_incident', 'Incidente medio (s)', MetricType::Scalar, 'seconds'),
+        );
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Usa un token de la API de Better Stack (Uptime) y el ID del monitor del sitio.',
+            [
+                'Better Stack → Uptime → Settings → API tokens (o «Integrations») → crea un API token.',
+                'Pégalo en «API token (Bearer)».',
+                'Abre el monitor del sitio; su ID aparece en la URL (…/monitors/EL-ID). Pégalo en «monitor_id».',
+                'Guarda y pulsa «Probar conexión».',
+            ],
+            'https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/',
         );
     }
 

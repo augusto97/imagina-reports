@@ -8,12 +8,14 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Http\Client\Response;
@@ -27,7 +29,7 @@ use Throwable;
  * pages via the Search Console API `searchanalytics.query`, which aggregates
  * server-side (§3.3). Returns a normalized `gsc.*` bag; catches its own errors (§7).
  */
-final class GscConnector implements DataSourceConnector
+final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     private const API_BASE = 'https://searchconsole.googleapis.com/webmasters/v3';
 
@@ -88,6 +90,21 @@ final class GscConnector implements DataSourceConnector
             new MetricDefinition('gsc.top_pages', 'Páginas top', MetricType::Table, dimensions: ['page']),
             new MetricDefinition('gsc.by_country', 'Por país', MetricType::Table, dimensions: ['country']),
             new MetricDefinition('gsc.by_device', 'Por dispositivo', MetricType::Table, dimensions: ['device']),
+        );
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Search Console usa la misma cuenta de servicio de Google Cloud que GA4, pero se autoriza dentro de Search Console.',
+            [
+                'Reutiliza (o crea) la cuenta de servicio de Google Cloud y su clave JSON (pasos 1–5 de la guía de GA4).',
+                'Habilita la «Google Search Console API» en el proyecto: APIs y servicios → Biblioteca.',
+                'En Search Console (search.google.com/search-console) → Configuración → Usuarios y permisos → Agregar usuario → pega el email de la cuenta de servicio con permiso «Restringido».',
+                'En «site_url» escribe la propiedad EXACTAMENTE como aparece en Search Console: dominio (sc-domain:tudominio.com) o prefijo de URL (https://tudominio.com/).',
+                'Pega el JSON de la cuenta de servicio, guarda y pulsa «Probar conexión».',
+            ],
+            'https://developers.google.com/webmaster-tools/v1/searchanalytics/query',
         );
     }
 

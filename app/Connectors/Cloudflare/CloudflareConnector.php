@@ -8,11 +8,13 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -27,7 +29,7 @@ use Throwable;
  * aggregated server-side (§3.3). The exact GraphQL shape is a documented assumption
  * — see PROGRESS Open Questions.
  */
-final class CloudflareConnector implements DataSourceConnector
+final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -68,6 +70,21 @@ final class CloudflareConnector implements DataSourceConnector
             new MetricDefinition('cloudflare.threats_by_country', 'Amenazas por país', MetricType::Table, dimensions: ['country']),
             new MetricDefinition('cloudflare.requests_by_country', 'Peticiones por país', MetricType::Table, dimensions: ['country']),
             new MetricDefinition('cloudflare.top_threat_sources', 'Tipos de amenaza', MetricType::Table, dimensions: ['source']),
+        );
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Crea un API token de Cloudflare con permiso de analítica de solo lectura, acotado a la zona del sitio.',
+            [
+                'Cloudflare → icono de perfil → My Profile → API Tokens → Create Token → «Create Custom Token».',
+                'Permisos: Zone → Analytics → Read. En «Zone Resources» limítalo a la zona (dominio) del sitio.',
+                'Crea el token y cópialo (solo se muestra una vez) → pégalo en «API token».',
+                'El Zone ID está en el panel de la zona: pestaña Overview → columna derecha «Zone ID». Pégalo en «zone_id».',
+                'Guarda y pulsa «Probar conexión».',
+            ],
+            'https://developers.cloudflare.com/fundamentals/api/get-started/create-token/',
         );
     }
 

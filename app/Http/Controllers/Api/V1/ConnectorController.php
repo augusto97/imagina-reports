@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\ConfigField;
 use App\Connectors\ConnectorRegistry;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
@@ -25,6 +26,9 @@ final class ConnectorController extends Controller
                 static fn (ConfigField $field): array => $field->toArray(),
                 $connector->configSchema(),
             ),
+            'guide' => $connector instanceof ProvidesSetupGuide
+                ? $connector->setupGuide()->toArray()
+                : null,
         ], $registry->all());
 
         return response()->json($connectors);

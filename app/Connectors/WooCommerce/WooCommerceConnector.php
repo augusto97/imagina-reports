@@ -8,11 +8,13 @@ use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
+use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -27,7 +29,7 @@ use Throwable;
  * (aggregated server-side, §3.3). The exact `/wc/v3/reports` field names are a
  * documented assumption — see PROGRESS Open Questions.
  */
-final class WooCommerceConnector implements DataSourceConnector
+final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -68,6 +70,21 @@ final class WooCommerceConnector implements DataSourceConnector
             new MetricDefinition('woocommerce.revenue_by_date', 'Ingresos por día', MetricType::Series, 'currency'),
             new MetricDefinition('woocommerce.orders_by_date', 'Pedidos por día', MetricType::Series, 'count'),
             new MetricDefinition('woocommerce.top_products', 'Productos más vendidos', MetricType::Table),
+        );
+    }
+
+    public function setupGuide(): SetupGuide
+    {
+        return new SetupGuide(
+            'Genera claves de API REST de solo lectura en tu tienda WooCommerce.',
+            [
+                'WordPress → WooCommerce → Ajustes → Avanzado → API REST → «Añadir clave».',
+                'Descripción libre, Usuario un administrador, Permisos «Lectura». Pulsa «Generar clave de API».',
+                'Copia «Consumer key» (ck_…) y «Consumer secret» (cs_…) — solo se muestran una vez.',
+                'En «store_url» pon la URL de la tienda (https://tutienda.com) y pega ck y cs en sus campos.',
+                'Guarda y pulsa «Probar conexión».',
+            ],
+            'https://woocommerce.github.io/woocommerce-rest-api-docs/',
         );
     }
 
