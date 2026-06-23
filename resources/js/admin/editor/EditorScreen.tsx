@@ -1,5 +1,6 @@
 import {
     Activity,
+    Bug,
     Calendar,
     Clock,
     Copy,
@@ -94,6 +95,7 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     uptime: Activity,
     crowdsec: ShieldAlert,
     maintenance: Wrench,
+    virusdie: Bug,
 };
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */

@@ -54,9 +54,13 @@ final class VirusdieConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('virusdie.malware_found', 'Malware found', MetricType::Scalar, 'count'),
-            new MetricDefinition('virusdie.infected_sites', 'Infected sites', MetricType::Scalar, 'count'),
-            new MetricDefinition('virusdie.firewall_active', 'Firewall active', MetricType::Scalar),
+            new MetricDefinition('virusdie.malware_found', 'Malware detectado', MetricType::Scalar, 'count'),
+            new MetricDefinition('virusdie.threats_removed', 'Amenazas eliminadas', MetricType::Scalar, 'count'),
+            new MetricDefinition('virusdie.infected_sites', 'Sitios infectados', MetricType::Scalar, 'count'),
+            new MetricDefinition('virusdie.clean_sites', 'Sitios limpios', MetricType::Scalar, 'count'),
+            new MetricDefinition('virusdie.scanned_sites', 'Sitios analizados', MetricType::Scalar, 'count'),
+            new MetricDefinition('virusdie.firewall_active', 'Firewall activo', MetricType::Scalar),
+            new MetricDefinition('virusdie.infected_sites_list', 'Sitios con malware', MetricType::Table, dimensions: ['site']),
         );
     }
 
@@ -89,9 +93,32 @@ final class VirusdieConnector implements DataSourceConnector
 
         return MetricSet::ok([
             'virusdie.malware_found' => $this->toInt(Arr::get($data, 'malware_found')),
+            'virusdie.threats_removed' => $this->toInt(Arr::get($data, 'threats_removed', Arr::get($data, 'malware_removed'))),
             'virusdie.infected_sites' => $this->toInt(Arr::get($data, 'infected_sites')),
+            'virusdie.clean_sites' => $this->toInt(Arr::get($data, 'clean_sites')),
+            'virusdie.scanned_sites' => $this->toInt(Arr::get($data, 'scanned_sites')),
             'virusdie.firewall_active' => filter_var(Arr::get($data, 'firewall_active'), FILTER_VALIDATE_BOOL) ? 1 : 0,
+            'virusdie.infected_sites_list' => $this->infectedSites(Arr::get($data, 'sites')),
         ]);
+    }
+
+    /**
+     * Per-site malware breakdown, keeping only infected sites as normalized table rows.
+     *
+     * @return list<array{label: string, value: int}>
+     */
+    private function infectedSites(mixed $sites): array
+    {
+        $rows = [];
+        foreach ($this->listOf($sites) as $site) {
+            $malware = $this->toInt(Arr::get($site, 'malware', Arr::get($site, 'threats')));
+            if ($malware <= 0) {
+                continue;
+            }
+            $rows[] = ['label' => $this->toStr(Arr::get($site, 'name', Arr::get($site, 'url'))), 'value' => $malware];
+        }
+
+        return $rows;
     }
 
     private function client(DataSource $source): PendingRequest

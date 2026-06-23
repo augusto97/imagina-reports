@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🦠 VIRUSDIE AMPLIADO — ¡CONECTORES 2.x COMPLETOS! (2026-06-23, rama `claude/virusdie-full-metrics` → release
+v1.13.6):** séptimo y último conector. **Conexión:** vía la **extensión VirusDie de MainWP** (mismo `dashboard_url`
++ token MainWP), endpoint `/wp-json/mainwp/v2/virusdie/summary`. **Catálogo de 3 a 7 métricas:** malware detectado,
+**amenazas eliminadas**, sitios infectados, **sitios limpios**, **sitios analizados**, firewall activo (1/0) y una
+**tabla de sitios con malware** (solo infectados, label=sitio, value=nº malware). Nueva plantilla **«Antimalware
+(VirusDie)»** (icono `Bug`): KPIs + escudo + sitios con malware + timeline. Test ampliado (+3 aserciones). 56 tests
+de conectores + PHPStan max + TS+ESLint+Vitest(11)+build limpios.
+
+**🎉 LOS 7 CONECTORES 2.x AMPLIADOS:** GA4 (~27), GSC (10), Cloudflare (14), Better Stack (5), CrowdSec (7), MainWP
+(11+`updates_applied`), VirusDie (7). Todos comparten patrón (escalares + series + tablas {label,value}, ratios
+escalados a %, agregación en origen). **11 plantillas** en la galería. **Pendiente del owner: VALIDAR EN VIVO** todos
+con credenciales reales — los nombres de campo/endpoint son los documentados/asumidos; conviene una corrida real por
+conector y ajustar lo que no cuadre. Después: Fase 3 (Imagina Audit + WPVulnerability, conector database/CSV/endpoint,
+detección de anomalías).
+
 **🔧 MAINWP AMPLIADO (2026-06-23, rama `claude/mainwp-full-metrics` → release v1.13.5):** sexto conector — el
 **corazón de la retención**. **Conexión:** Bearer token v2 + `dashboard_url`; lee `/sites` (agrega en origen). El
 número estrella **`mainwp.updates_applied`** ("actualizaciones aplicadas este mes") **ya estaba** calculado por
