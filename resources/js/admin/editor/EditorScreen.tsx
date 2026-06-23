@@ -539,8 +539,17 @@ export function EditorScreen(): ReactElement {
     const renderData: Record<string, unknown> = {};
     if (hasRealData) {
         Object.assign(renderData, preview_.data);
-    } else {
-        for (const block of blocks) {
+    }
+    // On the design canvas, fall back to representative sample data for any block whose
+    // real data is missing/empty — so a freshly-bound block (or one whose metric isn't in
+    // this site's snapshot yet) stays visible to design with, instead of rendering blank.
+    for (const block of blocks) {
+        const value = renderData[block.id];
+        const isEmpty =
+            value === undefined ||
+            value === null ||
+            (Array.isArray(value) && value.length === 0);
+        if (isEmpty) {
             renderData[block.id] = sampleData(block);
         }
     }

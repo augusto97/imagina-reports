@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🖼️ EDITOR — LIENZO YA NO SE VE VACÍO (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner reportó que
+en el editor la plantilla «Mantenimiento» y las tablas enlazadas (p. ej. `mainwp.work_log`) salían **vacías**. Causa:
+el lienzo entra en **modo datos-reales** apenas se elige un sitio (`hasRealData = siteId && preview_`), y un bloque
+cuyo métrica aún no está en el snapshot del sitio renderiza en blanco (el renderer de tabla se oculta con 0 filas).
+Dos arreglos **solo del editor** (no tocan portal/PDF, que siguen ocultando con gracia): (1) en `EditorScreen` el
+`renderData` ahora hace **fallback a `sampleData(block)`** por-bloque cuando el dato real falta/está vacío, así un
+bloque recién enlazado o sin snapshot sigue visible para diseñar; (2) `sampleData` para `table` es **consciente del
+binding**: `work_log` → filas Fecha/Tipo/Elemento/Versión de muestra, `pending_updates` → Tipo/Elemento/Actual/Nueva,
+resto → label/value. TS+ESLint+Vitest(11) limpios. **Nota:** para ver datos REALES de work_log hay que **sincronizar**
+un sitio que actualice por MainWP (con logging), tras desplegar ≥v1.13.8.
+
 **🗓️ MAINWP — "LO QUE HICIMOS ESTE MES" REAL CON FECHAS (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):**
 descubrimos vía el listado de rutas `/wp-json/mainwp/v2` que MainWP expone el namespace **`pro-reports`** (lo que
 este producto reemplaza). El endpoint **`/pro-reports/{id|dominio}/{plugins|themes|wordpress}?action=updated&start&end`**
