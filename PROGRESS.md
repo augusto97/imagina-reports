@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**📊 GA4 COMPLETO + PLANTILLAS NORMAL/ECOMMERCE (2026-06-23, rama `claude/ga4-full-metrics` → release v1.13.0):**
+arranca el desarrollo de conectores reales (2.x), empezando por **Google Analytics 4**. **Conexión:** Service
+Account JSON + `property_id` (el SA se añade como Lector en la propiedad GA4); usa el Analytics Data API `runReport`
+(agrega en el servidor, §3.3). **Catálogo ampliado de 7 a ~27 métricas** con nombres documentados del Data API,
+cubriendo **contenido** (usuarios/nuevos/activos, sesiones, páginas vistas, sesiones con interacción, tasa de
+interacción y rebote, duración media, páginas/sesión, conversiones, eventos) y **ecommerce** (ingresos totales/por
+compras, transacciones, compras, ticket medio, artículos comprados/vistos, conversión a compra), + series
+(sesiones/usuarios/ingresos/compras por día) y tablas (top pages, landing, fuentes, países, dispositivos, top
+products). El parser ahora soporta **decimales** (moneda) y **escala 0–1 → 0–100** para porcentajes (`cast`/`scale`
+por métrica). **Dos plantillas nuevas y separadas** en la galería: **«Analítica web (GA4)»** (sitios de contenido) y
+**«E-commerce (GA4)»** (tienda en Analytics), con iconos `Globe`/`TrendingUp`. +2 tests GA4 (moneda + porcentaje
+escalado, catálogo ecommerce) → 9 en total. PHPStan max + 55 tests de conectores verdes; TS+ESLint+Vitest(11)+build
+limpios. **Pendiente:** validar en vivo con el Service Account real del owner (nombres de API son los documentados);
+luego seguir con los demás conectores 2.x (GSC ya existe; Cloudflare/CrowdSec/BetterUptime/VirusDie/Woo a validar).
+
 **🔘 BLOQUE CTA REPARADO (2026-06-22, rama `claude/cta-block-styling` → release v1.12.1):** el owner reportó que el
 bloque «Llamada a la acción» se veía feo y **no tomaba los estilos** que se le aplicaban. Causa: `CtaBlock` no usaba
 `styleCss` ni los mapas de estilo (tenía clases hardcodeadas `ir-bg-muted ir-p-6 ir-text-center`), así que ignoraba
