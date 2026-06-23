@@ -11,7 +11,9 @@ use App\Connectors\Period;
 use App\Connectors\Virusdie\VirusdieConnector;
 use App\Connectors\WooCommerce\WooCommerceConnector;
 use App\Enums\DataSourceType;
+use App\Models\Client;
 use App\Models\DataSource;
+use App\Models\Site;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -225,9 +227,33 @@ class RemainingConnectorsTest extends TestCase
         $incidents = $set->get('betteruptime.incidents_list');
         $this->assertCount(1, $incidents);
         $this->assertSame(
-            ['Inicio' => '10/06/2026 10:00 UTC', 'Duración' => '32 min', 'Causa' => 'Timeout (no headers received)', 'Estado' => 'Resuelto'],
+            ['Inicio' => '10/06/2026 10:00 GMT+00:00', 'Duración' => '32 min', 'Causa' => 'Timeout (no headers received)', 'Estado' => 'Resuelto'],
             $incidents[0],
         );
+    }
+
+    public function test_better_uptime_renders_incident_times_in_the_client_timezone(): void
+    {
+        Http::fake([
+            '*/incidents*' => Http::response(['data' => [[
+                'id' => '1',
+                'attributes' => [
+                    'cause' => 'Timeout',
+                    'started_at' => '2026-06-10T10:00:00.000Z',
+                    'resolved_at' => '2026-06-10T10:32:00.000Z',
+                    'status' => 'Resolved',
+                ],
+            ]]]),
+            '*' => Http::response(['data' => ['attributes' => ['availability' => 99.9]]]),
+        ]);
+
+        $source = $this->source(DataSourceType::BetterUptime, ['monitor_id' => '123'], ['api_token' => 't']);
+        $source->setRelation('site', (new Site)->setRelation('client', (new Client)->forceFill(['timezone' => 'America/Bogota'])));
+
+        $set = (new BetterUptimeConnector)->fetch($source, $this->period(), []);
+
+        // 10:00 UTC → 05:00 in Bogotá (GMT-5).
+        $this->assertSame('10/06/2026 05:00 GMT-05:00', $set->get('betteruptime.incidents_list')[0]['Inicio']);
     }
 
     public function test_virusdie_reads_mainwp_summary(): void

@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🌎 ZONA HORARIA POR CLIENTE → INCIDENTES EN HORA LOCAL (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** las
+fechas de incidentes salían en UTC; el owner las quiere en la hora del cliente (depende de su país). Añadido campo
+**`timezone`** (IANA) al **cliente**: migración `ir_clients.timezone` (nullable), fillable/resource/validación
+(`'nullable','timezone'` en Store+Update). El **BetterUptimeConnector** resuelve `data_get($source,'site.client.timezone')`
+(default UTC) y formatea «Inicio» en esa zona → «10/06/2026 05:00 GMT-05:00». Frontend: `timezones.ts` (lista
+LATAM-first), selector en el **formulario de edición de cliente** + columna «Zona horaria» en la tabla. Tipo `Client`
+y hook `useUpdateClient` actualizados. Tests +2 (UTC y America/Bogota). 259 tests + PHPStan + Pint + TS+build limpios.
+Nota: la hora se hornea en el snapshot al sincronizar (re-sincroniza si cambias la zona).
+
 **🚨 BETTER STACK — TABLA DE INCIDENTES (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el endpoint correcto es
 **`/api/v2/incidents?monitor_id=`** (no `/monitors/{id}/incidents`). Con el JSON real (`data[].attributes`:
 `started_at`, `resolved_at`, `cause`, `status`) añadí **`betteruptime.incidents_list`** (tabla Inicio/Duración/Causa/

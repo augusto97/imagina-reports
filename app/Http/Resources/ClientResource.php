@@ -27,6 +27,7 @@ final class ClientResource extends JsonResource
             'name' => $client->name,
             'contact_email' => $client->contact_email,
             'locale' => $client->locale,
+            'timezone' => $client->timezone,
             'notes' => $client->notes,
         ];
     }

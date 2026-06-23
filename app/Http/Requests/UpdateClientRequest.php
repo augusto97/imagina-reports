@@ -22,6 +22,7 @@ final class UpdateClientRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'contact_email' => ['nullable', 'email'],
             'locale' => ['nullable', 'string', 'max:8'],
+            'timezone' => ['nullable', 'timezone'],
             'notes' => ['nullable', 'string'],
         ];
     }

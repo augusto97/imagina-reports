@@ -18,6 +18,7 @@ use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -148,6 +149,8 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             return [];
         }
 
+        $timezone = $this->clientTimezone($source);
+
         $rows = [];
         foreach ($this->listOf(Arr::get($this->arrayOf($response->json()), 'data')) as $incident) {
             $attributes = $this->arrayOf(Arr::get($incident, 'attributes'));
@@ -165,7 +168,7 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             $end = $resolvedAt !== '' ? strtotime($resolvedAt) : false;
 
             $rows[] = [
-                'Inicio' => $start !== false ? gmdate('d/m/Y H:i', $start).' UTC' : $startedAt,
+                'Inicio' => $this->formatInTimezone($startedAt, $timezone),
                 'Duración' => $start !== false && $end !== false
                     ? $this->humanizeSeconds($end - $start)
                     : 'En curso',
@@ -175,6 +178,37 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
         }
 
         return $rows;
+    }
+
+    /**
+     * The client's IANA timezone (reports are per-site → client), defaulting to UTC.
+     * Incident times depend on the client's country, so we render them in this zone.
+     */
+    private function clientTimezone(DataSource $source): string
+    {
+        // data_get traverses site → client → timezone, tolerating a missing relation at
+        // any step (returns null) — no fragile nullsafe chain.
+        $timezone = $this->toStr(data_get($source, 'site.client.timezone'));
+
+        return $timezone !== '' ? $timezone : 'UTC';
+    }
+
+    /**
+     * Format a UTC ISO timestamp in the given timezone, e.g. "10/06/2026 11:00 GMT-05:00".
+     */
+    private function formatInTimezone(string $iso, string $timezone): string
+    {
+        try {
+            $moment = CarbonImmutable::parse($iso)->setTimezone($timezone);
+        } catch (Throwable) {
+            try {
+                $moment = CarbonImmutable::parse($iso)->setTimezone('UTC');
+            } catch (Throwable) {
+                return $iso;
+            }
+        }
+
+        return $moment->format('d/m/Y H:i').' GMT'.$moment->format('P');
     }
 
     /**
