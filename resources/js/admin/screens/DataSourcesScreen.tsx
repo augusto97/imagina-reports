@@ -1,9 +1,96 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
-import { useConnectors, useCreateDataSource, useSiteDataSources, useSites, useTestConnection } from '../api';
+import {
+    useConnectors,
+    useCreateDataSource,
+    useDeleteDataSource,
+    useSiteDataSources,
+    useSites,
+    useTestConnection,
+    useUpdateDataSource,
+} from '../api';
 import { Button, Card, Field, Select } from '../components/ui';
 import { Input } from '../components/ui';
 import { useAdminUi } from '../store';
+import type { Connector, DataSourceDto } from '../types';
+
+/** Inline edit form for an existing data source: reconfigure its URL/keys/token. */
+function DataSourceEditForm({
+    source,
+    connector,
+    siteId,
+    onClose,
+}: {
+    source: DataSourceDto;
+    connector: Connector | undefined;
+    siteId: number;
+    onClose: () => void;
+}): ReactElement {
+    const update = useUpdateDataSource(siteId);
+    const [values, setValues] = useState<Record<string, string>>(() => {
+        const initial: Record<string, string> = {};
+        for (const field of connector?.config_schema ?? []) {
+            // Non-secret config comes back from the API; secrets never do (kept if blank).
+            if (!field.secret) {
+                const current = (source.config ?? {})[field.key];
+                initial[field.key] = typeof current === 'string' ? current : '';
+            }
+        }
+        return initial;
+    });
+
+    if (connector === undefined) {
+        return (
+            <Card title="Editar fuente">
+                <p className="ir-text-sm ir-text-muted-foreground">Conector desconocido para «{source.type}».</p>
+                <Button variant="ghost" onClick={onClose}>
+                    Cerrar
+                </Button>
+            </Card>
+        );
+    }
+
+    const save = (event: FormEvent): void => {
+        event.preventDefault();
+        const config: Record<string, string> = {};
+        const credentials: Record<string, string> = {};
+        for (const field of connector.config_schema) {
+            const value = values[field.key] ?? '';
+            if (field.secret) {
+                credentials[field.key] = value; // blank = keep existing (handled by API)
+            } else {
+                config[field.key] = value;
+            }
+        }
+        update.mutate({ id: source.id, config, credentials }, { onSuccess: onClose });
+    };
+
+    return (
+        <Card title={`Editar «${connector.label}»`} description="Actualiza la URL, claves o el token si caducó. Los campos secretos en blanco se conservan.">
+            <form onSubmit={save} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
+                {connector.config_schema.map((field) => (
+                    <Field key={field.key} label={field.label}>
+                        <Input
+                            type={field.secret ? 'password' : 'text'}
+                            value={values[field.key] ?? ''}
+                            placeholder={field.secret ? 'Déjalo vacío para conservar el actual' : undefined}
+                            onChange={(event) => setValues((prev) => ({ ...prev, [field.key]: event.target.value }))}
+                        />
+                        {field.help !== null && <span className="ir-text-xs ir-text-muted-foreground">{field.help}</span>}
+                    </Field>
+                ))}
+                <div className="ir-flex ir-gap-2">
+                    <Button type="submit" disabled={update.isPending}>
+                        Guardar cambios
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={onClose}>
+                        Cancelar
+                    </Button>
+                </div>
+            </form>
+        </Card>
+    );
+}
 
 export function DataSourcesScreen(): ReactElement {
     const siteId = useAdminUi((state) => state.selectedSiteId);
@@ -12,11 +99,13 @@ export function DataSourcesScreen(): ReactElement {
     const { data: connectors = [] } = useConnectors();
     const { data: sources = [] } = useSiteDataSources(siteId);
     const create = useCreateDataSource(siteId ?? 0);
+    const remove = useDeleteDataSource(siteId ?? 0);
     const test = useTestConnection();
 
     const [type, setType] = useState('');
     const [values, setValues] = useState<Record<string, string>>({});
     const [results, setResults] = useState<Record<number, string>>({});
+    const [editing, setEditing] = useState<DataSourceDto | null>(null);
 
     const sitePicker = (
         <Card title="Sitio" description="Elige el sitio cuyas fuentes de datos quieres configurar.">
@@ -45,6 +134,7 @@ export function DataSourcesScreen(): ReactElement {
     }
 
     const connector = connectors.find((item) => item.key === type);
+    const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? sourceType;
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
@@ -78,6 +168,12 @@ export function DataSourcesScreen(): ReactElement {
         test.mutate(id, {
             onSuccess: (result) => setResults((prev) => ({ ...prev, [id]: result.message })),
         });
+    };
+
+    const confirmRemove = (source: DataSourceDto): void => {
+        if (window.confirm(`¿Eliminar la fuente «${labelFor(source.type)}»? Se borrará también su historial sincronizado.`)) {
+            remove.mutate(source.id, { onSuccess: () => setEditing((current) => (current?.id === source.id ? null : current)) });
+        }
     };
 
     return (
@@ -126,20 +222,39 @@ export function DataSourcesScreen(): ReactElement {
                 </form>
             </Card>
 
+            {editing !== null && (
+                <DataSourceEditForm
+                    key={editing.id}
+                    source={editing}
+                    connector={connectors.find((item) => item.key === editing.type)}
+                    siteId={siteId}
+                    onClose={() => setEditing(null)}
+                />
+            )}
+
             <Card title="Fuentes configuradas">
                 <ul className="ir-flex ir-flex-col ir-gap-3">
                     {sources.map((source) => (
-                        <li key={source.id} className="ir-flex ir-items-center ir-justify-between ir-border-t ir-pt-3">
-                            <div>
-                                <p className="ir-font-medium">{source.type}</p>
+                        <li key={source.id} className="ir-flex ir-items-center ir-justify-between ir-gap-3 ir-border-t ir-pt-3">
+                            <div className="ir-min-w-0">
+                                <p className="ir-font-medium">{labelFor(source.type)}</p>
                                 <p className="ir-text-xs ir-text-muted-foreground">
                                     {source.status}
                                     {results[source.id] !== undefined ? ` — ${results[source.id]}` : ''}
+                                    {source.last_error !== null && results[source.id] === undefined ? ` — ${source.last_error}` : ''}
                                 </p>
                             </div>
-                            <Button variant="ghost" onClick={() => runTest(source.id)} disabled={test.isPending}>
-                                Probar conexión
-                            </Button>
+                            <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                                <Button variant="ghost" onClick={() => runTest(source.id)} disabled={test.isPending}>
+                                    Probar
+                                </Button>
+                                <Button variant="ghost" onClick={() => setEditing(source)}>
+                                    Editar
+                                </Button>
+                                <Button variant="ghost" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
+                                    Eliminar
+                                </Button>
+                            </div>
                         </li>
                     ))}
                     {sources.length === 0 && <li className="ir-text-sm ir-text-muted-foreground">Sin fuentes todavía.</li>}

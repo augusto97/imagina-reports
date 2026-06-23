@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**✏️ EDITAR/ELIMINAR FUENTES DE DATOS Y CLIENTES (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** faltaba poder
+**editar una fuente** (cambiar URL/clave/token caducado) o **eliminarla**, y **editar/eliminar clientes** — solo
+existían crear/listar. (Sitios ya tenían edición de URL.) **Backend:** `PUT/DELETE /data-sources/{ds}` y
+`PUT/DELETE /clients/{client}` + FormRequests. La actualización de fuente **mezcla credenciales**: un campo secreto en
+blanco **conserva** el actual (ojo: `ConvertEmptyStringsToNull` convierte `""`→`null`, así que se ignoran ambos) y al
+cambiar config/credenciales resetea `status` a `pending` para re-test. Borrar fuente **cascadea** sus snapshots (FK).
+Borrar cliente se **rechaza (422)** si aún tiene sitios (evita borrado masivo en cascada). **Frontend:** `DataSourcesScreen`
+gana formulario **Editar** (precarga la config no-secreta; los secretos van con placeholder «déjalo vacío para
+conservar») + **Eliminar** (con confirm) y muestra etiqueta del conector + `last_error`; `ClientsScreen` gana
+**Editar** (nombre/email/idioma/notas) + **Eliminar**. Hooks `useUpdate/DeleteDataSource`, `useUpdate/DeleteClient`.
+255 tests (+8) + PHPStan + Pint + TS+ESLint+Vitest(11)+build limpios.
+
 **🧷 EDITOR — PLANTILLAS: AÑADIR DEBAJO vs REEMPLAZAR (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el
 owner quería componer un **informe unificado** tomando partes de varias plantillas, pero al hacer clic en una de la
 galería **siempre reemplazaba** el lienzo. Ahora: si el lienzo está esencialmente vacío (≤1 bloque) la plantilla se

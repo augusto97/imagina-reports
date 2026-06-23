@@ -126,6 +126,25 @@ export function useCreateClient() {
     });
 }
 
+export function useUpdateClient(clientId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name?: string; contact_email?: string | null; locale?: string | null; notes?: string | null }) =>
+            api.put<Client>(`/clients/${clientId}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    });
+}
+
+export function useDeleteClient() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (clientId: number) => api.delete(`/clients/${clientId}`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    });
+}
+
 /* ---------------------------------- sites ---------------------------------- */
 
 export function useSites() {
@@ -232,6 +251,25 @@ export function useCreateDataSource(siteId: number) {
     return useMutation({
         mutationFn: (payload: { type: string; config: Record<string, string>; credentials: Record<string, string> }) =>
             api.post<DataSourceDto>(`/sites/${siteId}/data-sources`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['data-sources', siteId] }),
+    });
+}
+
+export function useUpdateDataSource(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: number; config?: Record<string, string>; credentials?: Record<string, string> }) =>
+            api.put<DataSourceDto>(`/data-sources/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['data-sources', siteId] }),
+    });
+}
+
+export function useDeleteDataSource(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/data-sources/${id}`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['data-sources', siteId] }),
     });
 }
