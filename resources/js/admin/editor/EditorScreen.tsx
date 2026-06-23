@@ -322,17 +322,49 @@ export function EditorScreen(): ReactElement {
         });
     };
 
-    const loadTemplate = (build: () => Block[]): void => {
-        if (
-            blocks.length > 1 &&
-            !window.confirm("Esto reemplazará el lienzo actual. ¿Continuar?")
-        ) {
+    // A gallery template the user picked while the canvas already has content — we ask
+    // whether to append it below or replace everything (for building unified reports).
+    const [pendingTpl, setPendingTpl] = useState<{ build: () => Block[]; name: string } | null>(null);
+
+    const chooseTemplate = (template: { build: () => Block[]; name: string }): void => {
+        // An essentially empty canvas (just the starter header) just loads the template.
+        if (blocks.length <= 1) {
+            replaceWithTemplate(template.build);
             return;
         }
+        setPendingTpl(template);
+    };
+
+    function replaceWithTemplate(build: () => Block[]): void {
         const next = build();
         resetBlocks(next);
         setSelectedId(next[0]?.id ?? null);
-    };
+        setPendingTpl(null);
+    }
+
+    function appendTemplate(build: () => Block[]): void {
+        const incoming = ensureLayouts(build());
+        if (incoming.length === 0) {
+            setPendingTpl(null);
+            return;
+        }
+        // Stack the template below whatever is already on the current page.
+        const onPage = blocks.filter((block) => (block.page ?? 0) === currentPage);
+        const offsetY = onPage.reduce(
+            (max, block) => Math.max(max, (block.layout?.y ?? 0) + (block.layout?.h ?? 4)),
+            0,
+        );
+        const shifted = incoming.map((block) => ({
+            ...block,
+            page: currentPage,
+            layout: block.layout
+                ? { ...block.layout, y: (block.layout.y ?? 0) + offsetY }
+                : block.layout,
+        }));
+        commit([...blocks, ...shifted]);
+        setSelectedId(shifted[0]?.id ?? null);
+        setPendingTpl(null);
+    }
 
     const addBlock = (type: BlockType): void => {
         const block = { ...makeBlock(type), page: currentPage };
@@ -733,7 +765,7 @@ export function EditorScreen(): ReactElement {
                                             <button
                                                 key={template.key}
                                                 type="button"
-                                                onClick={() => loadTemplate(template.build)}
+                                                onClick={() => chooseTemplate(template)}
                                                 className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-2 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
                                             >
                                                 <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
@@ -979,6 +1011,39 @@ export function EditorScreen(): ReactElement {
                     </aside>
                 )}
             </div>
+
+            {pendingTpl !== null && (
+                <div
+                    className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-items-center ir-justify-center ir-bg-black/40 ir-p-4"
+                    onClick={() => setPendingTpl(null)}
+                >
+                    <div
+                        className="ir-w-full ir-max-w-sm ir-rounded-lg ir-border ir-bg-card ir-p-4 ir-shadow-xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <h3 className="ir-text-sm ir-font-semibold ir-text-foreground">
+                            Añadir «{pendingTpl.name}»
+                        </h3>
+                        <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                            Ya tienes contenido en el lienzo. ¿Añadir esta plantilla debajo de lo
+                            actual, o reemplazar todo el informe?
+                        </p>
+                        <div className="ir-mt-4 ir-flex ir-flex-col ir-gap-2">
+                            <Button onClick={() => appendTemplate(pendingTpl.build)}>
+                                <Plus className="ir-size-4" />
+                                Añadir debajo
+                            </Button>
+                            <Button variant="ghost" onClick={() => replaceWithTemplate(pendingTpl.build)}>
+                                <LayoutTemplate className="ir-size-4" />
+                                Reemplazar todo
+                            </Button>
+                            <Button variant="ghost" onClick={() => setPendingTpl(null)}>
+                                Cancelar
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
