@@ -116,6 +116,61 @@ class MainWpConnectorTest extends TestCase
         $this->assertSame(86, $set->get('mainwp.health_score'));
     }
 
+    public function test_fetch_builds_work_log_from_pro_reports_history(): void
+    {
+        Http::fake([
+            '*/pro-reports/*/plugins*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[
+                [
+                    '[plugin.name]' => 'JetFormBuilder',
+                    '[plugin.updated.utime]' => '2026-06-22 15:32:56',
+                    '[plugin.updated.date]' => 'junio 22, 2026',
+                    '[plugin.old.version]' => '3.6.2.1',
+                    '[plugin.current.version]' => '3.6.2.2',
+                ],
+                [
+                    '[plugin.name]' => 'WooCommerce',
+                    '[plugin.updated.utime]' => '2026-06-01 16:22:29',
+                    '[plugin.old.version]' => '10.7.0',
+                    '[plugin.current.version]' => '10.8.1',
+                ],
+                [   // outside the period — must be filtered out
+                    '[plugin.name]' => 'Old Plugin',
+                    '[plugin.updated.utime]' => '2026-05-05 10:00:00',
+                    '[plugin.old.version]' => '1.0',
+                    '[plugin.current.version]' => '1.1',
+                ],
+            ]], 'other_tokens_data' => ['[plugin.updated.count]' => 3]]]),
+            '*/pro-reports/*/themes*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[
+                [
+                    '[theme.name]' => 'Astra',
+                    '[theme.updated.utime]' => '2026-06-10 09:00:00',
+                    '[theme.old.version]' => '4.0',
+                    '[theme.current.version]' => '4.6',
+                ],
+            ]]]]),
+            '*/pro-reports/*/wordpress*' => Http::response(['success' => 1, 'data' => []]),
+            '*' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertTrue($set->isOk());
+        // 2 plugins in-period + 1 theme; the May plugin is excluded.
+        $this->assertSame(3, $set->get('mainwp.updates_applied'));
+
+        $log = $set->get('mainwp.work_log');
+        $this->assertCount(3, $log);
+        // Sorted most-recent first → JetFormBuilder (jun 22) leads.
+        $this->assertSame(
+            ['Fecha' => '22/06/2026', 'Tipo' => 'Plugin', 'Elemento' => 'JetFormBuilder', 'Versión' => '3.6.2.1 → 3.6.2.2'],
+            $log[0],
+        );
+        $this->assertSame('Tema', $log[1]['Tipo']);
+        $this->assertSame('Astra', $log[1]['Elemento']);
+        $this->assertSame('WooCommerce', $log[2]['Elemento']);
+        $this->assertNotContains('Old Plugin', array_column($log, 'Elemento'));
+    }
+
     public function test_fetch_returns_only_requested_metrics(): void
     {
         Http::fake(['*' => Http::response($this->sitesPayload())]);

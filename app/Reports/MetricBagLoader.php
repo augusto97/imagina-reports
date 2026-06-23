@@ -55,10 +55,18 @@ final readonly class MetricBagLoader
             }
 
             if ($source->type === DataSourceType::MainWp) {
-                $delta = $this->maintenance->forDataSource($source->id, $period);
+                // The connector now reports the real applied-updates count from the Pro
+                // Reports activity log. Only fall back to the snapshot-diff proxy when that
+                // log was empty (e.g. the site's updates aren't tracked) so the KPI still
+                // has a meaningful value.
+                $applied = $metrics['mainwp.updates_applied'] ?? null;
 
-                if ($delta !== null) {
-                    $metrics['mainwp.updates_applied'] = $delta->updatesApplied;
+                if ($applied === null || (is_numeric($applied) && (int) $applied === 0)) {
+                    $delta = $this->maintenance->forDataSource($source->id, $period);
+
+                    if ($delta !== null && $delta->updatesApplied > 0) {
+                        $metrics['mainwp.updates_applied'] = $delta->updatesApplied;
+                    }
                 }
             }
 
