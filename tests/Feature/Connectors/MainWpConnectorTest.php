@@ -70,7 +70,11 @@ class MainWpConnectorTest extends TestCase
         $this->assertSame(7, $set->get('mainwp.updates_available'));
         $this->assertSame(1, $set->get('mainwp.abandoned_plugins'));
         $this->assertSame(1, $set->get('mainwp.ssl_expiring'));
+        $this->assertSame(2, $set->get('mainwp.sites_with_updates'));
         $this->assertCount(2, $set->get('mainwp.sites'));
+        // Only Site A's cert (10 days out) is within the 30-day warning window.
+        $this->assertCount(1, $set->get('mainwp.ssl_expiring_sites'));
+        $this->assertSame('Site A', $set->get('mainwp.ssl_expiring_sites')[0]['label']);
     }
 
     public function test_fetch_returns_only_requested_metrics(): void

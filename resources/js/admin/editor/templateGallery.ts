@@ -414,4 +414,36 @@ export const GALLERY: GalleryTemplate[] = [
             cta(25),
         ],
     },
+    {
+        key: 'maintenance',
+        name: 'Mantenimiento (MainWP)',
+        description: 'El corazón de la retención: actualizaciones aplicadas, estado por sitio y trabajo del mes.',
+        build: () => [
+            header('Mantenimiento de tu sitio'),
+            kpi('mainwp', 'updates_applied', 'Actualizaciones aplicadas', { x: 0, y: 2, w: 3, h: 4 }),
+            kpi('mainwp', 'updates_available', 'Pendientes', { x: 3, y: 2, w: 3, h: 4 }),
+            kpi('mainwp', 'sites_total', 'Sitios gestionados', { x: 6, y: 2, w: 3, h: 4 }),
+            kpi('mainwp', 'sites_with_updates', 'Sitios por actualizar', { x: 9, y: 2, w: 3, h: 4 }),
+            spec({
+                type: 'worklog_timeline',
+                props: { title: 'Lo que hicimos este mes' },
+                layout: { x: 0, y: 6, w: 12, h: 7 },
+            }),
+            spec({
+                type: 'table',
+                binding: { source: 'mainwp', metric: 'sites' },
+                props: { title: 'Estado por sitio' },
+                layout: { x: 0, y: 13, w: 7, h: 7 },
+            }),
+            spec({
+                type: 'table',
+                binding: { source: 'mainwp', metric: 'ssl_expiring_sites' },
+                props: { title: 'SSL próximo a vencer' },
+                style: { bars: true },
+                layout: { x: 7, y: 13, w: 5, h: 7 },
+            }),
+            summary({ x: 0, y: 20, w: 12, h: 4 }),
+            cta(24),
+        ],
+    },
 ];
