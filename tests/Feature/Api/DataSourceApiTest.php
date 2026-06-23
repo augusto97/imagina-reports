@@ -71,4 +71,80 @@ class DataSourceApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('successful', true);
     }
+
+    public function test_update_changes_config_and_keeps_blank_secrets(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::MainWp,
+            'config' => ['dashboard_url' => 'https://old.test'],
+            'credentials' => ['token' => 'original-token'],
+            'status' => 'ok',
+        ]);
+
+        $this->putJson("/api/v1/data-sources/{$source->id}", [
+            'config' => ['dashboard_url' => 'https://new.test'],
+            'credentials' => ['token' => ''], // blank → keep existing
+        ])
+            ->assertOk()
+            ->assertJsonPath('config.dashboard_url', 'https://new.test')
+            ->assertJsonPath('status', 'pending') // reset for re-test
+            ->assertJsonMissingPath('credentials');
+
+        $source->refresh();
+        $this->assertSame('original-token', $source->credentials['token']);
+        $this->assertSame('https://new.test', $source->config['dashboard_url']);
+    }
+
+    public function test_update_replaces_a_provided_secret(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::MainWp,
+            'config' => ['dashboard_url' => 'https://dash.test'],
+            'credentials' => ['token' => 'old'],
+        ]);
+
+        $this->putJson("/api/v1/data-sources/{$source->id}", [
+            'credentials' => ['token' => 'renewed'],
+        ])->assertOk();
+
+        $this->assertSame('renewed', $source->refresh()->credentials['token']);
+    }
+
+    public function test_destroy_removes_the_data_source(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::MainWp,
+            'config' => [],
+            'credentials' => [],
+        ]);
+
+        $this->deleteJson("/api/v1/data-sources/{$source->id}")->assertNoContent();
+        $this->assertDatabaseMissing('ir_data_sources', ['id' => $source->id]);
+    }
+
+    public function test_a_data_source_of_another_agency_is_not_reachable(): void
+    {
+        $other = Agency::factory()->create();
+        $otherClient = Client::factory()->create(['agency_id' => $other->id]);
+        $otherSite = Site::factory()->create(['agency_id' => $other->id, 'client_id' => $otherClient->id]);
+        $source = DataSource::factory()->create([
+            'agency_id' => $other->id,
+            'site_id' => $otherSite->id,
+            'type' => DataSourceType::MainWp,
+            'config' => [],
+            'credentials' => [],
+        ]);
+
+        $this->putJson("/api/v1/data-sources/{$source->id}", ['config' => []])->assertNotFound();
+        $this->deleteJson("/api/v1/data-sources/{$source->id}")->assertNotFound();
+    }
 }

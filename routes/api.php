@@ -71,6 +71,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');
     Route::get('clients/{client}', [ClientController::class, 'show'])->name('api.clients.show');
+    Route::put('clients/{client}', [ClientController::class, 'update'])->name('api.clients.update');
+    Route::delete('clients/{client}', [ClientController::class, 'destroy'])->name('api.clients.destroy');
 
     Route::get('sites', [SiteController::class, 'index'])->name('api.sites.index');
     Route::post('sites', [SiteController::class, 'store'])->name('api.sites.store');
@@ -89,6 +91,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
     Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');
     Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
+    Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
+    Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
 
     Route::get('report-templates/default-blocks', [ReportTemplateController::class, 'defaultBlocks'])->name('api.report-templates.default-blocks');

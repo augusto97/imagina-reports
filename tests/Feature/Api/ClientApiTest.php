@@ -6,6 +6,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Agency;
 use App\Models\Client;
+use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -64,5 +65,44 @@ class ClientApiTest extends TestCase
         $other = Client::factory()->create(['agency_id' => Agency::factory()->create()->id]);
 
         $this->getJson("/api/v1/clients/{$other->id}")->assertNotFound();
+    }
+
+    public function test_update_edits_a_client(): void
+    {
+        $agency = $this->actingAsAgency();
+        $client = Client::factory()->create(['agency_id' => $agency->id, 'name' => 'Antiguo']);
+
+        $this->putJson("/api/v1/clients/{$client->id}", ['name' => 'Nuevo', 'contact_email' => 'n@x.test'])
+            ->assertOk()
+            ->assertJsonPath('name', 'Nuevo');
+
+        $this->assertDatabaseHas('ir_clients', ['id' => $client->id, 'name' => 'Nuevo']);
+    }
+
+    public function test_destroy_removes_a_client_without_sites(): void
+    {
+        $agency = $this->actingAsAgency();
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+
+        $this->deleteJson("/api/v1/clients/{$client->id}")->assertNoContent();
+        $this->assertDatabaseMissing('ir_clients', ['id' => $client->id]);
+    }
+
+    public function test_destroy_is_refused_when_the_client_has_sites(): void
+    {
+        $agency = $this->actingAsAgency();
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+
+        $this->deleteJson("/api/v1/clients/{$client->id}")->assertStatus(422);
+        $this->assertDatabaseHas('ir_clients', ['id' => $client->id]);
+    }
+
+    public function test_it_cannot_update_another_agencys_client(): void
+    {
+        $this->actingAsAgency();
+        $other = Client::factory()->create(['agency_id' => Agency::factory()->create()->id]);
+
+        $this->putJson("/api/v1/clients/{$other->id}", ['name' => 'Hack'])->assertNotFound();
     }
 }
