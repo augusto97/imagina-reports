@@ -23,6 +23,7 @@ import {
     Trash2,
     TrendingUp,
     Undo2,
+    Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -86,6 +87,7 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     seo: Search,
     hourly_support: Clock,
     security: ShieldCheck,
+    cloudflare: Zap,
 };
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */

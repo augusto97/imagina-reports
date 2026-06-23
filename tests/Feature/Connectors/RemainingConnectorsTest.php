@@ -74,7 +74,24 @@ class RemainingConnectorsTest extends TestCase
     {
         Http::fake(['*' => Http::response([
             'data' => ['viewer' => ['zones' => [[
-                'httpRequests1dGroups' => [['sum' => ['requests' => 1000, 'cachedRequests' => 800, 'threats' => 30, 'bytes' => 5000]]],
+                'httpRequests1dGroups' => [
+                    [
+                        'dimensions' => ['date' => '2026-06-01'],
+                        'uniq' => ['uniques' => 120],
+                        'sum' => [
+                            'requests' => 1000, 'cachedRequests' => 800, 'threats' => 30, 'bytes' => 5000,
+                            'countryMap' => [['clientCountryName' => 'ES', 'requests' => 600, 'threats' => 20]],
+                        ],
+                    ],
+                    [
+                        'dimensions' => ['date' => '2026-06-02'],
+                        'uniq' => ['uniques' => 80],
+                        'sum' => [
+                            'requests' => 500, 'cachedRequests' => 400, 'threats' => 10, 'bytes' => 2500,
+                            'countryMap' => [['clientCountryName' => 'ES', 'requests' => 300, 'threats' => 5]],
+                        ],
+                    ],
+                ],
             ]]]],
         ])]);
 
@@ -84,10 +101,16 @@ class RemainingConnectorsTest extends TestCase
             [],
         );
 
-        $this->assertSame(1000, $set->get('cloudflare.requests'));
-        $this->assertSame(30, $set->get('cloudflare.threats_blocked'));
-        $this->assertSame(0.8, $set->get('cloudflare.cache_ratio'));
-        $this->assertSame(5000, $set->get('cloudflare.bandwidth'));
+        $this->assertSame(1500, $set->get('cloudflare.requests'));
+        $this->assertSame(40, $set->get('cloudflare.threats_blocked'));
+        $this->assertSame(200, $set->get('cloudflare.unique_visitors'));
+        $this->assertSame(80.0, $set->get('cloudflare.cache_ratio')); // 1200/1500 → 80 %
+        $this->assertSame(7500, $set->get('cloudflare.bandwidth'));
+        $this->assertSame(
+            [['date' => '2026-06-01', 'value' => 30], ['date' => '2026-06-02', 'value' => 10]],
+            $set->get('cloudflare.threats_by_date'),
+        );
+        $this->assertSame([['label' => 'ES', 'value' => 25]], $set->get('cloudflare.threats_by_country'));
     }
 
     public function test_crowdsec_counts_alerts_and_decisions(): void
