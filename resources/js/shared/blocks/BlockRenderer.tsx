@@ -573,26 +573,47 @@ function CustomBlock({ block }: BlockComponentProps): ReactElement {
 
 /**
  * Retention call-to-action banner — the §11.5 closing block ("Your support plan is
- * active and protecting your site"). Accent-tinted, with an optional button.
+ * active and protecting your site"). Accent-tinted by default, with an optional button.
+ * Honours the inspector's style controls (background, text colour, corner radius, border,
+ * alignment, padding) like every other block, falling back to a polished accent design.
  */
 function CtaBlock({ block }: BlockComponentProps): ReactElement {
+    const s = block.style;
     const headline = str(prop(block, 'headline'), 'Tu plan de soporte está activo y protegiendo tu sitio.');
     const text = str(prop(block, 'text'));
     const buttonLabel = str(prop(block, 'buttonLabel'));
     const buttonUrl = str(prop(block, 'buttonUrl'), '#');
 
+    const hasBg = typeof s?.bg === 'string' && s.bg !== '';
+    const hasColor = typeof s?.color === 'string' && s.color !== '';
+    const pad = PAD[str(s?.pad)] ?? 'ir-p-8';
+    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-2xl';
+    const align = ALIGN[str(s?.align)] ?? 'ir-text-center';
+    const border = s?.border === false ? '' : 'ir-border ir-border-primary/30';
+
     return (
-        <div className="ir-rounded-xl ir-border-2 ir-border-primary ir-bg-muted ir-p-6 ir-text-center">
-            <p className="ir-text-lg ir-font-semibold ir-text-primary">{headline}</p>
-            {text !== '' && <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">{text}</p>}
-            {buttonLabel !== '' && (
-                <a
-                    href={buttonUrl}
-                    className="ir-mt-4 ir-inline-block ir-rounded-lg ir-bg-primary ir-px-5 ir-py-2 ir-text-sm ir-font-medium ir-text-primary-foreground"
-                >
-                    {buttonLabel}
-                </a>
+        <div
+            className={cn(
+                'ir-flex ir-h-full ir-flex-col ir-justify-center ir-gap-2',
+                pad,
+                radius,
+                border,
+                hasBg ? '' : 'ir-bg-primary/[0.06]',
             )}
+            style={styleCss(s)}
+        >
+            <div className={align}>
+                <p className={cn('ir-text-xl ir-font-bold ir-leading-snug', hasColor ? '' : 'ir-text-primary')}>{headline}</p>
+                {text !== '' && <p className={cn('ir-mt-1.5 ir-text-sm', hasColor ? 'ir-opacity-80' : 'ir-text-muted-foreground')}>{text}</p>}
+                {buttonLabel !== '' && (
+                    <a
+                        href={buttonUrl}
+                        className="ir-mt-4 ir-inline-flex ir-items-center ir-rounded-lg ir-bg-primary ir-px-5 ir-py-2.5 ir-text-sm ir-font-semibold ir-text-primary-foreground ir-shadow-sm ir-transition hover:ir-opacity-90"
+                    >
+                        {buttonLabel}
+                    </a>
+                )}
+            </div>
         </div>
     );
 }
