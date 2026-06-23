@@ -54,10 +54,20 @@ final class CloudflareConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('cloudflare.requests', 'Requests', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.threats_blocked', 'Threats blocked', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.cache_ratio', 'Cache ratio', MetricType::Scalar, 'ratio'),
-            new MetricDefinition('cloudflare.bandwidth', 'Bandwidth', MetricType::Scalar, 'bytes'),
+            new MetricDefinition('cloudflare.requests', 'Peticiones', MetricType::Scalar, 'count'),
+            new MetricDefinition('cloudflare.cached_requests', 'Peticiones en caché', MetricType::Scalar, 'count'),
+            new MetricDefinition('cloudflare.threats_blocked', 'Amenazas bloqueadas', MetricType::Scalar, 'count'),
+            new MetricDefinition('cloudflare.page_views', 'Páginas vistas', MetricType::Scalar, 'count'),
+            new MetricDefinition('cloudflare.encrypted_requests', 'Peticiones cifradas (HTTPS)', MetricType::Scalar, 'count'),
+            new MetricDefinition('cloudflare.unique_visitors', 'Visitantes únicos', MetricType::Scalar, 'count'),
+            new MetricDefinition('cloudflare.cache_ratio', 'Ratio de caché', MetricType::Scalar, 'percent'),
+            new MetricDefinition('cloudflare.bandwidth', 'Ancho de banda', MetricType::Scalar, 'bytes'),
+            new MetricDefinition('cloudflare.requests_by_date', 'Peticiones por día', MetricType::Series, 'count'),
+            new MetricDefinition('cloudflare.threats_by_date', 'Amenazas por día', MetricType::Series, 'count'),
+            new MetricDefinition('cloudflare.bandwidth_by_date', 'Ancho de banda por día', MetricType::Series, 'bytes'),
+            new MetricDefinition('cloudflare.threats_by_country', 'Amenazas por país', MetricType::Table, dimensions: ['country']),
+            new MetricDefinition('cloudflare.requests_by_country', 'Peticiones por país', MetricType::Table, dimensions: ['country']),
+            new MetricDefinition('cloudflare.top_threat_sources', 'Tipos de amenaza', MetricType::Table, dimensions: ['source']),
         );
     }
 
@@ -88,24 +98,88 @@ final class CloudflareConnector implements DataSourceConnector
 
         $groups = $this->listOf(Arr::get($this->arrayOf($response->json()), 'data.viewer.zones.0.httpRequests1dGroups'));
 
-        $requests = 0;
-        $cached = 0;
-        $threats = 0;
-        $bytes = 0;
+        $requests = $cached = $threats = $bytes = $pageViews = $encrypted = $uniques = 0;
+        $requestsByDate = $threatsByDate = $bandwidthByDate = [];
+        /** @var array<string, int> $threatsByCountry */
+        $threatsByCountry = [];
+        /** @var array<string, int> $requestsByCountry */
+        $requestsByCountry = [];
+        /** @var array<string, int> $threatSources */
+        $threatSources = [];
 
         foreach ($groups as $group) {
-            $requests += $this->toInt(Arr::get($group, 'sum.requests'));
-            $cached += $this->toInt(Arr::get($group, 'sum.cachedRequests'));
-            $threats += $this->toInt(Arr::get($group, 'sum.threats'));
-            $bytes += $this->toInt(Arr::get($group, 'sum.bytes'));
+            $sum = $this->arrayOf(Arr::get($group, 'sum'));
+            $date = $this->toStr(Arr::get($group, 'dimensions.date'));
+            $r = $this->toInt(Arr::get($sum, 'requests'));
+            $t = $this->toInt(Arr::get($sum, 'threats'));
+            $b = $this->toInt(Arr::get($sum, 'bytes'));
+
+            $requests += $r;
+            $cached += $this->toInt(Arr::get($sum, 'cachedRequests'));
+            $threats += $t;
+            $bytes += $b;
+            $pageViews += $this->toInt(Arr::get($sum, 'pageViews'));
+            $encrypted += $this->toInt(Arr::get($sum, 'encryptedRequests'));
+            $uniques += $this->toInt(Arr::get($group, 'uniq.uniques'));
+
+            if ($date !== '') {
+                $requestsByDate[] = ['date' => $date, 'value' => $r];
+                $threatsByDate[] = ['date' => $date, 'value' => $t];
+                $bandwidthByDate[] = ['date' => $date, 'value' => $b];
+            }
+
+            foreach ($this->listOf(Arr::get($sum, 'countryMap')) as $entry) {
+                $country = $this->toStr(Arr::get($entry, 'clientCountryName'));
+                if ($country === '') {
+                    continue;
+                }
+                $threatsByCountry[$country] = ($threatsByCountry[$country] ?? 0) + $this->toInt(Arr::get($entry, 'threats'));
+                $requestsByCountry[$country] = ($requestsByCountry[$country] ?? 0) + $this->toInt(Arr::get($entry, 'requests'));
+            }
+
+            foreach ($this->listOf(Arr::get($sum, 'threatPathingMap')) as $entry) {
+                $source = $this->toStr(Arr::get($entry, 'pathingSource'));
+                if ($source === '') {
+                    continue;
+                }
+                $threatSources[$source] = ($threatSources[$source] ?? 0) + $this->toInt(Arr::get($entry, 'requests'));
+            }
         }
 
         return MetricSet::ok([
             'cloudflare.requests' => $requests,
+            'cloudflare.cached_requests' => $cached,
             'cloudflare.threats_blocked' => $threats,
-            'cloudflare.cache_ratio' => $requests > 0 ? round($cached / $requests, 4) : 0.0,
+            'cloudflare.page_views' => $pageViews,
+            'cloudflare.encrypted_requests' => $encrypted,
+            'cloudflare.unique_visitors' => $uniques,
+            'cloudflare.cache_ratio' => $requests > 0 ? round($cached / $requests * 100, 2) : 0.0,
             'cloudflare.bandwidth' => $bytes,
+            'cloudflare.requests_by_date' => $requestsByDate,
+            'cloudflare.threats_by_date' => $threatsByDate,
+            'cloudflare.bandwidth_by_date' => $bandwidthByDate,
+            'cloudflare.threats_by_country' => $this->topTable($threatsByCountry),
+            'cloudflare.requests_by_country' => $this->topTable($requestsByCountry),
+            'cloudflare.top_threat_sources' => $this->topTable($threatSources),
         ]);
+    }
+
+    /**
+     * Sort a label→total map descending and keep the top 10 as normalized table rows.
+     *
+     * @param  array<string, int>  $map
+     * @return list<array{label: string, value: int}>
+     */
+    private function topTable(array $map): array
+    {
+        arsort($map);
+
+        $rows = [];
+        foreach (array_slice($map, 0, 10, true) as $label => $value) {
+            $rows[] = ['label' => $label, 'value' => $value];
+        }
+
+        return $rows;
     }
 
     private function query(DataSource $source, Period $period): Response
@@ -116,8 +190,14 @@ final class CloudflareConnector implements DataSourceConnector
         $graphql = <<<'GQL'
         query Analytics($zone: String!, $since: String!, $until: String!) {
           viewer { zones(filter: { zoneTag: $zone }) {
-            httpRequests1dGroups(limit: 100, filter: { date_geq: $since, date_leq: $until }) {
-              sum { requests cachedRequests threats bytes }
+            httpRequests1dGroups(limit: 1000, filter: { date_geq: $since, date_leq: $until }, orderBy: [date_ASC]) {
+              dimensions { date }
+              uniq { uniques }
+              sum {
+                requests cachedRequests threats bytes pageViews encryptedRequests
+                countryMap { clientCountryName requests threats }
+                threatPathingMap { pathingSource requests }
+              }
             }
           } }
         }

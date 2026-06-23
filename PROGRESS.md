@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🟧 CLOUDFLARE AMPLIADO (2026-06-23, rama `claude/cloudflare-full-metrics` → release v1.13.2):** tercer conector real.
+**Conexión:** API token con permiso **Zone Analytics:Read** + el **Zone ID**; usa el **GraphQL Analytics API**
+(`httpRequests1dGroups`, agrega en el servidor). **Catálogo de 4 a 14 métricas:** escalares (peticiones, en caché,
+amenazas, páginas vistas, peticiones cifradas, visitantes únicos, ratio de caché, ancho de banda) + **series** por
+día (peticiones/amenazas/ancho de banda) + **tablas** amenazas/peticiones **por país** (`countryMap`) y **tipos de
+amenaza** (`threatPathingMap`). La query GraphQL ahora pide `dimensions{date}`, `uniq{uniques}` y los mapas. **Fix:**
+`cache_ratio` pasa de 0–1 a **0–100%** (consistente con el CTR de GSC). Nueva plantilla **«Cloudflare (CDN y
+seguridad)»** (icono `Zap`). Test ampliado (2 grupos diarios → series, país, uniques, cache 80%); PHPStan max +
+TS+ESLint+Vitest(11)+build limpios. **Pendiente del owner:** validar en vivo (la forma del GraphQL es la documentada;
+`countryMap`/`threatPathingMap` son las claves asumidas). Siguiente: Better Stack / CrowdSec / MainWP / VirusDie.
+
 **🔎 SEARCH CONSOLE AMPLIADO (2026-06-23, rama `claude/gsc-full-metrics` → release v1.13.1):** segundo conector real
 tras GA4 (el owner validará GA4+GSC juntos al terminar). **Conexión:** mismo Service Account JSON que GA4 + la
 propiedad `site_url` (el email del SA se añade como usuario en Search Console); usa `searchanalytics.query` (agrega en
