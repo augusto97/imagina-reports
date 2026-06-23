@@ -53,8 +53,11 @@ final class BetterUptimeConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('betteruptime.uptime_percent', 'Uptime', MetricType::Scalar, 'percent'),
-            new MetricDefinition('betteruptime.incidents', 'Incidents', MetricType::Scalar, 'count'),
+            new MetricDefinition('betteruptime.uptime_percent', 'Disponibilidad', MetricType::Scalar, 'percent'),
+            new MetricDefinition('betteruptime.incidents', 'Incidentes', MetricType::Scalar, 'count'),
+            new MetricDefinition('betteruptime.total_downtime', 'Tiempo caído (s)', MetricType::Scalar, 'seconds'),
+            new MetricDefinition('betteruptime.longest_incident', 'Incidente más largo (s)', MetricType::Scalar, 'seconds'),
+            new MetricDefinition('betteruptime.average_incident', 'Incidente medio (s)', MetricType::Scalar, 'seconds'),
         );
     }
 
@@ -88,6 +91,9 @@ final class BetterUptimeConnector implements DataSourceConnector
         return MetricSet::ok([
             'betteruptime.uptime_percent' => $this->toFloat(Arr::get($attributes, 'availability')),
             'betteruptime.incidents' => $this->toInt(Arr::get($attributes, 'number_of_incidents')),
+            'betteruptime.total_downtime' => $this->toInt(Arr::get($attributes, 'total_downtime')),
+            'betteruptime.longest_incident' => $this->toInt(Arr::get($attributes, 'longest_incident')),
+            'betteruptime.average_incident' => $this->toInt(Arr::get($attributes, 'average_incident')),
         ]);
     }
 
