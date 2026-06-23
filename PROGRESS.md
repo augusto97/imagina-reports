@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🧷 EDITOR — PLANTILLAS: AÑADIR DEBAJO vs REEMPLAZAR (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el
+owner quería componer un **informe unificado** tomando partes de varias plantillas, pero al hacer clic en una de la
+galería **siempre reemplazaba** el lienzo. Ahora: si el lienzo está esencialmente vacío (≤1 bloque) la plantilla se
+carga directo; si ya hay contenido, aparece un **diálogo** con 3 opciones — **«Añadir debajo»** (apila los bloques de
+la plantilla bajo lo existente en la página actual, desplazando su `y` por el alto acumulado y reasignando página;
+ids ya únicos vía `makeBlock`), **«Reemplazar todo»** (comportamiento anterior) y **«Cancelar»**. «Añadir» usa
+`commit` (entra en el historial undo/redo); «Reemplazar» usa `resetBlocks`. TS+ESLint+Vitest(11)+build limpios.
+
 **🧩 MAINWP CHILD REPORTS — DETECCIÓN + AVISOS (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner
 preguntó por qué imaginawp marcaba 0 actualizaciones aplicadas si actualiza cada semana. Diagnóstico: el historial
 fechado lo registra el plugin **MainWP Child Reports** en el sitio hijo (lo confirma que comercializadoraomicron —con
