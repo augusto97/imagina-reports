@@ -159,6 +159,37 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame(90, $set->get('betteruptime.average_incident'));
     }
 
+    public function test_better_uptime_builds_a_daily_response_time_series_in_ms(): void
+    {
+        Http::fake([
+            '*/response-times*' => Http::response(['data' => ['attributes' => ['regions' => [[
+                'region' => 'us',
+                'response_times' => [
+                    ['at' => '2026-06-01T10:00:00.000Z', 'response_time' => 0.02],
+                    ['at' => '2026-06-01T11:00:00.000Z', 'response_time' => 0.04],
+                    ['at' => '2026-06-02T10:00:00.000Z', 'response_time' => 0.10],
+                ],
+            ]]]]]),
+            '*/sla*' => Http::response(['data' => ['attributes' => ['availability' => 99.9, 'number_of_incidents' => 0]]]),
+            '*' => Http::response(['data' => ['attributes' => []]]),
+        ]);
+
+        $set = (new BetterUptimeConnector)->fetch(
+            $this->source(DataSourceType::BetterUptime, ['monitor_id' => '123'], ['api_token' => 't']),
+            $this->period(),
+            [],
+        );
+
+        $this->assertTrue($set->isOk());
+        // Day 1 averages (20ms + 40ms)/2 = 30ms; day 2 = 100ms.
+        $this->assertSame(
+            [['date' => '2026-06-01', 'value' => 30.0], ['date' => '2026-06-02', 'value' => 100.0]],
+            $set->get('betteruptime.response_times'),
+        );
+        // Overall mean of the 3 points: (20+40+100)/3 = 53.3 ms.
+        $this->assertSame(53.3, $set->get('betteruptime.avg_response_time'));
+    }
+
     public function test_virusdie_reads_mainwp_summary(): void
     {
         Http::fake(['*' => Http::response([

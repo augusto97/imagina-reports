@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**📈 BETTER STACK — GRÁFICA DE TIEMPOS DE RESPUESTA (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** con el JSON
+real de `/monitors/{id}/response-times` (regiones → `response_times[]` con `at` + `response_time` en **segundos**, ej.
+0.028 = 28 ms) añadí: **`betteruptime.response_times`** (serie, promedio **diario** en **ms**, agregada en el
+conector sobre todas las regiones/puntos → ≤31 puntos) y **`betteruptime.avg_response_time`** (ms, media global). El
+template «Disponibilidad y SLA» ahora incluye la **gráfica de área «Tiempo de respuesta (ms)»** + KPI de respuesta
+media, al estilo de las status pages de Better Stack. Solo se piden esas métricas si el reporte las usa (llamada
+extra gateada); un fallo ahí no tumba el SLA. **Incidentes (tabla):** el endpoint `/monitors/{id}/incidents` **no
+existe** en su plan (404 confirmado), así que NO se implementó — quedaría para cuando exista el endpoint correcto.
+Test nuevo (serie diaria + media). 257 tests + PHPStan + Pint + TS+build limpios.
+
 **⏱️ BETTER STACK — DURACIONES EN MIN/H (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):** el owner notó que el
 tiempo caído salía en **segundos** (ilegible para un cliente). Nuevo formato **`duration`** en el `BlockRenderer`
 (segundos → «30 s» / «45 min» / «1 h 30 min»), añadido al selector de formato del Inspector. Las KPIs de tiempo
