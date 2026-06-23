@@ -3,6 +3,7 @@ export interface Client {
     name: string;
     contact_email: string | null;
     locale: string | null;
+    timezone: string | null;
     notes: string | null;
 }
 

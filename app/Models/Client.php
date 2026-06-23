@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $name
  * @property string|null $contact_email
  * @property string|null $locale
+ * @property string|null $timezone
  * @property string|null $notes
  */
 class Client extends Model
@@ -35,6 +36,7 @@ class Client extends Model
         'name',
         'contact_email',
         'locale',
+        'timezone',
         'notes',
     ];
 }

@@ -130,7 +130,7 @@ export function useUpdateClient(clientId: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name?: string; contact_email?: string | null; locale?: string | null; notes?: string | null }) =>
+        mutationFn: (payload: { name?: string; contact_email?: string | null; locale?: string | null; timezone?: string | null; notes?: string | null }) =>
             api.put<Client>(`/clients/${clientId}`, payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
     });

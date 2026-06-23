@@ -7,7 +7,10 @@ import { z } from 'zod';
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient } from '../api';
 import { DataTable } from '../components/DataTable';
 import { Button, Card, Field, Input } from '../components/ui';
+import { TIMEZONES } from '../timezones';
 import type { Client } from '../types';
+
+const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
 const schema = z.object({
     name: z.string().min(1, 'Requerido'),
@@ -22,6 +25,7 @@ function ClientEditForm({ client, onClose }: { client: Client; onClose: () => vo
     const [name, setName] = useState(client.name);
     const [email, setEmail] = useState(client.contact_email ?? '');
     const [locale, setLocale] = useState(client.locale ?? '');
+    const [timezone, setTimezone] = useState(client.timezone ?? '');
     const [notes, setNotes] = useState(client.notes ?? '');
 
     const save = (): void => {
@@ -30,6 +34,7 @@ function ClientEditForm({ client, onClose }: { client: Client; onClose: () => vo
                 name,
                 contact_email: email === '' ? null : email,
                 locale: locale === '' ? null : locale,
+                timezone: timezone === '' ? null : timezone,
                 notes: notes === '' ? null : notes,
             },
             { onSuccess: onClose },
@@ -47,6 +52,16 @@ function ClientEditForm({ client, onClose }: { client: Client; onClose: () => vo
                 </Field>
                 <Field label="Idioma (ej. es, en, pt-BR)">
                     <Input value={locale} onChange={(event) => setLocale(event.target.value)} placeholder="es" />
+                </Field>
+                <Field label="Zona horaria (para fechas en los informes)">
+                    <select className={selectClass} value={timezone} onChange={(event) => setTimezone(event.target.value)}>
+                        <option value="">Sin definir (UTC)</option>
+                        {TIMEZONES.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
                 </Field>
                 <Field label="Notas">
                     <Input value={notes} onChange={(event) => setNotes(event.target.value)} />
@@ -96,6 +111,7 @@ export function ClientsScreen(): ReactElement {
         { header: 'Nombre', accessorKey: 'name' },
         { header: 'Email', accessorKey: 'contact_email' },
         { header: 'Idioma', accessorKey: 'locale' },
+        { header: 'Zona horaria', accessorKey: 'timezone' },
         {
             id: 'actions',
             header: '',
