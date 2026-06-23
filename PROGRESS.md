@@ -7,6 +7,26 @@
 ---
 
 ## Where I left off (read me first)
+**🗓️ MAINWP — "LO QUE HICIMOS ESTE MES" REAL CON FECHAS (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):**
+descubrimos vía el listado de rutas `/wp-json/mainwp/v2` que MainWP expone el namespace **`pro-reports`** (lo que
+este producto reemplaza). El endpoint **`/pro-reports/{id|dominio}/{plugins|themes|wordpress}?action=updated&start&end`**
+devuelve el **historial real de actualizaciones aplicadas** con fecha y versión vieja→nueva (validado con
+comercializadoraomicron.com: 166 updates). `action` válido = `updated` (no `update`); el log lo alimenta
+**Dashboard Insights** (`enable_insights_logging`, ya activo). Forma confirmada: `data.sections_data[0]` = filas con
+claves tipo token `[plugin.name]`, `[plugin.old.version]`, `[plugin.current.version]`, `[plugin.updated.utime]`
+(`Y-m-d H:i:s`), `[plugin.updated.date]` (humana); `data.other_tokens_data["[plugin.updated.count]"]` = total.
+**Implementado:** el conector ahora, además del estado por-sitio, llama esos 3 endpoints (solo si el reporte pide
+`mainwp.work_log`/`mainwp.updates_applied`) y construye **`mainwp.work_log`** (tabla Fecha/Tipo/Elemento/Versión,
+orden desc por utime, filtrada al periodo por la propia marca de tiempo) — parser por **sufijo de clave** así que
+sirve para plugin/tema/núcleo sin hardcodear cada token. **`mainwp.updates_applied`** pasa a ser el **conteo real**
+de esas filas (ya no el proxy de snapshots); `MetricBagLoader` solo usa el diff de snapshots como **fallback** si el
+log viene vacío/0. Plantilla «Mantenimiento» reenfocada: KPIs + resumen + **«Lo que hicimos este mes»** (work_log) +
+pendientes (detalle) + CTA. Descubrimos también **`/updates/{dominio}`** (pendientes por-sitio, más limpio que parsear
+`/sites`) — anotado para migrar luego; por ahora seguimos con el decode de `/sites` que ya funciona. Tests: +1
+(work_log con filtrado de periodo y orden); 247 verde, PHPStan max + Pint + TS + ESLint + Vitest(11) limpios.
+**Pendiente del owner:** validar en vivo el bloque del historial (sitios con logging traen datos; los que no, caen al
+fallback). **Open Question CERRADA:** el historial estilo Modular DS sí existe y ya está integrado.
+
 **🔧 MAINWP REESCRITO A POR-SITIO + UPDATES REALES (2026-06-23, rama `claude/github-app-analysis-a7b2bd`):**
 validando con credenciales reales, el owner detectó dos fallos de fondo en MainWP: (1) traía datos **agregados de
 los 28 sitios** del dashboard, pero los reportes son **por cliente/sitio**; (2) mostraba **0 actualizaciones

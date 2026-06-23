@@ -16,6 +16,7 @@ use App\Connectors\Period;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -87,9 +88,11 @@ final class MainWpConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            // Computed by the report engine (MaintenanceDeltaCalculator) from the period's
-            // snapshots — the "what we did this month" number, not fetched from the API.
-            new MetricDefinition('mainwp.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Calculada comparando los snapshots del periodo; no la devuelve la API.'),
+            // The real "what we did this month" number: the count of updates actually
+            // applied in the period, from the MainWP Pro Reports activity log. Falls back
+            // to a snapshot diff (MaintenanceDeltaCalculator) only if the log is empty.
+            new MetricDefinition('mainwp.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Actualizaciones realmente aplicadas en el periodo (registro de actividad de MainWP Pro Reports).'),
+            new MetricDefinition('mainwp.work_log', 'Trabajo realizado (actualizaciones)', MetricType::Table, dimensions: ['type'], description: 'Detalle fechado de cada plugin/tema/núcleo actualizado en el periodo, con su versión anterior y nueva.'),
             new MetricDefinition('mainwp.updates_available', 'Actualizaciones pendientes', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.plugin_updates', 'Plugins por actualizar', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.theme_updates', 'Temas por actualizar', MetricType::Scalar, 'count'),
@@ -125,7 +128,163 @@ final class MainWpConnector implements DataSourceConnector
             return MetricSet::failed("MainWP no gestiona ningún sitio que coincida con {$target}.");
         }
 
-        return MetricSet::ok($this->only($this->metricsFor($site), $requestedMetrics));
+        $metrics = $this->metricsFor($site);
+
+        // The "what we did this month" history (applied updates) lives in a separate,
+        // heavier Pro Reports endpoint — only fetch it when a report actually asks for it.
+        if ($this->wantsHistory($requestedMetrics)) {
+            $idDomain = $this->toInt(Arr::get($site, 'id'));
+            $history = $this->fetchWorkLog($source, $idDomain !== 0 ? (string) $idDomain : $target, $period);
+            $metrics['mainwp.work_log'] = $history;
+            $metrics['mainwp.updates_applied'] = count($history);
+        }
+
+        return MetricSet::ok($this->only($metrics, $requestedMetrics));
+    }
+
+    /**
+     * @param  list<string>  $requestedMetrics
+     */
+    private function wantsHistory(array $requestedMetrics): bool
+    {
+        return $requestedMetrics === []
+            || in_array('mainwp.work_log', $requestedMetrics, true)
+            || in_array('mainwp.updates_applied', $requestedMetrics, true);
+    }
+
+    /**
+     * The dated "what we did this month" log: every plugin/theme/core update actually
+     * applied in the period (MainWP Pro Reports activity log, `action=updated`). Each
+     * Pro Reports section returns rows keyed by bracket tokens (e.g. `[plugin.name]`,
+     * `[plugin.old.version]`, `[plugin.current.version]`, `[plugin.updated.utime]`),
+     * which we read by suffix so plugins/themes/core share one parser.
+     *
+     * @return list<array{Fecha: string, Tipo: string, Elemento: string, Versión: string}>
+     */
+    private function fetchWorkLog(DataSource $source, string $idDomain, Period $period): array
+    {
+        $params = [
+            'action' => 'updated',
+            'start' => $period->start->format('Y-m-d'),
+            'end' => $period->end->format('Y-m-d'),
+        ];
+
+        /** @var list<array{utime: string, row: array{Fecha: string, Tipo: string, Elemento: string, Versión: string}}> $entries */
+        $entries = [];
+
+        foreach (['plugins' => 'Plugin', 'themes' => 'Tema', 'wordpress' => 'WordPress'] as $endpoint => $label) {
+            try {
+                $response = $this->client($source)->get("/pro-reports/{$idDomain}/{$endpoint}", $params);
+            } catch (Throwable) {
+                continue;
+            }
+
+            if ($response->failed()) {
+                continue;
+            }
+
+            foreach ($this->historyRows($response->json('data')) as $row) {
+                $entry = $this->workLogEntry($row, $label, $period);
+                if ($entry !== null) {
+                    $entries[] = $entry;
+                }
+            }
+        }
+
+        // Most recent first.
+        usort($entries, static fn (array $a, array $b): int => strcmp($b['utime'], $a['utime']));
+
+        return array_map(static fn (array $entry): array => $entry['row'], $entries);
+    }
+
+    /**
+     * Flatten a Pro Reports `data` payload to its rows. Populated responses wrap the
+     * rows in `sections_data` (a list of sections, each a list of rows); empty ones
+     * return `data: []`.
+     *
+     * @return list<array<array-key, mixed>>
+     */
+    private function historyRows(mixed $data): array
+    {
+        if (! is_array($data) || ! is_array($data['sections_data'] ?? null)) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($data['sections_data'] as $section) {
+            foreach ($this->listOf($section) as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $row
+     * @return array{utime: string, row: array{Fecha: string, Tipo: string, Elemento: string, Versión: string}}|null
+     */
+    private function workLogEntry(array $row, string $label, Period $period): ?array
+    {
+        $name = $this->suffixed($row, '.name]');
+        if ($name === '') {
+            return null;
+        }
+
+        $utime = $this->suffixed($row, '.updated.utime]');
+        $day = $utime !== '' ? substr($utime, 0, 10) : '';
+
+        // Keep only updates inside the period (the API is asked for the range, but we
+        // filter by the row's own timestamp to be exact).
+        if ($day !== '' && ! $period->contains($day)) {
+            return null;
+        }
+
+        $old = $this->suffixed($row, '.old.version]');
+        $new = $this->suffixed($row, '.current.version]');
+        $version = match (true) {
+            $old !== '' && $new !== '' => "{$old} → {$new}",
+            $new !== '' => $new,
+            default => $old,
+        };
+
+        $fecha = $day !== '' ? $this->formatDay($day) : $this->suffixed($row, '.updated.date]');
+
+        return [
+            'utime' => $utime,
+            'row' => [
+                'Fecha' => $fecha,
+                'Tipo' => $label,
+                'Elemento' => $name,
+                'Versión' => $version,
+            ],
+        ];
+    }
+
+    /**
+     * First value whose key ends with the given bracket-token suffix (e.g. `.name]`),
+     * so one parser serves the `[plugin.*]`, `[theme.*]` and `[wordpress.*]` tokens.
+     *
+     * @param  array<array-key, mixed>  $row
+     */
+    private function suffixed(array $row, string $suffix): string
+    {
+        foreach ($row as $key => $value) {
+            if (is_string($key) && str_ends_with($key, $suffix)) {
+                return $this->toStr($value);
+            }
+        }
+
+        return '';
+    }
+
+    private function formatDay(string $day): string
+    {
+        try {
+            return CarbonImmutable::parse($day)->format('d/m/Y');
+        } catch (Throwable) {
+            return $day;
+        }
     }
 
     private function client(DataSource $source): PendingRequest
