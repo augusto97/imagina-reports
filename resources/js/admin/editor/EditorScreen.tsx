@@ -25,6 +25,7 @@ import {
     Trash2,
     TrendingUp,
     Undo2,
+    Wrench,
     Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -92,6 +93,7 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     cloudflare: Zap,
     uptime: Activity,
     crowdsec: ShieldAlert,
+    maintenance: Wrench,
 };
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */

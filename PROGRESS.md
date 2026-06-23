@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🔧 MAINWP AMPLIADO (2026-06-23, rama `claude/mainwp-full-metrics` → release v1.13.5):** sexto conector — el
+**corazón de la retención**. **Conexión:** Bearer token v2 + `dashboard_url`; lee `/sites` (agrega en origen). El
+número estrella **`mainwp.updates_applied`** ("actualizaciones aplicadas este mes") **ya estaba** calculado por
+`MaintenanceDeltaCalculator`+`MetricBagLoader` (diff de snapshots del periodo) — ahora se **expone en el catálogo**
+(con `description` de que es calculada) para que el editor lo ofrezca. Añadidas además **`sites_with_updates`**
+(sitios con updates pendientes) y la tabla **`ssl_expiring_sites`** (sitios con SSL por vencer + días restantes); el
+helper SSL pasa de bool a **días restantes** (negativo=caducado). Etiquetas del catálogo en español. Nueva plantilla
+**«Mantenimiento (MainWP)»** (icono `Wrench`): updates aplicadas/pendientes + sitios + **timeline del mes** + estado
+por sitio + SSL. Test ampliado (+3 aserciones). PHPStan max + TS+ESLint+Vitest(11)+build limpios. **Pendiente del
+owner:** validar en vivo (paths/campos v2 asumidos). **Último conector 2.x: VirusDie** (malware, vía MainWP).
+
 **🛡️ CROWDSEC AMPLIADO (2026-06-23, rama `claude/crowdsec-full-metrics` → release v1.13.4):** quinto conector.
 **Conexión:** token de la CrowdSec Console (o LAPI) + `api_url`; lee `/alerts?since&until` (1 sola llamada).
 **Catálogo de 3 a 7 métricas** desde los campos documentados de cada alerta: alertas, **ataques bloqueados**

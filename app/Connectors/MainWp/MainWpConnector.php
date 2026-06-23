@@ -70,14 +70,19 @@ final class MainWpConnector implements DataSourceConnector
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('mainwp.sites_total', 'Managed sites', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.updates_available', 'Pending updates', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.plugin_updates', 'Plugin updates pending', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.theme_updates', 'Theme updates pending', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.core_updates', 'WordPress core updates pending', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.abandoned_plugins', 'Abandoned plugins', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.ssl_expiring', 'Sites with SSL expiring soon', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.sites', 'Sites overview', MetricType::Table),
+            new MetricDefinition('mainwp.sites_total', 'Sitios gestionados', MetricType::Scalar, 'count'),
+            // Computed by the report engine (MaintenanceDeltaCalculator) from the period's
+            // snapshots — the "what we did this month" number, not fetched from the API.
+            new MetricDefinition('mainwp.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Calculada comparando los snapshots del periodo; no la devuelve la API.'),
+            new MetricDefinition('mainwp.updates_available', 'Actualizaciones pendientes', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.plugin_updates', 'Plugins por actualizar', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.theme_updates', 'Temas por actualizar', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.core_updates', 'Núcleo WordPress por actualizar', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.sites_with_updates', 'Sitios con actualizaciones pendientes', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.abandoned_plugins', 'Plugins abandonados', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.ssl_expiring', 'Sitios con SSL por vencer', MetricType::Scalar, 'count'),
+            new MetricDefinition('mainwp.sites', 'Estado por sitio', MetricType::Table),
+            new MetricDefinition('mainwp.ssl_expiring_sites', 'SSL próximo a vencer (sitios)', MetricType::Table, dimensions: ['site']),
         );
     }
 
@@ -140,7 +145,9 @@ final class MainWpConnector implements DataSourceConnector
         $coreUpdates = 0;
         $abandoned = 0;
         $sslExpiring = 0;
+        $sitesWithUpdates = 0;
         $table = [];
+        $sslTable = [];
 
         foreach ($sites as $site) {
             $plugins = $this->countFor($site, 'plugins', 'plugin_upgrades');
@@ -152,8 +159,14 @@ final class MainWpConnector implements DataSourceConnector
             $coreUpdates += $core;
             $abandoned += $this->toInt(Arr::get($site, 'abandoned_plugins', 0));
 
-            if ($this->sslExpiringSoon($site)) {
+            if ($plugins + $themes + $core > 0) {
+                $sitesWithUpdates++;
+            }
+
+            $days = $this->sslDaysLeft($site);
+            if ($days !== null && $days <= self::SSL_EXPIRY_WARNING_DAYS) {
                 $sslExpiring++;
+                $sslTable[] = ['label' => $this->str(Arr::get($site, 'name', '')), 'value' => $days];
             }
 
             $table[] = [
@@ -171,9 +184,11 @@ final class MainWpConnector implements DataSourceConnector
             'mainwp.plugin_updates' => $pluginUpdates,
             'mainwp.theme_updates' => $themeUpdates,
             'mainwp.core_updates' => $coreUpdates,
+            'mainwp.sites_with_updates' => $sitesWithUpdates,
             'mainwp.abandoned_plugins' => $abandoned,
             'mainwp.ssl_expiring' => $sslExpiring,
             'mainwp.sites' => $table,
+            'mainwp.ssl_expiring_sites' => $sslTable,
         ];
     }
 
@@ -188,23 +203,26 @@ final class MainWpConnector implements DataSourceConnector
     }
 
     /**
+     * Days until the site's SSL certificate expires (negative if already expired), or
+     * null when no/invalid expiry date is present.
+     *
      * @param  array<array-key, mixed>  $site
      */
-    private function sslExpiringSoon(array $site): bool
+    private function sslDaysLeft(array $site): ?int
     {
         $expiresAt = Arr::get($site, 'ssl.expires_at');
 
         if (! is_string($expiresAt) || $expiresAt === '') {
-            return false;
+            return null;
         }
 
         try {
             $expiry = CarbonImmutable::parse($expiresAt);
         } catch (Throwable) {
-            return false;
+            return null;
         }
 
-        return $expiry->isBefore(CarbonImmutable::now()->addDays(self::SSL_EXPIRY_WARNING_DAYS));
+        return (int) CarbonImmutable::now()->startOfDay()->diffInDays($expiry->startOfDay(), false);
     }
 
     private function toInt(mixed $value): int
