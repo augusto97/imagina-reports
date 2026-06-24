@@ -115,6 +115,25 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame([['label' => 'ES', 'value' => 25]], $set->get('cloudflare.threats_by_country'));
     }
 
+    public function test_cloudflare_surfaces_graphql_errors_instead_of_zeros(): void
+    {
+        // Cloudflare returns HTTP 200 with an errors array and no data on a bad
+        // field/permission — that must fail loudly, not silently read as all zeros.
+        Http::fake(['*' => Http::response([
+            'data' => null,
+            'errors' => [['message' => 'authentication error: token lacks Analytics:Read']],
+        ])]);
+
+        $set = (new CloudflareConnector)->fetch(
+            $this->source(DataSourceType::Cloudflare, ['zone_id' => 'z1'], ['api_token' => 't']),
+            $this->period(),
+            [],
+        );
+
+        $this->assertTrue($set->isFailed());
+        $this->assertStringContainsString('Analytics:Read', (string) $set->error);
+    }
+
     public function test_crowdsec_counts_alerts_and_decisions(): void
     {
         Http::fake(['*' => Http::response([

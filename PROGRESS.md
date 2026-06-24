@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🟧 CLOUDFLARE — SUPERFICIE LOS ERRORES GRAPHQL (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner reportó
+Cloudflare todo en 0 pese a años conectado. Causa raíz del **silencio**: la API GraphQL devuelve **HTTP 200 aun con
+`errors`** (campo inválido / falta permiso / token no ve la zona) y `data:null` → el conector parseaba grupos vacíos →
+ceros, y `testConnection` decía «reachable» falsamente. **Fix:** helper `graphqlError()` que extrae `errors[].message`;
+`fetch()` devuelve **`failed`** con el motivo real si no hay grupos y hay error; `testConnection()` ahora falla si hay
+errores GraphQL o si **`data.viewer.zones` está vacío** (token sin acceso a la zona / Zone ID malo). Test nuevo. 262
+tests + PHPStan + Pint limpios. **Pendiente del owner:** re-sincronizar → el panel de sync mostrará el error real de
+Cloudflare (o correr la query GraphQL) para arreglar la causa concreta (permiso Analytics:Read, retención de plan, o
+campo deprecado como `pageViews`). NO cambié la query todavía — espero el error real para no adivinar (§0).
+
 **📊 GA4 — MÉTRICAS DE CIUDADES/GÉNERO/EDAD/HORA (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner pidió
 más métricas útiles de Analytics. Añadidas al catálogo GA4 (vía `specs()`): **`top_cities`** (ciudades), **`by_region`**,
 **`by_language`**, **`by_gender`** y **`by_age`** (demografía — requieren Google Signals; si no, vienen vacías y el bloque
