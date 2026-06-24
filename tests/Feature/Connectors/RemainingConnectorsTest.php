@@ -256,6 +256,34 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame('10/06/2026 05:00 GMT-05:00', $set->get('betteruptime.incidents_list')[0]['Inicio']);
     }
 
+    public function test_better_uptime_builds_daily_uptime_from_incidents(): void
+    {
+        Http::fake([
+            '*/incidents*' => Http::response(['data' => [[
+                'id' => '1',
+                'attributes' => [
+                    'cause' => 'Timeout',
+                    // 36 min down on Jun 2 → 2160s of 86400 → ~97.5% that day.
+                    'started_at' => '2026-06-02T00:00:00.000Z',
+                    'resolved_at' => '2026-06-02T00:36:00.000Z',
+                    'status' => 'Resolved',
+                ],
+            ]]]),
+            '*' => Http::response(['data' => ['attributes' => ['availability' => 99.9]]]),
+        ]);
+
+        $set = (new BetterUptimeConnector)->fetch(
+            $this->source(DataSourceType::BetterUptime, ['monitor_id' => '123'], ['api_token' => 't']),
+            $this->period(),
+            ['betteruptime.uptime_by_date'],
+        );
+
+        $series = $set->get('betteruptime.uptime_by_date');
+        $this->assertCount(30, $series); // one point per day in June
+        $this->assertSame(['date' => '2026-06-01', 'value' => 100.0], $series[0]);
+        $this->assertSame(['date' => '2026-06-02', 'value' => 97.5], $series[1]); // 36 min down
+    }
+
     public function test_virusdie_reads_mainwp_summary(): void
     {
         Http::fake(['*' => Http::response([

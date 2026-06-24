@@ -64,6 +64,7 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             new MetricDefinition('betteruptime.avg_response_time', 'Tiempo de respuesta medio (ms)', MetricType::Scalar, 'ms'),
             new MetricDefinition('betteruptime.response_times', 'Tiempo de respuesta (ms/día)', MetricType::Series, dimensions: ['date']),
             new MetricDefinition('betteruptime.incidents_list', 'Incidentes (detalle)', MetricType::Table, description: 'Cada caída del periodo con inicio, duración, causa y estado.'),
+            new MetricDefinition('betteruptime.uptime_by_date', 'Disponibilidad por día (%)', MetricType::Series, dimensions: ['date'], description: 'Disponibilidad diaria calculada de los incidentes — la barra verde/roja del status page.'),
         );
     }
 
@@ -122,22 +123,31 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             $metrics += $this->responseTimeMetrics($source, $period);
         }
 
-        if ($requestedMetrics === [] || in_array('betteruptime.incidents_list', $requestedMetrics, true)) {
-            $metrics['betteruptime.incidents_list'] = $this->incidentRows($source, $period);
+        // Incidents drive both the table and the daily-uptime bar — fetch them once.
+        $wantTable = $requestedMetrics === [] || in_array('betteruptime.incidents_list', $requestedMetrics, true);
+        $wantBar = $requestedMetrics === [] || in_array('betteruptime.uptime_by_date', $requestedMetrics, true);
+
+        if ($wantTable || $wantBar) {
+            $incidents = $this->fetchIncidents($source, $period);
+
+            if ($wantTable) {
+                $metrics['betteruptime.incidents_list'] = $this->incidentTable($incidents, $this->clientTimezone($source));
+            }
+            if ($wantBar) {
+                $metrics['betteruptime.uptime_by_date'] = $this->uptimeByDate($incidents, $period);
+            }
         }
 
         return MetricSet::ok($metrics);
     }
 
     /**
-     * The period's incidents as a table (start, duration, cause, status), from the
-     * account-level /incidents endpoint filtered by monitor. Newest first; filtered to
-     * the period by each incident's start. A failure yields an empty table, never a
-     * failed set.
+     * The period's incidents (within range) from the account-level /incidents endpoint
+     * filtered by monitor. A failure yields an empty list, never a failed set.
      *
-     * @return list<array{Inicio: string, Duración: string, Causa: string, Estado: string}>
+     * @return list<array{started_at: string, resolved_at: string, cause: string, start: int|false, end: int|false}>
      */
-    private function incidentRows(DataSource $source, Period $period): array
+    private function fetchIncidents(DataSource $source, Period $period): array
     {
         try {
             $response = $this->incidents($source, $period);
@@ -149,35 +159,88 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             return [];
         }
 
-        $timezone = $this->clientTimezone($source);
-
-        $rows = [];
+        $incidents = [];
         foreach ($this->listOf(Arr::get($this->arrayOf($response->json()), 'data')) as $incident) {
             $attributes = $this->arrayOf(Arr::get($incident, 'attributes'));
             $startedAt = $this->toStr(Arr::get($attributes, 'started_at'));
-            if ($startedAt === '') {
-                continue;
-            }
-
-            if (! $period->contains(substr($startedAt, 0, 10))) {
+            if ($startedAt === '' || ! $period->contains(substr($startedAt, 0, 10))) {
                 continue;
             }
 
             $resolvedAt = $this->toStr(Arr::get($attributes, 'resolved_at'));
-            $start = strtotime($startedAt);
-            $end = $resolvedAt !== '' ? strtotime($resolvedAt) : false;
+            $incidents[] = [
+                'started_at' => $startedAt,
+                'resolved_at' => $resolvedAt,
+                'cause' => $this->toStr(Arr::get($attributes, 'cause')),
+                'start' => strtotime($startedAt),
+                'end' => $resolvedAt !== '' ? strtotime($resolvedAt) : false,
+            ];
+        }
+
+        return $incidents;
+    }
+
+    /**
+     * @param  list<array{started_at: string, resolved_at: string, cause: string, start: int|false, end: int|false}>  $incidents
+     * @return list<array{Inicio: string, Duración: string, Causa: string, Estado: string}>
+     */
+    private function incidentTable(array $incidents, string $timezone): array
+    {
+        $rows = [];
+        foreach ($incidents as $incident) {
+            $start = $incident['start'];
+            $end = $incident['end'];
 
             $rows[] = [
-                'Inicio' => $this->formatInTimezone($startedAt, $timezone),
+                'Inicio' => $this->formatInTimezone($incident['started_at'], $timezone),
                 'Duración' => $start !== false && $end !== false
                     ? $this->humanizeSeconds($end - $start)
                     : 'En curso',
-                'Causa' => $this->toStr(Arr::get($attributes, 'cause')),
-                'Estado' => $resolvedAt !== '' ? 'Resuelto' : 'En curso',
+                'Causa' => $incident['cause'],
+                'Estado' => $incident['resolved_at'] !== '' ? 'Resuelto' : 'En curso',
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * Daily uptime % over the period (the green/red status-page bar), derived from the
+     * incidents: each day's downtime is the incident overlap with that day, so
+     * uptime = 100 − downtime/86400. Aggregating incidents avoids any per-day API call.
+     *
+     * @param  list<array{started_at: string, resolved_at: string, cause: string, start: int|false, end: int|false}>  $incidents
+     * @return list<array{date: string, value: float}>
+     */
+    private function uptimeByDate(array $incidents, Period $period): array
+    {
+        $series = [];
+        $day = $period->start->startOfDay();
+        $last = $period->end->startOfDay();
+
+        while ($day->lessThanOrEqualTo($last)) {
+            $dayStart = $day->getTimestamp();
+            $dayEnd = $dayStart + 86400;
+
+            $downtime = 0;
+            foreach ($incidents as $incident) {
+                $start = $incident['start'];
+                if ($start === false) {
+                    continue;
+                }
+                $end = $incident['end'] === false ? $dayEnd : $incident['end'];
+                $overlap = min($end, $dayEnd) - max($start, $dayStart);
+                if ($overlap > 0) {
+                    $downtime += $overlap;
+                }
+            }
+
+            $downtime = min($downtime, 86400);
+            $series[] = ['date' => $day->format('Y-m-d'), 'value' => round(100 - $downtime / 86400 * 100, 2)];
+            $day = $day->addDay();
+        }
+
+        return $series;
     }
 
     /**

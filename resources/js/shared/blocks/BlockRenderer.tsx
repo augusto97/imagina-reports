@@ -333,6 +333,9 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     const chartType = str(prop(block, 'chartType'), 'line');
     const legend = block.style?.legend === true;
     const accent = 'hsl(var(--ir-primary))';
+    // When set, each bar is colored by a threshold (>= → green, below → red): the
+    // status-page uptime bar. Values cluster near 100, so pin the axis to 0–100.
+    const threshold = typeof block.style?.threshold === 'number' ? block.style.threshold : null;
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
@@ -342,10 +345,15 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                         <BarChart data={rows}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
-                            <YAxis />
+                            <YAxis domain={threshold !== null ? [0, 100] : undefined} />
                             <Tooltip />
                             {legend && <Legend />}
-                            <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]}>
+                                {threshold !== null &&
+                                    rows.map((row, index) => (
+                                        <Cell key={index} fill={row.value >= threshold ? '#16a34a' : '#dc2626'} />
+                                    ))}
+                            </Bar>
                         </BarChart>
                     ) : chartType === 'hbar' ? (
                         <BarChart data={rows} layout="vertical">
