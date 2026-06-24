@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🗑️ BACKUPS ELIMINADO — LIMITACIÓN DE MAINWP (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.34):** el owner
+preguntó cómo elegir WPvivid vs UpdraftPlus en backups. Descubrimiento (curl a `imaginawp.com`, que tiene backups al día):
+`/pro-reports/{dom}/backups?action=created` devuelve **`[backup.created.count]:0` con `sections_data` vacío AUN con backups al
+día**. → **MainWP solo cuenta los backups que ÉL gestiona/dispara, nunca los de plugins de terceros** (WPvivid/UpdraftPlus) que
+respaldan por su cuenta en el sitio. No hay parámetro de proveedor; el dato no existe en la API. Mostrar «0 respaldos» a un
+cliente con backups diarios es engañoso → **quitada la métrica `mainwp.backups_count`** (catálogo + bucle de contadores),
+eliminada la plantilla «Respaldos y mantenimiento», y la plantilla «Mantenimiento» revertida a KPIs siempre reales
+(updates_applied/available, plugins_active/total). Se mantiene `mainwp.maintenance_count` (es la herramienta de mantenimiento
+NATIVA de MainWP, sí legítima). 283 tests + PHPStan + Pint + tsc + build limpios. **Si el owner algún día configura un método
+de backup gestionado por MainWP, se podría reintroducir.**
+
 **🦠 VIRUSDIE PLEGADO EN MAINWP (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.33):** el owner preguntó si
 hacía falta VirusDie como fuente aparte si viene de MainWP. Respuesta: no — usa el mismo `dashboard_url`+token y el endpoint
 per-site `/pro-reports/{dom}/virusdie?action=scan` (devuelve `[virusdie.scan.count]`, mismo patrón que backups/maintenance). **Plegado

@@ -130,9 +130,10 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // Wordfence extension (Pro Reports `wordfence` endpoint, action=scan).
             new MetricDefinition('mainwp.wordfence_scans_count', 'Escaneos de Wordfence', MetricType::Scalar, 'count', description: 'Nº de escaneos de seguridad de Wordfence ejecutados en el periodo.'),
             new MetricDefinition('mainwp.wordfence_scans', 'Escaneos de Wordfence (detalle)', MetricType::Table, dimensions: ['fecha'], description: 'Registro de escaneos de Wordfence: fecha y resultado del análisis.'),
-            // Backups (UpdraftPlus/WPvivid via Pro Reports `backups`, action=created)
-            // and the MainWP Maintenance tool (`maintenance`, action=process).
-            new MetricDefinition('mainwp.backups_count', 'Respaldos creados', MetricType::Scalar, 'count', description: 'Nº de copias de seguridad creadas en el periodo (extensiones de backup vía MainWP).'),
+            // The MainWP Maintenance tool (`maintenance`, action=process). NOTE: there is
+            // deliberately no backups metric — MainWP's Pro Reports `backups` token only
+            // counts MainWP-managed backups, never third-party plugins (WPvivid/UpdraftPlus)
+            // that back up independently on the child, so it would always mislead with 0.
             new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Nº de tareas de mantenimiento ejecutadas en el periodo (herramienta de mantenimiento de MainWP).'),
             new MetricDefinition('mainwp.malware_found', 'Malware detectado', MetricType::Scalar, 'count', description: 'Amenazas/malware detectados por Virusdie en el sitio (extensión Virusdie de MainWP, último escaneo).'),
             // MainWP per-site security/hardening checklist (/sites/{id}/security).
@@ -194,7 +195,6 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
 
         // Simple Pro Reports counters (backups created, maintenance tasks run).
         foreach ([
-            'mainwp.backups_count' => ['backups', 'created', '[backup.created.count]'],
             'mainwp.maintenance_count' => ['maintenance', 'process', '[maintenance.process.count]'],
             'mainwp.malware_found' => ['virusdie', 'scan', '[virusdie.scan.count]'],
         ] as $metric => [$endpoint, $action, $token]) {
@@ -394,7 +394,7 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
     }
 
     /**
-     * A single Pro Reports counter token (e.g. `[backup.created.count]`). These
+     * A single Pro Reports counter token (e.g. `[maintenance.process.count]`). These
      * endpoints all return `data.other_tokens_data` with one count token. Returns null
      * on any failure or a missing token so the bound block hides gracefully.
      */
