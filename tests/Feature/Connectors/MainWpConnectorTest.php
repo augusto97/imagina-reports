@@ -365,6 +365,39 @@ class MainWpConnectorTest extends TestCase
         $this->assertContains(['Comprobación' => 'Errores de base de datos ocultos', 'Estado' => '—'], $checklist);
     }
 
+    public function test_stale_past_ssl_date_is_hidden_not_shown_as_negative(): void
+    {
+        CarbonImmutable::setTestNow('2026-06-24 12:00:00');
+
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/ssl-monitor/info' => Http::response(['success' => 1, 'data' => [
+                '7' => ['id' => '7', 'url' => 'https://a.test', 'issuer_o' => "Let's Encrypt", 'valid_to' => '16/01/2025'],
+            ]]),
+            'dash.test/wp-json/mainwp/v2/domain-monitor/profiles' => Http::response(['success' => 1, 'data' => [
+                '7' => ['id' => '7', 'url' => 'https://a.test', 'registrar' => 'GoDaddy.com, LLC', 'expiry_date' => '18/06/2027'],
+            ]]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch(
+            $this->source(),
+            Period::make('2026-06-01', '2026-06-30'),
+            ['mainwp.ssl_days_remaining', 'mainwp.domain_days_remaining', 'mainwp.ssl_domain'],
+        );
+
+        $this->assertTrue($set->isOk());
+        // SSL date is in the past (stale scan) → hidden, never shown as a negative count.
+        $this->assertNull($set->get('mainwp.ssl_days_remaining'));
+        // Domain date is still valid → kept.
+        $this->assertGreaterThan(0, $set->get('mainwp.domain_days_remaining'));
+
+        $table = $set->get('mainwp.ssl_domain');
+        $this->assertCount(1, $table); // only the domain row
+        $this->assertSame('Dominio', $table[0]['Concepto']);
+
+        CarbonImmutable::setTestNow();
+    }
+
     public function test_ssl_domain_no_data_sentinel_is_ignored(): void
     {
         Http::fake([

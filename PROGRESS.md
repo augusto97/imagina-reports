@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🧹 PULIDOS POST-VALIDACIÓN (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.32):** el owner reportó 4 cosas
+al validar: (1) **CrowdSec fuera por ahora** — quitada la plantilla CrowdSec de la galería (reemplazada por «Respaldos y
+mantenimiento») y los bloques CrowdSec de la plantilla «Seguridad» (→ ahora vulnerabilities_count + security_checklist de
+MainWP); CrowdSec **oculto como fuente añadible** vía lista `HIDDEN=['crowdsec']` en `ConnectorController` (conector sigue
+registrado e inerte, reversible; no toqué BlockResolver/HealthScore). Nota: `app/Reports/Templates/DefaultTemplate.php` aún
+tiene un bloque CrowdSec dormido (se auto-oculta sin datos) — no es de galería, lo dejé. (2) **Backups no se veía** → nueva
+plantilla dedicada «Respaldos y mantenimiento (MainWP)» (backups_count + maintenance_count + updates_applied + timeline); la
+métrica ya existía y se oculta sola si el endpoint da null/sin datos. (3) **SSL días negativos (-553)** = escaneo viejo de
+MainWP (certs auto-renuevan); ahora si `ssl_days_remaining`/`domain_days_remaining` < 0 se trata como **dato obsoleto → se
+oculta** (no se muestra contador negativo). +1 test. **Owner debe re-escanear SSL Monitor en MainWP** para ver días reales.
+(4) **Selector de métricas filtra por fuente** en el inspector (`EditorScreen`/`Inspector.tsx`): nuevo desplegable «Fuente»
+(default = fuente del binding) que reduce la lista a esa fuente, además del buscador de texto. 283 tests + PHPStan + Pint + tsc
++ eslint(2 warnings preexistentes) + build limpios.
+
 **📱 EDITOR RESPONSIVE EN MÓVIL (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.31):** el owner reportó que
 el editor de plantillas no era responsive en celular: el panel derecho no se podía ocultar y la barra superior cortaba opciones
 (el botón **Sincronizar** no aparecía). Causa real: el grupo de acciones `ml-auto` de la barra superior **no envolvía** y era más

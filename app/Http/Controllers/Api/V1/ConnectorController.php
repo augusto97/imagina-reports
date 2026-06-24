@@ -17,8 +17,21 @@ use Illuminate\Http\JsonResponse;
  */
 final class ConnectorController extends Controller
 {
+    /**
+     * Connectors hidden from the data-source picker for now (still registered, so any
+     * existing source keeps working — just not offered as a new source). Reversible.
+     *
+     * @var list<string>
+     */
+    private const HIDDEN = ['crowdsec'];
+
     public function index(ConnectorRegistry $registry): JsonResponse
     {
+        $available = array_filter(
+            $registry->all(),
+            static fn ($connector): bool => ! in_array($connector->key(), self::HIDDEN, true),
+        );
+
         $connectors = array_map(static fn ($connector): array => [
             'key' => $connector->key(),
             'label' => $connector->label(),
@@ -29,7 +42,7 @@ final class ConnectorController extends Controller
             'guide' => $connector instanceof ProvidesSetupGuide
                 ? $connector->setupGuide()->toArray()
                 : null,
-        ], $registry->all());
+        ], array_values($available));
 
         return response()->json($connectors);
     }

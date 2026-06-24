@@ -9,7 +9,7 @@ import {
     type LucideIcon,
     PieChart,
 } from 'lucide-react';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import type { Block } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
@@ -80,6 +80,15 @@ export function Inspector({
 }): ReactElement {
     const [tab, setTab] = useState<'config' | 'style'>('config');
     const [metricQuery, setMetricQuery] = useState('');
+    // Pick a data source first, then only that source's metrics show — keeps the binding
+    // picker usable when many sources are connected. Defaults to the bound source.
+    const [sourceFilter, setSourceFilter] = useState(block?.binding?.source ?? '');
+
+    // Re-sync the source filter to the newly selected block (and clear the text search).
+    useEffect(() => {
+        setSourceFilter(block?.binding?.source ?? '');
+        setMetricQuery('');
+    }, [block?.id, block?.binding?.source]);
 
     if (block === null) {
         return (
@@ -98,17 +107,24 @@ export function Inspector({
     // Dimensions available for the bound metric → the drill-down picker (CLAUDE.md §11.3).
     const boundEntry = block.binding != null ? catalog.find((entry) => entry.source === block.binding?.source && entry.metric === block.binding?.metric) : undefined;
 
-    // Filter the binding picker so large multi-source catalogs stay usable. The currently
-    // bound metric is always kept in the list so it never vanishes while filtering.
+    // Filter the binding picker so large multi-source catalogs stay usable: by source
+    // first, then free text. The currently bound metric is always kept so it never
+    // vanishes while filtering. Sources are the distinct connectors in the catalog.
     const metricFilter = metricQuery.trim().toLowerCase();
-    const filteredCatalog =
-        metricFilter === ''
-            ? catalog
-            : catalog.filter(
-                  (entry) =>
-                      (entry.source === block.binding?.source && entry.metric === block.binding?.metric) ||
-                      `${entry.label} ${entry.source} ${entry.metric}`.toLowerCase().includes(metricFilter),
-              );
+    const sources = Array.from(new Set(catalog.map((entry) => entry.source))).sort();
+    const filteredCatalog = catalog.filter((entry) => {
+        const isBound = entry.source === block.binding?.source && entry.metric === block.binding?.metric;
+        if (isBound) {
+            return true;
+        }
+        if (sourceFilter !== '' && entry.source !== sourceFilter) {
+            return false;
+        }
+        return (
+            metricFilter === '' ||
+            `${entry.label} ${entry.source} ${entry.metric}`.toLowerCase().includes(metricFilter)
+        );
+    });
     const dimensions = boundEntry?.dimensions ?? [];
 
     // Selectable fields for a `control` (filter) block, so the user picks visually instead
@@ -222,6 +238,21 @@ export function Inspector({
                                     {block.binding.source}
                                 </span>
                             )}
+                            {sources.length > 1 && (
+                                <select
+                                    className={`${selectClass} ir-mb-2`}
+                                    value={sourceFilter}
+                                    onChange={(event) => setSourceFilter(event.target.value)}
+                                    title="Filtrar las métricas por fuente"
+                                >
+                                    <option value="">Todas las fuentes</option>
+                                    {sources.map((source) => (
+                                        <option key={source} value={source}>
+                                            {source}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                             {catalog.length > 6 && (
                                 <Input
                                     className="ir-mb-2"
@@ -251,7 +282,7 @@ export function Inspector({
                                     </option>
                                 ))}
                             </select>
-                            {metricFilter !== '' && filteredCatalog.length === 0 && (
+                            {filteredCatalog.length === 0 && (metricFilter !== '' || sourceFilter !== '') && (
                                 <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">Sin métricas que coincidan.</p>
                             )}
                         </Field>

@@ -267,6 +267,16 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         $domainExpiry = $this->toStr(Arr::get($domain, 'expiry_date'));
         $domainDays = $this->daysUntil($domainExpiry);
 
+        // A date already in the past means MainWP's SSL/domain monitor scan is outdated
+        // (certificates auto-renew, registrars renew), so a negative "expires in -N days"
+        // countdown would mislead the client. Treat stale data as no data → block hides.
+        if ($sslDays !== null && $sslDays < 0) {
+            $sslDays = null;
+        }
+        if ($domainDays !== null && $domainDays < 0) {
+            $domainDays = null;
+        }
+
         $rows = [];
         $metrics = [];
 
