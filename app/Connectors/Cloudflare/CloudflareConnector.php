@@ -93,9 +93,22 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         try {
             $response = $this->query($source, Period::make('7 days ago', 'today'));
 
-            return $response->successful()
-                ? ConnectionResult::success('Cloudflare API reachable.')
-                : ConnectionResult::failure('Cloudflare responded with HTTP '.$response->status());
+            if ($response->failed()) {
+                return ConnectionResult::failure('Cloudflare responded with HTTP '.$response->status());
+            }
+
+            // A 200 with GraphQL errors (bad field/permission) or no visible zone is the
+            // common silent-failure — surface it instead of a false "reachable".
+            $error = $this->graphqlError($response->json());
+            if ($error !== null) {
+                return ConnectionResult::failure('Cloudflare: '.$error);
+            }
+
+            if ($this->zones($response->json()) === []) {
+                return ConnectionResult::failure('Cloudflare: el token no ve la zona o el Zone ID es incorrecto. Revisa el permiso «Zone Analytics: Read» y que el token incluya esa zona.');
+            }
+
+            return ConnectionResult::success('Cloudflare API reachable.');
         } catch (Throwable $e) {
             return ConnectionResult::failure('Could not reach Cloudflare: '.$e->getMessage());
         }
@@ -113,7 +126,15 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             return MetricSet::failed('Cloudflare request failed: HTTP '.$response->status());
         }
 
+        // GraphQL returns HTTP 200 even on errors; without this the report would just
+        // show zeros. Fail loudly with the real reason (bad field, missing permission…).
+        $error = $this->graphqlError($response->json());
+
         $groups = $this->listOf(Arr::get($this->arrayOf($response->json()), 'data.viewer.zones.0.httpRequests1dGroups'));
+
+        if ($groups === [] && $error !== null) {
+            return MetricSet::failed('Cloudflare: '.$error);
+        }
 
         $requests = $cached = $threats = $bytes = $pageViews = $encrypted = $uniques = 0;
         $requestsByDate = $threatsByDate = $bandwidthByDate = [];
@@ -179,6 +200,37 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             'cloudflare.requests_by_country' => $this->topTable($requestsByCountry),
             'cloudflare.top_threat_sources' => $this->topTable($threatSources),
         ]);
+    }
+
+    /**
+     * The GraphQL `errors[].message` joined, or null when the response has none.
+     * Cloudflare returns these with HTTP 200, so they must be checked explicitly.
+     */
+    private function graphqlError(mixed $json): ?string
+    {
+        $errors = is_array($json) ? ($json['errors'] ?? null) : null;
+
+        if (! is_array($errors) || $errors === []) {
+            return null;
+        }
+
+        $messages = [];
+        foreach ($errors as $error) {
+            $message = is_array($error) ? Arr::get($error, 'message') : null;
+            if (is_string($message) && $message !== '') {
+                $messages[] = $message;
+            }
+        }
+
+        return $messages === [] ? 'error de GraphQL sin detalle.' : implode('; ', $messages);
+    }
+
+    /**
+     * @return list<array<array-key, mixed>>
+     */
+    private function zones(mixed $json): array
+    {
+        return $this->listOf(Arr::get($this->arrayOf($json), 'data.viewer.zones'));
     }
 
     /**
