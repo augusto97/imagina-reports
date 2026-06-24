@@ -25,6 +25,7 @@ class ConnectorApiTest extends TestCase
         $this->assertContains('ga4', $keys);
         $this->assertContains('gsc', $keys);
         $this->assertNotContains('crowdsec', $keys); // de-scoped from the source picker for now
+        $this->assertNotContains('virusdie', $keys); // folded into MainWP (mainwp.malware_found)
 
         $mainwp = collect($response->json())->firstWhere('key', 'mainwp');
         $this->assertNotNull($mainwp);

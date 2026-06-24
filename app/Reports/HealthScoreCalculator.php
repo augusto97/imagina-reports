@@ -70,7 +70,7 @@ final class HealthScoreCalculator
      */
     private function securityScore(array $bags): ?float
     {
-        $malware = $this->metric($bags, 'virusdie', 'virusdie.malware_found');
+        $malware = $this->metric($bags, 'mainwp', 'mainwp.malware_found');
 
         return $malware === null ? null : ($malware > 0 ? 40.0 : 100.0);
     }

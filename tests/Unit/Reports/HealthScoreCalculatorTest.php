@@ -32,7 +32,7 @@ class HealthScoreCalculatorTest extends TestCase
     public function test_detected_malware_lowers_the_security_signal(): void
     {
         $this->assertSame(40, $this->calculator->calculate([
-            'virusdie' => ['virusdie.malware_found' => 2],
+            'mainwp' => ['mainwp.malware_found' => 2],
         ]));
     }
 
@@ -51,8 +51,7 @@ class HealthScoreCalculatorTest extends TestCase
     {
         $score = $this->calculator->calculate([
             'betteruptime' => ['betteruptime.uptime_percent' => 100],
-            'mainwp' => ['mainwp.updates_available' => 0],
-            'virusdie' => ['virusdie.malware_found' => 0],
+            'mainwp' => ['mainwp.updates_available' => 0, 'mainwp.malware_found' => 0],
             'cloudflare' => ['cloudflare.cache_ratio' => 1],
         ]);
 

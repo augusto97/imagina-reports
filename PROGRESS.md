@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🦠 VIRUSDIE PLEGADO EN MAINWP (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.33):** el owner preguntó si
+hacía falta VirusDie como fuente aparte si viene de MainWP. Respuesta: no — usa el mismo `dashboard_url`+token y el endpoint
+per-site `/pro-reports/{dom}/virusdie?action=scan` (devuelve `[virusdie.scan.count]`, mismo patrón que backups/maintenance). **Plegado
+en `MainWpConnector`** como **`mainwp.malware_found`** (una línea más en el bucle `proReportCount`). Migradas las 3 referencias:
+`HealthScoreCalculator` (señal de seguridad), `BlockResolver::securityMetrics` (escudo), y la plantilla «Antimalware (VirusDie)»
+→ todas leen `mainwp.malware_found`. **VirusDie oculto como fuente** (añadido a `ConnectorController::HIDDEN=['crowdsec','virusdie']`);
+el `VirusdieConnector` queda registrado pero **inerte/deprecado** (reversible, no lo borré). Sync no filtra métricas
+(PreviewController despacha con requested=[] → MainWP trae todo), así que el malware siempre se sincroniza → health/escudo OK.
+Tests migrados (HealthScore usa bag `mainwp`; ConnectorApi asercia que virusdie no se lista; MainWp cubre malware_found).
+283 tests + PHPStan + Pint + tsc + build limpios.
+
 **🧹 PULIDOS POST-VALIDACIÓN (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.32):** el owner reportó 4 cosas
 al validar: (1) **CrowdSec fuera por ahora** — quitada la plantilla CrowdSec de la galería (reemplazada por «Respaldos y
 mantenimiento») y los bloques CrowdSec de la plantilla «Seguridad» (→ ahora vulnerabilities_count + security_checklist de

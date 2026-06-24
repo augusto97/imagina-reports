@@ -134,6 +134,7 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // and the MainWP Maintenance tool (`maintenance`, action=process).
             new MetricDefinition('mainwp.backups_count', 'Respaldos creados', MetricType::Scalar, 'count', description: 'Nº de copias de seguridad creadas en el periodo (extensiones de backup vía MainWP).'),
             new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Nº de tareas de mantenimiento ejecutadas en el periodo (herramienta de mantenimiento de MainWP).'),
+            new MetricDefinition('mainwp.malware_found', 'Malware detectado', MetricType::Scalar, 'count', description: 'Amenazas/malware detectados por Virusdie en el sitio (extensión Virusdie de MainWP, último escaneo).'),
             // MainWP per-site security/hardening checklist (/sites/{id}/security).
             new MetricDefinition('mainwp.security_issues_count', 'Puntos de seguridad por revisar', MetricType::Scalar, 'count', description: 'Nº de comprobaciones de seguridad de MainWP que no están en verde (endurecimiento del sitio).'),
             new MetricDefinition('mainwp.security_checklist', 'Estado de seguridad', MetricType::Table, dimensions: ['comprobacion'], description: 'Lista de verificación de seguridad de MainWP: WordPress al día, SSL, depuración, plugins/temas obsoletos o inactivos.'),
@@ -195,6 +196,7 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         foreach ([
             'mainwp.backups_count' => ['backups', 'created', '[backup.created.count]'],
             'mainwp.maintenance_count' => ['maintenance', 'process', '[maintenance.process.count]'],
+            'mainwp.malware_found' => ['virusdie', 'scan', '[virusdie.scan.count]'],
         ] as $metric => [$endpoint, $action, $token]) {
             if ($this->wants($requestedMetrics, $metric)) {
                 $count = $this->proReportCount($source, $this->idDomain($site, $target), $endpoint, $action, $token, $period);

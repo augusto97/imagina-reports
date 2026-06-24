@@ -321,18 +321,20 @@ class MainWpConnectorTest extends TestCase
         Http::fake([
             'dash.test/wp-json/mainwp/v2/pro-reports/*/backups*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[backup.created.count]' => 3]]]),
             'dash.test/wp-json/mainwp/v2/pro-reports/*/maintenance*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[maintenance.process.count]' => 5]]]),
+            'dash.test/wp-json/mainwp/v2/pro-reports/*/virusdie*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[virusdie.scan.count]' => 2]]]),
             'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
         ]);
 
         $set = (new MainWpConnector)->fetch(
             $this->source(),
             Period::make('2026-06-01', '2026-06-30'),
-            ['mainwp.backups_count', 'mainwp.maintenance_count'],
+            ['mainwp.backups_count', 'mainwp.maintenance_count', 'mainwp.malware_found'],
         );
 
         $this->assertTrue($set->isOk());
         $this->assertSame(3, $set->get('mainwp.backups_count'));
         $this->assertSame(5, $set->get('mainwp.maintenance_count'));
+        $this->assertSame(2, $set->get('mainwp.malware_found')); // Virusdie folded into MainWP
     }
 
     public function test_fetch_builds_the_security_checklist(): void

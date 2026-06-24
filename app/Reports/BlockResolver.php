@@ -122,7 +122,7 @@ final readonly class BlockResolver
         $wanted = [
             'threats_blocked' => 'cloudflare.threats_blocked',
             'attacks_blocked' => 'crowdsec.attacks_blocked',
-            'malware_found' => 'virusdie.malware_found',
+            'malware_found' => 'mainwp.malware_found',
         ];
 
         $out = [];

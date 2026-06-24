@@ -469,7 +469,7 @@ export const GALLERY: GalleryTemplate[] = [
         description: 'Malware detectado y eliminado, sitios infectados/limpios y estado del firewall.',
         build: () => [
             header('Protección antimalware'),
-            kpi('virusdie', 'malware_found', 'Malware detectado', { x: 0, y: 2, w: 4, h: 4 }),
+            kpi('mainwp', 'malware_found', 'Malware detectado', { x: 0, y: 2, w: 4, h: 4 }),
             spec({ type: 'security_shield', props: { title: 'Tu sitio, protegido' }, layout: { x: 4, y: 2, w: 8, h: 4 } }),
             summary({ x: 0, y: 6, w: 12, h: 4 }),
             spec({

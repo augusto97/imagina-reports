@@ -23,7 +23,7 @@ final class ConnectorController extends Controller
      *
      * @var list<string>
      */
-    private const HIDDEN = ['crowdsec'];
+    private const HIDDEN = ['crowdsec', 'virusdie'];
 
     public function index(ConnectorRegistry $registry): JsonResponse
     {
