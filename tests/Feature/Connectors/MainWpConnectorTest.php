@@ -263,6 +263,33 @@ class MainWpConnectorTest extends TestCase
         CarbonImmutable::setTestNow();
     }
 
+    public function test_fetch_parses_vulnerability_checker_count_and_list(): void
+    {
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/pro-reports/*' => Http::response(['success' => 1, 'data' => ['other_tokens_data' => [
+                '[vulnerable.plugins]' => '',
+                '[vulnerable.themes]' => 'kadence: 18/06/2026 1:16 am<br/>Some CVE description here<br/>elementor: 04/04/2026 4:16 am<br/>Another CVE description',
+                '[vulnerable.checkdate]' => '22/06/2026 10:58 am',
+                '[vulnerabilities.count]' => 37,
+            ]]]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch(
+            $this->source(),
+            Period::make('2026-06-01', '2026-06-30'),
+            ['mainwp.vulnerabilities_count', 'mainwp.vulnerabilities_list'],
+        );
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(37, $set->get('mainwp.vulnerabilities_count'));
+
+        $list = $set->get('mainwp.vulnerabilities_list');
+        $this->assertCount(2, $list); // header lines only; CVE descriptions skipped
+        $this->assertSame(['Elemento' => 'kadence', 'Detectada' => '18/06/2026 1:16 am'], $list[0]);
+        $this->assertSame('elementor', $list[1]['Elemento']);
+    }
+
     public function test_ssl_domain_no_data_sentinel_is_ignored(): void
     {
         Http::fake([

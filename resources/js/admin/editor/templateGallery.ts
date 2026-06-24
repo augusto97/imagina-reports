@@ -524,4 +524,28 @@ export const GALLERY: GalleryTemplate[] = [
             cta(16),
         ],
     },
+    {
+        key: 'vulnerabilities',
+        name: 'Vulnerabilidades (MainWP)',
+        description: 'Monitoreo de vulnerabilidades conocidas (CVE) en los plugins y temas del sitio: cuántas hay y cuáles, para demostrar la vigilancia de seguridad.',
+        build: () => [
+            header('Vigilancia de vulnerabilidades'),
+            spec({
+                type: 'kpi',
+                binding: { source: 'mainwp', metric: 'vulnerabilities_count' },
+                props: { label: 'Vulnerabilidades detectadas' },
+                style: { format: 'number' },
+                layout: { x: 0, y: 2, w: 4, h: 4 },
+            }),
+            spec({ type: 'security_shield', props: { title: 'Tu sitio, bajo vigilancia' }, layout: { x: 4, y: 2, w: 8, h: 4 } }),
+            summary({ x: 0, y: 6, w: 12, h: 4 }),
+            spec({
+                type: 'table',
+                binding: { source: 'mainwp', metric: 'vulnerabilities_list' },
+                props: { title: 'Plugins y temas con vulnerabilidades conocidas' },
+                layout: { x: 0, y: 10, w: 12, h: 8 },
+            }),
+            cta(18),
+        ],
+    },
 ];

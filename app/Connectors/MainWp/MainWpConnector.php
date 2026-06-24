@@ -124,6 +124,9 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             new MetricDefinition('mainwp.ssl_days_remaining', 'Días para que caduque el SSL', MetricType::Scalar, 'days', description: 'Días restantes hasta que expire el certificado SSL (extensión MainWP SSL Monitor).'),
             new MetricDefinition('mainwp.domain_days_remaining', 'Días para que caduque el dominio', MetricType::Scalar, 'days', description: 'Días restantes hasta que expire el registro del dominio (extensión MainWP Domain Monitor).'),
             new MetricDefinition('mainwp.ssl_domain', 'SSL y dominio (detalle)', MetricType::Table, dimensions: ['concepto'], description: 'Certificado SSL y registro de dominio: proveedor, fecha de caducidad y días restantes.'),
+            // Vulnerability Checker extension (Pro Reports `vulnerable` endpoint).
+            new MetricDefinition('mainwp.vulnerabilities_count', 'Vulnerabilidades detectadas', MetricType::Scalar, 'count', description: 'Nº de vulnerabilidades conocidas (CVE) en plugins/temas del sitio (extensión MainWP Vulnerability Checker).'),
+            new MetricDefinition('mainwp.vulnerabilities_list', 'Vulnerabilidades (detalle)', MetricType::Table, dimensions: ['elemento'], description: 'Plugins/temas con vulnerabilidades conocidas y su fecha de detección.'),
         );
     }
 
@@ -166,6 +169,12 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         // when a report actually binds to one of those metrics.
         if ($this->wantsSslDomain($requestedMetrics)) {
             $metrics = array_merge($metrics, $this->sslDomainMetrics($source, $site));
+        }
+
+        // Vulnerability Checker (Pro Reports) — only when the report binds to it.
+        if ($this->wantsVulnerabilities($requestedMetrics)) {
+            $idInt = $this->toInt(Arr::get($site, 'id'));
+            $metrics = array_merge($metrics, $this->fetchVulnerabilities($source, $idInt !== 0 ? (string) $idInt : $target, $period));
         }
 
         return MetricSet::ok($this->only($metrics, $requestedMetrics));
@@ -315,6 +324,84 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         $seconds = $expiry->startOfDay()->getTimestamp() - CarbonImmutable::now()->startOfDay()->getTimestamp();
 
         return (int) round($seconds / 86400);
+    }
+
+    /**
+     * @param  list<string>  $requestedMetrics
+     */
+    private function wantsVulnerabilities(array $requestedMetrics): bool
+    {
+        if ($requestedMetrics === []) {
+            return true;
+        }
+
+        return in_array('mainwp.vulnerabilities_count', $requestedMetrics, true)
+            || in_array('mainwp.vulnerabilities_list', $requestedMetrics, true);
+    }
+
+    /**
+     * Known plugin/theme vulnerabilities (CVE) for this site from the MainWP
+     * Vulnerability Checker extension (Pro Reports `vulnerable` endpoint). The payload
+     * exposes a flat `other_tokens_data` map: `[vulnerabilities.count]` (total) plus
+     * `[vulnerable.plugins]`/`[vulnerable.themes]` HTML blobs where each affected item
+     * is a `slug: date` line followed by its `<br/>`-separated description.
+     *
+     * @return array<string, mixed>
+     */
+    private function fetchVulnerabilities(DataSource $source, string $idDomain, Period $period): array
+    {
+        try {
+            $response = $this->client($source)->get("/pro-reports/{$idDomain}/vulnerable", [
+                'start' => $period->start->format('Y-m-d'),
+                'end' => $period->end->format('Y-m-d'),
+            ]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $tokens = $response->json('data.other_tokens_data');
+        if (! is_array($tokens)) {
+            return [];
+        }
+
+        $metrics = [
+            'mainwp.vulnerabilities_count' => $this->toInt($tokens['[vulnerabilities.count]'] ?? 0),
+        ];
+
+        $rows = $this->vulnerabilityRows(
+            $this->toStr($tokens['[vulnerable.plugins]'] ?? '').' '.$this->toStr($tokens['[vulnerable.themes]'] ?? ''),
+        );
+
+        if ($rows !== []) {
+            $metrics['mainwp.vulnerabilities_list'] = $rows;
+        }
+
+        return $metrics;
+    }
+
+    /**
+     * Parse the affected-item header lines (`slug: dd/mm/yyyy …`) out of the
+     * Vulnerability Checker HTML blob, ignoring the long CVE description lines.
+     *
+     * @return list<array{Elemento: string, Detectada: string}>
+     */
+    private function vulnerabilityRows(string $blob): array
+    {
+        $rows = [];
+
+        foreach (preg_split('#<br\s*/?>#i', $blob) ?: [] as $part) {
+            $line = trim($this->toStr($part));
+
+            if (preg_match('#^([\w\-./]+):\s+(\d{1,2}/\d{1,2}/\d{4}[^<]*)$#', $line, $matches) === 1) {
+                $rows[] = ['Elemento' => $matches[1], 'Detectada' => trim($matches[2])];
+            }
+        }
+
+        return $rows;
     }
 
     /**
