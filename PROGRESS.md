@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**📊 GA4 — MÉTRICAS DE CIUDADES/GÉNERO/EDAD/HORA (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner pidió
+más métricas útiles de Analytics. Añadidas al catálogo GA4 (vía `specs()`): **`top_cities`** (ciudades), **`by_region`**,
+**`by_language`**, **`by_gender`** y **`by_age`** (demografía — requieren Google Signals; si no, vienen vacías y el bloque
+se oculta), **`sessions_by_hour`** (visitas por hora, serie 0–23) y **`sessions_by_weekday`**. Además, `body()` ahora
+manda **`orderBys`**: tablas = top-N por la métrica desc; series = orden cronológico por su dimensión (hora/día) — mejora
+todas las tablas/series existentes. Plantilla «Analítica web (GA4)» suma tabla de **Ciudades** + gráfica de barras
+**«Visitas por hora del día»**. Test de catálogo ampliado. 261 tests + PHPStan + Pint + TS+build limpios.
+
 **🔑 GA4/GSC — BUG DE CREDENCIALES (cuenta de servicio) ARREGLADO (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):**
 el owner no podía conectar GA4: «GA4 authentication failed: json key is missing the client_email field». Causa: el
 formulario guarda el JSON pegado como **string** bajo `credentials['service_account']`, pero el conector pasaba **todo
