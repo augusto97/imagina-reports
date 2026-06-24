@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🟧 CLOUDFLARE — FALLBACK A CAMPOS CORE (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** confirmado con la query
+real del owner: los campos base (`requests`/`cachedRequests`/`threats`/`bytes`) **funcionan**; uno de los extras
+(`uniq.uniques`/`pageViews`/`encryptedRequests`/`countryMap`/`threatPathingMap`) no está en su plan y GraphQL falla TODA
+la query. **Fix:** `query($full)` con dos variantes; `fetch()` intenta la **completa** y, si hay error GraphQL sin
+grupos, reintenta la **core** (los 4 campos universales) → peticiones, ratio caché, amenazas, ancho de banda y series
+por día **siempre** salen; los extras (únicos, páginas vistas, por país) se ocultan si el plan no los expone. Test de
+fallback (sequence: full error → core ok). 263 tests + PHPStan + Pint. **Pendiente:** pedí al owner la query COMPLETA
+para ver QUÉ campo exacto rompe y re-incluir los demás (probablemente solo `pageViews`/`uniques` están gated).
+
 **🟧 CLOUDFLARE — SUPERFICIE LOS ERRORES GRAPHQL (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner reportó
 Cloudflare todo en 0 pese a años conectado. Causa raíz del **silencio**: la API GraphQL devuelve **HTTP 200 aun con
 `errors`** (campo inválido / falta permiso / token no ve la zona) y `data:null` → el conector parseaba grupos vacíos →

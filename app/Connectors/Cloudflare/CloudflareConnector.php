@@ -127,13 +127,24 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         }
 
         // GraphQL returns HTTP 200 even on errors; without this the report would just
-        // show zeros. Fail loudly with the real reason (bad field, missing permission…).
+        // show zeros. If the full query hit an unknown/forbidden field, retry with the
+        // core set so the main metrics still come through (the extras hide gracefully).
         $error = $this->graphqlError($response->json());
-
-        $groups = $this->listOf(Arr::get($this->arrayOf($response->json()), 'data.viewer.zones.0.httpRequests1dGroups'));
+        $groups = $this->groups($response->json());
 
         if ($groups === [] && $error !== null) {
-            return MetricSet::failed('Cloudflare: '.$error);
+            try {
+                $response = $this->query($source, $period, full: false);
+            } catch (Throwable $e) {
+                return MetricSet::failed('Cloudflare request error: '.$e->getMessage());
+            }
+
+            $coreError = $this->graphqlError($response->json());
+            $groups = $this->groups($response->json());
+
+            if ($groups === [] && $coreError !== null) {
+                return MetricSet::failed('Cloudflare: '.$coreError);
+            }
         }
 
         $requests = $cached = $threats = $bytes = $pageViews = $encrypted = $uniques = 0;
@@ -234,6 +245,14 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
     }
 
     /**
+     * @return list<array<array-key, mixed>>
+     */
+    private function groups(mixed $json): array
+    {
+        return $this->listOf(Arr::get($this->arrayOf($json), 'data.viewer.zones.0.httpRequests1dGroups'));
+    }
+
+    /**
      * Sort a label→total map descending and keep the top 10 as normalized table rows.
      *
      * @param  array<string, int>  $map
@@ -251,22 +270,26 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         return $rows;
     }
 
-    private function query(DataSource $source, Period $period): Response
+    private function query(DataSource $source, Period $period, bool $full = true): Response
     {
         $config = $source->config ?? [];
         $credentials = $source->credentials ?? [];
 
-        $graphql = <<<'GQL'
-        query Analytics($zone: String!, $since: String!, $until: String!) {
-          viewer { zones(filter: { zoneTag: $zone }) {
-            httpRequests1dGroups(limit: 1000, filter: { date_geq: $since, date_leq: $until }, orderBy: [date_ASC]) {
+        // The "full" set adds fields some plans don't expose (uniques, pageViews,
+        // encryptedRequests, country/threat maps). GraphQL fails the whole query on any
+        // unknown field, so fetch() falls back to the core set, which every plan has.
+        $groupExtra = $full ? 'uniq { uniques }' : '';
+        $sumExtra = $full
+            ? 'pageViews encryptedRequests countryMap { clientCountryName requests threats } threatPathingMap { pathingSource requests }'
+            : '';
+
+        $graphql = <<<GQL
+        query Analytics(\$zone: String!, \$since: String!, \$until: String!) {
+          viewer { zones(filter: { zoneTag: \$zone }) {
+            httpRequests1dGroups(limit: 1000, filter: { date_geq: \$since, date_leq: \$until }, orderBy: [date_ASC]) {
               dimensions { date }
-              uniq { uniques }
-              sum {
-                requests cachedRequests threats bytes pageViews encryptedRequests
-                countryMap { clientCountryName requests threats }
-                threatPathingMap { pathingSource requests }
-              }
+              {$groupExtra}
+              sum { requests cachedRequests threats bytes {$sumExtra} }
             }
           } }
         }
