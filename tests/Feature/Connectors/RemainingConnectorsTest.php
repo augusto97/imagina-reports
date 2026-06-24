@@ -372,4 +372,41 @@ class RemainingConnectorsTest extends TestCase
 
         $this->assertTrue($set->isFailed());
     }
+
+    public function test_cloudflare_explains_a_401_as_an_auth_problem(): void
+    {
+        // A 401 is a bad/expired token, not a transient outage — the message must say so.
+        Http::fake(['*' => Http::response(['errors' => [['message' => 'Unable to authenticate request']]], 401)]);
+
+        $set = (new CloudflareConnector)->fetch(
+            $this->source(DataSourceType::Cloudflare, ['zone_id' => 'z1'], ['api_token' => 'expired']),
+            $this->period(),
+            [],
+        );
+
+        $this->assertTrue($set->isFailed());
+        $this->assertStringContainsString('401', (string) $set->error);
+        $this->assertStringContainsString('token', (string) $set->error);
+    }
+
+    public function test_cloudflare_trims_a_pasted_token_with_whitespace(): void
+    {
+        // A token pasted with a trailing newline must not break the Bearer header.
+        Http::fake(['*' => Http::response([
+            'data' => ['viewer' => ['zones' => [[
+                'httpRequests1dGroups' => [[
+                    'dimensions' => ['date' => '2026-06-01'],
+                    'sum' => ['requests' => 10, 'cachedRequests' => 5, 'threats' => 1, 'bytes' => 100],
+                ]],
+            ]]]],
+        ])]);
+
+        (new CloudflareConnector)->fetch(
+            $this->source(DataSourceType::Cloudflare, ['zone_id' => " z1\n"], ['api_token' => "  secret-token\n"]),
+            $this->period(),
+            [],
+        );
+
+        Http::assertSent(fn ($request): bool => $request->hasHeader('Authorization', 'Bearer secret-token'));
+    }
 }

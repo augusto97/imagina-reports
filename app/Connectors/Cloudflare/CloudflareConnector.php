@@ -93,7 +93,7 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             $response = $this->query($source, Period::make('7 days ago', 'today'));
 
             if ($response->failed()) {
-                return ConnectionResult::failure('Cloudflare responded with HTTP '.$response->status());
+                return ConnectionResult::failure($this->httpFailureMessage($response));
             }
 
             // A 200 with GraphQL errors (bad field/permission) or no visible zone is the
@@ -122,7 +122,7 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         }
 
         if ($response->failed()) {
-            return MetricSet::failed('Cloudflare request failed: HTTP '.$response->status());
+            return MetricSet::failed($this->httpFailureMessage($response));
         }
 
         // GraphQL returns HTTP 200 even on errors; without this the report would just
@@ -199,6 +199,22 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             'cloudflare.threats_by_country' => $this->topTable($threatsByCountry),
             'cloudflare.requests_by_country' => $this->topTable($requestsByCountry),
         ]);
+    }
+
+    /**
+     * Turn a failed HTTP response into an actionable message. 401/403 is an auth
+     * problem (bad/expired token or missing scope), not a transient outage, so it gets
+     * specific guidance rather than a bare status code.
+     */
+    private function httpFailureMessage(Response $response): string
+    {
+        $status = $response->status();
+
+        if ($status === 401 || $status === 403) {
+            return 'Cloudflare: token inválido, caducado o sin permiso (HTTP '.$status.'). Crea o renueva un API token con permiso «Zone Analytics: Read» acotado a la zona y pégalo de nuevo (sin espacios).';
+        }
+
+        return 'Cloudflare respondió con HTTP '.$status.'.';
     }
 
     /**
@@ -285,13 +301,18 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         }
         GQL;
 
-        return Http::withToken($this->toStr(Arr::get($credentials, 'api_token')))
+        // Trim both: a token or Zone ID pasted with a trailing space/newline would send a
+        // malformed Bearer header and fail auth with a 401 even though the value is right.
+        $token = trim($this->toStr(Arr::get($credentials, 'api_token')));
+        $zone = trim($this->toStr(Arr::get($config, 'zone_id')));
+
+        return Http::withToken($token)
             ->acceptJson()
             ->timeout(20)
             ->post(self::ENDPOINT, [
                 'query' => $graphql,
                 'variables' => [
-                    'zone' => $this->toStr(Arr::get($config, 'zone_id')),
+                    'zone' => $zone,
                     'since' => $period->start->toDateString(),
                     'until' => $period->end->toDateString(),
                 ],
