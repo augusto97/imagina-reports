@@ -148,6 +148,29 @@ export interface AgencyTrends {
     sites: SiteTrend[];
 }
 
+export interface UpsellOpportunityView {
+    type: string;
+    label: string;
+    context: Record<string, unknown>;
+}
+
+export interface SiteUpsell {
+    site_id: number;
+    site_name: string;
+    client_name: string | null;
+    period_end: string;
+    opportunities: UpsellOpportunityView[];
+}
+
+export interface AgencyUpsell {
+    summary: {
+        sites_count: number;
+        sites_with_opportunities: number;
+        opportunities_count: number;
+    };
+    sites: SiteUpsell[];
+}
+
 export interface AuthUser {
     id: number;
     name: string;

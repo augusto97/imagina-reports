@@ -7,6 +7,7 @@ import type { Block } from '@shared/blocks/types';
 import type {
     AgencySettings,
     AgencyTrends,
+    AgencyUpsell,
     AuthUser,
     CatalogEntry,
     Client,
@@ -431,6 +432,12 @@ export function useReports() {
 
 export function useTrends() {
     return useQuery({ queryKey: ['trends'], queryFn: () => get<AgencyTrends>('/trends') });
+}
+
+/* --------------------------------- upsell ---------------------------------- */
+
+export function useUpsell() {
+    return useQuery({ queryKey: ['upsell'], queryFn: () => get<AgencyUpsell>('/upsell') });
 }
 
 /* --------------------------------- system ---------------------------------- */

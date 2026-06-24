@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**💡 PANTALLA DE OPORTUNIDADES DE UPSELL (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner pidió una
+pantalla en el admin para ver las oportunidades de upsell que hasta ahora solo salían en log + webhook `upsell.detected`.
+**Construido (mismo patrón read-only que Tendencias, sin tabla nueva):** (1) `App\Reports\AgencyUpsell` — agregador que,
+por cada sitio con reporte generado, toma el **último reporte**, carga los metric bags actual/anterior (`MetricBagLoader`,
+mismo `forSite($period->previous())` que el listener para reflejar lo que disparó el webhook) + fuentes conectadas, corre
+`UpsellDetector` y agrupa las oportunidades por sitio (más oportunidades primero); summary {sites_count,
+sites_with_opportunities, opportunities_count}. (2) `UpsellController` + ruta auth `GET /api/v1/upsell`. (3) Frontend:
+`UpsellScreen.tsx` (resumen + tarjeta por sitio con presentación **localizada en español** por tipo — crecimiento de
+tráfico/ventas, presión de seguridad, huecos de cobertura uptime/seguridad — con frase explicativa + acción sugerida),
+entrada de nav «Oportunidades» (icono `Lightbulb`), `AdminView` + `useUpsell()` + tipos. Internal-only (el cliente nunca
+lo ve). **274 tests (+3 `UpsellApiTest`: traffic-growth, aislamiento de tenant, auth) + PHPStan max + Pint + tsc + eslint +
+build limpios.** **Pendiente del owner:** tras release, validar en vivo (necesita reportes generados para poblar).
+
+
 **🛡️ CROWDSEC — MODELO PUSH (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** la API de la CrowdSec Console (nube) es
 **de pago**; la LAPI local es gratis pero CrowdSec corre en el VPS de **cada cliente**. El owner eligió (AskUserQuestion)
 el **modelo push**: cada VPS ENVÍA sus datos de forma saliente (sin abrir puertos entrantes — lo más seguro). **Construido:**

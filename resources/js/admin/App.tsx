@@ -6,6 +6,7 @@ import {
     Globe,
     LayoutDashboard,
     LayoutTemplate,
+    Lightbulb,
     LogOut,
     Menu,
     PanelLeftClose,
@@ -31,6 +32,7 @@ import { SitesScreen } from "./screens/SitesScreen";
 import { SystemScreen } from "./screens/SystemScreen";
 import { TemplatesScreen } from "./screens/TemplatesScreen";
 import { TrendsScreen } from "./screens/TrendsScreen";
+import { UpsellScreen } from "./screens/UpsellScreen";
 import { WorkLogsScreen } from "./screens/WorkLogsScreen";
 import { type AdminView, useAdminUi } from "./store";
 
@@ -43,6 +45,7 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: "templates", label: "Plantillas", icon: LayoutTemplate },
     { view: "reports", label: "Reportes", icon: FileBarChart },
     { view: "trends", label: "Tendencias", icon: TrendingUp },
+    { view: "upsell", label: "Oportunidades", icon: Lightbulb },
     { view: "system", label: "Sistema", icon: DownloadCloud },
     { view: "settings", label: "Ajustes", icon: Settings },
 ];
@@ -65,6 +68,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <ReportsScreen />;
         case "trends":
             return <TrendsScreen />;
+        case "upsell":
+            return <UpsellScreen />;
         case "system":
             return <SystemScreen />;
         case "settings":
