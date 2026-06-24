@@ -134,6 +134,34 @@ class RemainingConnectorsTest extends TestCase
         $this->assertStringContainsString('Analytics:Read', (string) $set->error);
     }
 
+    public function test_cloudflare_falls_back_to_core_fields_when_a_field_is_unsupported(): void
+    {
+        // Full query errors on an unsupported field (e.g. pageViews); the core retry
+        // returns the four universally-available fields → main metrics still populate.
+        Http::fake(['*' => Http::sequence()
+            ->push(['data' => null, 'errors' => [['message' => 'unknown field pageViews']]])
+            ->push(['data' => ['viewer' => ['zones' => [[
+                'httpRequests1dGroups' => [[
+                    'dimensions' => ['date' => '2026-06-01'],
+                    'sum' => ['requests' => 6571, 'cachedRequests' => 1285, 'threats' => 650, 'bytes' => 164758298],
+                ]],
+            ]]]]]),
+        ]);
+
+        $set = (new CloudflareConnector)->fetch(
+            $this->source(DataSourceType::Cloudflare, ['zone_id' => 'z1'], ['api_token' => 't']),
+            $this->period(),
+            [],
+        );
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(6571, $set->get('cloudflare.requests'));
+        $this->assertSame(650, $set->get('cloudflare.threats_blocked'));
+        $this->assertSame(164758298, $set->get('cloudflare.bandwidth'));
+        $this->assertSame(19.56, $set->get('cloudflare.cache_ratio')); // 1285/6571
+        $this->assertSame(0, $set->get('cloudflare.unique_visitors')); // extra not in core
+    }
+
     public function test_crowdsec_counts_alerts_and_decisions(): void
     {
         Http::fake(['*' => Http::response([
