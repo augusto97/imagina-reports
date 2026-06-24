@@ -7,6 +7,25 @@
 ---
 
 ## Where I left off (read me first)
+**🔐 MAINWP — SSL + DOMINIOS (extensiones) (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner quería sacar más
+datos de sus extensiones MainWP. Empezamos por **SSL Monitor + Domain Monitor** (su elección). Descubrimiento vía el índice
+de rutas real (`/wp-json/mainwp/v2`, dado por el owner) + comando nuevo `mainwp:probe`: existen endpoints dedicados
+**`GET /ssl-monitor/info`** y **`GET /domain-monitor/profiles`** (datos NO vienen en `/sites`). Forma real validada con su
+panel: ambos devuelven `{success,data:{<site_id>:{...}}}`; SSL trae `valid_to`/`valid_from`/`issuer_o` (fechas `d/m/Y`),
+dominio trae `expiry_date`/`registrar`/`creation_date`. **Implementado en `MainWpConnector`** (mismas credenciales, no es
+fuente nueva): 3 métricas — `mainwp.ssl_days_remaining`, `mainwp.domain_days_remaining` (escalares, días) y `mainwp.ssl_domain`
+(tabla Concepto/Proveedor/Caduca/Días). `lookupExtensionEntry()` busca por id de sitio→URL; `daysUntil()` parsea `d/m/Y` con
+timestamps (robusto entre versiones de Carbon) y trata el centinela `31/12/1969` (sin datos) como null → bloque se oculta.
+Llamadas **gateadas** (solo si el reporte pide esas métricas). Plantilla nueva **«SSL y dominios (MainWP)»**. +2 tests (deriva
+días con tiempo congelado; ignora el centinela). 277 tests + PHPStan max + Pint + tsc + eslint + build limpios. **Pendiente
+del owner:** (1) **OJO FRESCURA** — los `valid_to` reales de SSL salían de oct-2024/ene-2025 (MainWP no re-escanea seguido y
+los certs Let's Encrypt/Google renuevan cada 90 días) → asegurar que la extensión SSL Monitor escanee con frecuencia o los
+días saldrán negativos/erróneos. (2) **regenerar el token MainWP** (quedó en el historial del chat). **Backlog descubierto:**
+MainWP tiene `/monitors` (uptime/heartbeat/incidents propios — posible reemplazo de Better Stack) y `/updates/{dominio}`
+(pendientes por sitio más limpio). **Próximas extensiones a pedir shapes (curl):** Wordfence (`/pro-reports/{dom}/wordfence`),
+Vulnerability Checker (`/pro-reports/{dom}/vulnerable`), backups (UpdraftPlus/WPvivid → `/pro-reports/{dom}/backups`).
+
+
 **💡 PANTALLA DE OPORTUNIDADES DE UPSELL (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner pidió una
 pantalla en el admin para ver las oportunidades de upsell que hasta ahora solo salían en log + webhook `upsell.detected`.
 **Construido (mismo patrón read-only que Tendencias, sin tabla nueva):** (1) `App\Reports\AgencyUpsell` — agregador que,

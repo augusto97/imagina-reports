@@ -494,4 +494,34 @@ export const GALLERY: GalleryTemplate[] = [
             cta(22),
         ],
     },
+    {
+        key: 'ssl-domains',
+        name: 'SSL y dominios (MainWP)',
+        description: 'Tranquilidad anticipada: cuántos días faltan para que caduquen el certificado SSL y el registro del dominio, con emisor, registrador y fechas.',
+        build: () => [
+            header('Certificado y dominio'),
+            spec({
+                type: 'kpi',
+                binding: { source: 'mainwp', metric: 'ssl_days_remaining' },
+                props: { label: 'Días para caducar el SSL' },
+                style: { format: 'number' },
+                layout: { x: 0, y: 2, w: 6, h: 4 },
+            }),
+            spec({
+                type: 'kpi',
+                binding: { source: 'mainwp', metric: 'domain_days_remaining' },
+                props: { label: 'Días para caducar el dominio' },
+                style: { format: 'number' },
+                layout: { x: 6, y: 2, w: 6, h: 4 },
+            }),
+            summary({ x: 0, y: 6, w: 12, h: 4 }),
+            spec({
+                type: 'table',
+                binding: { source: 'mainwp', metric: 'ssl_domain' },
+                props: { title: 'Certificado SSL y dominio' },
+                layout: { x: 0, y: 10, w: 12, h: 6 },
+            }),
+            cta(16),
+        ],
+    },
 ];

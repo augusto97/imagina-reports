@@ -9,6 +9,7 @@ use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use App\Models\Site;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -225,5 +226,59 @@ class MainWpConnectorTest extends TestCase
         Http::fake(['*' => Http::response('', 401)]);
 
         $this->assertFalse((new MainWpConnector)->testConnection($this->source())->successful);
+    }
+
+    public function test_fetch_derives_ssl_and_domain_expiry_from_the_extensions(): void
+    {
+        CarbonImmutable::setTestNow('2026-06-24 12:00:00');
+
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/ssl-monitor/info' => Http::response(['success' => 1, 'data' => [
+                '7' => ['id' => '7', 'url' => 'https://a.test', 'issuer_o' => "Let's Encrypt", 'valid_from' => '01/06/2026', 'valid_to' => '24/07/2026'],
+            ]]),
+            'dash.test/wp-json/mainwp/v2/domain-monitor/profiles' => Http::response(['success' => 1, 'data' => [
+                '7' => ['id' => '7', 'url' => 'https://a.test', 'registrar' => 'GoDaddy.com, LLC', 'expiry_date' => '24/09/2026'],
+            ]]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch(
+            $this->source(),
+            Period::make('2026-06-01', '2026-06-30'),
+            ['mainwp.ssl_days_remaining', 'mainwp.domain_days_remaining', 'mainwp.ssl_domain'],
+        );
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(30, $set->get('mainwp.ssl_days_remaining'));
+        $this->assertSame(92, $set->get('mainwp.domain_days_remaining'));
+
+        $table = $set->get('mainwp.ssl_domain');
+        $this->assertSame(
+            ['Concepto' => 'Certificado SSL', 'Proveedor' => "Let's Encrypt", 'Caduca' => '24/07/2026', 'Días restantes' => 30],
+            $table[0],
+        );
+        $this->assertSame('Dominio', $table[1]['Concepto']);
+        $this->assertSame('GoDaddy.com, LLC', $table[1]['Proveedor']);
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function test_ssl_domain_no_data_sentinel_is_ignored(): void
+    {
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/ssl-monitor/info' => Http::response(['success' => 1, 'data' => [
+                ['url' => 'https://a.test', 'valid_to' => '31/12/1969'],
+            ]]),
+            'dash.test/wp-json/mainwp/v2/domain-monitor/profiles' => Http::response(['success' => 1, 'data' => [
+                ['url' => 'https://a.test', 'expiry_date' => '31/12/1969'],
+            ]]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), ['mainwp.ssl_domain']);
+
+        $this->assertTrue($set->isOk());
+        $this->assertNull($set->get('mainwp.ssl_days_remaining'));
+        $this->assertNull($set->get('mainwp.ssl_domain'));
     }
 }

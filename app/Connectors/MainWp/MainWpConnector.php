@@ -119,6 +119,11 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             new MetricDefinition('mainwp.plugins_active', 'Plugins activos', MetricType::Scalar, 'count'),
             new MetricDefinition('mainwp.health_score', 'Salud del sitio', MetricType::Scalar, 'score'),
             new MetricDefinition('mainwp.child_reports_active', 'MainWP Child Reports activo', MetricType::Scalar, 'bool', description: 'Indica si el sitio hijo registra el historial de actividad (necesario para «Lo que hicimos este mes»).'),
+            // SSL Monitor + Domain Monitor extensions (read via the dashboard's
+            // dedicated /ssl-monitor/info and /domain-monitor/profiles endpoints).
+            new MetricDefinition('mainwp.ssl_days_remaining', 'Días para que caduque el SSL', MetricType::Scalar, 'days', description: 'Días restantes hasta que expire el certificado SSL (extensión MainWP SSL Monitor).'),
+            new MetricDefinition('mainwp.domain_days_remaining', 'Días para que caduque el dominio', MetricType::Scalar, 'days', description: 'Días restantes hasta que expire el registro del dominio (extensión MainWP Domain Monitor).'),
+            new MetricDefinition('mainwp.ssl_domain', 'SSL y dominio (detalle)', MetricType::Table, dimensions: ['concepto'], description: 'Certificado SSL y registro de dominio: proveedor, fecha de caducidad y días restantes.'),
         );
     }
 
@@ -157,6 +162,12 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             $metrics['mainwp.updates_applied'] = count($history);
         }
 
+        // SSL / domain expiry live in dedicated extension endpoints — only fetch them
+        // when a report actually binds to one of those metrics.
+        if ($this->wantsSslDomain($requestedMetrics)) {
+            $metrics = array_merge($metrics, $this->sslDomainMetrics($source, $site));
+        }
+
         return MetricSet::ok($this->only($metrics, $requestedMetrics));
     }
 
@@ -168,6 +179,142 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         return $requestedMetrics === []
             || in_array('mainwp.work_log', $requestedMetrics, true)
             || in_array('mainwp.updates_applied', $requestedMetrics, true);
+    }
+
+    /**
+     * @param  list<string>  $requestedMetrics
+     */
+    private function wantsSslDomain(array $requestedMetrics): bool
+    {
+        if ($requestedMetrics === []) {
+            return true;
+        }
+
+        foreach (['mainwp.ssl_days_remaining', 'mainwp.domain_days_remaining', 'mainwp.ssl_domain'] as $key) {
+            if (in_array($key, $requestedMetrics, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * SSL certificate + domain registration expiry for this site, read from the
+     * MainWP SSL Monitor and Domain Monitor extensions. Each endpoint returns a map
+     * keyed by the managed-site id; we look up this site (by id, then URL) and derive
+     * the days remaining from `valid_to` / `expiry_date` (both `d/m/Y`). The
+     * `31/12/1969` epoch-zero sentinel (the extension has no data yet) yields no value
+     * so the block hides gracefully.
+     *
+     * @param  array<array-key, mixed>  $site
+     * @return array<string, mixed>
+     */
+    private function sslDomainMetrics(DataSource $source, array $site): array
+    {
+        $id = $this->toStr(Arr::get($site, 'id'));
+        $target = $this->targetUrl($source);
+
+        $ssl = $this->lookupExtensionEntry($source, '/ssl-monitor/info', $id, $target);
+        $domain = $this->lookupExtensionEntry($source, '/domain-monitor/profiles', $id, $target);
+
+        $sslValidTo = $this->toStr(Arr::get($ssl, 'valid_to'));
+        $sslDays = $this->daysUntil($sslValidTo);
+
+        $domainExpiry = $this->toStr(Arr::get($domain, 'expiry_date'));
+        $domainDays = $this->daysUntil($domainExpiry);
+
+        $rows = [];
+        $metrics = [];
+
+        if ($sslDays !== null) {
+            $metrics['mainwp.ssl_days_remaining'] = $sslDays;
+            $rows[] = [
+                'Concepto' => 'Certificado SSL',
+                'Proveedor' => $this->toStr(Arr::get($ssl, 'issuer_o')),
+                'Caduca' => $sslValidTo,
+                'Días restantes' => $sslDays,
+            ];
+        }
+
+        if ($domainDays !== null) {
+            $metrics['mainwp.domain_days_remaining'] = $domainDays;
+            $rows[] = [
+                'Concepto' => 'Dominio',
+                'Proveedor' => $this->toStr(Arr::get($domain, 'registrar')),
+                'Caduca' => $domainExpiry,
+                'Días restantes' => $domainDays,
+            ];
+        }
+
+        if ($rows !== []) {
+            $metrics['mainwp.ssl_domain'] = $rows;
+        }
+
+        return $metrics;
+    }
+
+    /**
+     * Fetch an extension endpoint (data keyed by managed-site id) and return this
+     * site's entry, matched by id first then by normalized URL. Empty on any failure.
+     *
+     * @return array<array-key, mixed>
+     */
+    private function lookupExtensionEntry(DataSource $source, string $endpoint, string $id, string $target): array
+    {
+        try {
+            $response = $this->client($source)->get($endpoint);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $data = $response->json('data');
+        if (! is_array($data)) {
+            return [];
+        }
+
+        if ($id !== '' && isset($data[$id]) && is_array($data[$id])) {
+            return $data[$id];
+        }
+
+        foreach ($data as $entry) {
+            if (is_array($entry) && $this->normalizeUrl($this->toStr(Arr::get($entry, 'url'))) === $target) {
+                return $entry;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Whole days from today until a `d/m/Y` date (negative if already past). Returns
+     * null for empty/invalid input or the `31/12/1969` no-data sentinel. Computed from
+     * day-start timestamps so it is robust across Carbon major versions.
+     */
+    private function daysUntil(string $date): ?int
+    {
+        $date = trim($date);
+        if ($date === '' || str_starts_with($date, '31/12/1969')) {
+            return null;
+        }
+
+        try {
+            $expiry = CarbonImmutable::createFromFormat('!d/m/Y', $date);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! $expiry instanceof CarbonImmutable) {
+            return null;
+        }
+
+        $seconds = $expiry->startOfDay()->getTimestamp() - CarbonImmutable::now()->startOfDay()->getTimestamp();
+
+        return (int) round($seconds / 86400);
     }
 
     /**
