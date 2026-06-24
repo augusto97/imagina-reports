@@ -127,6 +127,9 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // Vulnerability Checker extension (Pro Reports `vulnerable` endpoint).
             new MetricDefinition('mainwp.vulnerabilities_count', 'Vulnerabilidades detectadas', MetricType::Scalar, 'count', description: 'Nº de vulnerabilidades conocidas (CVE) en plugins/temas del sitio (extensión MainWP Vulnerability Checker).'),
             new MetricDefinition('mainwp.vulnerabilities_list', 'Vulnerabilidades (detalle)', MetricType::Table, dimensions: ['elemento'], description: 'Plugins/temas con vulnerabilidades conocidas y su fecha de detección.'),
+            // Wordfence extension (Pro Reports `wordfence` endpoint, action=scan).
+            new MetricDefinition('mainwp.wordfence_scans_count', 'Escaneos de Wordfence', MetricType::Scalar, 'count', description: 'Nº de escaneos de seguridad de Wordfence ejecutados en el periodo.'),
+            new MetricDefinition('mainwp.wordfence_scans', 'Escaneos de Wordfence (detalle)', MetricType::Table, dimensions: ['fecha'], description: 'Registro de escaneos de Wordfence: fecha y resultado del análisis.'),
         );
     }
 
@@ -173,8 +176,12 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
 
         // Vulnerability Checker (Pro Reports) — only when the report binds to it.
         if ($this->wantsVulnerabilities($requestedMetrics)) {
-            $idInt = $this->toInt(Arr::get($site, 'id'));
-            $metrics = array_merge($metrics, $this->fetchVulnerabilities($source, $idInt !== 0 ? (string) $idInt : $target, $period));
+            $metrics = array_merge($metrics, $this->fetchVulnerabilities($source, $this->idDomain($site, $target), $period));
+        }
+
+        // Wordfence security scans (Pro Reports, action=scan).
+        if ($this->wantsWordfence($requestedMetrics)) {
+            $metrics = array_merge($metrics, $this->fetchWordfence($source, $this->idDomain($site, $target), $period));
         }
 
         return MetricSet::ok($this->only($metrics, $requestedMetrics));
@@ -324,6 +331,77 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         $seconds = $expiry->startOfDay()->getTimestamp() - CarbonImmutable::now()->startOfDay()->getTimestamp();
 
         return (int) round($seconds / 86400);
+    }
+
+    /**
+     * The site identifier for Pro Reports endpoints: the managed-site numeric id when
+     * present, otherwise the normalized site URL (the routes accept either).
+     *
+     * @param  array<array-key, mixed>  $site
+     */
+    private function idDomain(array $site, string $target): string
+    {
+        $id = $this->toInt(Arr::get($site, 'id'));
+
+        return $id !== 0 ? (string) $id : $target;
+    }
+
+    /**
+     * @param  list<string>  $requestedMetrics
+     */
+    private function wantsWordfence(array $requestedMetrics): bool
+    {
+        if ($requestedMetrics === []) {
+            return true;
+        }
+
+        return in_array('mainwp.wordfence_scans_count', $requestedMetrics, true)
+            || in_array('mainwp.wordfence_scans', $requestedMetrics, true);
+    }
+
+    /**
+     * Wordfence security scans for this site from the MainWP Wordfence extension (Pro
+     * Reports `wordfence` endpoint, `action=scan`). Rows live in `data.sections_data`,
+     * each carrying the bracket tokens `[wordfence.scan.date]`, `[wordfence.scan.time]`
+     * and `[wordfence.scan.details]` (the human "Scan complete — N issues" summary).
+     *
+     * @return array<string, mixed>
+     */
+    private function fetchWordfence(DataSource $source, string $idDomain, Period $period): array
+    {
+        try {
+            $response = $this->client($source)->get("/pro-reports/{$idDomain}/wordfence", [
+                'action' => 'scan',
+                'start' => $period->start->format('Y-m-d'),
+                'end' => $period->end->format('Y-m-d'),
+            ]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $scans = [];
+        foreach ($this->historyRows($response->json('data')) as $row) {
+            $date = trim($this->toStr($row['[wordfence.scan.date]'] ?? '').' '.$this->toStr($row['[wordfence.scan.time]'] ?? ''));
+            $details = $this->toStr($row['[wordfence.scan.details]'] ?? '');
+
+            if ($date === '' && $details === '') {
+                continue;
+            }
+
+            $scans[] = ['Fecha' => $date, 'Detalle' => $details];
+        }
+
+        $metrics = ['mainwp.wordfence_scans_count' => count($scans)];
+
+        if ($scans !== []) {
+            $metrics['mainwp.wordfence_scans'] = $scans;
+        }
+
+        return $metrics;
     }
 
     /**

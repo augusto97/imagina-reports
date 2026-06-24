@@ -290,6 +290,32 @@ class MainWpConnectorTest extends TestCase
         $this->assertSame('elementor', $list[1]['Elemento']);
     }
 
+    public function test_fetch_parses_wordfence_scan_log(): void
+    {
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/pro-reports/*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[
+                ['[wordfence.scan.result]' => '', '[wordfence.scan.date]' => 'junio 21, 2026', '[wordfence.scan.time]' => '4:56 pm', '[wordfence.scan.details]' => 'Exploración completa. Tienes 6 nuevos problemas.'],
+                ['[wordfence.scan.result]' => '', '[wordfence.scan.date]' => 'junio 20, 2026', '[wordfence.scan.time]' => '5:56 pm', '[wordfence.scan.details]' => 'Exploración completa. Tienes 9 nuevos problemas.'],
+            ]]]]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch(
+            $this->source(),
+            Period::make('2026-06-01', '2026-06-30'),
+            ['mainwp.wordfence_scans_count', 'mainwp.wordfence_scans'],
+        );
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(2, $set->get('mainwp.wordfence_scans_count'));
+
+        $scans = $set->get('mainwp.wordfence_scans');
+        $this->assertSame(
+            ['Fecha' => 'junio 21, 2026 4:56 pm', 'Detalle' => 'Exploración completa. Tienes 6 nuevos problemas.'],
+            $scans[0],
+        );
+    }
+
     public function test_ssl_domain_no_data_sentinel_is_ignored(): void
     {
         Http::fake([

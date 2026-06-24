@@ -362,33 +362,34 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame(['date' => '2026-06-02', 'value' => 97.5], $series[1]); // 36 min down
     }
 
-    public function test_virusdie_reads_mainwp_summary(): void
+    public function test_virusdie_reads_scan_count_from_pro_reports(): void
     {
         Http::fake(['*' => Http::response([
-            'malware_found' => 3,
-            'threats_removed' => 5,
-            'infected_sites' => 1,
-            'clean_sites' => 4,
-            'scanned_sites' => 5,
-            'firewall_active' => true,
-            'sites' => [
-                ['name' => 'Site A', 'malware' => 3],
-                ['name' => 'Site B', 'malware' => 0],
-            ],
+            'success' => 1,
+            'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[virusdie.scan.count]' => 4]],
         ])]);
 
-        $set = (new VirusdieConnector)->fetch(
-            $this->source(DataSourceType::Virusdie, ['dashboard_url' => 'https://dash.test'], ['token' => 't']),
-            $this->period(),
-            [],
-        );
+        $source = $this->source(DataSourceType::Virusdie, ['dashboard_url' => 'https://dash.test'], ['token' => 't']);
+        $source->setRelation('site', (new Site)->forceFill(['url' => 'https://comercializadoraomicron.com/']));
 
-        $this->assertSame(3, $set->get('virusdie.malware_found'));
-        $this->assertSame(5, $set->get('virusdie.threats_removed'));
-        $this->assertSame(1, $set->get('virusdie.infected_sites'));
-        $this->assertSame(4, $set->get('virusdie.clean_sites'));
-        $this->assertSame(1, $set->get('virusdie.firewall_active'));
-        $this->assertSame([['label' => 'Site A', 'value' => 3]], $set->get('virusdie.infected_sites_list'));
+        $set = (new VirusdieConnector)->fetch($source, $this->period(), []);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(4, $set->get('virusdie.malware_found'));
+
+        // The endpoint path uses the site domain (scheme/www/slash-insensitive).
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/pro-reports/comercializadoraomicron.com/virusdie')
+            && str_contains($request->url(), 'action=scan'));
+    }
+
+    public function test_virusdie_fails_without_a_site_url(): void
+    {
+        $source = $this->source(DataSourceType::Virusdie, ['dashboard_url' => 'https://dash.test'], ['token' => 't']);
+        $source->setRelation('site', null);
+
+        $set = (new VirusdieConnector)->fetch($source, $this->period(), []);
+
+        $this->assertTrue($set->isFailed());
     }
 
     public function test_a_failed_http_response_yields_a_failed_set(): void
