@@ -385,7 +385,7 @@ class RemainingConnectorsTest extends TestCase
     public function test_virusdie_fails_without_a_site_url(): void
     {
         $source = $this->source(DataSourceType::Virusdie, ['dashboard_url' => 'https://dash.test'], ['token' => 't']);
-        $source->setRelation('site', null);
+        $source->setRelation('site', (new Site)->forceFill(['url' => '']));
 
         $set = (new VirusdieConnector)->fetch($source, $this->period(), []);
 

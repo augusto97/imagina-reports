@@ -316,6 +316,25 @@ class MainWpConnectorTest extends TestCase
         );
     }
 
+    public function test_fetch_reads_backup_and_maintenance_counters(): void
+    {
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/pro-reports/*/backups*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[backup.created.count]' => 3]]]),
+            'dash.test/wp-json/mainwp/v2/pro-reports/*/maintenance*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[maintenance.process.count]' => 5]]]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch(
+            $this->source(),
+            Period::make('2026-06-01', '2026-06-30'),
+            ['mainwp.backups_count', 'mainwp.maintenance_count'],
+        );
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(3, $set->get('mainwp.backups_count'));
+        $this->assertSame(5, $set->get('mainwp.maintenance_count'));
+    }
+
     public function test_ssl_domain_no_data_sentinel_is_ignored(): void
     {
         Http::fake([

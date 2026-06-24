@@ -7,6 +7,30 @@
 ---
 
 ## Where I left off (read me first)
+**🧩 MAINWP — EXTENSIONES COMPLETAS (Vuln/Wordfence/VirusDie/Backups/Maintenance) (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):**
+cerrado el lote de extensiones MainWP que el owner pidió. Método: descubrir el shape real vía curl (índice de rutas +
+endpoints Pro Reports), nunca adivinar (§0). **Aprendizaje clave:** los endpoints `/pro-reports/{id_domain}/{seccion}`
+exigen un `action`; el servidor **revela los válidos en el mensaje de error** (`Required valid action parameter: ...`).
+Implementado en `MainWpConnector` (mismas credenciales, gateado por métrica pedida):
+- **Vulnerability Checker** (`/vulnerable`, sin action): `mainwp.vulnerabilities_count` (= `[vulnerabilities.count]`, p.ej. 37)
+  + `mainwp.vulnerabilities_list` (tabla, parsea las líneas `slug: fecha` del blob HTML, ignora las descripciones CVE).
+- **Wordfence** (`/wordfence?action=scan`; válidos scan/issue/blocked): `mainwp.wordfence_scans_count` + `mainwp.wordfence_scans`
+  (tabla Fecha/Detalle desde `sections_data`, tokens `[wordfence.scan.date/time/details]`). issue/blocked NO implementados
+  (blocked vino vacío, issue sin probar).
+- **Backups** (`/backups?action=created`): `mainwp.backups_count` (= `[backup.created.count]`). Cubre UpdraftPlus + WPvivid.
+- **Maintenance** (`/maintenance?action=process`): `mainwp.maintenance_count` (= `[maintenance.process.count]`).
+- Helper `proReportCount()` compartido para los counters tipo `other_tokens_data`. Plantillas nuevas: «Vulnerabilidades»,
+  «Seguridad Wordfence»; «Mantenimiento» ahora muestra Respaldos/Mantenimientos.
+**🦠 VIRUSDIE ARREGLADO:** el conector apuntaba a `/virusdie/summary` (NO existe en el índice de rutas). Reescrito al endpoint
+real per-site `/pro-reports/{dom}/virusdie?action=scan` → `virusdie.malware_found` (= `[virusdie.scan.count]`). Catálogo
+adelgazado a esa métrica honesta (las viejas eran del endpoint falso); plantilla VirusDie y test actualizados.
+**Database Updater: SIN datos** — esa extensión (buscar/reemplazar BD) no expone reporte Pro Reports (confirmado). Excluida.
+283 tests + PHPStan max + Pint + tsc + build limpios. **Pendiente del owner:** (1) los counts salieron 0 en omicron (sin
+backups/mantenimientos/malware en el rango — normal); validar con un sitio/rango que sí tenga actividad. (2) las tablas de
+detalle (sections_data) de backups/maintenance/virusdie NO se ven con count 0 — si al validar aparece detalle, pasar el JSON
+y lo añado. (3) **regenerar el token MainWP** (quedó en el chat). **Bonus pendiente:** `/sites/{dom}/security` devuelve una
+checklist (wp_uptodate, sslprotocol, sec_outdated_plugins…) → posible métrica «Estado de seguridad» a futuro.
+
 **🔐 MAINWP — SSL + DOMINIOS (extensiones) (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner quería sacar más
 datos de sus extensiones MainWP. Empezamos por **SSL Monitor + Domain Monitor** (su elección). Descubrimiento vía el índice
 de rutas real (`/wp-json/mainwp/v2`, dado por el owner) + comando nuevo `mainwp:probe`: existen endpoints dedicados

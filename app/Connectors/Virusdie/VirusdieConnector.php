@@ -125,7 +125,7 @@ final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
      */
     private function idDomain(DataSource $source): string
     {
-        $url = trim($this->toStr($source->site?->url ?? ''));
+        $url = trim($this->toStr($source->site->url ?? ''));
         if ($url === '') {
             return '';
         }

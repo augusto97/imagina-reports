@@ -130,6 +130,10 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // Wordfence extension (Pro Reports `wordfence` endpoint, action=scan).
             new MetricDefinition('mainwp.wordfence_scans_count', 'Escaneos de Wordfence', MetricType::Scalar, 'count', description: 'Nº de escaneos de seguridad de Wordfence ejecutados en el periodo.'),
             new MetricDefinition('mainwp.wordfence_scans', 'Escaneos de Wordfence (detalle)', MetricType::Table, dimensions: ['fecha'], description: 'Registro de escaneos de Wordfence: fecha y resultado del análisis.'),
+            // Backups (UpdraftPlus/WPvivid via Pro Reports `backups`, action=created)
+            // and the MainWP Maintenance tool (`maintenance`, action=process).
+            new MetricDefinition('mainwp.backups_count', 'Respaldos creados', MetricType::Scalar, 'count', description: 'Nº de copias de seguridad creadas en el periodo (extensiones de backup vía MainWP).'),
+            new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Nº de tareas de mantenimiento ejecutadas en el periodo (herramienta de mantenimiento de MainWP).'),
         );
     }
 
@@ -182,6 +186,20 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         // Wordfence security scans (Pro Reports, action=scan).
         if ($this->wantsWordfence($requestedMetrics)) {
             $metrics = array_merge($metrics, $this->fetchWordfence($source, $this->idDomain($site, $target), $period));
+        }
+
+        // Simple Pro Reports counters (backups created, maintenance tasks run).
+        foreach ([
+            'mainwp.backups_count' => ['backups', 'created', '[backup.created.count]'],
+            'mainwp.maintenance_count' => ['maintenance', 'process', '[maintenance.process.count]'],
+        ] as $metric => [$endpoint, $action, $token]) {
+            if ($this->wants($requestedMetrics, $metric)) {
+                $count = $this->proReportCount($source, $this->idDomain($site, $target), $endpoint, $action, $token, $period);
+
+                if ($count !== null) {
+                    $metrics[$metric] = $count;
+                }
+            }
         }
 
         return MetricSet::ok($this->only($metrics, $requestedMetrics));
@@ -344,6 +362,44 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         $id = $this->toInt(Arr::get($site, 'id'));
 
         return $id !== 0 ? (string) $id : $target;
+    }
+
+    /**
+     * @param  list<string>  $requestedMetrics
+     */
+    private function wants(array $requestedMetrics, string $metric): bool
+    {
+        return $requestedMetrics === [] || in_array($metric, $requestedMetrics, true);
+    }
+
+    /**
+     * A single Pro Reports counter token (e.g. `[backup.created.count]`). These
+     * endpoints all return `data.other_tokens_data` with one count token. Returns null
+     * on any failure or a missing token so the bound block hides gracefully.
+     */
+    private function proReportCount(DataSource $source, string $idDomain, string $endpoint, string $action, string $token, Period $period): ?int
+    {
+        try {
+            $response = $this->client($source)->get("/pro-reports/{$idDomain}/{$endpoint}", [
+                'action' => $action,
+                'start' => $period->start->format('Y-m-d'),
+                'end' => $period->end->format('Y-m-d'),
+            ]);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $tokens = $response->json('data.other_tokens_data');
+
+        if (! is_array($tokens) || ! array_key_exists($token, $tokens)) {
+            return null;
+        }
+
+        return $this->toInt($tokens[$token]);
     }
 
     /**
