@@ -64,13 +64,15 @@ final class HealthScoreCalculator
     }
 
     /**
+     * Malware on the site (VirusDie) is the security signal: any detection drops it.
+     *
      * @param  MetricBags  $bags
      */
     private function securityScore(array $bags): ?float
     {
-        $value = $this->metric($bags, 'mainwp', 'mainwp.ssl_expiring');
+        $malware = $this->metric($bags, 'virusdie', 'virusdie.malware_found');
 
-        return $value === null ? null : ($value > 0 ? 60.0 : 100.0);
+        return $malware === null ? null : ($malware > 0 ? 40.0 : 100.0);
     }
 
     /**
