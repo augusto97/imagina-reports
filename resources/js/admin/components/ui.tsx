@@ -104,7 +104,7 @@ export function Card({
     return (
         <section className={cn('ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm', className)}>
             {(title !== undefined || actions !== undefined) && (
-                <header className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
+                <header className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
                     <div>
                         {title !== undefined && <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">{title}</h2>}
                         {description !== undefined && <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{description}</p>}

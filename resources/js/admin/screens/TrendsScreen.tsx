@@ -84,7 +84,7 @@ export function TrendsScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
-            <div className="ir-grid ir-grid-cols-3 ir-gap-4">
+            <div className="ir-grid ir-grid-cols-1 ir-gap-4 sm:ir-grid-cols-3">
                 <Card title="Sitios">
                     <p className="ir-text-3xl ir-font-semibold">{trends.summary.sites_count}</p>
                 </Card>
