@@ -108,9 +108,10 @@ class ReportGeneratorTest extends TestCase
         $this->assertNull($data['kpi_visits']['previous']);
         $this->assertSame(7, $data['kpi_updates']['value']);
 
-        // Health score: updates(3→85) + security(100) re-weighted ≈ 93; also on the block.
-        $this->assertSame(93, $report->health_score);
-        $this->assertSame(93, $data['health']);
+        // Health score: only the updates signal is present (3 pending → 85); security
+        // (VirusDie) and the rest aren't connected, so it re-weights to 85.
+        $this->assertSame(85, $report->health_score);
+        $this->assertSame(85, $data['health']);
 
         $visible = $this->visibleIds($report);
         $this->assertContains('header', $visible);

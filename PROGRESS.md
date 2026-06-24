@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**❤️ HEALTH SCORE — SEÑAL DE SEGURIDAD VIVA (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner preguntó
+por qué el gauge de salud daba siempre 100. Explicación: combina uptime(30%)+updates(25%)+seguridad(25%)+
+rendimiento(20%) re-pesando lo que falta; para un sitio sano con solo Better Stack (99.9%) + 0 updates pendientes da
+~100. **Bug encontrado:** la señal de **seguridad** apuntaba a **`mainwp.ssl_expiring`**, métrica que **eliminé** en la
+reescritura por-sitio de MainWP → estaba muerta (siempre null/ignorada). La reemplacé por **`virusdie.malware_found`**
+(malware detectado → 40; limpio → 100; sin VirusDie → no cuenta). Ahora el score reacciona a seguridad real. Tests
+actualizados (calculator + ReportGenerator: el caso mixto pasa de 93 a 85, más honesto al no regalar 100 de seguridad).
+259 tests + PHPStan + Pint limpios.
+
 **🌎 ZONA HORARIA POR CLIENTE → INCIDENTES EN HORA LOCAL (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** las
 fechas de incidentes salían en UTC; el owner las quiere en la hora del cliente (depende de su país). Añadido campo
 **`timezone`** (IANA) al **cliente**: migración `ir_clients.timezone` (nullable), fillable/resource/validación
