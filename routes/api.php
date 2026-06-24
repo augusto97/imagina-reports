@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
+use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicReportController;
@@ -49,6 +50,13 @@ Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
     ->name('api.public.reports.show');
 Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
     ->name('api.public.reports.periods');
+
+// Push ingest (CLAUDE.md §9 — CrowdSec push model). Public: each client VPS POSTs its
+// aggregated data outbound, authenticated by the source's per-source push token (no
+// inbound port on the client server). Throttled to blunt token-guessing.
+Route::post('/ingest/{token}', [IngestController::class, 'store'])
+    ->middleware('throttle:120,1')
+    ->name('api.ingest.store');
 
 // SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');

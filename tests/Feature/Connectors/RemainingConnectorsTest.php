@@ -183,6 +183,37 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame([['label' => 'CN', 'value' => 2]], $set->get('crowdsec.attacks_by_country'));
     }
 
+    public function test_crowdsec_normalizes_a_pushed_payload_like_the_polled_path(): void
+    {
+        // The push model (client VPS → cscli -o json → outbound POST) must yield the
+        // same metric bag as polling the LAPI, so the connector stays the normalizer.
+        $set = (new CrowdSecConnector)->fromPushedPayload([
+            'alerts' => [
+                ['scenario' => 'http-probing', 'events_count' => 5, 'source' => ['value' => '9.9.9.9', 'cn' => 'US'], 'decisions' => [['id' => 1]]],
+                ['scenario' => 'http-probing', 'events_count' => 2, 'source' => ['value' => '9.9.9.9', 'cn' => 'US'], 'decisions' => []],
+            ],
+        ]);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(2, $set->get('crowdsec.alerts'));
+        $this->assertSame(1, $set->get('crowdsec.attacks_blocked'));
+        $this->assertSame(7, $set->get('crowdsec.events'));
+        $this->assertSame(1, $set->get('crowdsec.unique_ips'));
+        $this->assertSame([['label' => 'http-probing', 'value' => 2]], $set->get('crowdsec.attack_types'));
+    }
+
+    public function test_crowdsec_accepts_a_bare_alerts_array_too(): void
+    {
+        // `cscli alerts list -o json` emits a bare array; the connector accepts it directly.
+        $set = (new CrowdSecConnector)->fromPushedPayload([
+            ['scenario' => 'ssh-bf', 'events_count' => 3, 'source' => ['value' => '1.2.3.4', 'cn' => 'CN'], 'decisions' => [['id' => 1]]],
+        ]);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(1, $set->get('crowdsec.alerts'));
+        $this->assertSame(1, $set->get('crowdsec.attacks_blocked'));
+    }
+
     public function test_better_uptime_reads_sla(): void
     {
         Http::fake(['*' => Http::response([

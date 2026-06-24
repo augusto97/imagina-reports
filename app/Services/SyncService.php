@@ -33,6 +33,16 @@ final readonly class SyncService
         // so a single failing source never breaks the pipeline.
         $metricSet = $connector->fetch($source, $period, $requestedMetrics);
 
+        return $this->record($source, $period, $metricSet);
+    }
+
+    /**
+     * Persist an already-normalized MetricSet as the period's snapshot and record the
+     * source outcome. Shared by the polled sync() above and the push ingest endpoint
+     * (CLAUDE.md §9), so both paths produce identical snapshots.
+     */
+    public function record(DataSource $source, Period $period, MetricSet $metricSet): MetricSnapshot
+    {
         $snapshot = $this->store($source, $period, $metricSet);
 
         $this->recordOutcome($source, $metricSet);

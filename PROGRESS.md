@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🛡️ CROWDSEC — MODELO PUSH (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** la API de la CrowdSec Console (nube) es
+**de pago**; la LAPI local es gratis pero CrowdSec corre en el VPS de **cada cliente**. El owner eligió (AskUserQuestion)
+el **modelo push**: cada VPS ENVÍA sus datos de forma saliente (sin abrir puertos entrantes — lo más seguro). **Construido:**
+(1) migración `push_token` (string único) en `ir_data_sources`; (2) interfaz `Connectors\Contracts\ReceivesPushedData`
+(`fromPushedPayload(array): MetricSet`), implementada por `CrowdSecConnector` (extraje `normalizeAlerts()` compartido por
+`fetch()` y push; acepta `{alerts:[...]}` o array crudo); (3) `SyncService::record()` público (store+outcome) reusado por
+poll e ingesta; (4) **`IngestController`** + ruta pública throttled `POST /api/v1/ingest/{token}` (sin Sanctum; busca la
+fuente por `push_token` — AgencyScope es no-op sin tenant; normaliza vía conector y guarda snapshot del mes actual, o el
+período que mande el body); (5) `DataSourceController::decoratePush()` genera el token perezosamente y expone
+`is_push`/`push_token`/`ingest_url` (resource); (6) `scripts/crowdsec-push.sh` (cron: `cscli alerts list -o json` →
+POST saliente); (7) UI `PushInstallPanel` en DataSourcesScreen (URL + cron copiables, oculta «Probar» en push); setupGuide
+reescrita. 271 tests + PHPStan max + Pint + tsc + eslint + vitest limpios. **Pendiente del owner:** desplegar, instalar el
+script en un VPS de cliente con el cron, y verificar que llega el snapshot (estado pasa a «ok»). **Nota:** la vía bouncer
+key + `/v1/decisions` (LAPI directa) NO se implementó — el push usa alerts; si más adelante quiere LAPI directa por red
+privada (Tailscale), hay que adaptar auth `X-Api-Key`.
+
 **🟧 CLOUDFLARE 401 — TOKEN TRIM + MENSAJE ACCIONABLE (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner
 probando Cloudflare ahora recibe `HTTP 401`. Causa: auth (token inválido/caducado o **pegado con espacio/salto de línea**
 → `Http::withToken` lo manda tal cual → Bearer malformado → 401). **Fix en `CloudflareConnector`:** (1) `trim()` del

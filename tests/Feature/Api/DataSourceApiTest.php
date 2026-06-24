@@ -131,6 +131,27 @@ class DataSourceApiTest extends TestCase
         $this->assertDatabaseMissing('ir_data_sources', ['id' => $source->id]);
     }
 
+    public function test_index_mints_and_exposes_a_push_token_for_crowdsec(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::CrowdSec,
+            'config' => [],
+            'credentials' => [],
+            'push_token' => null,
+        ]);
+
+        $this->getJson("/api/v1/sites/{$site->id}/data-sources")
+            ->assertOk()
+            ->assertJsonPath('0.is_push', true)
+            ->assertJsonPath('0.ingest_url', fn (?string $url): bool => is_string($url) && str_contains($url, '/api/v1/ingest/'));
+
+        // The token was generated lazily and persisted, so the install snippet is stable.
+        $this->assertNotNull($source->refresh()->push_token);
+    }
+
     public function test_a_data_source_of_another_agency_is_not_reachable(): void
     {
         $other = Agency::factory()->create();

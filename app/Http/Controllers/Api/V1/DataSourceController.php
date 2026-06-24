@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\ConnectorRegistry;
+use App\Connectors\Contracts\ReceivesPushedData;
 use App\Enums\DataSourceStatus;
 use App\Enums\DataSourceType;
 use App\Http\Controllers\Controller;
@@ -16,6 +17,7 @@ use App\Models\MetricSnapshot;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Str;
 
 /**
  * Data sources for a site (CLAUDE.md §8/§9), plus the "Test connection" action that
@@ -35,9 +37,32 @@ final class DataSourceController extends Controller
             if ($source->type === DataSourceType::MainWp) {
                 $source->setAttribute('child_reports_active', $this->childReportsActive($source));
             }
+
+            $this->decoratePush($source);
         }
 
         return DataSourceResource::collection($sources);
+    }
+
+    /**
+     * Push-capable sources (CrowdSec) are configured by installing an outbound push on
+     * the client VPS, not by polling — so they need a per-source push token + the ingest
+     * URL surfaced to the admin. Generate the token lazily so existing sources get one
+     * the first time they're listed, then expose both for the install snippet.
+     */
+    private function decoratePush(DataSource $source): void
+    {
+        if (! $this->registry->for($source) instanceof ReceivesPushedData) {
+            return;
+        }
+
+        if ($source->push_token === null || $source->push_token === '') {
+            $source->forceFill(['push_token' => Str::random(48)])->save();
+        }
+
+        $source->setAttribute('is_push', true);
+        $source->setAttribute('push_token', $source->push_token);
+        $source->setAttribute('ingest_url', route('api.ingest.store', ['token' => $source->push_token]));
     }
 
     private function childReportsActive(DataSource $source): ?bool
@@ -60,6 +85,9 @@ final class DataSourceController extends Controller
     public function store(StoreDataSourceRequest $request, Site $site): JsonResponse
     {
         $source = $site->dataSources()->create($request->validated());
+
+        // Mint the push token immediately so the install snippet is available right away.
+        $this->decoratePush($source);
 
         return DataSourceResource::make($source)->response()->setStatusCode(201);
     }

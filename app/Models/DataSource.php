@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property DataSourceType $type
  * @property array<string, mixed>|null $credentials
  * @property array<string, mixed>|null $config
+ * @property string|null $push_token
  * @property DataSourceStatus $status
  * @property Carbon|null $last_synced_at
  * @property string|null $last_error
@@ -52,6 +53,7 @@ class DataSource extends Model
         'type',
         'credentials',
         'config',
+        'push_token',
         'status',
         'last_synced_at',
         'last_error',
