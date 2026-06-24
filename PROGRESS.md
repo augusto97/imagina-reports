@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🔑 GA4/GSC — BUG DE CREDENCIALES (cuenta de servicio) ARREGLADO (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):**
+el owner no podía conectar GA4: «GA4 authentication failed: json key is missing the client_email field». Causa: el
+formulario guarda el JSON pegado como **string** bajo `credentials['service_account']`, pero el conector pasaba **todo
+el bag de credenciales** (`['service_account' => '<string>']`) al proveedor de token, que espera el **JSON de la cuenta
+de servicio ya decodificado** (con `client_email`/`private_key`). Por eso nunca encontraba `client_email` (los tests
+pasaban porque ponían los campos SA al nivel raíz de credentials). **Fix:** helper `serviceAccount()` en Ga4 y Gsc que
+extrae `credentials['service_account']` y lo **json_decodifica** si es string (acepta también el formato ya-decodificado).
+Se amplió el tipo a `array<array-key,mixed>` en interfaz/impl/fake. Test nuevo (decodifica string → entrega SA con
+client_email). 261 tests + PHPStan + Pint limpios. **Nota al owner:** asegúrate de pegar el JSON de **cuenta de
+servicio** (tiene `client_email`), no el de cliente OAuth.
+
 **🟩 BETTER STACK — BARRA VERDE/ROJA DE DISPONIBILIDAD POR DÍA (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):**
 el owner pidió la barra verde/roja de uptime del status page. La derivo de los **incidentes** (sin llamada API extra,
 1 sola al endpoint `/incidents` ya usado): nueva serie **`betteruptime.uptime_by_date`** = disponibilidad diaria

@@ -317,7 +317,28 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
 
     private function token(DataSource $source): string
     {
-        return $this->tokenProvider->accessToken($source->credentials ?? [], self::SCOPE);
+        return $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+    }
+
+    /**
+     * The decoded service-account JSON. The admin form stores the pasted JSON as a
+     * string under the `service_account` credential, so decode it; also accept the
+     * JSON fields stored directly on the credentials bag (already-decoded form).
+     *
+     * @return array<array-key, mixed>
+     */
+    private function serviceAccount(DataSource $source): array
+    {
+        $credentials = $source->credentials ?? [];
+        $raw = $credentials['service_account'] ?? $credentials;
+
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($raw) ? $raw : [];
     }
 
     private function siteUrl(DataSource $source): string

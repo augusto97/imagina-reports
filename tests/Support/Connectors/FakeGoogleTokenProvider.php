@@ -12,6 +12,9 @@ use Throwable;
  */
 final class FakeGoogleTokenProvider implements GoogleTokenProvider
 {
+    /** @var array<array-key, mixed>|null The last service account it was handed. */
+    public ?array $lastServiceAccount = null;
+
     public function __construct(
         private readonly string $token = 'fake-token',
         private readonly ?Throwable $throws = null,
@@ -19,6 +22,8 @@ final class FakeGoogleTokenProvider implements GoogleTokenProvider
 
     public function accessToken(array $serviceAccount, string $scope): string
     {
+        $this->lastServiceAccount = $serviceAccount;
+
         if ($this->throws !== null) {
             throw $this->throws;
         }
