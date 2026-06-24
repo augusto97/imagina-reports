@@ -1,7 +1,7 @@
 # Imagina Reports
 
 Multi-tenant platform that unifies an agency's tooling (MainWP, Google Analytics, Search Console,
-Cloudflare, CrowdSec, VirusDie, Better Stack, WooCommerce — and later Imagina Audit) into a single
+Cloudflare, CrowdSec, VirusDie, Better Stack, WooCommerce) into a single
 **branded, narrated client report**. Its purpose is client **retention**: making invisible technical
 work visible so clients understand the value of their support plan.
 

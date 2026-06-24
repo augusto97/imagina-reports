@@ -2,7 +2,7 @@
 
 > **Imagina Reports** is a multi-tenant SaaS platform that unifies data from a web agency's
 > tooling (MainWP, Google Analytics, Search Console, Cloudflare, CrowdSec, VirusDie, Better Stack,
-> WooCommerce, and — later — Imagina Audit) into a single **branded, narrated client report**.
+> and WooCommerce) into a single **branded, narrated client report**.
 > Its purpose is client **retention**: making invisible technical work visible so clients
 > understand the value of their support plan and keep paying for it.
 >
@@ -179,8 +179,8 @@ every query is automatically tenant-filtered. `id` is an immutable BIGINT PK.
 | `ir_schedules` | id, agency_id, report_definition_id, cadence (monthly/weekly), next_run_at |
 | `ir_app_releases` | id, version, channel, bundle_url, checksum, released_at (for the self-updater) |
 
-> **`ir_data_sources.type` is an extensible enum.** Adding Imagina Audit later = a new enum value
-> `imagina_audit` + a new connector class. No schema refactor.
+> **`ir_data_sources.type` is an extensible enum.** Adding a new source later = a new enum value
+> + a new connector class. No schema refactor.
 
 ---
 
@@ -283,7 +283,6 @@ GET    /api/v1/public/reports/{public_token}    # data for the interactive clien
 | `virusdie` | via **MainWP Virusdie extension** | (none extra; uses mainwp source) | Malware scan results, firewall status | `SecuritySection` (malware) |
 | `betteruptime` | Bearer token | monitor_id(s) | Uptime %, SLA, incidents, history | `UptimeSection` |
 | `woocommerce` | consumer key/secret (read-only) | store_url, ck, cs | Revenue, orders, top products (`/wc/v3/reports`) | `SalesSection` |
-| `imagina_audit` *(Phase 3)* | Imagina Audit REST API | audit_url, token | 7-module audit metrics + **WPVulnerability** CVEs | `AuditSection` |
 | `database` *(Phase 3)* | DB credentials (read-only) | host, db, user, pass, **aggregate queries** per metric | Aggregated results of `GROUP BY` queries run **on the client's DB** | configurable / `CustomSection` |
 | `endpoint` / `csv` *(Phase 3)* | token / URL | url, mapping | Any external endpoint or CSV returning data | configurable / `CustomSection` |
 
@@ -478,7 +477,6 @@ ServerAvatar **custom webroot** points to `current/public`.
 - [ ] Self-updater (`UpdateManager`) + GitHub Actions release pipeline + rollback.
 
 ### Phase 3 — Intelligence & differentiation
-- [ ] **Imagina Audit + WPVulnerability** connector + `AuditSection`.
 - [ ] **Database / CSV / endpoint connector** (`type = 'database'`) — aggregate-at-source queries
       configurable per client. Positioned for clients over-paying for Power BI licenses who only need
       branded, scheduled dashboards (not a BI engine).

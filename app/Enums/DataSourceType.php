@@ -6,8 +6,8 @@ namespace App\Enums;
 
 /**
  * The extensible set of data source types (CLAUDE.md §5/§9). Adding a source
- * later (e.g. imagina_audit) is a new case here + a new connector class — no
- * schema refactor. Stored as a string column on ir_data_sources.
+ * later is a new case here + a new connector class — no schema refactor.
+ * Stored as a string column on ir_data_sources.
  */
 enum DataSourceType: string
 {
@@ -19,7 +19,6 @@ enum DataSourceType: string
     case Virusdie = 'virusdie';
     case BetterUptime = 'betteruptime';
     case WooCommerce = 'woocommerce';
-    case ImaginaAudit = 'imagina_audit';
     case Database = 'database';
     case Endpoint = 'endpoint';
 
@@ -34,7 +33,6 @@ enum DataSourceType: string
             self::Virusdie => 'Virusdie',
             self::BetterUptime => 'Better Stack (Uptime)',
             self::WooCommerce => 'WooCommerce',
-            self::ImaginaAudit => 'Imagina Audit',
             self::Database => 'Database',
             self::Endpoint => 'Endpoint / CSV',
         };

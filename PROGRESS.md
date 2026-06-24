@@ -886,12 +886,12 @@ history (last 12 periods) + an at-a-glance comparison (worst health first) + age
 cards, a Recharts multi-site health line chart (merged across periods), and a client-comparison table; new nav
 entry + `useTrends` hook + `AgencyTrends`/`SiteTrend` types. **151 PHP tests green, PHPStan max clean, Pint
 clean; TS typecheck/lint/build clean.**
-**Next action:** Phases 1–3 are functionally complete. Remaining work is owner-gated / polish:
-(1) ⚠️ **Imagina Audit connector** — DEFERRED until its API exists (owner). (2) ⚠️ Confirm the `upsell.detected`
-webhook event name (extends §8's three named events — Open Questions). (3) Validate every connector's real API
-shapes against live accounts (Open Questions). (4) Low-priority FE polish: admin "System → Updates" screen
-(§11.1) consuming the update API; surface anomaly/upsell signals in the admin UI. (5) Owner deploy steps
-(Chromium path, GA4/GSC service-account readers).
+**Next action:** Phases 1–3 are functionally COMPLETE (Imagina Audit removed from scope 2026-06-24, owner —
+not applicable to these reports). Remaining work is owner-gated / polish:
+(1) ⚠️ Confirm the `upsell.detected` webhook event name (extends §8's three named events — Open Questions).
+(2) Validate every connector's real API shapes against live accounts (Open Questions). (3) Low-priority FE
+polish: admin "System → Updates" screen (§11.1) consuming the update API; surface anomaly/upsell signals in
+the admin UI. (4) Owner deploy steps (Chromium path, GA4/GSC service-account readers).
 
 ---
 
@@ -917,7 +917,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 - [x] (2026-06-18) **P3·2 — Anomaly detection + outbound webhooks** (`AnomalyDetector` + report lifecycle events/listeners + `WebhookDispatcher`). — f321d27
 - [x] (2026-06-18) **P3·3 — Upsell-opportunity detector** (`UpsellDetector` + `DetectUpsellOpportunities` listener + `upsell.detected` webhook). — f9cc34e
 - [x] (2026-06-18) **P3·4 — Advanced comparisons + multi-client trends dashboard** (`AgencyTrends` + `GET /trends` + admin "Tendencias" screen). — 7c9497b
-- [ ] **(DEFERRED)** Imagina Audit + WPVulnerability connector + `AuditSection` — owner: API doesn't exist yet.
+- ~~Imagina Audit + WPVulnerability connector~~ — **REMOVED (2026-06-24, owner): out of scope for these reports.** Enum case `imagina_audit` + all doc references deleted; **Phase 3 is now fully complete.**
 
 ### P3·4 — Advanced comparisons + multi-client trends dashboard ✅ DONE (2026-06-18)
 - [x] `App\Reports\AgencyTrends`: aggregates frozen `ir_reports` (tenant-scoped) into per-site health-score series (last 12 periods) + worst-first comparison + agency summary (sites/reports/avg health).
@@ -1307,9 +1307,9 @@ start-from-default-template. Needs a release to reach the live VPS.
   `config('services.anthropic')`. Implement `AiReportBuilder` behind an `AiClient` interface (Phase 2).
 - **Chromium path on the VPS:** verify the real binary path when installing on ServerAvatar/OLS; set
   `BROWSERSHOT_CHROME_PATH` accordingly.
-- **Imagina Audit API (Phase 3): DEFERRED (2026-06-18).** Owner confirmed that API does not exist yet and
-  will be built later. Skip the `imagina_audit` connector + `AuditSection` until then (the `DataSourceType`
-  enum case already exists, so it slots in with no schema change). Phase 3 proceeds with the other items.
+- **Imagina Audit connector: REMOVED FROM SCOPE (2026-06-24, owner).** Not applicable to these reports.
+  The `imagina_audit` enum case and all CLAUDE.md/README/PROGRESS references were deleted. Phase 3 is
+  complete without it. (If ever needed, it slots back in as a new enum case + connector — no schema change.)
 - **GA4/GSC Service Account:** owner must add the SA email as a reader in each GA4 property and GSC property.
 - **`upsell.detected` webhook event (P3·3) — confirm with owner.** §8 names three outbound events
   (`report.generated`, `report.sent`, `anomaly.detected`). The upsell detector emits a 4th, `upsell.detected`,
