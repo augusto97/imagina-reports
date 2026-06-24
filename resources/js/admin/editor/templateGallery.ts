@@ -353,15 +353,9 @@ export const GALLERY: GalleryTemplate[] = [
             }),
             spec({
                 type: 'table',
-                binding: { source: 'cloudflare', metric: 'top_threat_sources' },
-                props: { title: 'Tipos de amenaza' },
-                layout: { x: 0, y: 20, w: 6, h: 7 },
-            }),
-            spec({
-                type: 'table',
                 binding: { source: 'cloudflare', metric: 'requests_by_country' },
                 props: { title: 'Peticiones por país' },
-                layout: { x: 6, y: 20, w: 6, h: 7 },
+                layout: { x: 0, y: 20, w: 12, h: 7 },
             }),
             summary({ x: 0, y: 27, w: 12, h: 4 }),
             cta(31),
