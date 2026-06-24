@@ -69,7 +69,6 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             new MetricDefinition('cloudflare.bandwidth_by_date', 'Ancho de banda por día', MetricType::Series, 'bytes'),
             new MetricDefinition('cloudflare.threats_by_country', 'Amenazas por país', MetricType::Table, dimensions: ['country']),
             new MetricDefinition('cloudflare.requests_by_country', 'Peticiones por país', MetricType::Table, dimensions: ['country']),
-            new MetricDefinition('cloudflare.top_threat_sources', 'Tipos de amenaza', MetricType::Table, dimensions: ['source']),
         );
     }
 
@@ -153,8 +152,6 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         $threatsByCountry = [];
         /** @var array<string, int> $requestsByCountry */
         $requestsByCountry = [];
-        /** @var array<string, int> $threatSources */
-        $threatSources = [];
 
         foreach ($groups as $group) {
             $sum = $this->arrayOf(Arr::get($group, 'sum'));
@@ -185,14 +182,6 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
                 $threatsByCountry[$country] = ($threatsByCountry[$country] ?? 0) + $this->toInt(Arr::get($entry, 'threats'));
                 $requestsByCountry[$country] = ($requestsByCountry[$country] ?? 0) + $this->toInt(Arr::get($entry, 'requests'));
             }
-
-            foreach ($this->listOf(Arr::get($sum, 'threatPathingMap')) as $entry) {
-                $source = $this->toStr(Arr::get($entry, 'pathingSource'));
-                if ($source === '') {
-                    continue;
-                }
-                $threatSources[$source] = ($threatSources[$source] ?? 0) + $this->toInt(Arr::get($entry, 'requests'));
-            }
         }
 
         return MetricSet::ok([
@@ -209,7 +198,6 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             'cloudflare.bandwidth_by_date' => $bandwidthByDate,
             'cloudflare.threats_by_country' => $this->topTable($threatsByCountry),
             'cloudflare.requests_by_country' => $this->topTable($requestsByCountry),
-            'cloudflare.top_threat_sources' => $this->topTable($threatSources),
         ]);
     }
 
@@ -276,11 +264,13 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         $credentials = $source->credentials ?? [];
 
         // The "full" set adds fields some plans don't expose (uniques, pageViews,
-        // encryptedRequests, country/threat maps). GraphQL fails the whole query on any
-        // unknown field, so fetch() falls back to the core set, which every plan has.
+        // encryptedRequests, country map). GraphQL fails the whole query on any unknown
+        // field, so fetch() falls back to the core set, which every plan has.
+        // Note: `threatPathingMap { pathingSource }` is intentionally omitted — that field
+        // is not part of the httpRequests1dGroups schema and rejects the whole query.
         $groupExtra = $full ? 'uniq { uniques }' : '';
         $sumExtra = $full
-            ? 'pageViews encryptedRequests countryMap { clientCountryName requests threats } threatPathingMap { pathingSource requests }'
+            ? 'pageViews encryptedRequests countryMap { clientCountryName requests threats }'
             : '';
 
         $graphql = <<<GQL
