@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🟩 BETTER STACK — BARRA VERDE/ROJA DE DISPONIBILIDAD POR DÍA (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):**
+el owner pidió la barra verde/roja de uptime del status page. La derivo de los **incidentes** (sin llamada API extra,
+1 sola al endpoint `/incidents` ya usado): nueva serie **`betteruptime.uptime_by_date`** = disponibilidad diaria
+(100 − solape de downtime/86400) por cada día del periodo. El `ChartBlock` del renderer ahora colorea **cada barra por
+umbral** (`style.threshold`: ≥ umbral → verde `#16a34a`, debajo → rojo `#dc2626`) y fija el eje Y a 0–100 — réplica de
+la barra del status page. Template «Disponibilidad y SLA»: barra «Disponibilidad por día (%)» (umbral 100) arriba, luego
+la gráfica de respuesta, media e incidentes. Refactoricé incidentes para parsear una sola vez (tabla + barra comparten
+el fetch). Tests +1 (serie diaria: 30 puntos, día con 36 min caído → 97.5%). 260 tests + PHPStan + Pint + TS+build
+limpios.
+
 **❤️ HEALTH SCORE — SEÑAL DE SEGURIDAD VIVA (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner preguntó
 por qué el gauge de salud daba siempre 100. Explicación: combina uptime(30%)+updates(25%)+seguridad(25%)+
 rendimiento(20%) re-pesando lo que falta; para un sitio sano con solo Better Stack (99.9%) + 0 updates pendientes da
