@@ -7,6 +7,15 @@
 ---
 
 ## Where I left off (read me first)
+**🟧 CLOUDFLARE 401 — TOKEN TRIM + MENSAJE ACCIONABLE (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner
+probando Cloudflare ahora recibe `HTTP 401`. Causa: auth (token inválido/caducado o **pegado con espacio/salto de línea**
+→ `Http::withToken` lo manda tal cual → Bearer malformado → 401). **Fix en `CloudflareConnector`:** (1) `trim()` del
+`api_token` y `zone_id` en `query()` (cubre el whitespace al pegar). (2) helper `httpFailureMessage()`: 401/403 → mensaje
+claro («token inválido, caducado o sin permiso… crea/renueva un API token con permiso Zone Analytics:Read y pégalo sin
+espacios») en vez del crudo «HTTP 401»; usado en `testConnection()` y `fetch()`. Tests nuevos (401 accionable + trim).
+265 tests + PHPStan + Pint limpios. **Pendiente del owner:** re-pegar/renovar el token (el merge de `update()` mantiene
+el secreto si lo dejas en blanco, así que para cambiarlo hay que escribir el nuevo) y re-sincronizar.
+
 **📱 APP RESPONSIVE (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner reportó que el admin, los
 reportes y en general toda la app no eran responsive. **Cambios (frontend only):** (1) **Shell admin** (`App.tsx`):
 sidebar fijo → en `<lg` es un **drawer off-canvas** con backdrop + barra superior móvil con hamburguesa (`Menu`/`X`);
