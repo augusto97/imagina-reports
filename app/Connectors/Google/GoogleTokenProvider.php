@@ -12,7 +12,7 @@ namespace App\Connectors\Google;
 interface GoogleTokenProvider
 {
     /**
-     * @param  array<string, mixed>  $serviceAccount  Decoded service-account JSON.
+     * @param  array<array-key, mixed>  $serviceAccount  Decoded service-account JSON.
      */
     public function accessToken(array $serviceAccount, string $scope): string;
 }

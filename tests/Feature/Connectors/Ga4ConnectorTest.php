@@ -46,6 +46,26 @@ class Ga4ConnectorTest extends TestCase
         $this->assertTrue($catalog->has('ga4.top_pages'));
     }
 
+    public function test_it_decodes_a_json_string_service_account_credential(): void
+    {
+        // The admin form stores the pasted JSON as a string under `service_account`.
+        $json = json_encode(['type' => 'service_account', 'client_email' => 'sa@example.iam', 'private_key' => 'k']);
+        $source = DataSource::factory()->make([
+            'agency_id' => 1,
+            'type' => DataSourceType::Ga4,
+            'config' => ['property_id' => '123456789'],
+            'credentials' => ['service_account' => $json],
+        ]);
+
+        Http::fake([self::RUN_REPORT => Http::response(['rows' => [['metricValues' => [['value' => '1']]]]])]);
+
+        $tokens = new FakeGoogleTokenProvider;
+        $this->connector($tokens)->fetch($source, $this->period(), ['ga4.sessions']);
+
+        // The connector decoded the JSON and handed the real SA (with client_email) to auth.
+        $this->assertSame('sa@example.iam', $tokens->lastServiceAccount['client_email'] ?? null);
+    }
+
     public function test_fetch_parses_a_scalar_metric(): void
     {
         Http::fake([self::RUN_REPORT => Http::response([

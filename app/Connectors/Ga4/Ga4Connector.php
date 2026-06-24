@@ -81,7 +81,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         try {
-            $token = $this->tokenProvider->accessToken($source->credentials ?? [], self::SCOPE);
+            $token = $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
         } catch (Throwable $e) {
             return ConnectionResult::failure('GA4 authentication failed: '.$e->getMessage());
         }
@@ -123,7 +123,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         try {
-            $token = $this->tokenProvider->accessToken($source->credentials ?? [], self::SCOPE);
+            $token = $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
         } catch (Throwable $e) {
             return MetricSet::failed('GA4 authentication failed: '.$e->getMessage());
         }
@@ -170,6 +170,27 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         $value = Arr::get($source->config ?? [], 'property_id', '');
 
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * The decoded service-account JSON. The admin form stores the pasted JSON as a
+     * string under the `service_account` credential, so decode it; we also accept the
+     * JSON fields stored directly on the credentials bag (already-decoded form).
+     *
+     * @return array<array-key, mixed>
+     */
+    private function serviceAccount(DataSource $source): array
+    {
+        $credentials = $source->credentials ?? [];
+        $raw = $credentials['service_account'] ?? $credentials;
+
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($raw) ? $raw : [];
     }
 
     /**
