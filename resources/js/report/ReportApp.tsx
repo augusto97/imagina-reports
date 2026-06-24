@@ -29,7 +29,7 @@ export function ReportApp({ token }: { token: string }): ReactElement {
     }
 
     return (
-        <div className="ir-mx-auto ir-max-w-5xl ir-bg-card ir-p-8 ir-text-foreground">
+        <div className="ir-mx-auto ir-max-w-5xl ir-bg-card ir-p-4 ir-text-foreground sm:ir-p-8">
             {data.agency !== null && (
                 <div className="ir-mb-6 ir-flex ir-items-center ir-gap-3">
                     {data.agency.logo_url !== null && (

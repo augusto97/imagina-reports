@@ -83,7 +83,7 @@ export function WorkLogsScreen(): ReactElement {
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
             <Card title="Registrar trabajo">
-                <div className="ir-mb-4 ir-grid ir-max-w-xl ir-grid-cols-2 ir-gap-3">
+                <div className="ir-mb-4 ir-grid ir-max-w-xl ir-grid-cols-1 ir-gap-3 sm:ir-grid-cols-2">
                     <Field label="Sitio">
                         <select
                             className={selectClass}

@@ -31,8 +31,8 @@ export function PortalApp({ token }: { token: string }): ReactElement {
     }
 
     return (
-        <div className="ir-mx-auto ir-max-w-5xl ir-bg-card ir-p-8 ir-text-foreground">
-            <header className="ir-mb-6 ir-flex ir-items-center ir-justify-between">
+        <div className="ir-mx-auto ir-max-w-5xl ir-bg-card ir-p-4 ir-text-foreground sm:ir-p-8">
+            <header className="ir-mb-6 ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
                 <div className="ir-flex ir-items-center ir-gap-3">
                     {data.agency?.logo_path != null && (
                         <img src={data.agency.logo_path} alt={data.agency.name} className="ir-h-8" />

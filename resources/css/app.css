@@ -106,3 +106,21 @@
         }
     }
 }
+
+/* Responsive report layout: on phones, collapse the fixed dashboard grid — which uses
+   absolute column/row placement for pixel-perfect PDF parity — into a single readable
+   column, each block full width and content-height. Scoped to `screen` so the
+   Browsershot PDF (print media, ~A4 width) keeps the exact desktop layout untouched. */
+@media screen and (max-width: 640px) {
+    .ir-report-grid {
+        grid-template-columns: 1fr !important;
+        grid-auto-rows: auto !important;
+    }
+
+    .ir-report-grid > .ir-report-cell {
+        grid-column: 1 / -1 !important;
+        grid-row: auto !important;
+        /* Height becomes content-driven when stacked; charts keep their own min-height. */
+        height: auto !important;
+    }
+}

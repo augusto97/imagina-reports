@@ -168,8 +168,10 @@ export function EditorScreen(): ReactElement {
     // Per-report theme (accent + density).
     const [theme, setTheme] = useState<ReportTheme>({});
     // Collapsible side panels — let the canvas take (almost) the whole workspace.
-    const [leftOpen, setLeftOpen] = useState(true);
-    const [rightOpen, setRightOpen] = useState(true);
+    // Panels start open on desktop, closed on phones (they overlay the canvas there).
+    const wideViewport = typeof window !== "undefined" && window.innerWidth >= 1024;
+    const [leftOpen, setLeftOpen] = useState(wideViewport);
+    const [rightOpen, setRightOpen] = useState(wideViewport);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
     // Undo/redo history — snapshots of the blocks array.
@@ -585,7 +587,7 @@ export function EditorScreen(): ReactElement {
     return (
         <div className="ir-flex ir-h-full ir-min-h-0 ir-flex-col ir-bg-background">
             {/* ---- Top toolbar (full width) ---- */}
-            <header className="ir-flex ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2">
+            <header className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2">
                 <ToolbarButton
                     icon={leftOpen ? <PanelLeftClose className="ir-size-4" /> : <PanelLeftOpen className="ir-size-4" />}
                     title={leftOpen ? "Ocultar panel" : "Mostrar panel"}
@@ -672,10 +674,10 @@ export function EditorScreen(): ReactElement {
             </header>
 
             {/* ---- Body: left panel · canvas · inspector ---- */}
-            <div className="ir-flex ir-min-h-0 ir-flex-1">
+            <div className="ir-relative ir-flex ir-min-h-0 ir-flex-1">
                 {/* ---- Left panel (collapsible): config + blocks ---- */}
                 {leftOpen && (
-                    <aside className="ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card">
+                    <aside className="ir-absolute ir-inset-y-0 ir-left-0 ir-z-20 ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
                         <Section title="Insertar bloque" icon={<Shapes className="ir-size-4" />}>
                             <BlockPalette onAdd={addBlock} onDragType={setDraggingType} />
                         </Section>
@@ -1000,7 +1002,7 @@ export function EditorScreen(): ReactElement {
 
                 {/* ---- Right panel (collapsible): inspector for the selected block ---- */}
                 {rightOpen && (
-                    <aside className="ir-w-72 ir-shrink-0 ir-overflow-y-auto ir-border-l ir-bg-card">
+                    <aside className="ir-absolute ir-inset-y-0 ir-right-0 ir-z-20 ir-w-72 ir-shrink-0 ir-overflow-y-auto ir-border-l ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
                         <div className="ir-p-3">
                             <Inspector
                                 block={selectedBlock}

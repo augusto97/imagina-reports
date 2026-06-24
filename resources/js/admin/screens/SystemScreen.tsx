@@ -49,7 +49,7 @@ export function SystemScreen(): ReactElement {
                         </div>
                     )}
 
-                    <div className="ir-grid ir-grid-cols-2 ir-gap-4">
+                    <div className="ir-grid ir-grid-cols-1 ir-gap-4 sm:ir-grid-cols-2">
                         <div className="ir-rounded-md ir-border ir-p-3">
                             <p className="ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">Ejecutando ahora</p>
                             <p className="ir-font-mono ir-text-2xl ir-font-semibold">v{(status.current ?? '—').replace(/^v/, '')}</p>

@@ -865,7 +865,7 @@ export function BlockList({
                 <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
                     {useGrid ? (
                         <div
-                            className="ir-grid"
+                            className="ir-grid ir-report-grid"
                             style={{
                                 gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
                                 gridAutoRows: `${GRID_ROW_HEIGHT}px`,
@@ -873,7 +873,7 @@ export function BlockList({
                             }}
                         >
                             {pageBlocks.map((block) => (
-                                <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-overflow-hidden">
+                                <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-report-cell ir-overflow-hidden">
                                     <BlockRenderer block={block} data={data[block.id]} />
                                 </div>
                             ))}

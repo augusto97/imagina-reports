@@ -7,6 +7,24 @@
 ---
 
 ## Where I left off (read me first)
+**📱 APP RESPONSIVE (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner reportó que el admin, los
+reportes y en general toda la app no eran responsive. **Cambios (frontend only):** (1) **Shell admin** (`App.tsx`):
+sidebar fijo → en `<lg` es un **drawer off-canvas** con backdrop + barra superior móvil con hamburguesa (`Menu`/`X`);
+hook `useMediaQuery('(min-width:1024px)')`; el modo colapsado (icon-only) ahora es solo desktop (`iconOnly = isDesktop &&
+collapsed`) y el drawer móvil siempre muestra labels; padding del contenido `ir-p-8` → `ir-p-4 sm:ir-p-6 lg:ir-p-8`.
+(2) **Reportes** (portal + report page + PDF, single source of truth = `BlockRenderer.BlockList`): el grid de
+coordenadas fijas (12 col, filas en px) se **apila a 1 columna en móvil** vía CSS `@media screen and (max-width:640px)`
+sobre clases nuevas `.ir-report-grid` / `.ir-report-cell` (override de los inline `gridColumn/gridRow` con `!important`,
+`height:auto`). **Clave:** scoping a `screen` → el PDF de Browsershot (print media, ~A4) **NO se ve afectado**, mantiene
+el layout desktop pixel-perfect. Padding del reporte `ir-p-8` → `ir-p-4 sm:ir-p-8`; header del portal con `flex-wrap`.
+(3) **Editor**: paneles laterales (palette/inspector, ya colapsables) ahora **overlay absoluto en móvil** (`ir-absolute
+… lg:ir-static`) para no aplastar el lienzo; arrancan cerrados en móvil (`window.innerWidth>=1024`); toolbar con
+`flex-wrap`. (4) **Pantallas**: grids de formulario `grid-cols-2/3` → `grid-cols-1 sm:grid-cols-N` (System, WorkLogs,
+Trends); `Card` header con `flex-wrap`. `DataTable` ya tenía `overflow-x-auto`. typecheck + lint + 11 vitest + build
+limpios. **Pendiente:** tras release, el owner valida en móvil real; el editor drag-drop sigue siendo desktop-first por
+naturaleza (en móvil los paneles flotan, pero la edición táctil de bloques no es el caso de uso principal).
+
+
 **🟩 CLOUDFLARE — CAMPO ROTO IDENTIFICADO Y RETIRADO (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner corrió
 la query COMPLETA y devolvió **un solo** error: `unknown field "pathingSource"`. Es decir, el único campo no válido del
 schema `httpRequests1dGroups` era **`threatPathingMap { pathingSource }`** (el resto — `uniq.uniques`, `pageViews`,
