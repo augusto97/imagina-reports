@@ -240,8 +240,19 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
             'ga4.top_landing_pages' => ['label' => 'Páginas de entrada', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['landingPage'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.traffic_sources' => ['label' => 'Fuentes de tráfico', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['sessionDefaultChannelGroup'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.top_countries' => ['label' => 'Países', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['country'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.top_cities' => ['label' => 'Ciudades', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['city'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.by_region' => ['label' => 'Regiones', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['region'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.by_language' => ['label' => 'Idiomas', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['language'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.devices' => ['label' => 'Dispositivos', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['deviceCategory'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.top_products' => ['label' => 'Productos top (ingresos)', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['itemRevenue'], 'dimensions' => ['itemName'], 'limit' => 10, 'cast' => 'float', 'scale' => 1],
+
+            // ---- Demographics (require Google Signals; empty otherwise → block hides) ----
+            'ga4.by_gender' => ['label' => 'Género', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['activeUsers'], 'dimensions' => ['userGender'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.by_age' => ['label' => 'Edad', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['activeUsers'], 'dimensions' => ['userAgeBracket'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+
+            // ---- By time-of-day / weekday ----
+            'ga4.sessions_by_hour' => ['label' => 'Visitas por hora', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['hour'], 'limit' => 24, 'cast' => 'int', 'scale' => 1],
+            'ga4.sessions_by_weekday' => ['label' => 'Visitas por día de semana', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['dayOfWeek'], 'limit' => 7, 'cast' => 'int', 'scale' => 1],
         ];
     }
 
@@ -262,6 +273,11 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
 
         if ($spec['dimensions'] !== []) {
             $body['dimensions'] = array_map(static fn (string $d): array => ['name' => $d], $spec['dimensions']);
+            // Series read chronologically by their dimension (date/hour/weekday); tables
+            // are true top-N ordered by their metric descending.
+            $body['orderBys'] = $spec['type'] === MetricType::Series
+                ? [['dimension' => ['dimensionName' => $spec['dimensions'][0]]]]
+                : [['metric' => ['metricName' => $spec['metrics'][0]], 'desc' => true]];
         }
 
         return $body;

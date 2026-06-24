@@ -149,8 +149,21 @@ export const GALLERY: GalleryTemplate[] = [
                 style: { legend: true },
                 layout: { x: 6, y: 20, w: 6, h: 7 },
             }),
-            summary({ x: 0, y: 27, w: 12, h: 4 }),
-            cta(31),
+            spec({
+                type: 'table',
+                binding: { source: 'ga4', metric: 'top_cities' },
+                props: { title: 'Ciudades' },
+                style: { bars: true },
+                layout: { x: 0, y: 27, w: 6, h: 7 },
+            }),
+            spec({
+                type: 'chart',
+                binding: { source: 'ga4', metric: 'sessions_by_hour' },
+                props: { chartType: 'bar', title: 'Visitas por hora del día' },
+                layout: { x: 6, y: 27, w: 6, h: 7 },
+            }),
+            summary({ x: 0, y: 34, w: 12, h: 4 }),
+            cta(38),
         ],
     },
     {

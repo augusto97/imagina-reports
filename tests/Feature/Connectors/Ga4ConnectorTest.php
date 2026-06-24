@@ -43,6 +43,11 @@ class Ga4ConnectorTest extends TestCase
 
         $this->assertTrue($catalog->has('ga4.sessions'));
         $this->assertTrue($catalog->has('ga4.sessions_by_date'));
+        // Geo / demographics / time-of-day metrics.
+        $this->assertTrue($catalog->has('ga4.top_cities'));
+        $this->assertTrue($catalog->has('ga4.by_gender'));
+        $this->assertTrue($catalog->has('ga4.by_age'));
+        $this->assertTrue($catalog->has('ga4.sessions_by_hour'));
         $this->assertTrue($catalog->has('ga4.top_pages'));
     }
 
