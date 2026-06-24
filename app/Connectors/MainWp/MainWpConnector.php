@@ -134,6 +134,9 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // and the MainWP Maintenance tool (`maintenance`, action=process).
             new MetricDefinition('mainwp.backups_count', 'Respaldos creados', MetricType::Scalar, 'count', description: 'Nº de copias de seguridad creadas en el periodo (extensiones de backup vía MainWP).'),
             new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Nº de tareas de mantenimiento ejecutadas en el periodo (herramienta de mantenimiento de MainWP).'),
+            // MainWP per-site security/hardening checklist (/sites/{id}/security).
+            new MetricDefinition('mainwp.security_issues_count', 'Puntos de seguridad por revisar', MetricType::Scalar, 'count', description: 'Nº de comprobaciones de seguridad de MainWP que no están en verde (endurecimiento del sitio).'),
+            new MetricDefinition('mainwp.security_checklist', 'Estado de seguridad', MetricType::Table, dimensions: ['comprobacion'], description: 'Lista de verificación de seguridad de MainWP: WordPress al día, SSL, depuración, plugins/temas obsoletos o inactivos.'),
         );
     }
 
@@ -200,6 +203,12 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
                     $metrics[$metric] = $count;
                 }
             }
+        }
+
+        // MainWP security/hardening checklist (its own /sites/{id}/security endpoint).
+        if ($this->wants($requestedMetrics, 'mainwp.security_checklist')
+            || $this->wants($requestedMetrics, 'mainwp.security_issues_count')) {
+            $metrics = array_merge($metrics, $this->securityChecklist($source, $this->idDomain($site, $target)));
         }
 
         return MetricSet::ok($this->only($metrics, $requestedMetrics));
@@ -400,6 +409,76 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         return $this->toInt($tokens[$token]);
+    }
+
+    /**
+     * MainWP's per-site security/hardening checklist (`/sites/{id}/security`). Each flag
+     * is `Y` (secure) / `N` (issue) — polarity verified against real site data; anything
+     * else (e.g. `Y_UNABLE`) is "not checked". Returns a plain-language table plus the
+     * count of items that need attention.
+     *
+     * @return array<string, mixed>
+     */
+    private function securityChecklist(DataSource $source, string $idDomain): array
+    {
+        try {
+            $response = $this->client($source)->get("/sites/{$idDomain}/security");
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $data = $response->json('data');
+        if (! is_array($data)) {
+            return [];
+        }
+
+        $labels = [
+            'wp_uptodate' => 'WordPress al día',
+            'phpversion_matched' => 'Versión de PHP recomendada',
+            'php_reporting' => 'Errores de PHP ocultos',
+            'db_reporting' => 'Errores de base de datos ocultos',
+            'sslprotocol' => 'HTTPS / SSL activo',
+            'debug_disabled' => 'Modo depuración desactivado',
+            'sec_outdated_plugins' => 'Sin plugins obsoletos',
+            'sec_inactive_plugins' => 'Sin plugins inactivos',
+            'sec_outdated_themes' => 'Sin temas obsoletos',
+            'sec_inactive_themes' => 'Sin temas inactivos',
+        ];
+
+        $rows = [];
+        $issues = 0;
+
+        foreach ($labels as $key => $label) {
+            if (! array_key_exists($key, $data)) {
+                continue;
+            }
+
+            $value = strtoupper($this->toStr($data[$key]));
+            $state = match (true) {
+                $value === 'Y' => '✓ Seguro',
+                $value === 'N' => '⚠ Revisar',
+                default => '—',
+            };
+
+            if ($value === 'N') {
+                $issues++;
+            }
+
+            $rows[] = ['Comprobación' => $label, 'Estado' => $state];
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return [
+            'mainwp.security_issues_count' => $issues,
+            'mainwp.security_checklist' => $rows,
+        ];
     }
 
     /**

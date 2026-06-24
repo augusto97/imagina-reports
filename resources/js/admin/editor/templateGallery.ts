@@ -562,4 +562,28 @@ export const GALLERY: GalleryTemplate[] = [
             cta(18),
         ],
     },
+    {
+        key: 'security-checklist',
+        name: 'Estado de seguridad (MainWP)',
+        description: 'Una foto clara del endurecimiento del sitio: WordPress al día, SSL, modo depuración y plugins/temas obsoletos o inactivos, con un semáforo por punto.',
+        build: () => [
+            header('Estado de seguridad'),
+            spec({
+                type: 'kpi',
+                binding: { source: 'mainwp', metric: 'security_issues_count' },
+                props: { label: 'Puntos por revisar' },
+                style: { format: 'number' },
+                layout: { x: 0, y: 2, w: 4, h: 4 },
+            }),
+            spec({ type: 'security_shield', props: { title: 'Tu sitio, endurecido' }, layout: { x: 4, y: 2, w: 8, h: 4 } }),
+            summary({ x: 0, y: 6, w: 12, h: 4 }),
+            spec({
+                type: 'table',
+                binding: { source: 'mainwp', metric: 'security_checklist' },
+                props: { title: 'Comprobaciones de seguridad' },
+                layout: { x: 0, y: 10, w: 12, h: 8 },
+            }),
+            cta(18),
+        ],
+    },
 ];

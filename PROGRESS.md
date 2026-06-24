@@ -28,8 +28,11 @@ adelgazado a esa métrica honesta (las viejas eran del endpoint falso); plantill
 283 tests + PHPStan max + Pint + tsc + build limpios. **Pendiente del owner:** (1) los counts salieron 0 en omicron (sin
 backups/mantenimientos/malware en el rango — normal); validar con un sitio/rango que sí tenga actividad. (2) las tablas de
 detalle (sections_data) de backups/maintenance/virusdie NO se ven con count 0 — si al validar aparece detalle, pasar el JSON
-y lo añado. (3) **regenerar el token MainWP** (quedó en el chat). **Bonus pendiente:** `/sites/{dom}/security` devuelve una
-checklist (wp_uptodate, sslprotocol, sec_outdated_plugins…) → posible métrica «Estado de seguridad» a futuro.
+y lo añado. (3) **regenerar el token MainWP** (quedó en el chat). **Bonus HECHO:** «Estado de seguridad» — `/sites/{id}/security` (GET, sin action) → `mainwp.security_issues_count`
+(nº de flags `N`) + `mainwp.security_checklist` (tabla Comprobación/Estado con semáforo ✓ Seguro / ⚠ Revisar / —).
+**Polaridad verificada contra datos reales** de omicron (Y=seguro, N=issue; `Y_UNABLE`→no verificable): `sec_inactive_plugins:N`
+casa con sus muchos plugins inactivos, `sec_outdated_themes:Y` con theme_upgrades vacío, etc. Plantilla «Estado de seguridad
+(MainWP)». 282 tests verdes.
 
 **🔐 MAINWP — SSL + DOMINIOS (extensiones) (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):** el owner quería sacar más
 datos de sus extensiones MainWP. Empezamos por **SSL Monitor + Domain Monitor** (su elección). Descubrimiento vía el índice

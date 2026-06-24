@@ -335,6 +335,36 @@ class MainWpConnectorTest extends TestCase
         $this->assertSame(5, $set->get('mainwp.maintenance_count'));
     }
 
+    public function test_fetch_builds_the_security_checklist(): void
+    {
+        Http::fake([
+            'dash.test/wp-json/mainwp/v2/sites/*/security' => Http::response(['data' => [
+                'wp_uptodate' => 'Y',
+                'sslprotocol' => 'Y',
+                'debug_disabled' => 'Y',
+                'db_reporting' => 'Y_UNABLE',
+                'sec_outdated_plugins' => 'N',
+                'sec_inactive_plugins' => 'N',
+                'sec_outdated_themes' => 'Y',
+            ], 'site' => ['id' => '7']]),
+            'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
+        ]);
+
+        $set = (new MainWpConnector)->fetch(
+            $this->source(),
+            Period::make('2026-06-01', '2026-06-30'),
+            ['mainwp.security_issues_count', 'mainwp.security_checklist'],
+        );
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame(2, $set->get('mainwp.security_issues_count')); // two "N" flags
+
+        $checklist = $set->get('mainwp.security_checklist');
+        $this->assertContains(['Comprobación' => 'WordPress al día', 'Estado' => '✓ Seguro'], $checklist);
+        $this->assertContains(['Comprobación' => 'Sin plugins obsoletos', 'Estado' => '⚠ Revisar'], $checklist);
+        $this->assertContains(['Comprobación' => 'Errores de base de datos ocultos', 'Estado' => '—'], $checklist);
+    }
+
     public function test_ssl_domain_no_data_sentinel_is_ignored(): void
     {
         Http::fake([
