@@ -44,6 +44,68 @@ function SetupGuidePanel({ connector }: { connector: Connector }): ReactElement 
     );
 }
 
+/** Small copy-to-clipboard button for the push snippets. */
+function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }): ReactElement {
+    const [copied, setCopied] = useState(false);
+    const copy = (): void => {
+        void navigator.clipboard?.writeText(text).then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+        });
+    };
+
+    return (
+        <Button type="button" variant="ghost" size="sm" onClick={copy}>
+            {copied ? '¡Copiado!' : label}
+        </Button>
+    );
+}
+
+/**
+ * Install panel for push-model sources (CrowdSec): the source isn't polled, the client
+ * VPS posts its data outbound. Shows the per-source ingest URL and the ready-to-paste
+ * cron line — no inbound port is opened on the client server.
+ */
+function PushInstallPanel({ source }: { source: DataSourceDto }): ReactElement | null {
+    if (source.is_push !== true || source.ingest_url == null) {
+        return null;
+    }
+
+    const cron = `echo '0 * * * * root IMAGINA_INGEST_URL="${source.ingest_url}" /usr/local/bin/imagina-crowdsec-push.sh' > /etc/cron.d/imagina-crowdsec-push`;
+
+    return (
+        <details className="ir-mt-2 ir-rounded-md ir-border ir-bg-muted/30 ir-p-3">
+            <summary className="ir-cursor-pointer ir-text-sm ir-font-medium">Comando de instalación (envío desde el VPS)</summary>
+            <p className="ir-mt-2 ir-text-xs ir-text-muted-foreground">
+                CrowdSec corre en el VPS del cliente. En vez de abrir un puerto, el VPS <strong>envía</strong> sus datos a Imagina
+                Reports. No se expone nada: es una llamada saliente por HTTPS.
+            </p>
+            <ol className="ir-mt-2 ir-list-decimal ir-space-y-2 ir-pl-5 ir-text-xs">
+                <li>
+                    Copia el script <code className="ir-rounded ir-bg-muted ir-px-1">scripts/crowdsec-push.sh</code> (incluido en el
+                    paquete) a <code className="ir-rounded ir-bg-muted ir-px-1">/usr/local/bin/imagina-crowdsec-push.sh</code> en el
+                    VPS del cliente y hazlo ejecutable (<code className="ir-rounded ir-bg-muted ir-px-1">chmod +x</code>).
+                </li>
+                <li>
+                    <div className="ir-mb-1 ir-flex ir-items-center ir-justify-between ir-gap-2">
+                        <span>Tu URL de envío (contiene un token secreto, no la compartas):</span>
+                        <CopyButton text={source.ingest_url} label="Copiar URL" />
+                    </div>
+                    <pre className="ir-overflow-x-auto ir-rounded ir-bg-foreground/5 ir-p-2 ir-text-[11px]">{source.ingest_url}</pre>
+                </li>
+                <li>
+                    <div className="ir-mb-1 ir-flex ir-items-center ir-justify-between ir-gap-2">
+                        <span>Añade el cron (envío cada hora):</span>
+                        <CopyButton text={cron} label="Copiar cron" />
+                    </div>
+                    <pre className="ir-overflow-x-auto ir-rounded ir-bg-foreground/5 ir-p-2 ir-text-[11px]">{cron}</pre>
+                </li>
+                <li>Al llegar el primer envío, el estado de esta fuente pasará a «ok» y verás las métricas en el reporte.</li>
+            </ol>
+        </details>
+    );
+}
+
 /** Inline edit form for an existing data source: reconfigure its URL/keys/token. */
 function DataSourceEditForm({
     source,
@@ -268,26 +330,31 @@ export function DataSourcesScreen(): ReactElement {
             <Card title="Fuentes configuradas">
                 <ul className="ir-flex ir-flex-col ir-gap-3">
                     {sources.map((source) => (
-                        <li key={source.id} className="ir-flex ir-items-center ir-justify-between ir-gap-3 ir-border-t ir-pt-3">
-                            <div className="ir-min-w-0">
-                                <p className="ir-font-medium">{labelFor(source.type)}</p>
-                                <p className="ir-text-xs ir-text-muted-foreground">
-                                    {source.status}
-                                    {results[source.id] !== undefined ? ` — ${results[source.id]}` : ''}
-                                    {source.last_error !== null && results[source.id] === undefined ? ` — ${source.last_error}` : ''}
-                                </p>
+                        <li key={source.id} className="ir-flex ir-flex-col ir-gap-2 ir-border-t ir-pt-3">
+                            <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
+                                <div className="ir-min-w-0">
+                                    <p className="ir-font-medium">{labelFor(source.type)}</p>
+                                    <p className="ir-text-xs ir-text-muted-foreground">
+                                        {source.status}
+                                        {results[source.id] !== undefined ? ` — ${results[source.id]}` : ''}
+                                        {source.last_error !== null && results[source.id] === undefined ? ` — ${source.last_error}` : ''}
+                                    </p>
+                                </div>
+                                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                                    {source.is_push !== true && (
+                                        <Button variant="ghost" onClick={() => runTest(source.id)} disabled={test.isPending}>
+                                            Probar
+                                        </Button>
+                                    )}
+                                    <Button variant="ghost" onClick={() => setEditing(source)}>
+                                        Editar
+                                    </Button>
+                                    <Button variant="ghost" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
+                                        Eliminar
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
-                                <Button variant="ghost" onClick={() => runTest(source.id)} disabled={test.isPending}>
-                                    Probar
-                                </Button>
-                                <Button variant="ghost" onClick={() => setEditing(source)}>
-                                    Editar
-                                </Button>
-                                <Button variant="ghost" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
-                                    Eliminar
-                                </Button>
-                            </div>
+                            <PushInstallPanel source={source} />
                         </li>
                     ))}
                     {sources.length === 0 && <li className="ir-text-sm ir-text-muted-foreground">Sin fuentes todavía.</li>}

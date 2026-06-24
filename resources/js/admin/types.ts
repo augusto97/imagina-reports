@@ -71,6 +71,10 @@ export interface DataSourceDto {
     last_error: string | null;
     /** MainWP only: child site records its activity history (null otherwise / unsynced). */
     child_reports_active?: boolean | null;
+    /** Push-capable sources (CrowdSec): the VPS posts data outbound to ingest_url. */
+    is_push?: boolean;
+    push_token?: string | null;
+    ingest_url?: string | null;
 }
 
 export interface ReportDefinitionDto {

@@ -36,6 +36,11 @@ final class DataSourceResource extends JsonResource
             // MainWP only: whether the child site records its activity history
             // (null for other source types / when never synced). See DataSourceController.
             'child_reports_active' => $source->getAttribute('child_reports_active'),
+            // Push-capable sources (CrowdSec): the per-source ingest token + URL the
+            // client VPS posts to. Only set by DataSourceController::decoratePush().
+            'is_push' => (bool) $source->getAttribute('is_push'),
+            'push_token' => $source->getAttribute('push_token'),
+            'ingest_url' => $source->getAttribute('ingest_url'),
         ];
     }
 }

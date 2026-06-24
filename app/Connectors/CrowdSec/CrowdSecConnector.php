@@ -9,6 +9,7 @@ use App\Connectors\ConfigFieldType;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
 use App\Connectors\Contracts\ProvidesSetupGuide;
+use App\Connectors\Contracts\ReceivesPushedData;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
@@ -28,7 +29,7 @@ use Throwable;
  * alerts, decisions (bans) and attack types. Exact API shape is a documented
  * assumption (see PROGRESS Open Questions); parsing is defensive.
  */
-final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
+final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide, ReceivesPushedData
 {
     use ParsesValues;
 
@@ -45,8 +46,8 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
     public function configSchema(): array
     {
         return [
-            new ConfigField('api_url', 'API base URL', ConfigFieldType::Url, help: 'URL base de la API: CrowdSec Console (https://app.crowdsec.net) o tu LAPI.'),
-            new ConfigField('token', 'API token', ConfigFieldType::Password, secret: true, help: 'Token de la CrowdSec Console (o credenciales de tu LAPI).'),
+            new ConfigField('api_url', 'API base URL (opcional)', ConfigFieldType::Url, help: 'Solo si consultas una LAPI directa (p. ej. por red privada). En modo push (recomendado) déjalo vacío.'),
+            new ConfigField('token', 'API token (opcional)', ConfigFieldType::Password, secret: true, help: 'Solo para LAPI/Console directa. En modo push no hace falta: el VPS envía los datos con su token de envío.'),
         ];
     }
 
@@ -66,14 +67,17 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
     public function setupGuide(): SetupGuide
     {
         return new SetupGuide(
-            'Usa un token de la CrowdSec Console (recomendado) o tu LAPI por VPS.',
+            'CrowdSec corre en el VPS de cada cliente, así que en vez de abrir un puerto entrante (riesgo), '
+            .'cada VPS ENVÍA sus datos de forma saliente a Imagina Reports. La API de la Console (nube) es de pago; '
+            .'esta vía usa la LAPI local gratis y no expone nada. Guarda primero la fuente para obtener su token de envío.',
             [
-                'En app.crowdsec.net (Console) → Settings → API Keys → crea una clave de lectura.',
-                'En «api_url» pon la base de la API de la Console (https://admin.api.crowdsec.net) o la de tu LAPI.',
-                'Pega la clave en «token».',
-                'Guarda y pulsa «Probar conexión».',
+                'Guarda esta fuente (sin tocar api_url/token, son opcionales en modo push) — al guardarla aparece abajo un comando de instalación con tu token y URL ya rellenados.',
+                'Entra por SSH al VPS del cliente donde corre CrowdSec.',
+                'Pega el comando de instalación que te mostramos: crea un cron que ejecuta «cscli alerts list -o json» y lo envía por HTTPS saliente a Imagina Reports.',
+                'No se abre ningún puerto en el VPS del cliente: solo hace una llamada saliente, como cualquier web.',
+                'Vuelve aquí: cuando llegue el primer envío, el estado pasará a «ok» y verás las métricas en el reporte.',
             ],
-            'https://docs.crowdsec.net/',
+            'https://docs.crowdsec.net/docs/local_api/intro',
         );
     }
 
@@ -105,8 +109,34 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
             return MetricSet::failed('CrowdSec request failed: HTTP '.$response->status());
         }
 
-        $alerts = $this->listOf($response->json());
+        return $this->normalizeAlerts($this->listOf($response->json()));
+    }
 
+    /**
+     * Push model (CLAUDE.md §9): the client VPS runs `cscli alerts list -o json` locally
+     * and POSTs the result here, so no inbound port is opened. The payload is either the
+     * raw alerts array or `{ "alerts": [...] }`; both normalize to the same metric bag as
+     * the polled path, keeping the connector the single source of truth.
+     *
+     * @param  array<array-key, mixed>  $payload
+     */
+    public function fromPushedPayload(array $payload): MetricSet
+    {
+        $alerts = array_key_exists('alerts', $payload)
+            ? $this->listOf($payload['alerts'])
+            : $this->listOf($payload);
+
+        return $this->normalizeAlerts($alerts);
+    }
+
+    /**
+     * Map a list of CrowdSec alerts (same shape from the LAPI or `cscli -o json`) into
+     * the normalized metric bag.
+     *
+     * @param  list<array<array-key, mixed>>  $alerts
+     */
+    private function normalizeAlerts(array $alerts): MetricSet
+    {
         $blocked = 0;
         $events = 0;
         /** @var array<string, int> $byScenario */
