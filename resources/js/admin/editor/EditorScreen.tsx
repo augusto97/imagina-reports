@@ -600,7 +600,7 @@ export function EditorScreen(): ReactElement {
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     placeholder="Plantilla sin título"
-                    className="ir-w-52 ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
+                    className="ir-w-28 ir-min-w-0 sm:ir-w-52 ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
                 />
                 <span className="ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
                     {editingTemplateId !== null ? "Editando" : "Borrador"}
@@ -615,10 +615,10 @@ export function EditorScreen(): ReactElement {
                     </button>
                 )}
 
-                <div className="ir-ml-auto ir-flex ir-items-center ir-gap-2">
+                <div className="ir-ml-auto ir-flex ir-flex-wrap ir-items-center ir-justify-end ir-gap-2">
                     {/* Compact preview-data control — site + period live here (preview only),
                         not as a giant panel widget. */}
-                    <div className="ir-flex ir-h-8 ir-items-center ir-rounded-lg ir-border ir-bg-background ir-pl-2 ir-text-sm">
+                    <div className="ir-flex ir-h-8 ir-min-w-0 ir-items-center ir-rounded-lg ir-border ir-bg-background ir-pl-2 ir-text-sm">
                         <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
                         <select
                             value={siteId ?? ""}
@@ -626,7 +626,7 @@ export function EditorScreen(): ReactElement {
                                 setSiteId(event.target.value === "" ? null : Number(event.target.value))
                             }
                             title="Sitio para la vista previa (los datos reales)"
-                            className="ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
+                            className="ir-min-w-0 ir-max-w-[7.5rem] sm:ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
                         >
                             <option value="">Datos de ejemplo</option>
                             {sites.map((site) => (
@@ -642,7 +642,7 @@ export function EditorScreen(): ReactElement {
                             value={month}
                             onChange={(event) => setMonth(event.target.value)}
                             title="Periodo de la vista previa"
-                            className="ir-w-[8.5rem] ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1 ir-pr-2 ir-text-sm focus:ir-outline-none"
+                            className="ir-w-[7rem] sm:ir-w-[8.5rem] ir-min-w-0 ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1 ir-pr-2 ir-text-sm focus:ir-outline-none"
                         />
                     </div>
 
@@ -675,6 +675,19 @@ export function EditorScreen(): ReactElement {
 
             {/* ---- Body: left panel · canvas · inspector ---- */}
             <div className="ir-relative ir-flex ir-min-h-0 ir-flex-1">
+                {/* On mobile the panels are overlays; a backdrop lets you tap outside to
+                    dismiss them (desktop keeps them in-flow, so the backdrop is hidden). */}
+                {(leftOpen || rightOpen) && (
+                    <button
+                        type="button"
+                        aria-label="Cerrar paneles"
+                        onClick={() => {
+                            setLeftOpen(false);
+                            setRightOpen(false);
+                        }}
+                        className="ir-absolute ir-inset-0 ir-z-10 ir-bg-black/20 lg:ir-hidden"
+                    />
+                )}
                 {/* ---- Left panel (collapsible): config + blocks ---- */}
                 {leftOpen && (
                     <aside className="ir-absolute ir-inset-y-0 ir-left-0 ir-z-20 ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">

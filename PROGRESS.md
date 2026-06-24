@@ -7,7 +7,18 @@
 ---
 
 ## Where I left off (read me first)
-**🧩 MAINWP — EXTENSIONES COMPLETAS (Vuln/Wordfence/VirusDie/Backups/Maintenance) (2026-06-24, rama `claude/github-app-analysis-a7b2bd`):**
+**📱 EDITOR RESPONSIVE EN MÓVIL (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.31):** el owner reportó que
+el editor de plantillas no era responsive en celular: el panel derecho no se podía ocultar y la barra superior cortaba opciones
+(el botón **Sincronizar** no aparecía). Causa real: el grupo de acciones `ml-auto` de la barra superior **no envolvía** y era más
+ancho que el viewport → se salía por la derecha ocultando Sincronizar + el toggle del panel derecho. Arreglos en
+`EditorScreen.tsx`: (1) `ml-auto` ahora `flex-wrap justify-end` (envuelve en varias filas, nada se oculta); (2) control
+sitio/periodo encoge en móvil (`min-w-0`, select `max-w-[7.5rem] sm:[10rem]`, mes `w-[7rem] sm:[8.5rem]`); (3) input de nombre
+`w-28 min-w-0 sm:w-52`; (4) **backdrop** en móvil (`lg:hidden`) detrás de los paneles overlay → tocar fuera cierra ambos (resuelve
+«el derecho no se desaparece»). Los paneles ya arrancaban cerrados en móvil (`wideViewport`=innerWidth≥1024) y seleccionar bloque
+no fuerza abrir el inspector — el único bug era el desbordamiento de la barra. tsc + eslint + build limpios. **Pendiente owner:**
+validar en celular real tras desplegar.
+
+**🛡️ ESTADO DE SEGURIDAD (bonus) + lote extensiones MainWP (2026-06-24, release v1.13.30):**
 cerrado el lote de extensiones MainWP que el owner pidió. Método: descubrir el shape real vía curl (índice de rutas +
 endpoints Pro Reports), nunca adivinar (§0). **Aprendizaje clave:** los endpoints `/pro-reports/{id_domain}/{seccion}`
 exigen un `action`; el servidor **revela los válidos en el mensaje de error** (`Required valid action parameter: ...`).
