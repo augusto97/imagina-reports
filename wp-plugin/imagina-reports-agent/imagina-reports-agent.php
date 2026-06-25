@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.2.0
+ * Version:           1.2.1
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -26,7 +26,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.2.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.2.1');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -386,10 +386,13 @@ function imagina_reports_agent_storage() {
 function imagina_reports_agent_backups($from_ts, $to_ts) {
     $content = defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
 
-    // Patrón de carpeta => proveedor. Soporta comodines via glob.
+    // Patrón de carpeta => proveedor. Soporta comodines via glob. WPvivid usa varios
+    // nombres según versión/config (y Linux distingue mayúsculas), así que cubrimos todos.
     $dirs = array(
         $content . '/updraft'           => 'UpdraftPlus',
         $content . '/wpvividbackups'    => 'WPvivid',
+        $content . '/wpvivid_uploads'   => 'WPvivid',
+        $content . '/WPvivid_Uploads'   => 'WPvivid',
         $content . '/ai1wm-backups'     => 'All-in-One WP Migration',
         $content . '/backwpup-*'        => 'BackWPup',
         $content . '/backupwordpress-*' => 'BackUpWordPress',

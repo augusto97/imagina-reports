@@ -4,7 +4,7 @@ Tags: reporting, backups, monitoring, maintenance
 Requires at least: 5.6
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ dejan archivo local que medir; configura tu plugin de backup para conservar una 
 local si quieres verlos en el informe.
 
 == Changelog ==
+
+= 1.2.1 =
+* Escaneo de disco de WPvivid: añadidos los nombres de carpeta reales `wpvivid_uploads` y `WPvivid_Uploads` (además de `wpvividbackups`).
 
 = 1.2.0 =
 * Detección de respaldos de WPvivid en la nube (Google Drive/Dropbox/S3…) vía `wpvivid_backup_reports`, incluso sin copia local; destino legible desde la lista de remotos (sin exponer tokens).
