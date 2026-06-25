@@ -52,6 +52,49 @@ class SiteAgentConnectorTest extends TestCase
             'plugins' => ['active' => 12, 'inactive' => 3, 'total' => 15],
             'updates' => ['core' => 0, 'plugins' => 2, 'themes' => 1, 'total' => 3],
             'storage' => ['db_size_mb' => 42.5, 'uploads_size_mb' => 880.2],
+            'security' => [
+                'admins' => 2,
+                'users_total' => 540,
+                'users_added' => 18,
+                'spam_blocked_total' => 9821,
+                'spam_blocked_period' => 412,
+                'search_engines_blocked' => false,
+                'file_editing_disabled' => true,
+                'debug_off' => true,
+                'https' => true,
+            ],
+            'performance' => [
+                'object_cache' => true,
+                'object_cache_type' => 'Redis',
+                'page_cache' => 'WP Rocket',
+                'cron_overdue' => 0,
+                'autoload_mb' => 1.4,
+                'revisions' => 320,
+                'trashed_posts' => 5,
+                'spam_comments' => 88,
+                'trash_comments' => 2,
+                'expired_transients' => 140,
+                'disk_free_mb' => 51200.0,
+                'disk_total_mb' => 102400.0,
+            ],
+            'content' => [
+                'posts_published' => 6,
+                'pages_published' => 1,
+                'comments_received' => 47,
+                'comments_approved' => 40,
+            ],
+            'leads' => [
+                'provider' => 'Contact Form 7',
+                'count_total' => 530,
+                'count_period' => 23,
+            ],
+            'ecommerce' => [
+                'active' => true,
+                'out_of_stock' => 7,
+                'low_stock' => 12,
+                'pending_orders' => 4,
+                'processing_orders' => 9,
+            ],
             'backups' => [
                 'provider' => 'WPvivid',
                 'providers' => ['WPvivid'],
@@ -111,6 +154,54 @@ class SiteAgentConnectorTest extends TestCase
         $health = $set->get('site_agent.site_health');
         $this->assertContains(['Concepto' => 'WordPress', 'Valor' => '6.5.2'], $health);
         $this->assertContains(['Concepto' => 'HTTPS', 'Valor' => 'Activo'], $health);
+    }
+
+    public function test_fetch_maps_security_performance_content_leads_and_ecommerce(): void
+    {
+        Http::fake(['a.test/wp-json/imagina-reports/v1/metrics*' => Http::response($this->payload())]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertTrue($set->isOk());
+        // Security.
+        $this->assertSame(412, $set->get('site_agent.spam_blocked'));
+        $this->assertSame(9821, $set->get('site_agent.spam_blocked_total'));
+        $this->assertSame(2, $set->get('site_agent.admin_users'));
+        $this->assertSame(18, $set->get('site_agent.users_new'));
+        $audit = $set->get('site_agent.security_audit');
+        $this->assertContains(['Comprobación' => 'Indexable por buscadores', 'Estado' => '✓ Correcto'], $audit);
+        // Performance.
+        $this->assertSame(0, $set->get('site_agent.cron_overdue'));
+        $this->assertSame(320, $set->get('site_agent.revisions'));
+        $this->assertEquals(51200, $set->get('site_agent.disk_free_mb'));
+        $perf = $set->get('site_agent.performance_status');
+        $this->assertContains(['Concepto' => 'Caché de objetos', 'Valor' => 'Redis'], $perf);
+        $this->assertContains(['Concepto' => 'Caché de página', 'Valor' => 'WP Rocket'], $perf);
+        // Content.
+        $this->assertSame(6, $set->get('site_agent.posts_published'));
+        $this->assertSame(47, $set->get('site_agent.comments_received'));
+        // Leads.
+        $this->assertSame(23, $set->get('site_agent.leads'));
+        $this->assertSame(530, $set->get('site_agent.leads_total'));
+        // E-commerce.
+        $this->assertSame(7, $set->get('site_agent.out_of_stock'));
+        $this->assertSame(4, $set->get('site_agent.pending_orders'));
+    }
+
+    public function test_leads_and_ecommerce_hide_when_absent(): void
+    {
+        $payload = $this->payload();
+        $payload['leads'] = ['provider' => '', 'count_total' => 0, 'count_period' => 0];
+        $payload['ecommerce'] = ['active' => false];
+
+        Http::fake(['*' => Http::response($payload)]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertNull($set->get('site_agent.leads'));
+        $this->assertNull($set->get('site_agent.leads_total'));
+        $this->assertNull($set->get('site_agent.out_of_stock'));
+        $this->assertNull($set->get('site_agent.pending_orders'));
     }
 
     public function test_fetch_sends_the_api_key_header_and_period(): void

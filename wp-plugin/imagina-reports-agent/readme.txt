@@ -4,7 +4,7 @@ Tags: reporting, backups, monitoring, maintenance
 Requires at least: 5.6
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ dejan archivo local que medir; configura tu plugin de backup para conservar una 
 local si quieres verlos en el informe.
 
 == Changelog ==
+
+= 1.3.0 =
+* Nuevas métricas: seguridad activa (spam bloqueado, administradores, usuarios nuevos, auditoría de endurecimiento), rendimiento (caché, cron, limpieza de BD, disco), contenido del periodo, leads de Contact Form 7 (Flamingo) y operativa de WooCommerce (stock agotado/bajo, pedidos por atender).
 
 = 1.2.1 =
 * Escaneo de disco de WPvivid: añadidos los nombres de carpeta reales `wpvivid_uploads` y `WPvivid_Uploads` (además de `wpvividbackups`).

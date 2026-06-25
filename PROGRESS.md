@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**📊 AGENTE IMAGINA — LOTE GRANDE DE MÉTRICAS A/B/C/D (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.3.0 →
+release v1.13.40):** el owner pidió (AskUserQuestion) los 4 grupos: Seguridad, Captación/leads, Rendimiento/limpieza, E-commerce
+operativo. Como el agente corre dentro de WP, casi todo es **dato del core (sin adivinar plugins)**. **Plugin (nuevas secciones del
+payload, todo conteos agregados §3.3):** `security` (admins vía count_users, usuarios nuevos del periodo, **spam Akismet** total +
+del periodo, banderas hardening: blog_public/DISALLOW_FILE_EDIT/WP_DEBUG/https), `performance` (caché de objetos Redis/Memcached +
+caché de página por plugin activo, **cron atrasado** vía _get_cron_array, limpieza de BD: autoload/revisiones/papelera/spam/trash/
+transients caducados, disco libre/total), `content` (posts/páginas publicadas, comentarios recibidos/aprobados del periodo, columnas
+*_gmt), `leads` (**Contact Form 7 vía Flamingo** = post_type `flamingo_inbound`, total + periodo; otros forms con tabla propia
+quedan para /diagnostics), `ecommerce` (si WooCommerce: stock agotado/bajo vía postmeta, pedidos pending/processing vía
+`wc_get_orders` compatible HPOS). **Conector:** +18 métricas al catálogo (escalares + 3 tablas: security_audit, performance_status,
+db_cleanup); leads/ecommerce → null si no hay plugin/Woo (bloque se oculta). Plantilla nueva «Seguridad, rendimiento y captación
+(Agente)». **296 tests (+2 en SiteAgentConnectorTest) + PHPStan max + Pint + typecheck + lint(2 warns preexistentes) + build
+limpios.** **Pendiente del owner:** desplegar v1.13.40, reinstalar el plugin (v1.3.0) y validar. **2º lote 🔌 (requiere /diagnostics
+por plugin, NO adivinar §0):** logins bloqueados (Wordfence/Limit Login/Solid), leads de WPForms/Gravity/Forminator (tabla propia),
+imágenes optimizadas (Smush/ShortPixel/Imagify).
+
 **✅ AGENTE IMAGINA — WPVIVID EN LA NUBE RESUELTO (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.2.0 → release
 v1.13.38):** el owner corrió `/diagnostics` en un sitio real. Estructura confirmada de WPvivid: **`wpvivid_backup_reports`** =
 objeto keyed por task id, cada registro con **`backup_time`** (timestamp) — persiste aunque el backup se suba a Google Drive y se

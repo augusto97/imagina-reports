@@ -81,6 +81,30 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.updates_themes', 'Actualizaciones de temas', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.db_size_mb', 'Tamaño de la base de datos', MetricType::Scalar, 'MB'),
             new MetricDefinition('site_agent.uploads_size_mb', 'Tamaño de archivos subidos', MetricType::Scalar, 'MB'),
+            // Seguridad activa.
+            new MetricDefinition('site_agent.spam_blocked', 'Spam bloqueado (periodo)', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.spam_blocked_total', 'Spam bloqueado (total)', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.admin_users', 'Administradores', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.users_new', 'Usuarios nuevos', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.security_audit', 'Auditoría de seguridad', MetricType::Table),
+            // Rendimiento y limpieza.
+            new MetricDefinition('site_agent.cron_overdue', 'Tareas cron atrasadas', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.db_autoload_mb', 'Autoload de la BD', MetricType::Scalar, 'MB'),
+            new MetricDefinition('site_agent.revisions', 'Revisiones de contenido', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.disk_free_mb', 'Espacio libre en disco', MetricType::Scalar, 'MB'),
+            new MetricDefinition('site_agent.performance_status', 'Estado de rendimiento', MetricType::Table),
+            new MetricDefinition('site_agent.db_cleanup', 'Limpieza de base de datos', MetricType::Table),
+            // Contenido y actividad.
+            new MetricDefinition('site_agent.posts_published', 'Publicaciones del periodo', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.pages_published', 'Páginas publicadas', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.comments_received', 'Comentarios recibidos', MetricType::Scalar, 'count'),
+            // Captación / leads.
+            new MetricDefinition('site_agent.leads', 'Solicitudes recibidas (periodo)', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.leads_total', 'Solicitudes recibidas (total)', MetricType::Scalar, 'count'),
+            // E-commerce operativo.
+            new MetricDefinition('site_agent.out_of_stock', 'Productos agotados', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.low_stock', 'Productos con stock bajo', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.pending_orders', 'Pedidos por atender', MetricType::Scalar, 'count'),
         );
     }
 
@@ -174,6 +198,14 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         $updates = $this->arrayOf(Arr::get($data, 'updates'));
         $storage = $this->arrayOf(Arr::get($data, 'storage'));
         $backups = $this->arrayOf(Arr::get($data, 'backups'));
+        $security = $this->arrayOf(Arr::get($data, 'security'));
+        $performance = $this->arrayOf(Arr::get($data, 'performance'));
+        $content = $this->arrayOf(Arr::get($data, 'content'));
+        $leads = $this->arrayOf(Arr::get($data, 'leads'));
+        $ecommerce = $this->arrayOf(Arr::get($data, 'ecommerce'));
+
+        $hasLeads = $this->toStr(Arr::get($leads, 'provider')) !== '';
+        $hasStore = Arr::get($ecommerce, 'active') === true;
 
         $values = [
             'site_agent.backups_count' => $this->toInt(Arr::get($backups, 'count_in_period')),
@@ -193,6 +225,30 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.updates_themes' => $this->toInt(Arr::get($updates, 'themes')),
             'site_agent.db_size_mb' => $this->numOrNull(Arr::get($storage, 'db_size_mb')),
             'site_agent.uploads_size_mb' => $this->numOrNull(Arr::get($storage, 'uploads_size_mb')),
+            // Seguridad.
+            'site_agent.spam_blocked' => $this->toInt(Arr::get($security, 'spam_blocked_period')),
+            'site_agent.spam_blocked_total' => $this->toInt(Arr::get($security, 'spam_blocked_total')),
+            'site_agent.admin_users' => $this->toInt(Arr::get($security, 'admins')),
+            'site_agent.users_new' => $this->toInt(Arr::get($security, 'users_added')),
+            'site_agent.security_audit' => $this->securityAudit($security),
+            // Rendimiento / limpieza.
+            'site_agent.cron_overdue' => $this->toInt(Arr::get($performance, 'cron_overdue')),
+            'site_agent.db_autoload_mb' => $this->numOrNull(Arr::get($performance, 'autoload_mb')),
+            'site_agent.revisions' => $this->toInt(Arr::get($performance, 'revisions')),
+            'site_agent.disk_free_mb' => $this->numOrNull(Arr::get($performance, 'disk_free_mb')),
+            'site_agent.performance_status' => $this->performanceStatus($performance),
+            'site_agent.db_cleanup' => $this->dbCleanup($performance),
+            // Contenido.
+            'site_agent.posts_published' => $this->toInt(Arr::get($content, 'posts_published')),
+            'site_agent.pages_published' => $this->toInt(Arr::get($content, 'pages_published')),
+            'site_agent.comments_received' => $this->toInt(Arr::get($content, 'comments_received')),
+            // Leads (ocultos si no hay plugin de formularios detectado).
+            'site_agent.leads' => $hasLeads ? $this->toInt(Arr::get($leads, 'count_period')) : null,
+            'site_agent.leads_total' => $hasLeads ? $this->toInt(Arr::get($leads, 'count_total')) : null,
+            // E-commerce (ocultos si no hay WooCommerce).
+            'site_agent.out_of_stock' => $hasStore ? $this->toInt(Arr::get($ecommerce, 'out_of_stock')) : null,
+            'site_agent.low_stock' => $hasStore ? $this->toInt(Arr::get($ecommerce, 'low_stock')) : null,
+            'site_agent.pending_orders' => $hasStore ? $this->toInt(Arr::get($ecommerce, 'pending_orders')) : null,
         ];
 
         if ($requested === []) {
@@ -273,6 +329,60 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         }
 
         return $table;
+    }
+
+    /**
+     * Plain-language hardening checklist with a ✓/⚠ semaphore.
+     *
+     * @param  array<array-key, mixed>  $security
+     * @return list<array<string, string>>
+     */
+    private function securityAudit(array $security): array
+    {
+        $ok = '✓ Correcto';
+        $warn = '⚠ Revisar';
+
+        return [
+            ['Comprobación' => 'Indexable por buscadores', 'Estado' => Arr::get($security, 'search_engines_blocked') === true ? '⚠ Bloqueado' : $ok],
+            ['Comprobación' => 'HTTPS activo', 'Estado' => Arr::get($security, 'https') === true ? $ok : $warn],
+            ['Comprobación' => 'Edición de archivos deshabilitada', 'Estado' => Arr::get($security, 'file_editing_disabled') === true ? $ok : $warn],
+            ['Comprobación' => 'Modo depuración desactivado', 'Estado' => Arr::get($security, 'debug_off') === true ? $ok : $warn],
+            ['Comprobación' => 'Cuentas de administrador', 'Estado' => (string) $this->toInt(Arr::get($security, 'admins'))],
+        ];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $performance
+     * @return list<array<string, string>>
+     */
+    private function performanceStatus(array $performance): array
+    {
+        $objectType = $this->toStr(Arr::get($performance, 'object_cache_type'));
+        $pageCache = $this->toStr(Arr::get($performance, 'page_cache'));
+        $overdue = $this->toInt(Arr::get($performance, 'cron_overdue'));
+
+        return [
+            ['Concepto' => 'Caché de objetos', 'Valor' => $objectType !== '' ? $objectType : 'Inactiva'],
+            ['Concepto' => 'Caché de página', 'Valor' => $pageCache !== '' ? $pageCache : 'Ninguna'],
+            ['Concepto' => 'Tareas cron atrasadas', 'Valor' => $overdue === 0 ? 'Ninguna ✓' : (string) $overdue],
+        ];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $performance
+     * @return list<array<string, string>>
+     */
+    private function dbCleanup(array $performance): array
+    {
+        $autoload = $this->numOrNull(Arr::get($performance, 'autoload_mb'));
+
+        return [
+            ['Concepto' => 'Autoload', 'Valor' => $autoload !== null ? $autoload.' MB' : '—'],
+            ['Concepto' => 'Revisiones de contenido', 'Valor' => (string) $this->toInt(Arr::get($performance, 'revisions'))],
+            ['Concepto' => 'Entradas en papelera', 'Valor' => (string) $this->toInt(Arr::get($performance, 'trashed_posts'))],
+            ['Concepto' => 'Comentarios spam', 'Valor' => (string) $this->toInt(Arr::get($performance, 'spam_comments'))],
+            ['Concepto' => 'Transients caducados', 'Valor' => (string) $this->toInt(Arr::get($performance, 'expired_transients'))],
+        ];
     }
 
     /**

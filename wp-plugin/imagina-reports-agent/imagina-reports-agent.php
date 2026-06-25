@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.2.1
+ * Version:           1.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -26,7 +26,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.2.1');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.3.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -105,6 +105,11 @@ function imagina_reports_agent_metrics($request) {
     $from = imagina_reports_agent_period_ts($request->get_param('from'), 0);
     $to   = imagina_reports_agent_period_ts($request->get_param('to'), PHP_INT_MAX, true);
 
+    // Cadenas GMT para los conteos por periodo en SQL (columnas *_gmt), acotadas a un
+    // rango de fecha válido para MySQL (máx. 9999-12-31).
+    $from_gmt = gmdate('Y-m-d H:i:s', max(0, $from));
+    $to_gmt   = gmdate('Y-m-d H:i:s', min($to, 253402300799));
+
     $payload = array(
         'success'       => true,
         'generated_at'  => gmdate('c'),
@@ -114,6 +119,11 @@ function imagina_reports_agent_metrics($request) {
         'updates'       => imagina_reports_agent_updates(),
         'storage'       => imagina_reports_agent_storage(),
         'backups'       => imagina_reports_agent_backups($from, $to),
+        'security'      => imagina_reports_agent_security($from_gmt, $to_gmt),
+        'performance'   => imagina_reports_agent_performance(),
+        'content'       => imagina_reports_agent_content($from_gmt, $to_gmt),
+        'leads'         => imagina_reports_agent_leads($from_gmt, $to_gmt),
+        'ecommerce'     => imagina_reports_agent_ecommerce(),
     );
 
     return new WP_REST_Response($payload, 200);
@@ -365,6 +375,282 @@ function imagina_reports_agent_storage() {
     return array(
         'db_size_mb'      => imagina_reports_agent_mb($db_bytes),
         'uploads_size_mb' => imagina_reports_agent_mb($uploads_bytes),
+    );
+}
+
+/**
+ * Seguridad activa: auditoría de administradores/usuarios, spam bloqueado (Akismet +
+ * comentarios marcados spam en el periodo) y banderas de endurecimiento. Todo por
+ * conteos agregados en SQL (§3.3), columnas GMT para el periodo.
+ *
+ * @param string $from_gmt
+ * @param string $to_gmt
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_security($from_gmt, $to_gmt) {
+    global $wpdb;
+
+    $counts      = function_exists('count_users') ? count_users() : array();
+    $admin_count = isset($counts['avail_roles']['administrator']) ? (int) $counts['avail_roles']['administrator'] : 0;
+    $users_total = isset($counts['total_users']) ? (int) $counts['total_users'] : 0;
+
+    $users_added = 0;
+    if (is_object($wpdb)) {
+        $users_added = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->users} WHERE user_registered BETWEEN %s AND %s",
+            $from_gmt,
+            $to_gmt
+        ));
+    }
+
+    $spam_total  = (int) get_option('akismet_spam_count', 0);
+    $spam_period = 0;
+    if (is_object($wpdb)) {
+        $spam_period = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved = 'spam' AND comment_date_gmt BETWEEN %s AND %s",
+            $from_gmt,
+            $to_gmt
+        ));
+    }
+
+    $blog_public = get_option('blog_public');
+
+    return array(
+        'admins'                 => $admin_count,
+        'users_total'            => $users_total,
+        'users_added'            => $users_added,
+        'spam_blocked_total'     => $spam_total,
+        'spam_blocked_period'    => $spam_period,
+        'search_engines_blocked' => ($blog_public === '0' || $blog_public === 0),
+        'file_editing_disabled'  => (defined('DISALLOW_FILE_EDIT') && DISALLOW_FILE_EDIT),
+        'debug_off'              => ! (defined('WP_DEBUG') && WP_DEBUG),
+        'https'                  => (strpos(home_url(), 'https://') === 0),
+    );
+}
+
+/**
+ * Rendimiento y salud técnica: caché (objetos + página), cron atrasado, y oportunidad
+ * de limpieza de la base de datos (autoload, revisiones, papelera, spam, transients
+ * caducados), más espacio en disco. Conteos agregados.
+ *
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_performance() {
+    global $wpdb;
+
+    // Caché de objetos.
+    $object_cache = function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache();
+    $object_cache_type = '';
+    if ($object_cache) {
+        if (defined('WP_REDIS_HOST') || class_exists('Redis')) {
+            $object_cache_type = 'Redis';
+        } elseif (class_exists('Memcached') || class_exists('Memcache')) {
+            $object_cache_type = 'Memcached';
+        } else {
+            $object_cache_type = 'Activa';
+        }
+    }
+
+    // Caché de página (plugin conocido activo).
+    $active = (array) get_option('active_plugins', array());
+    $cache_plugins = array(
+        'wp-rocket/wp-rocket.php'             => 'WP Rocket',
+        'litespeed-cache/litespeed-cache.php' => 'LiteSpeed Cache',
+        'w3-total-cache/w3-total-cache.php'   => 'W3 Total Cache',
+        'wp-super-cache/wp-cache.php'         => 'WP Super Cache',
+        'wp-fastest-cache/wpFastestCache.php' => 'WP Fastest Cache',
+        'sg-cachepress/sg-cachepress.php'     => 'SG Optimizer',
+        'cache-enabler/cache-enabler.php'     => 'Cache Enabler',
+        'breeze/breeze.php'                   => 'Breeze',
+        'wp-optimize/wp-optimize.php'         => 'WP-Optimize',
+    );
+    $page_cache = '';
+    foreach ($cache_plugins as $slug => $name) {
+        if (in_array($slug, $active, true)) {
+            $page_cache = $name;
+            break;
+        }
+    }
+
+    // Cron atrasado.
+    $cron_overdue = 0;
+    if (function_exists('_get_cron_array')) {
+        $crons = _get_cron_array();
+        if (is_array($crons)) {
+            $now = time();
+            foreach ($crons as $timestamp => $hooks) {
+                if ((int) $timestamp < $now && is_array($hooks)) {
+                    $cron_overdue += count($hooks);
+                }
+            }
+        }
+    }
+
+    // Limpieza de BD (agregados).
+    $autoload_bytes     = 0;
+    $revisions          = 0;
+    $trashed_posts      = 0;
+    $spam_comments      = 0;
+    $trash_comments     = 0;
+    $expired_transients = 0;
+
+    if (is_object($wpdb)) {
+        $autoload_bytes     = (int) $wpdb->get_var("SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off','auto-off')");
+        $revisions          = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'revision'");
+        $trashed_posts      = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'trash'");
+        $spam_comments      = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved = 'spam'");
+        $trash_comments     = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved = 'trash'");
+        $expired_transients = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s AND option_value < %d",
+            $wpdb->esc_like('_transient_timeout_') . '%',
+            time()
+        ));
+    }
+
+    $disk_free  = @disk_free_space(ABSPATH);
+    $disk_total = @disk_total_space(ABSPATH);
+
+    return array(
+        'object_cache'       => $object_cache,
+        'object_cache_type'  => $object_cache_type,
+        'page_cache'         => $page_cache,
+        'cron_overdue'       => $cron_overdue,
+        'autoload_mb'        => imagina_reports_agent_mb($autoload_bytes),
+        'revisions'          => $revisions,
+        'trashed_posts'      => $trashed_posts,
+        'spam_comments'      => $spam_comments,
+        'trash_comments'     => $trash_comments,
+        'expired_transients' => $expired_transients,
+        'disk_free_mb'       => is_numeric($disk_free) ? imagina_reports_agent_mb((int) $disk_free) : null,
+        'disk_total_mb'      => is_numeric($disk_total) ? imagina_reports_agent_mb((int) $disk_total) : null,
+    );
+}
+
+/**
+ * Contenido y actividad del periodo: publicaciones, páginas y comentarios.
+ *
+ * @param string $from_gmt
+ * @param string $to_gmt
+ * @return array<string,int>
+ */
+function imagina_reports_agent_content($from_gmt, $to_gmt) {
+    global $wpdb;
+
+    if (! is_object($wpdb)) {
+        return array('posts_published' => 0, 'pages_published' => 0, 'comments_received' => 0, 'comments_approved' => 0);
+    }
+
+    $posts = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish' AND post_date_gmt BETWEEN %s AND %s",
+        $from_gmt,
+        $to_gmt
+    ));
+    $pages = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_date_gmt BETWEEN %s AND %s",
+        $from_gmt,
+        $to_gmt
+    ));
+    $received = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_type IN ('comment','') AND comment_date_gmt BETWEEN %s AND %s",
+        $from_gmt,
+        $to_gmt
+    ));
+    $approved = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_type IN ('comment','') AND comment_approved = '1' AND comment_date_gmt BETWEEN %s AND %s",
+        $from_gmt,
+        $to_gmt
+    ));
+
+    return array(
+        'posts_published'   => $posts,
+        'pages_published'   => $pages,
+        'comments_received' => $received,
+        'comments_approved' => $approved,
+    );
+}
+
+/**
+ * Captación / leads. Por ahora cubre Contact Form 7 vía Flamingo, que guarda cada
+ * mensaje entrante como post `flamingo_inbound` (consultable en core). Otros plugins de
+ * formularios con tabla propia (WPForms/Gravity/Forminator) se añadirán tras descubrir
+ * su almacenamiento con /diagnostics — no se adivina (§0).
+ *
+ * @param string $from_gmt
+ * @param string $to_gmt
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_leads($from_gmt, $to_gmt) {
+    global $wpdb;
+
+    $provider     = '';
+    $count_total  = 0;
+    $count_period = 0;
+
+    if (is_object($wpdb)) {
+        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'flamingo_inbound'");
+        if ($total > 0) {
+            $provider     = 'Contact Form 7';
+            $count_total  = $total;
+            $count_period = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'flamingo_inbound' AND post_date_gmt BETWEEN %s AND %s",
+                $from_gmt,
+                $to_gmt
+            ));
+        }
+    }
+
+    return array(
+        'provider'     => $provider,
+        'count_total'  => $count_total,
+        'count_period' => $count_period,
+    );
+}
+
+/**
+ * E-commerce operativo (si WooCommerce está activo): stock agotado/bajo y pedidos por
+ * atender. Usa la API de WooCommerce para pedidos (compatible con HPOS) y conteos de
+ * postmeta para el stock de productos.
+ *
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_ecommerce() {
+    if (! class_exists('WooCommerce')) {
+        return array('active' => false);
+    }
+
+    global $wpdb;
+
+    $out_of_stock = 0;
+    $low_stock    = 0;
+    if (is_object($wpdb)) {
+        $out_of_stock = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_stock_status' AND meta_value = %s",
+            'outofstock'
+        ));
+
+        $threshold = (int) get_option('woocommerce_notify_low_stock_amount', 2);
+        $low_stock = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT pm.post_id)
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->postmeta} ss ON ss.post_id = pm.post_id AND ss.meta_key = '_stock_status' AND ss.meta_value = 'instock'
+             WHERE pm.meta_key = '_stock' AND pm.meta_value <> '' AND CAST(pm.meta_value AS SIGNED) <= %d",
+            $threshold
+        ));
+    }
+
+    $pending    = 0;
+    $processing = 0;
+    if (function_exists('wc_get_orders')) {
+        $pending = count(wc_get_orders(array('status' => array('pending', 'on-hold'), 'limit' => -1, 'return' => 'ids')));
+        $processing = count(wc_get_orders(array('status' => 'processing', 'limit' => -1, 'return' => 'ids')));
+    }
+
+    return array(
+        'active'           => true,
+        'out_of_stock'     => $out_of_stock,
+        'low_stock'        => $low_stock,
+        'pending_orders'   => $pending,
+        'processing_orders' => $processing,
     );
 }
 
