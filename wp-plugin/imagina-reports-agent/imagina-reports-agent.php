@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -15,7 +15,8 @@
  *   GET /wp-json/imagina-reports/v1/metrics?from=YYYY-MM-DD&to=YYYY-MM-DD
  *   Cabecera: X-Imagina-Key: <clave>   (o ?key=<clave>)
  *   Respuesta: { success, generated_at, agent_version, site, plugins, updates, storage,
- *               ssl, backups, security, performance, content, leads, ecommerce }
+ *               ssl, backups, security, performance, content, leads, ecommerce,
+ *               logins, images }
  *
  * Regla de oro (§3.3): agrega EN EL ORIGEN. Los respaldos se miden escaneando las
  * carpetas de backup en disco (mtime + tamaño), no leyendo el esquema interno de cada
@@ -27,7 +28,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.6.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.7.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -111,6 +112,11 @@ function imagina_reports_agent_metrics($request) {
     $from_gmt = gmdate('Y-m-d H:i:s', max(0, $from));
     $to_gmt   = gmdate('Y-m-d H:i:s', min($to, 253402300799));
 
+    // Variante en hora local del sitio: las tablas propias de los plugins de formularios
+    // (Bit Form, Fluent Forms) guardan created_at con current_time('mysql') = local.
+    $from_local = function_exists('get_date_from_gmt') ? get_date_from_gmt($from_gmt) : $from_gmt;
+    $to_local   = function_exists('get_date_from_gmt') ? get_date_from_gmt($to_gmt) : $to_gmt;
+
     $payload = array(
         'success'       => true,
         'generated_at'  => gmdate('c'),
@@ -124,7 +130,7 @@ function imagina_reports_agent_metrics($request) {
         'security'      => imagina_reports_agent_security($from_gmt, $to_gmt),
         'performance'   => imagina_reports_agent_performance(),
         'content'       => imagina_reports_agent_content($from_gmt, $to_gmt),
-        'leads'         => imagina_reports_agent_leads($from_gmt, $to_gmt),
+        'leads'         => imagina_reports_agent_leads($from_gmt, $to_gmt, $from_local, $to_local),
         'ecommerce'     => imagina_reports_agent_ecommerce(),
         'logins'        => imagina_reports_agent_logins($from, $to),
         'images'        => imagina_reports_agent_images(),
@@ -732,40 +738,73 @@ function imagina_reports_agent_content($from_gmt, $to_gmt) {
 }
 
 /**
- * Captación / leads. Por ahora cubre Contact Form 7 vía Flamingo, que guarda cada
- * mensaje entrante como post `flamingo_inbound` (consultable en core). Otros plugins de
- * formularios con tabla propia (WPForms/Gravity/Forminator) se añadirán tras descubrir
- * su almacenamiento con /diagnostics — no se adivina (§0).
+ * Captación / leads. Detecta el plugin de formularios real por prioridad y cuenta los
+ * envíos (total + del periodo), con esquemas descubiertos vía /diagnostics — no se
+ * adivina (§0):
+ *   1. Bit Form   → tabla {prefix}bitforms_form_entries (created_at, local).
+ *   2. Fluent Forms → tabla {prefix}fluentform_submissions (created_at local, excl. trashed).
+ *   3. Contact Form 7 → posts `flamingo_inbound` (post_date_gmt).
  *
  * @param string $from_gmt
  * @param string $to_gmt
+ * @param string $from_local
+ * @param string $to_local
  * @return array<string,mixed>
  */
-function imagina_reports_agent_leads($from_gmt, $to_gmt) {
+function imagina_reports_agent_leads($from_gmt, $to_gmt, $from_local, $to_local) {
     global $wpdb;
 
-    $provider     = '';
-    $count_total  = 0;
-    $count_period = 0;
+    $out = array('provider' => '', 'count_total' => 0, 'count_period' => 0);
 
-    if (is_object($wpdb)) {
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'flamingo_inbound'");
-        if ($total > 0) {
-            $provider     = 'Contact Form 7';
-            $count_total  = $total;
-            $count_period = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'flamingo_inbound' AND post_date_gmt BETWEEN %s AND %s",
-                $from_gmt,
-                $to_gmt
-            ));
-        }
+    if (! is_object($wpdb)) {
+        return $out;
     }
 
-    return array(
-        'provider'     => $provider,
-        'count_total'  => $count_total,
-        'count_period' => $count_period,
-    );
+    // 1) Bit Form.
+    $bitform = $wpdb->prefix . 'bitforms_form_entries';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($bitform))) === $bitform) {
+        $safe = '`' . str_replace('`', '', $bitform) . '`';
+
+        $out['provider']     = 'Bit Form';
+        $out['count_total']  = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $safe);
+        $out['count_period'] = (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . $safe . ' WHERE created_at BETWEEN %s AND %s',
+            $from_local,
+            $to_local
+        ));
+
+        return $out;
+    }
+
+    // 2) Fluent Forms.
+    $fluent = $wpdb->prefix . 'fluentform_submissions';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($fluent))) === $fluent) {
+        $safe = '`' . str_replace('`', '', $fluent) . '`';
+
+        $out['provider']     = 'Fluent Forms';
+        $out['count_total']  = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $safe . " WHERE status != 'trashed'");
+        $out['count_period'] = (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . $safe . " WHERE status != 'trashed' AND created_at BETWEEN %s AND %s",
+            $from_local,
+            $to_local
+        ));
+
+        return $out;
+    }
+
+    // 3) Contact Form 7 (Flamingo).
+    $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'flamingo_inbound'");
+    if ($total > 0) {
+        $out['provider']     = 'Contact Form 7';
+        $out['count_total']  = $total;
+        $out['count_period'] = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'flamingo_inbound' AND post_date_gmt BETWEEN %s AND %s",
+            $from_gmt,
+            $to_gmt
+        ));
+    }
+
+    return $out;
 }
 
 /**

@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**✅ AGENTE IMAGINA — 2º LOTE COMPLETO: LEADS DE BIT FORM (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.7.0 →
+release v1.13.44):** el owner re-ejecutó /diagnostics (v1.6.0) y reveló la tabla de Bit Form: `{prefix}bitforms_form_entries` (cols
+`form_id`,`status`,`created_at`; 9 filas). Implementé **leads** con detección por prioridad (sin adivinar, §0): **Bit Form**
+(bitforms_form_entries) → **Fluent Forms** (fluentform_submissions, excl. trashed) → **Contact Form 7** (flamingo_inbound). El filtro de
+periodo de las tablas propias usa hora LOCAL (`get_date_from_gmt`, porque esos plugins guardan created_at con current_time('mysql')); CF7
+sigue con post_date_gmt. El conector NO cambió (las métricas `site_agent.leads`/`leads_total` ya existían y son agnósticas del plugin).
+**Con esto el 2º lote queda COMPLETO: logins ✅ (Wordfence), imágenes ✅ (ShortPixel), leads ✅ (Bit Form/Fluent/CF7).** 298 tests +
+PHPStan + Pint limpios. **Pendiente del owner:** desplegar v1.13.44, reinstalar plugin (v1.7.0), validar que leads muestra los envíos de
+Bit Form. **Estado «reemplazar MainWP»:** el agente ya cubre updates/inventario/salud/SSL/abandonados + seguridad/rendimiento/contenido/
+leads/ecommerce/logins/imágenes — sustituye de sobra los datos por-sitio de MainWP. (Nota: la clave del agente se pegó en el chat 2 veces;
+recomendé regenerarla al terminar de validar.)
+
+
 **🔌 AGENTE IMAGINA — 2º LOTE IMPLEMENTADO (LOGINS + IMÁGENES) DESDE EL /diagnostics REAL (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
 plugin v1.6.0 → release v1.13.43):** el owner ejecutó `/diagnostics` en imaginawp.com y pegó el JSON. Con el esquema REAL (sin adivinar)
 implementé: **(1) Logins (Wordfence):** tabla `{prefix}wflogins` (cols `fail`,`ctime` unix) → `site_agent.failed_logins` (fallidos en
