@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🛠️ FIX CRÍTICO: AUTOUPDATER SE COLGABA EN «Instalando…» (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, release v1.13.46):**
+el owner reportó que el botón Actualizar se quedó en «Instalando la versión 1.13.45…» 15+ min. CAUSA RAÍZ: `deploy.sh` (línea 65)
+ejecutaba `horizon:terminate` DENTRO del job de actualización (RunUpdateJob corre en un worker de Horizon) → mataba al propio worker
+antes de que `UpdateManager::update()` pudiera registrar `success` → estado atascado en `running` para siempre. El deploy en sí SÍ se
+completaba (symlink se cambia en línea 57, antes del terminate), así que el sitio quedó realmente en 1.13.45; solo el banner colgado.
+FIX (3 partes): (1) `deploy.sh` ahora salta el reinicio de workers si `SKIP_WORKER_RESTART=1`; (2) `SymlinkDeployer` pone esa env al
+correr deploy.sh y expone `restartWorkers()` (nuevo método del interface `Deployer`); `UpdateManager::update()` registra `success`
+PRIMERO y luego llama `restartWorkers()` (se mata a sí mismo al final, ya con el estado guardado); (3) `UpdateManager::reconcile()`
+(self-heal en lastRun/status): si el estado es running/queued y la web YA sirve la versión objetivo → reporta `success`; si lleva
+>20 min atascado sin que llegue la versión → `failed`. Tests: FakeDeployer +restartWorkers, +2 tests (self-heal por versión y timeout).
+**300 tests + PHPStan + Pint limpios.** **RECOVERY INMEDIATO para el owner (la web ya está en 1.13.45):** limpiar la clave de caché del
+banner con `php /home/user/imagina-reports/current/artisan tinker --execute="Illuminate\\Support\\Facades\\Cache::forget('ir:update:last_run');"`
+(o desplegar 1.13.46 por Git deploy de ServerAvatar, que auto-sana el banner). Luego actualizar a 1.13.46 ya NO se cuelga.
+
+
 **🧩 LEADS ELEMENTOR/JET + 2 FIXES DE UX EN EL ADMIN (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.8.0 →
 release v1.13.45):** tres cosas a la vez. **(1) Leads Elementor Pro + JetFormBuilder:** reescrito `imagina_reports_agent_leads` para
 soportar varias fuentes y elegir la que MÁS envíos tiene (evita falso positivo de plugin instalado-pero-vacío): Bit Form, Fluent Forms,

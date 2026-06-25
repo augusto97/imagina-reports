@@ -24,4 +24,11 @@ interface Deployer
      * Point `current` back to the previous release and restore the DB backup.
      */
     public function rollback(): void;
+
+    /**
+     * Restart the queue workers onto the freshly-deployed code. Done as a separate step
+     * AFTER the update result is recorded, because it terminates the very worker running
+     * the update job (CLAUDE.md §12.3).
+     */
+    public function restartWorkers(): void;
 }

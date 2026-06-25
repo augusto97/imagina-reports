@@ -109,12 +109,44 @@ final readonly class UpdateManager
     {
         $state = Cache::get(self::STATE_KEY);
 
-        if (is_array($state) && isset($state['status'], $state['message'])) {
-            /** @var RunState $state */
+        if (! is_array($state) || ! isset($state['status'], $state['message'])) {
+            return ['status' => 'idle', 'version' => null, 'message' => '', 'at' => null];
+        }
+
+        /** @var RunState $state */
+        return $this->reconcile($state);
+    }
+
+    /**
+     * Self-heal a stuck in-progress run. The deploy flips the `current` symlink before
+     * restarting Horizon, and that restart kills the very worker running the update job
+     * (see SymlinkDeployer) — so an interrupted run can leave the state at "running" even
+     * though the install finished. Resolve it from observable facts:
+     *  - the web already serves the target version  → success (the flip happened);
+     *  - it has been stuck well past any real deploy → failed (so the UI never hangs).
+     *
+     * @param  RunState  $state
+     * @return RunState
+     */
+    private function reconcile(array $state): array
+    {
+        if ($state['status'] !== 'running' && $state['status'] !== 'queued') {
             return $state;
         }
 
-        return ['status' => 'idle', 'version' => null, 'message' => '', 'at' => null];
+        $version = $state['version'];
+
+        if (is_string($version) && version_compare($this->currentVersion(), $version, '>=')) {
+            return ['status' => 'success', 'version' => $version, 'message' => "Actualizado a la versión {$version}.", 'at' => $state['at']];
+        }
+
+        $at = is_string($state['at']) ? strtotime($state['at']) : false;
+
+        if ($at !== false && (now()->getTimestamp() - $at) > 1200) {
+            return ['status' => 'failed', 'version' => $version, 'message' => 'La actualización no finalizó a tiempo. Reinicia los trabajadores (Horizon) y reintenta, o usa Rollback.', 'at' => $state['at']];
+        }
+
+        return $state;
     }
 
     /**
@@ -142,7 +174,11 @@ final readonly class UpdateManager
         $this->setState('running', $release->version, "Instalando la versión {$release->version}…");
 
         if ($this->deployer->deploy($release)) {
+            // Record success BEFORE restarting workers — restartWorkers() terminates this
+            // very worker (horizon:terminate), so doing it first would lose the result and
+            // hang the UI on "Installing…".
             $this->setState('success', $release->version, "Actualizado a la versión {$release->version}.");
+            $this->deployer->restartWorkers();
 
             return true;
         }

@@ -62,7 +62,17 @@ echo "→ Restarting the queue worker (final step)"
 # (ServerAvatar) restarts the master with the new release on `horizon:terminate`, so the
 # code that runs report generation actually updates. `queue:restart` is the fallback for
 # plain workers / when Horizon isn't running.
-php "${CURRENT}/artisan" horizon:terminate || true
-php "${CURRENT}/artisan" queue:restart
+#
+# When the IN-APP updater runs this script, the update itself executes INSIDE a queue
+# worker (RunUpdateJob). Terminating Horizon here would kill that worker mid-job, so it
+# could never record "success" and the UI would hang on "Installing…". In that case the
+# caller sets SKIP_WORKER_RESTART=1 and restarts the workers itself, AFTER recording the
+# result. A manual/CI deploy leaves the variable unset and restarts here as before.
+if [ -z "${SKIP_WORKER_RESTART:-}" ]; then
+  php "${CURRENT}/artisan" horizon:terminate || true
+  php "${CURRENT}/artisan" queue:restart
+else
+  echo "  (skipped — in-app updater restarts workers after recording success)"
+fi
 
 echo "✓ Deployed ${RELEASE_DIR}"

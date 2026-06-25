@@ -56,12 +56,24 @@ final class SymlinkDeployer implements Deployer
 
             $this->process(['ln', '-sfn', $previous, $this->path('current_link')]);
             $this->restoreDatabase();
-            // Horizon needs terminate (not just queue:restart) to reload code — see deploy.sh.
-            Process::timeout(120)->run([PHP_BINARY, $previous.'/artisan', 'horizon:terminate']);
-            $this->process([PHP_BINARY, $previous.'/artisan', 'queue:restart']);
+            $this->restartWorkers();
         } catch (Throwable $exception) {
             report($exception);
         }
+    }
+
+    /**
+     * Restart Horizon onto the current (freshly-flipped) release. Best-effort: a missing
+     * Horizon must not fail the update — queue:restart covers plain workers. Run only
+     * after the result is recorded, since horizon:terminate kills the update worker.
+     */
+    public function restartWorkers(): void
+    {
+        $current = $this->path('current_link');
+
+        // Horizon needs terminate (not just queue:restart) to reload code — see deploy.sh.
+        Process::timeout(120)->run([PHP_BINARY, $current.'/artisan', 'horizon:terminate']);
+        Process::timeout(120)->run([PHP_BINARY, $current.'/artisan', 'queue:restart']);
     }
 
     private function downloadAndExtract(AppRelease $release): string
@@ -106,6 +118,9 @@ final class SymlinkDeployer implements Deployer
                 'RELEASE_DIR' => $releasePath,
                 'BASE_PATH' => $this->basePath(),
                 'PATH' => dirname(PHP_BINARY).':'.(getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin'),
+                // Don't let deploy.sh restart Horizon: it would kill THIS worker (running
+                // the update job) before the result is recorded. We restart afterwards.
+                'SKIP_WORKER_RESTART' => '1',
             ])
             ->timeout(600)
             ->run(['bash', $releasePath.'/deploy.sh'])

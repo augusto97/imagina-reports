@@ -54,10 +54,37 @@ class UpdateManagerTest extends TestCase
         $this->assertTrue($manager->update());
         $this->assertTrue($fake->deployed);
         $this->assertFalse($fake->rolledBack);
+        // Workers are restarted onto the new code as a final step, after success.
+        $this->assertTrue($fake->restartedWorkers);
 
         $run = $manager->lastRun();
         $this->assertSame('success', $run['status']);
         $this->assertSame('2.0.0', $run['version']);
+    }
+
+    public function test_status_self_heals_when_the_running_version_already_matches(): void
+    {
+        // A run can be interrupted (the deploy restarts Horizon, killing the update
+        // worker) after the symlink flip but before "success" is recorded. Once the web
+        // serves the target version, the status must resolve to success on its own.
+        AppRelease::factory()->create(['version' => '1.0.0']); // == currentVersion()
+        [$manager] = $this->manager();
+
+        $manager->markQueued(); // records 'queued' at version 1.0.0
+
+        $this->assertSame('success', $manager->lastRun()['status']);
+        $this->assertSame('success', $manager->status()['last_run']['status']);
+    }
+
+    public function test_status_times_out_a_run_stuck_far_too_long(): void
+    {
+        AppRelease::factory()->create(['version' => '2.0.0']); // never lands (current is 1.0.0)
+        [$manager] = $this->manager();
+
+        $manager->markQueued();
+        $this->travel(25)->minutes();
+
+        $this->assertSame('failed', $manager->lastRun()['status']);
     }
 
     public function test_update_auto_rolls_back_on_a_failed_health_check(): void
