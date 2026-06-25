@@ -1,9 +1,7 @@
 import {
     Clock,
-    Database,
     DownloadCloud,
     FileBarChart,
-    Globe,
     LayoutDashboard,
     LayoutTemplate,
     Lightbulb,
@@ -23,23 +21,19 @@ import { cn } from "@shared/lib/utils";
 
 import { useAuthUser, useLogout } from "./api";
 import { EditorScreen } from "./editor/EditorScreen";
-import { ClientsScreen } from "./screens/ClientsScreen";
-import { DataSourcesScreen } from "./screens/DataSourcesScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ReportsScreen } from "./screens/ReportsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import { SitesScreen } from "./screens/SitesScreen";
 import { SystemScreen } from "./screens/SystemScreen";
 import { TemplatesScreen } from "./screens/TemplatesScreen";
 import { TrendsScreen } from "./screens/TrendsScreen";
 import { UpsellScreen } from "./screens/UpsellScreen";
 import { WorkLogsScreen } from "./screens/WorkLogsScreen";
+import { WorkspaceScreen } from "./screens/WorkspaceScreen";
 import { type AdminView, useAdminUi, viewFromHash } from "./store";
 
 const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: "clients", label: "Clientes", icon: Users },
-    { view: "sites", label: "Sitios", icon: Globe },
-    { view: "data-sources", label: "Fuentes", icon: Database },
     { view: "worklogs", label: "Trabajo", icon: Clock },
     { view: "editor", label: "Editor", icon: PencilRuler },
     { view: "templates", label: "Plantillas", icon: LayoutTemplate },
@@ -52,12 +46,12 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
 
 function Screen({ view }: { view: AdminView }): ReactElement {
     switch (view) {
+        // The old separate Clients / Sites / Data-sources screens are now one
+        // master-detail workspace; map the legacy views (and their saved hashes) to it.
         case "clients":
-            return <ClientsScreen />;
         case "sites":
-            return <SitesScreen />;
         case "data-sources":
-            return <DataSourcesScreen />;
+            return <WorkspaceScreen />;
         case "worklogs":
             return <WorkLogsScreen />;
         case "editor":

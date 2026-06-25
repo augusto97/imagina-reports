@@ -34,9 +34,10 @@ export const useAdminUi = create<AdminUiState>((set) => ({
     selectedSiteId: persistedId('ir-selected-site'),
     editingTemplateId: persistedId('ir-editing-template'),
     setView: (view) => set({ view }),
+    // Selecting a site focuses it in the unified Clientes workspace (master-detail).
     selectSite: (siteId) => {
         window.localStorage.setItem('ir-selected-site', String(siteId));
-        set({ selectedSiteId: siteId, view: 'data-sources' });
+        set({ selectedSiteId: siteId, view: 'clients' });
     },
     // Open a template in the editor (null = start a new one).
     editTemplate: (templateId) => {

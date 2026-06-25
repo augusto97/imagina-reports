@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 REDISEÑO UX: CLIENTES/SITIOS/FUENTES → UN SOLO PANEL MAESTRO-DETALLE (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.47, solo frontend):** el owner pidió simplificar el flujo de alta (3 menús separados Clientes/Sitios/Fuentes, cada uno «solo
+un formulario», obligaban a saltar entre menús). Elegido (AskUserQuestion): **maestro-detalle + alta rápida**. Implementado: **(1)** nuevo
+`screens/WorkspaceScreen.tsx` — panel único «Clientes»: izquierda lista de clientes en árbol (acordeón) desplegable a sus sitios + buscador
++ «+ Nuevo cliente»; al elegir un sitio, derecha muestra su detalle (URL, estado, moneda, horas) + sus fuentes. **(2)** `components/SiteDataSources.tsx`
+— extraído de la antigua DataSourcesScreen: lista de fuentes con estado/Probar/Editar/Eliminar + alta de conector plegable (formulario
+dinámico desde configSchema, SetupGuide, panel push CrowdSec, descarga del agente). **(3)** `Modal` nuevo en `components/ui.tsx`. **(4)**
+Alta exprés: «+ Nuevo cliente» crea cliente + su primer sitio (opcional) en un modal y te deja en el sitio; «+ Sitio» por cliente; editar
+cliente/sitio en modal. **(5)** `App.tsx`: NAV pasa de 3 ítems a 1 («Clientes»); las vistas legacy clients/sites/data-sources mapean todas
+al WorkspaceScreen (hashes viejos siguen funcionando). `store.selectSite` ahora lleva a la vista 'clients'. Eliminados ClientsScreen/
+SitesScreen/DataSourcesScreen. **NO hay cambios de backend** (la API ya era jerárquica) ni de plugin. **typecheck + lint(0 err) + build +
+300 tests PHP limpios.** **Pendiente del owner:** desplegar v1.13.47 y validar el nuevo flujo (recuerda: no borrar sitios — no hay endpoint
+DELETE de sitios, igual que antes).
+
+
 **🛠️ FIX CRÍTICO: AUTOUPDATER SE COLGABA EN «Instalando…» (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, release v1.13.46):**
 el owner reportó que el botón Actualizar se quedó en «Instalando la versión 1.13.45…» 15+ min. CAUSA RAÍZ: `deploy.sh` (línea 65)
 ejecutaba `horizon:terminate` DENTRO del job de actualización (RunUpdateJob corre en un worker de Horizon) → mataba al propio worker

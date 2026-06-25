@@ -1,4 +1,4 @@
-import { forwardRef, type ReactElement, type ReactNode } from 'react';
+import { forwardRef, type ReactElement, type ReactNode, useEffect } from 'react';
 
 import { cn } from '@shared/lib/utils';
 
@@ -114,6 +114,27 @@ export function Card({
             )}
             <div className="ir-p-5">{children}</div>
         </section>
+    );
+}
+
+/** Centered modal overlay. The child provides its own Card/surface. Esc / backdrop close. */
+export function Modal({ onClose, children, className }: { onClose: () => void; children: ReactNode; className?: string }): ReactElement {
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
+    return (
+        <div className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-items-start ir-justify-center ir-overflow-y-auto ir-bg-black/40 ir-p-4 ir-pt-[8vh]">
+            <button type="button" aria-label="Cerrar" onClick={onClose} className="ir-fixed ir-inset-0 ir-cursor-default" />
+            <div className={cn('ir-relative ir-z-10 ir-w-full ir-max-w-lg', className)}>{children}</div>
+        </div>
     );
 }
 

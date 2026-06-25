@@ -6,14 +6,11 @@ import {
     useCreateDataSource,
     useDeleteDataSource,
     useSiteDataSources,
-    useSites,
     useTestConnection,
     useUpdateDataSource,
 } from '../api';
-import { Button, Card, Field, Select } from '../components/ui';
-import { Input } from '../components/ui';
-import { useAdminUi } from '../store';
 import type { Connector, DataSourceDto } from '../types';
+import { Badge, Button, Field, Input } from './ui';
 
 /** One-click download of the companion WordPress plugin (site_agent connector). */
 function SiteAgentDownload(): ReactElement {
@@ -36,7 +33,7 @@ function SiteAgentDownload(): ReactElement {
             <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
                 Descarga el ZIP e instálalo en el sitio (Plugins → Añadir nuevo → Subir plugin). No necesitas descomprimirlo.
             </p>
-            {error && <p className="ir-mt-1 ir-text-xs ir-text-destructive">No se pudo descargar el plugin. Inténtalo de nuevo.</p>}
+            {error && <p className="ir-mt-1 ir-text-xs ir-text-danger">No se pudo descargar el plugin. Inténtalo de nuevo.</p>}
         </div>
     );
 }
@@ -134,6 +131,49 @@ function PushInstallPanel({ source }: { source: DataSourceDto }): ReactElement |
     );
 }
 
+/** Dynamic connector config fields driven by the connector's configSchema (§7/§11). */
+function ConnectorFields({
+    connector,
+    values,
+    onChange,
+    editing,
+}: {
+    connector: Connector;
+    values: Record<string, string>;
+    onChange: (key: string, value: string) => void;
+    editing?: boolean;
+}): ReactElement {
+    return (
+        <>
+            {connector.config_schema.map((field) => (
+                <Field key={field.key} label={field.label} hint={field.help ?? undefined}>
+                    <Input
+                        type={field.secret ? 'password' : 'text'}
+                        value={values[field.key] ?? ''}
+                        placeholder={field.secret && editing === true ? 'Déjalo vacío para conservar el actual' : undefined}
+                        onChange={(event) => onChange(field.key, event.target.value)}
+                    />
+                </Field>
+            ))}
+        </>
+    );
+}
+
+function splitConfig(connector: Connector, values: Record<string, string>): { config: Record<string, string>; credentials: Record<string, string> } {
+    const config: Record<string, string> = {};
+    const credentials: Record<string, string> = {};
+    for (const field of connector.config_schema) {
+        const value = values[field.key] ?? '';
+        if (field.secret) {
+            credentials[field.key] = value; // blank = keep existing (handled by the API on edit)
+        } else {
+            config[field.key] = value;
+        }
+    }
+
+    return { config, credentials };
+}
+
 /** Inline edit form for an existing data source: reconfigure its URL/keys/token. */
 function DataSourceEditForm({
     source,
@@ -150,7 +190,6 @@ function DataSourceEditForm({
     const [values, setValues] = useState<Record<string, string>>(() => {
         const initial: Record<string, string> = {};
         for (const field of connector?.config_schema ?? []) {
-            // Non-secret config comes back from the API; secrets never do (kept if blank).
             if (!field.secret) {
                 const current = (source.config ?? {})[field.key];
                 initial[field.key] = typeof current === 'string' ? current : '';
@@ -161,98 +200,62 @@ function DataSourceEditForm({
 
     if (connector === undefined) {
         return (
-            <Card title="Editar fuente">
-                <p className="ir-text-sm ir-text-muted-foreground">Conector desconocido para «{source.type}».</p>
-                <Button variant="ghost" onClick={onClose}>
+            <div className="ir-rounded-md ir-border ir-bg-muted/20 ir-p-3 ir-text-sm">
+                <p className="ir-text-muted-foreground">Conector desconocido para «{source.type}».</p>
+                <Button variant="ghost" size="sm" className="ir-mt-2" onClick={onClose}>
                     Cerrar
                 </Button>
-            </Card>
+            </div>
         );
     }
 
     const save = (event: FormEvent): void => {
         event.preventDefault();
-        const config: Record<string, string> = {};
-        const credentials: Record<string, string> = {};
-        for (const field of connector.config_schema) {
-            const value = values[field.key] ?? '';
-            if (field.secret) {
-                credentials[field.key] = value; // blank = keep existing (handled by API)
-            } else {
-                config[field.key] = value;
-            }
-        }
+        const { config, credentials } = splitConfig(connector, values);
         update.mutate({ id: source.id, config, credentials }, { onSuccess: onClose });
     };
 
     return (
-        <Card title={`Editar «${connector.label}»`} description="Actualiza la URL, claves o el token si caducó. Los campos secretos en blanco se conservan.">
-            <form onSubmit={save} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
-                <SetupGuidePanel connector={connector} />
-                {connector.config_schema.map((field) => (
-                    <Field key={field.key} label={field.label}>
-                        <Input
-                            type={field.secret ? 'password' : 'text'}
-                            value={values[field.key] ?? ''}
-                            placeholder={field.secret ? 'Déjalo vacío para conservar el actual' : undefined}
-                            onChange={(event) => setValues((prev) => ({ ...prev, [field.key]: event.target.value }))}
-                        />
-                        {field.help !== null && <span className="ir-text-xs ir-text-muted-foreground">{field.help}</span>}
-                    </Field>
-                ))}
-                <div className="ir-flex ir-gap-2">
-                    <Button type="submit" disabled={update.isPending}>
-                        Guardar cambios
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={onClose}>
-                        Cancelar
-                    </Button>
-                </div>
-            </form>
-        </Card>
+        <form onSubmit={save} className="ir-mt-2 ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
+            <p className="ir-text-xs ir-text-muted-foreground">Actualiza la URL, claves o el token si caducó. Los campos secretos en blanco se conservan.</p>
+            <SetupGuidePanel connector={connector} />
+            <ConnectorFields connector={connector} values={values} editing onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))} />
+            <div className="ir-flex ir-gap-2">
+                <Button type="submit" size="sm" disabled={update.isPending}>
+                    Guardar cambios
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+                    Cancelar
+                </Button>
+            </div>
+        </form>
     );
 }
 
-export function DataSourcesScreen(): ReactElement {
-    const siteId = useAdminUi((state) => state.selectedSiteId);
-    const selectSite = useAdminUi((state) => state.selectSite);
-    const { data: sites = [] } = useSites();
+function statusTone(status: string): 'success' | 'warning' | 'danger' | 'neutral' {
+    if (status === 'ok') return 'success';
+    if (status === 'error' || status === 'failed') return 'danger';
+    if (status === 'partial' || status === 'pending') return 'warning';
+    return 'neutral';
+}
+
+/**
+ * Self-contained data-sources manager for a single site: lists the configured connectors
+ * with test/edit/delete, and an "add source" panel driven by each connector's
+ * configSchema. Extracted so the workspace (master-detail) can embed it directly.
+ */
+export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     const { data: connectors = [] } = useConnectors();
     const { data: sources = [] } = useSiteDataSources(siteId);
-    const create = useCreateDataSource(siteId ?? 0);
-    const remove = useDeleteDataSource(siteId ?? 0);
+    const create = useCreateDataSource(siteId);
+    const remove = useDeleteDataSource(siteId);
     const test = useTestConnection();
 
+    const [adding, setAdding] = useState(false);
     const [type, setType] = useState('');
     const [values, setValues] = useState<Record<string, string>>({});
     const [results, setResults] = useState<Record<number, string>>({});
-    const [editing, setEditing] = useState<DataSourceDto | null>(null);
-
-    const sitePicker = (
-        <Card title="Sitio" description="Elige el sitio cuyas fuentes de datos quieres configurar.">
-            <Field label="Sitio">
-                <Select value={siteId ?? ''} onChange={(event) => event.target.value !== '' && selectSite(Number(event.target.value))}>
-                    <option value="">Selecciona un sitio…</option>
-                    {sites.map((site) => (
-                        <option key={site.id} value={site.id}>
-                            {site.name}
-                        </option>
-                    ))}
-                </Select>
-            </Field>
-        </Card>
-    );
-
-    if (siteId === null) {
-        return (
-            <div className="ir-flex ir-flex-col ir-gap-6">
-                {sitePicker}
-                <p className="ir-text-sm ir-text-muted-foreground">
-                    Selecciona un sitio arriba para añadir y probar sus conectores (GA4, MainWP, WooCommerce…).
-                </p>
-            </div>
-        );
-    }
+    const [editing, setEditing] = useState<number | null>(null);
 
     const connector = connectors.find((item) => item.key === type);
     const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? sourceType;
@@ -262,49 +265,51 @@ export function DataSourcesScreen(): ReactElement {
         if (connector === undefined) {
             return;
         }
-
-        const config: Record<string, string> = {};
-        const credentials: Record<string, string> = {};
-        for (const field of connector.config_schema) {
-            const value = values[field.key] ?? '';
-            if (field.secret) {
-                credentials[field.key] = value;
-            } else {
-                config[field.key] = value;
-            }
-        }
-
+        const { config, credentials } = splitConfig(connector, values);
         create.mutate(
-            { type, config, credentials },
+            { type: connector.key, config, credentials },
             {
                 onSuccess: () => {
                     setValues({});
                     setType('');
+                    setAdding(false);
                 },
             },
         );
     };
 
     const runTest = (id: number): void => {
-        test.mutate(id, {
-            onSuccess: (result) => setResults((prev) => ({ ...prev, [id]: result.message })),
-        });
+        test.mutate(id, { onSuccess: (result) => setResults((prev) => ({ ...prev, [id]: result.message })) });
     };
 
     const confirmRemove = (source: DataSourceDto): void => {
         if (window.confirm(`¿Eliminar la fuente «${labelFor(source.type)}»? Se borrará también su historial sincronizado.`)) {
-            remove.mutate(source.id, { onSuccess: () => setEditing((current) => (current?.id === source.id ? null : current)) });
+            remove.mutate(source.id, { onSuccess: () => setEditing((current) => (current === source.id ? null : current)) });
         }
     };
 
     return (
-        <div className="ir-flex ir-flex-col ir-gap-6">
-            {sitePicker}
-            <Card title="Añadir fuente de datos">
-                <form onSubmit={submit} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
+        <div className="ir-flex ir-flex-col ir-gap-3">
+            <div className="ir-flex ir-items-center ir-justify-between">
+                <h3 className="ir-text-sm ir-font-semibold">Fuentes de datos ({sources.length})</h3>
+                <Button
+                    size="sm"
+                    variant={adding ? 'ghost' : 'primary'}
+                    onClick={() => {
+                        setAdding((open) => !open);
+                        setType('');
+                        setValues({});
+                    }}
+                >
+                    {adding ? 'Cerrar' : '+ Añadir fuente'}
+                </Button>
+            </div>
+
+            {adding && (
+                <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
                     <Field label="Conector">
                         <select
-                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                            className="ir-h-9 ir-w-full ir-rounded-md ir-border ir-bg-card ir-px-3 ir-text-sm"
                             value={type}
                             onChange={(event) => {
                                 setType(event.target.value);
@@ -321,73 +326,64 @@ export function DataSourcesScreen(): ReactElement {
                     </Field>
 
                     {connector !== undefined && <SetupGuidePanel connector={connector} />}
-
-                    {connector?.config_schema.map((field) => (
-                        <Field key={field.key} label={field.label}>
-                            <Input
-                                type={field.secret ? 'password' : 'text'}
-                                value={values[field.key] ?? ''}
-                                onChange={(event) =>
-                                    setValues((prev) => ({ ...prev, [field.key]: event.target.value }))
-                                }
-                            />
-                            {field.help !== null && (
-                                <span className="ir-text-xs ir-text-muted-foreground">{field.help}</span>
-                            )}
-                        </Field>
-                    ))}
+                    {connector !== undefined && (
+                        <ConnectorFields connector={connector} values={values} onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))} />
+                    )}
 
                     {connector !== undefined && (
-                        <Button type="submit" disabled={create.isPending}>
+                        <Button type="submit" size="sm" disabled={create.isPending}>
                             Guardar fuente
                         </Button>
                     )}
                 </form>
-            </Card>
-
-            {editing !== null && (
-                <DataSourceEditForm
-                    key={editing.id}
-                    source={editing}
-                    connector={connectors.find((item) => item.key === editing.type)}
-                    siteId={siteId}
-                    onClose={() => setEditing(null)}
-                />
             )}
 
-            <Card title="Fuentes configuradas">
-                <ul className="ir-flex ir-flex-col ir-gap-3">
-                    {sources.map((source) => (
-                        <li key={source.id} className="ir-flex ir-flex-col ir-gap-2 ir-border-t ir-pt-3">
-                            <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
-                                <div className="ir-min-w-0">
-                                    <p className="ir-font-medium">{labelFor(source.type)}</p>
-                                    <p className="ir-text-xs ir-text-muted-foreground">
-                                        {source.status}
-                                        {results[source.id] !== undefined ? ` — ${results[source.id]}` : ''}
-                                        {source.last_error !== null && results[source.id] === undefined ? ` — ${source.last_error}` : ''}
+            <ul className="ir-flex ir-flex-col ir-gap-2">
+                {sources.map((source) => (
+                    <li key={source.id} className="ir-rounded-md ir-border ir-p-3">
+                        <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
+                            <div className="ir-min-w-0">
+                                <div className="ir-flex ir-items-center ir-gap-2">
+                                    <span className="ir-font-medium">{labelFor(source.type)}</span>
+                                    <Badge tone={statusTone(source.status)}>{source.status}</Badge>
+                                </div>
+                                {(results[source.id] !== undefined || source.last_error !== null) && (
+                                    <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                                        {results[source.id] ?? source.last_error}
                                     </p>
-                                </div>
-                                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
-                                    {source.is_push !== true && (
-                                        <Button variant="ghost" onClick={() => runTest(source.id)} disabled={test.isPending}>
-                                            Probar
-                                        </Button>
-                                    )}
-                                    <Button variant="ghost" onClick={() => setEditing(source)}>
-                                        Editar
-                                    </Button>
-                                    <Button variant="ghost" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
-                                        Eliminar
-                                    </Button>
-                                </div>
+                                )}
                             </div>
-                            <PushInstallPanel source={source} />
-                        </li>
-                    ))}
-                    {sources.length === 0 && <li className="ir-text-sm ir-text-muted-foreground">Sin fuentes todavía.</li>}
-                </ul>
-            </Card>
+                            <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                                {source.is_push !== true && (
+                                    <Button variant="ghost" size="sm" onClick={() => runTest(source.id)} disabled={test.isPending}>
+                                        Probar
+                                    </Button>
+                                )}
+                                <Button variant="ghost" size="sm" onClick={() => setEditing((current) => (current === source.id ? null : source.id))}>
+                                    {editing === source.id ? 'Cerrar' : 'Editar'}
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
+                                    Eliminar
+                                </Button>
+                            </div>
+                        </div>
+                        <PushInstallPanel source={source} />
+                        {editing === source.id && (
+                            <DataSourceEditForm
+                                source={source}
+                                connector={connectors.find((item) => item.key === source.type)}
+                                siteId={siteId}
+                                onClose={() => setEditing(null)}
+                            />
+                        )}
+                    </li>
+                ))}
+                {sources.length === 0 && !adding && (
+                    <li className="ir-rounded-md ir-border ir-border-dashed ir-p-4 ir-text-center ir-text-sm ir-text-muted-foreground">
+                        Aún no hay fuentes. Pulsa «+ Añadir fuente» para conectar GA4, MainWP, el Agente del sitio, WooCommerce…
+                    </li>
+                )}
+            </ul>
         </div>
     );
 }
