@@ -4,7 +4,7 @@ Tags: reporting, backups, monitoring, maintenance
 Requires at least: 5.6
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ dejan archivo local que medir; configura tu plugin de backup para conservar una 
 local si quieres verlos en el informe.
 
 == Changelog ==
+
+= 1.5.0 =
+* Inventario de plugins (slug/nombre/versión) en el payload, para que Imagina Reports detecte plugins abandonados consultando wp.org desde el lado servidor (no desde el sitio).
+* /diagnostics ampliado: descubre el almacenamiento (opciones + columnas y nº de filas, nunca valores) de plugins de formularios, seguridad e imágenes, para programar sus lectores sin adivinar.
 
 = 1.4.0 =
 * Monitor SSL: lee el certificado del propio dominio por TLS (caducidad, días restantes, emisor, validez), como el monitor SSL de MainWP. Permite que el agente sustituya los datos por-sitio que se extraían de MainWP.

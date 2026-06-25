@@ -41,6 +41,13 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
 
     private const PATH = '/wp-json/imagina-reports/v1/metrics';
 
+    public function __construct(private ?AbandonedPluginChecker $abandonedChecker = null) {}
+
+    private function abandonedChecker(): AbandonedPluginChecker
+    {
+        return $this->abandonedChecker ??= new AbandonedPluginChecker;
+    }
+
     public function key(): string
     {
         return DataSourceType::SiteAgent->value;
@@ -79,6 +86,8 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.updates_core', 'Actualizaciones de núcleo', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.updates_plugins', 'Actualizaciones de plugins', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.updates_themes', 'Actualizaciones de temas', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.abandoned_count', 'Plugins abandonados', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.abandoned_plugins', 'Detalle de plugins abandonados', MetricType::Table),
             new MetricDefinition('site_agent.db_size_mb', 'Tamaño de la base de datos', MetricType::Scalar, 'MB'),
             new MetricDefinition('site_agent.uploads_size_mb', 'Tamaño de archivos subidos', MetricType::Scalar, 'MB'),
             // SSL (monitor de certificado, equivalente a MainWP).
@@ -212,6 +221,16 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         $hasStore = Arr::get($ecommerce, 'active') === true;
         $sslChecked = Arr::get($ssl, 'checked') === true;
 
+        // Abandoned-plugin detection calls wp.org (cached), so only run it when the
+        // metric is actually requested (empty list = full preview = all).
+        $pluginList = $this->listOf(Arr::get($plugins, 'list'));
+        $wantsAbandoned = $requested === []
+            || in_array('site_agent.abandoned_count', $requested, true)
+            || in_array('site_agent.abandoned_plugins', $requested, true);
+        $abandoned = ($wantsAbandoned && $pluginList !== [])
+            ? $this->abandonedChecker()->detect($pluginList)
+            : [];
+
         $values = [
             'site_agent.backups_count' => $this->toInt(Arr::get($backups, 'count_in_period')),
             'site_agent.backups_total' => $this->toInt(Arr::get($backups, 'count_total')),
@@ -228,6 +247,8 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.updates_core' => $this->toInt(Arr::get($updates, 'core')),
             'site_agent.updates_plugins' => $this->toInt(Arr::get($updates, 'plugins')),
             'site_agent.updates_themes' => $this->toInt(Arr::get($updates, 'themes')),
+            'site_agent.abandoned_count' => $wantsAbandoned ? count($abandoned) : null,
+            'site_agent.abandoned_plugins' => ($wantsAbandoned && $abandoned !== []) ? $this->abandonedTable($abandoned) : null,
             'site_agent.db_size_mb' => $this->numOrNull(Arr::get($storage, 'db_size_mb')),
             'site_agent.uploads_size_mb' => $this->numOrNull(Arr::get($storage, 'uploads_size_mb')),
             // SSL (oculto si el sitio no es HTTPS o no se pudo verificar).
@@ -337,6 +358,25 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         }
 
         return $table;
+    }
+
+    /**
+     * @param  list<array{slug: string, name: string, last_updated: string, reason: string}>  $abandoned
+     * @return list<array<string, string>>
+     */
+    private function abandonedTable(array $abandoned): array
+    {
+        $rows = [];
+
+        foreach ($abandoned as $plugin) {
+            $rows[] = [
+                'Plugin' => $plugin['name'],
+                'Última actualización' => $this->humanDate($plugin['last_updated']),
+                'Motivo' => $plugin['reason'],
+            ];
+        }
+
+        return $rows;
     }
 
     /**

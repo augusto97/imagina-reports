@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🔌 AGENTE IMAGINA — 2º LOTE (DESCUBRIMIENTO) + DETECTOR DE PLUGINS ABANDONADOS (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
+plugin v1.5.0 → release v1.13.42):** el owner pidió las dos cosas. **(1) /diagnostics ampliado:** nueva `imagina_reports_agent_probe_structure($needles)`
+que, para plugins de **formularios** (WPForms/Gravity/Forminator/Ninja/Fluent/Formidable/Flamingo), **seguridad** (Wordfence/Limit Login/
+Solid-iThemes/Cerber/Loginizer) e **imágenes** (Smush/ShortPixel/Imagify/EWWW), revela SOLO estructura (nombres de opción + columnas y nº
+de filas por tabla), NUNCA valores (las entradas tienen PII y la config de seguridad puede tener secretos). También devuelve `active_plugins`.
+Con esto, cuando el owner ejecute `GET /wp-json/imagina-reports/v1/diagnostics?key=…`, sabré dónde leer cada métrica sin adivinar (§0).
+**(2) Detector de plugins abandonados (lado Laravel):** el agente ahora incluye `plugins.list` (slug/nombre/versión/activo); nuevo
+servicio `App\Connectors\SiteAgent\AbandonedPluginChecker` consulta `api.wordpress.org/plugins/info/1.0/{slug}.json` (cacheado 7 días por
+slug, errores transitorios no se cachean) y marca como abandonado solo lo que ESTÁ en el repo y lleva >24 meses sin actualizar — los
+plugins premium/custom (no están en el repo) NO se marcan (evita falsos positivos). Conector: +2 métricas `site_agent.abandoned_count`
+(escalar) y `site_agent.abandoned_plugins` (tabla Plugin/Última actualización/Motivo); solo llama a wp.org si la métrica se pide (lista
+vacía = preview completo = sí). **298 tests (+2: detección y skip-cuando-no-se-pide) + PHPStan max + Pint limpios.** **Pendiente del owner:**
+desplegar v1.13.42, reinstalar plugin (v1.5.0), y **ejecutar /diagnostics y pegarme el JSON** para implementar los lectores reales de
+logins/formularios/imágenes del 2º lote. El detector de abandonados ya funciona end-to-end (se activa al bindear la métrica o en preview).
+
+
 **🔐 AGENTE IMAGINA — MONITOR SSL + RUMBO «REEMPLAZAR MAINWP» (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.4.0 →
 release v1.13.41):** el owner pidió verificar SSL como MainWP, con la visión de que el agente **reemplace todos los datos por-sitio que
 hoy sacamos de MainWP**. Implementado **monitor SSL** en el plugin (`imagina_reports_agent_ssl`): abre una conexión TLS al propio

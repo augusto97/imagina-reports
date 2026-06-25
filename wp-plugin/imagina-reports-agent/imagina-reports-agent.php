@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.4.0
+ * Version:           1.5.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -27,7 +27,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.4.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.5.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -159,11 +159,77 @@ function imagina_reports_agent_period_ts($value, $default, $end = false) {
  */
 function imagina_reports_agent_diagnostics($request) {
     return new WP_REST_Response(array(
-        'success'       => true,
-        'agent_version' => IMAGINA_REPORTS_AGENT_VERSION,
-        'wpvivid'       => imagina_reports_agent_probe('wpvivid'),
-        'updraft'       => imagina_reports_agent_probe('updraft'),
+        'success'        => true,
+        'agent_version'  => IMAGINA_REPORTS_AGENT_VERSION,
+        'active_plugins' => array_values((array) get_option('active_plugins', array())),
+        'wpvivid'        => imagina_reports_agent_probe('wpvivid'),
+        'updraft'        => imagina_reports_agent_probe('updraft'),
+        // 2º lote: descubre DÓNDE guardan sus datos los plugins de formularios,
+        // seguridad e imágenes. Solo estructura (nombres de opción + columnas y conteo
+        // de filas), NUNCA valores: las entradas de formularios contienen datos
+        // personales y la config de seguridad puede contener secretos.
+        'forms'          => imagina_reports_agent_probe_structure(array(
+            'wpforms', 'gravity', 'gf_', 'gform', 'forminator', 'frmt', 'ninja_forms', 'nf3', 'fluentform', 'frm_', 'flamingo',
+        )),
+        'security'       => imagina_reports_agent_probe_structure(array(
+            'wordfence', 'wfls', 'wflogins', 'wfhits', 'wfblocks', 'wfconfig', 'limit_login', 'itsec', 'ithemes_security', 'cerber', 'loginizer', 'lockdown',
+        )),
+        'images'         => imagina_reports_agent_probe_structure(array(
+            'smush', 'shortpixel', 'short_pixel', 'imagify', 'ewww',
+        )),
     ), 200);
+}
+
+/**
+ * Sondea opciones y tablas que coincidan con cualquiera de los $needles y devuelve solo
+ * la ESTRUCTURA: nombres de opción (sin sus valores) y, por tabla, sus columnas y el
+ * número de filas. Nunca devuelve valores de filas ni de opciones (pueden contener datos
+ * personales/secretos). Esto basta para programar luego el lector exacto sin adivinar.
+ *
+ * @param array<int,string> $needles
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_probe_structure($needles) {
+    global $wpdb;
+
+    $options = array();
+    $tables  = array();
+
+    if (is_object($wpdb)) {
+        foreach ((array) $needles as $needle) {
+            $like = '%' . $wpdb->esc_like($needle) . '%';
+
+            $names = $wpdb->get_col($wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_name LIMIT 40",
+                $like
+            ));
+            if (is_array($names)) {
+                $options = array_merge($options, $names);
+            }
+
+            $found = $wpdb->get_col($wpdb->prepare('SHOW TABLES LIKE %s', $like));
+            if (is_array($found)) {
+                foreach ($found as $table) {
+                    // Identificador no parametrizable: los needles son constantes del
+                    // plugin (no entrada de usuario) y se eliminan los backticks.
+                    $safe = '`' . str_replace('`', '', (string) $table) . '`';
+
+                    $columns = $wpdb->get_col('SHOW COLUMNS FROM ' . $safe, 0);
+                    $rows    = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $safe);
+
+                    $tables[(string) $table] = array(
+                        'columns' => is_array($columns) ? $columns : array(),
+                        'rows'    => $rows,
+                    );
+                }
+            }
+        }
+    }
+
+    return array(
+        'options' => array_values(array_unique($options)),
+        'tables'  => $tables,
+    );
 }
 
 /**
@@ -309,10 +375,27 @@ function imagina_reports_agent_plugins() {
     $total       = count($all);
     $active_count = count(array_intersect(array_keys($all), $active));
 
+    // Lista ligera (slug derivado de la carpeta del plugin, igual que usa wp.org) para
+    // que el lado Laravel pueda detectar plugins abandonados consultando wp.org. No se
+    // llama a wp.org desde aquí (regla de oro §3.3).
+    $list = array();
+    foreach ($all as $file => $info) {
+        $dir  = dirname($file);
+        $slug = ($dir !== '.' && $dir !== '') ? $dir : basename($file, '.php');
+
+        $list[] = array(
+            'slug'    => $slug,
+            'name'    => isset($info['Name']) ? (string) $info['Name'] : $slug,
+            'version' => isset($info['Version']) ? (string) $info['Version'] : '',
+            'active'  => in_array($file, $active, true),
+        );
+    }
+
     return array(
         'total'    => $total,
         'active'   => $active_count,
         'inactive' => max(0, $total - $active_count),
+        'list'     => $list,
     );
 }
 

@@ -220,6 +220,43 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertNull($set->get('site_agent.ssl_status'));
     }
 
+    public function test_detects_abandoned_plugins_via_wporg(): void
+    {
+        $payload = $this->payload();
+        $payload['plugins']['list'] = [
+            ['slug' => 'old-plugin', 'name' => 'Old Plugin', 'version' => '1.0', 'active' => true],
+            ['slug' => 'akismet', 'name' => 'Akismet', 'version' => '5.3', 'active' => true],
+            ['slug' => 'acme-pro', 'name' => 'Acme Pro', 'version' => '2.0', 'active' => true],
+        ];
+
+        Http::fake([
+            'a.test/wp-json/*' => Http::response($payload),
+            'api.wordpress.org/plugins/info/1.0/old-plugin.json' => Http::response(['slug' => 'old-plugin', 'name' => 'Old Plugin', 'last_updated' => '2021-01-15 3:00pm GMT']),
+            'api.wordpress.org/plugins/info/1.0/akismet.json' => Http::response(['slug' => 'akismet', 'name' => 'Akismet', 'last_updated' => '2026-05-20 3:00pm GMT']),
+            // Not in the directory (premium) — must NOT be flagged as abandoned.
+            'api.wordpress.org/plugins/info/1.0/acme-pro.json' => Http::response(['error' => 'Plugin not found.']),
+        ]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertSame(1, $set->get('site_agent.abandoned_count'));
+        $table = $set->get('site_agent.abandoned_plugins');
+        $this->assertCount(1, $table);
+        $this->assertSame('Old Plugin', $table[0]['Plugin']);
+    }
+
+    public function test_abandoned_plugins_skipped_when_not_requested(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['a.test/wp-json/*' => Http::response($this->payload())]);
+
+        // Requesting only an unrelated metric must not trigger any wp.org call.
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), ['site_agent.plugins_total']);
+
+        $this->assertSame(15, $set->get('site_agent.plugins_total'));
+        $this->assertNull($set->get('site_agent.abandoned_count'));
+    }
+
     public function test_fetch_sends_the_api_key_header_and_period(): void
     {
         Http::fake(['*' => Http::response($this->payload())]);
