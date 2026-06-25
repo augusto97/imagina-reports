@@ -52,6 +52,14 @@ class SiteAgentConnectorTest extends TestCase
             'plugins' => ['active' => 12, 'inactive' => 3, 'total' => 15],
             'updates' => ['core' => 0, 'plugins' => 2, 'themes' => 1, 'total' => 3],
             'storage' => ['db_size_mb' => 42.5, 'uploads_size_mb' => 880.2],
+            'ssl' => [
+                'checked' => true,
+                'valid' => true,
+                'expires_at' => '2026-09-01T00:00:00+00:00',
+                'days_until_expiry' => 68,
+                'issuer' => "Let's Encrypt",
+                'common_name' => 'a.test',
+            ],
             'security' => [
                 'admins' => 2,
                 'users_total' => 540,
@@ -163,6 +171,11 @@ class SiteAgentConnectorTest extends TestCase
         $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
 
         $this->assertTrue($set->isOk());
+        // SSL.
+        $this->assertSame(68, $set->get('site_agent.ssl_days_remaining'));
+        $ssl = $set->get('site_agent.ssl_status');
+        $this->assertContains(['Concepto' => 'Estado', 'Valor' => 'Válido ✓'], $ssl);
+        $this->assertContains(['Concepto' => 'Emisor', 'Valor' => "Let's Encrypt"], $ssl);
         // Security.
         $this->assertSame(412, $set->get('site_agent.spam_blocked'));
         $this->assertSame(9821, $set->get('site_agent.spam_blocked_total'));
@@ -193,6 +206,7 @@ class SiteAgentConnectorTest extends TestCase
         $payload = $this->payload();
         $payload['leads'] = ['provider' => '', 'count_total' => 0, 'count_period' => 0];
         $payload['ecommerce'] = ['active' => false];
+        $payload['ssl'] = ['checked' => false];
 
         Http::fake(['*' => Http::response($payload)]);
 
@@ -202,6 +216,8 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertNull($set->get('site_agent.leads_total'));
         $this->assertNull($set->get('site_agent.out_of_stock'));
         $this->assertNull($set->get('site_agent.pending_orders'));
+        $this->assertNull($set->get('site_agent.ssl_days_remaining'));
+        $this->assertNull($set->get('site_agent.ssl_status'));
     }
 
     public function test_fetch_sends_the_api_key_header_and_period(): void

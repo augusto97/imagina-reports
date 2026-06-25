@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -14,7 +14,8 @@
  * Diseño (espejo de App\Connectors\SiteAgent\SiteAgentConnector):
  *   GET /wp-json/imagina-reports/v1/metrics?from=YYYY-MM-DD&to=YYYY-MM-DD
  *   Cabecera: X-Imagina-Key: <clave>   (o ?key=<clave>)
- *   Respuesta: { success, generated_at, agent_version, site, plugins, updates, storage, backups }
+ *   Respuesta: { success, generated_at, agent_version, site, plugins, updates, storage,
+ *               ssl, backups, security, performance, content, leads, ecommerce }
  *
  * Regla de oro (§3.3): agrega EN EL ORIGEN. Los respaldos se miden escaneando las
  * carpetas de backup en disco (mtime + tamaño), no leyendo el esquema interno de cada
@@ -26,7 +27,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.3.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.4.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -118,6 +119,7 @@ function imagina_reports_agent_metrics($request) {
         'plugins'       => imagina_reports_agent_plugins(),
         'updates'       => imagina_reports_agent_updates(),
         'storage'       => imagina_reports_agent_storage(),
+        'ssl'           => imagina_reports_agent_ssl(),
         'backups'       => imagina_reports_agent_backups($from, $to),
         'security'      => imagina_reports_agent_security($from_gmt, $to_gmt),
         'performance'   => imagina_reports_agent_performance(),
@@ -375,6 +377,81 @@ function imagina_reports_agent_storage() {
     return array(
         'db_size_mb'      => imagina_reports_agent_mb($db_bytes),
         'uploads_size_mb' => imagina_reports_agent_mb($uploads_bytes),
+    );
+}
+
+/**
+ * Certificado SSL del propio sitio (igual que un monitor SSL tipo MainWP): abre una
+ * conexión TLS al dominio y lee el certificado presentado — caducidad, emisor, validez.
+ * Es una sola lectura en el origen (§3.3); no llama a servicios externos.
+ *
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_ssl() {
+    $url  = home_url();
+    $host = wp_parse_url($url, PHP_URL_HOST);
+
+    if (strpos($url, 'https://') !== 0 || ! is_string($host) || $host === '' || ! function_exists('openssl_x509_parse')) {
+        return array('checked' => false);
+    }
+
+    $port = (int) wp_parse_url($url, PHP_URL_PORT);
+    if ($port === 0) {
+        $port = 443;
+    }
+
+    $context = stream_context_create(array('ssl' => array(
+        'capture_peer_cert' => true,
+        'verify_peer'       => false,
+        'verify_peer_name'  => false,
+        'SNI_enabled'       => true,
+        'peer_name'         => $host,
+    )));
+
+    $client = @stream_socket_client(
+        'ssl://' . $host . ':' . $port,
+        $errno,
+        $errstr,
+        7,
+        STREAM_CLIENT_CONNECT,
+        $context
+    );
+
+    if ($client === false) {
+        return array('checked' => true, 'valid' => false, 'error' => 'No se pudo establecer la conexión TLS.');
+    }
+
+    $params = stream_context_get_params($client);
+    fclose($client);
+
+    $cert = isset($params['options']['ssl']['peer_certificate']) ? $params['options']['ssl']['peer_certificate'] : null;
+    if ($cert === null) {
+        return array('checked' => true, 'valid' => false, 'error' => 'No se recibió certificado.');
+    }
+
+    $parsed = openssl_x509_parse($cert);
+    if (! is_array($parsed) || empty($parsed['validTo_time_t'])) {
+        return array('checked' => true, 'valid' => false, 'error' => 'Certificado ilegible.');
+    }
+
+    $valid_to   = (int) $parsed['validTo_time_t'];
+    $valid_from = isset($parsed['validFrom_time_t']) ? (int) $parsed['validFrom_time_t'] : 0;
+    $now        = time();
+
+    $issuer = '';
+    if (isset($parsed['issuer']['O'])) {
+        $issuer = is_array($parsed['issuer']['O']) ? implode(', ', $parsed['issuer']['O']) : (string) $parsed['issuer']['O'];
+    } elseif (isset($parsed['issuer']['CN'])) {
+        $issuer = (string) $parsed['issuer']['CN'];
+    }
+
+    return array(
+        'checked'           => true,
+        'valid'             => ($valid_to > $now && $valid_from <= $now),
+        'expires_at'        => gmdate('c', $valid_to),
+        'days_until_expiry' => (int) floor(($valid_to - $now) / 86400),
+        'issuer'            => $issuer,
+        'common_name'       => isset($parsed['subject']['CN']) ? (string) $parsed['subject']['CN'] : '',
     );
 }
 

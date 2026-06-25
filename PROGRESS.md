@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🔐 AGENTE IMAGINA — MONITOR SSL + RUMBO «REEMPLAZAR MAINWP» (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.4.0 →
+release v1.13.41):** el owner pidió verificar SSL como MainWP, con la visión de que el agente **reemplace todos los datos por-sitio que
+hoy sacamos de MainWP**. Implementado **monitor SSL** en el plugin (`imagina_reports_agent_ssl`): abre una conexión TLS al propio
+dominio (`stream_socket_client ssl://`, captura el cert, `openssl_x509_parse`) y devuelve caducidad/`days_until_expiry`/emisor/validez
+— una lectura en el origen, sin servicios externos. Conector: +2 métricas (`site_agent.ssl_days_remaining` escalar, `site_agent.ssl_status`
+tabla); se ocultan si el sitio no es HTTPS o no se pudo verificar (`checked=false`). **296 tests (+3 asserts SSL) + PHPStan + Pint
+limpios.** **Decisión registrada:** el SiteAgent ya cubre lo de MainWP por-sitio (updates core/plugins/themes, inventario de plugins,
+salud, y ahora SSL); lo ÚNICO que el agente NO hará es «plugins abandonados» porque requiere consultar wp.org y la regla de oro prohíbe
+llamadas externas desde el agente → ese signo se queda en el lado Laravel o en MainWP. **Pendiente del owner:** desplegar v1.13.41,
+reinstalar plugin (v1.4.0), validar SSL. Sigue pendiente el **2º lote 🔌** (logins de plugins de seguridad, forms con tabla propia,
+imágenes optimizadas — vía /diagnostics).
+
+
 **📊 AGENTE IMAGINA — LOTE GRANDE DE MÉTRICAS A/B/C/D (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.3.0 →
 release v1.13.40):** el owner pidió (AskUserQuestion) los 4 grupos: Seguridad, Captación/leads, Rendimiento/limpieza, E-commerce
 operativo. Como el agente corre dentro de WP, casi todo es **dato del core (sin adivinar plugins)**. **Plugin (nuevas secciones del
@@ -1328,6 +1341,11 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-06-25) **El Agente Imagina reemplaza los datos por-sitio de MainWP en los reportes.** El agente corre dentro de cada sitio y
+  lee directamente updates (core/plugins/themes), inventario de plugins, salud y SSL — todo lo que MainWP aporta por sitio. MainWP es
+  un agregador multi-sitio, pero Imagina Reports ya centraliza por su multi-tenancy + el agente por sitio. Excepción: «plugins
+  abandonados» NO lo hará el agente (requiere consultar wp.org y la regla de oro §3.3 prohíbe llamadas externas desde el agente); ese
+  signo se mantiene en MainWP o se calcula en el lado Laravel.
 - (2026-06-22) **PDF engine = Spatie Browsershot again** (re-aligns with the original spec §10.7). Owner confirmed
   their ServerAvatar OLS instance allows installing Node, so the v1.4.2 "drive Chromium directly (no Node)"
   workaround is reverted. Rationale: the direct-CLI renderer waited with a fixed `--virtual-time-budget` (prints

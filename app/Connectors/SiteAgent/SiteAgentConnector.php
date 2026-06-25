@@ -81,6 +81,9 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.updates_themes', 'Actualizaciones de temas', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.db_size_mb', 'Tamaño de la base de datos', MetricType::Scalar, 'MB'),
             new MetricDefinition('site_agent.uploads_size_mb', 'Tamaño de archivos subidos', MetricType::Scalar, 'MB'),
+            // SSL (monitor de certificado, equivalente a MainWP).
+            new MetricDefinition('site_agent.ssl_days_remaining', 'SSL: días para caducar', MetricType::Scalar, 'days'),
+            new MetricDefinition('site_agent.ssl_status', 'Estado del certificado SSL', MetricType::Table),
             // Seguridad activa.
             new MetricDefinition('site_agent.spam_blocked', 'Spam bloqueado (periodo)', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.spam_blocked_total', 'Spam bloqueado (total)', MetricType::Scalar, 'count'),
@@ -198,6 +201,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         $updates = $this->arrayOf(Arr::get($data, 'updates'));
         $storage = $this->arrayOf(Arr::get($data, 'storage'));
         $backups = $this->arrayOf(Arr::get($data, 'backups'));
+        $ssl = $this->arrayOf(Arr::get($data, 'ssl'));
         $security = $this->arrayOf(Arr::get($data, 'security'));
         $performance = $this->arrayOf(Arr::get($data, 'performance'));
         $content = $this->arrayOf(Arr::get($data, 'content'));
@@ -206,6 +210,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
 
         $hasLeads = $this->toStr(Arr::get($leads, 'provider')) !== '';
         $hasStore = Arr::get($ecommerce, 'active') === true;
+        $sslChecked = Arr::get($ssl, 'checked') === true;
 
         $values = [
             'site_agent.backups_count' => $this->toInt(Arr::get($backups, 'count_in_period')),
@@ -225,6 +230,9 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.updates_themes' => $this->toInt(Arr::get($updates, 'themes')),
             'site_agent.db_size_mb' => $this->numOrNull(Arr::get($storage, 'db_size_mb')),
             'site_agent.uploads_size_mb' => $this->numOrNull(Arr::get($storage, 'uploads_size_mb')),
+            // SSL (oculto si el sitio no es HTTPS o no se pudo verificar).
+            'site_agent.ssl_days_remaining' => $sslChecked ? $this->numOrNull(Arr::get($ssl, 'days_until_expiry')) : null,
+            'site_agent.ssl_status' => $sslChecked ? $this->sslStatus($ssl) : null,
             // Seguridad.
             'site_agent.spam_blocked' => $this->toInt(Arr::get($security, 'spam_blocked_period')),
             'site_agent.spam_blocked_total' => $this->toInt(Arr::get($security, 'spam_blocked_total')),
@@ -329,6 +337,27 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         }
 
         return $table;
+    }
+
+    /**
+     * SSL certificate summary (mirrors a MainWP-style SSL monitor).
+     *
+     * @param  array<array-key, mixed>  $ssl
+     * @return list<array<string, string>>
+     */
+    private function sslStatus(array $ssl): array
+    {
+        $valid = Arr::get($ssl, 'valid') === true;
+        $days = $this->numOrNull(Arr::get($ssl, 'days_until_expiry'));
+        $issuer = $this->toStr(Arr::get($ssl, 'issuer'));
+        $expires = $this->toStr(Arr::get($ssl, 'expires_at'));
+
+        return [
+            ['Concepto' => 'Estado', 'Valor' => $valid ? 'Válido ✓' : 'No válido ⚠'],
+            ['Concepto' => 'Emisor', 'Valor' => $issuer !== '' ? $issuer : '—'],
+            ['Concepto' => 'Caduca', 'Valor' => $expires !== '' ? $this->humanDate($expires) : '—'],
+            ['Concepto' => 'Días restantes', 'Valor' => $days !== null ? (string) $days : '—'],
+        ];
     }
 
     /**
