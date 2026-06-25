@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -26,7 +26,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.1.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.2.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -401,17 +401,32 @@ function imagina_reports_agent_backups($from_ts, $to_ts) {
     $files     = array();
     $providers = array();
 
-    // 1) Historial de UpdraftPlus (incluye respaldos solo-nube).
+    // 1) Historiales de plugins (incluyen respaldos solo-nube, sin copia local):
+    //    UpdraftPlus (updraft_backup_history) y WPvivid (wpvivid_backup_reports).
+    $covered = array();
+
     $updraft = imagina_reports_agent_updraft_history();
     foreach ($updraft as $entry) {
-        $files[]                    = $entry;
-        $providers['UpdraftPlus']   = true;
+        $files[]                  = $entry;
+        $providers['UpdraftPlus'] = true;
+    }
+    if (! empty($updraft)) {
+        $covered['UpdraftPlus'] = true;
     }
 
-    // 2) Escaneo en disco del resto (y de UpdraftPlus solo si NO hubo historial).
+    $wpvivid = imagina_reports_agent_wpvivid_history();
+    foreach ($wpvivid as $entry) {
+        $files[]              = $entry;
+        $providers['WPvivid'] = true;
+    }
+    if (! empty($wpvivid)) {
+        $covered['WPvivid'] = true;
+    }
+
+    // 2) Escaneo en disco del resto (y de un proveedor solo si su historial vino vacío).
     foreach ($dirs as $pattern => $provider) {
-        if ($provider === 'UpdraftPlus' && ! empty($updraft)) {
-            continue; // ya cubierto por el historial; evita contar doble.
+        if (isset($covered[$provider])) {
+            continue; // ya cubierto por su historial; evita contar doble.
         }
         foreach (imagina_reports_agent_glob_dirs($pattern) as $dir) {
             $found = imagina_reports_agent_scan_backup_dir($dir, $exts);
@@ -553,6 +568,125 @@ function imagina_reports_agent_updraft_destination($service) {
     }
 
     return empty($labels) ? 'Local' : implode(', ', $labels);
+}
+
+/**
+ * Lee el historial de WPvivid desde `wpvivid_backup_reports` (un registro por respaldo
+ * con `backup_time`), que persiste aunque el archivo se haya subido a la nube (Google
+ * Drive/Dropbox/S3) y borrado del disco. El destino se deduce de `wpvivid_remote_list`
+ * (solo el TIPO, nunca el token). Shape verificado contra datos reales (diagnostics).
+ *
+ * @return array<int,array{mtime:int,size:int,provider:string,location:string}>
+ */
+function imagina_reports_agent_wpvivid_history() {
+    $destination = imagina_reports_agent_wpvivid_destination();
+    $entries     = array();
+
+    $reports = get_option('wpvivid_backup_reports');
+
+    if (is_array($reports)) {
+        foreach ($reports as $record) {
+            if (! is_array($record) || ! isset($record['backup_time']) || ! is_numeric($record['backup_time'])) {
+                continue;
+            }
+
+            $ts = (int) $record['backup_time'];
+            if ($ts <= 0) {
+                continue;
+            }
+
+            // Tamaño: suma defensiva de cualquier subclave que contenga «size» (puede no existir).
+            $size = 0;
+            foreach ($record as $sub_key => $sub_value) {
+                if (is_string($sub_key) && stripos($sub_key, 'size') !== false && is_numeric($sub_value)) {
+                    $size += (int) $sub_value;
+                }
+            }
+
+            $entries[] = array(
+                'mtime'    => $ts,
+                'size'     => $size,
+                'provider' => 'WPvivid',
+                'location' => $destination,
+            );
+        }
+    }
+
+    // Fallback: si no hubo reports pero MainWP registró la última fecha de WPvivid.
+    if (empty($entries)) {
+        $last = get_option('mainwp_lasttime_backup_wpvivid');
+        if (is_numeric($last) && (int) $last > 0) {
+            $entries[] = array(
+                'mtime'    => (int) $last,
+                'size'     => 0,
+                'provider' => 'WPvivid',
+                'location' => $destination,
+            );
+        }
+    }
+
+    return $entries;
+}
+
+/**
+ * Deduce el destino de WPvivid desde la lista de almacenamientos remotos configurados,
+ * mapeando SOLO el tipo a una etiqueta legible (nunca expone tokens). Defensivo entre
+ * versiones: si no reconoce el tipo, devuelve «Remoto».
+ *
+ * @return string
+ */
+function imagina_reports_agent_wpvivid_destination() {
+    $remotes = get_option('wpvivid_remote_list');
+
+    if (! is_array($remotes) || empty($remotes)) {
+        $remotes = get_option('wpvivid_new_remote_list');
+    }
+
+    if (! is_array($remotes) || empty($remotes)) {
+        return 'Remoto';
+    }
+
+    $map = array(
+        'google_drive'         => 'Google Drive',
+        'googledrive'          => 'Google Drive',
+        'gdrive'               => 'Google Drive',
+        'dropbox'              => 'Dropbox',
+        'amazons3'             => 'Amazon S3',
+        's3'                   => 'Amazon S3',
+        'amazons3_compatible'  => 'S3 compatible',
+        'onedrive'             => 'OneDrive',
+        'microsoft_onedrive'   => 'OneDrive',
+        'sftp'                 => 'SFTP',
+        'ftp'                  => 'FTP',
+        'wasabi'               => 'Wasabi',
+        'backblaze'            => 'Backblaze',
+        'digitalocean'         => 'DigitalOcean Spaces',
+        'google_cloud_storage' => 'Google Cloud',
+        'pcloud'               => 'pCloud',
+        'webdav'               => 'WebDAV',
+        'azure'                => 'Azure',
+    );
+
+    $labels = array();
+
+    foreach ($remotes as $remote) {
+        if (! is_array($remote)) {
+            continue;
+        }
+
+        $type = '';
+        if (isset($remote['type']) && is_string($remote['type'])) {
+            $type = strtolower($remote['type']);
+        } elseif (isset($remote['storage']) && is_string($remote['storage'])) {
+            $type = strtolower($remote['storage']);
+        }
+
+        if ($type !== '' && isset($map[$type])) {
+            $labels[$map[$type]] = true;
+        }
+    }
+
+    return empty($labels) ? 'Remoto' : implode(', ', array_keys($labels));
 }
 
 /**

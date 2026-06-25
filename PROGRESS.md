@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**✅ AGENTE IMAGINA — WPVIVID EN LA NUBE RESUELTO (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.2.0 → release
+v1.13.38):** el owner corrió `/diagnostics` en un sitio real. Estructura confirmada de WPvivid: **`wpvivid_backup_reports`** =
+objeto keyed por task id, cada registro con **`backup_time`** (timestamp) — persiste aunque el backup se suba a Google Drive y se
+borre el local (`wpvivid_backup_list` estaba vacío, por eso no servía). También `mainwp_lasttime_backup_wpvivid` (última fecha) y
+`wpvivid_remote_list`/`wpvivid_new_remote_list` (destinos). UpdraftPlus confirmado: `updraft_backup_history` keyed por timestamp
+con subclaves `*-size` (mi lector ya lo cubría; 114 entradas en ese sitio). **Implementado en el plugin (sin adivinar, contra el
+shape real):** `imagina_reports_agent_wpvivid_history()` lee `wpvivid_backup_reports` → entradas {mtime, size defensivo, provider
+WPvivid, location}; fallback a `mainwp_lasttime_backup_wpvivid`; `imagina_reports_agent_wpvivid_destination()` mapea SOLO el tipo
+del remoto a etiqueta (google_drive→Google Drive…), nunca el token, fallback «Remoto». Integrado en `imagina_reports_agent_backups`
+con skip de carpeta por proveedor cubierto por historial (evita doble conteo, genérico para UpdraftPlus+WPvivid). Sin cambios de
+PHP de la app (el conector ya mapea provider/location); 294 tests siguen verdes; plugin lint OK. **Pendiente del owner:** desplegar
+v1.13.38, re-descargar/reinstalar el plugin (v1.2.0) y validar que WPvivid→Drive ahora muestra respaldos (fecha/antigüedad/destino).
+El **endpoint `/diagnostics`** queda en el plugin (gateado por clave, útil a futuro). Nota: tamaño de WPvivid puede salir null (no
+siempre lo guarda); fecha/conteo/destino sí.
+
 **🔬 AGENTE IMAGINA — DIAGNÓSTICO PARA WPVIVID→GOOGLE DRIVE (2026-06-25, rama `claude/github-app-analysis-a7b2bd`):** el owner
 configura **casi todos sus sitios con WPvivid → Google Drive** (sin copia local), así que el escaneo de disco no los ve y mi
 lector de UpdraftPlus no aplica. NO voy a adivinar cómo guarda WPvivid su historial (§0). Añadí al plugin (v1.1.0) un endpoint
