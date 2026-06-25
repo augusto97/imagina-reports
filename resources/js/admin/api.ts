@@ -655,8 +655,13 @@ export function useGenerateReport() {
         mutationFn: (payload: { report_definition_id: number; period_start: string; period_end: string }) =>
             api.post('/reports/generate', payload).then((r) => r.data),
         onSuccess: () => {
-            // Generation is queued; refresh shortly after.
-            setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), 500);
+            // Generation runs on the queue and the report row only appears once the job
+            // finishes, so a single quick refetch usually misses it. Re-fetch on a short
+            // bounded schedule until it lands — no manual reload needed.
+            const delays = [600, 1500, 3000, 5000, 8000, 12000];
+            for (const delay of delays) {
+                setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), delay);
+            }
         },
     });
 }

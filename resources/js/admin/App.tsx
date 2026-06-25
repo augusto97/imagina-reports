@@ -34,7 +34,7 @@ import { TemplatesScreen } from "./screens/TemplatesScreen";
 import { TrendsScreen } from "./screens/TrendsScreen";
 import { UpsellScreen } from "./screens/UpsellScreen";
 import { WorkLogsScreen } from "./screens/WorkLogsScreen";
-import { type AdminView, useAdminUi } from "./store";
+import { type AdminView, useAdminUi, viewFromHash } from "./store";
 
 const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: "clients", label: "Clientes", icon: Users },
@@ -134,6 +134,29 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
             return next;
         });
     const iconOnly = isDesktop && collapsed;
+
+    // Keep the URL hash in sync with the active section so reloading restores it
+    // (and the section is linkable). replaceState avoids spamming history; the hash
+    // is read back into the store on the next load.
+    useEffect(() => {
+        const target = `#/${view}`;
+        if (window.location.hash !== target) {
+            window.history.replaceState(null, '', target);
+        }
+    }, [view]);
+
+    // Honor manual hash edits and browser back/forward.
+    useEffect(() => {
+        const onHashChange = (): void => {
+            const next = viewFromHash();
+            if (next !== null) {
+                setView(next);
+            }
+        };
+        window.addEventListener('hashchange', onHashChange);
+
+        return () => window.removeEventListener('hashchange', onHashChange);
+    }, [setView]);
 
     // Navigating from the drawer also closes it (mobile only).
     const go = (next: AdminView): void => {

@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🧩 LEADS ELEMENTOR/JET + 2 FIXES DE UX EN EL ADMIN (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.8.0 →
+release v1.13.45):** tres cosas a la vez. **(1) Leads Elementor Pro + JetFormBuilder:** reescrito `imagina_reports_agent_leads` para
+soportar varias fuentes y elegir la que MÁS envíos tiene (evita falso positivo de plugin instalado-pero-vacío): Bit Form, Fluent Forms,
+**Elementor Pro** (`{prefix}e_submissions`), **JetFormBuilder** (`{prefix}jet_fb_records`), CF7/Flamingo. Guarda por existencia de tabla;
+degrada a 0 si el esquema difiere. OJO §0: Elementor/Jet usan esquemas DOCUMENTADOS pero NO confirmados con /diagnostics en un sitio real
+(imaginawp no los tiene) — añadí `e_submissions`/`jet_fb`/`jetform` a los needles para que el owner confirme en un sitio que los use.
+**(2) Fix refresco tras generar informe (`resources/js/admin/api.ts` useGenerateReport):** la generación es un job en cola y el row del
+report aparece solo al terminar; el invalidate único a 500ms lo perdía → ahora re-invalida en tanda (600ms/1.5s/3s/5s/8s/12s) hasta que
+aparece, sin recargar. **(3) Fix navegación/reload (`resources/js/admin/store.ts` + `App.tsx`):** la SPA navegaba solo por estado Zustand
+(`view`) sin tocar la URL, así que recargar volvía a 'clients'. Ahora `view` se refleja en el hash (`#/reports`) vía replaceState + listener
+`hashchange`, y se restaura del hash al cargar; `selectedSiteId`/`editingTemplateId` se persisten en localStorage para que data-sources/
+editor sobrevivan al reload. **298 tests + typecheck + build OK (2 warns lint preexistentes).** **Pendiente del owner:** desplegar
+v1.13.45, reinstalar plugin (v1.8.0); validar que al recargar te quedas en la sección (URL con #/) y que el informe aparece solo tras
+generar. Si usáis Elementor Pro/JetFormBuilder en algún sitio, ejecutar /diagnostics allí y pegar la sección `forms` para confirmar.
+
+
 **✅ AGENTE IMAGINA — 2º LOTE COMPLETO: LEADS DE BIT FORM (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, plugin v1.7.0 →
 release v1.13.44):** el owner re-ejecutó /diagnostics (v1.6.0) y reveló la tabla de Bit Form: `{prefix}bitforms_form_entries` (cols
 `form_id`,`status`,`created_at`; 9 filas). Implementé **leads** con detección por prioridad (sin adivinar, §0): **Bit Form**

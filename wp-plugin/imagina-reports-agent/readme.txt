@@ -4,7 +4,7 @@ Tags: reporting, backups, monitoring, maintenance
 Requires at least: 5.6
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ dejan archivo local que medir; configura tu plugin de backup para conservar una 
 local si quieres verlos en el informe.
 
 == Changelog ==
+
+= 1.8.0 =
+* Leads: añadido soporte para Elementor Pro (e_submissions) y JetFormBuilder (jet_fb_records). Si hay varios plugins de formularios instalados, elige el que más envíos tiene (el realmente usado).
 
 = 1.7.0 =
 * Leads: contador de envíos de formularios con detección por prioridad — Bit Form (tabla bitforms_form_entries), Fluent Forms (fluentform_submissions) y Contact Form 7 (Flamingo). Total y del periodo.
