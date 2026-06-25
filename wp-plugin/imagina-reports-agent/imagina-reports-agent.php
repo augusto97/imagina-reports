@@ -1,0 +1,524 @@
+<?php
+/**
+ * Plugin Name:       Imagina Reports Agent
+ * Plugin URI:        https://imaginawp.com
+ * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
+ * Version:           1.0.0
+ * Requires at least: 5.6
+ * Requires PHP:      7.4
+ * Author:            Imagina WP
+ * Author URI:        https://imaginawp.com
+ * License:           GPL-2.0-or-later
+ * Text Domain:       imagina-reports-agent
+ *
+ * Diseño (espejo de App\Connectors\SiteAgent\SiteAgentConnector):
+ *   GET /wp-json/imagina-reports/v1/metrics?from=YYYY-MM-DD&to=YYYY-MM-DD
+ *   Cabecera: X-Imagina-Key: <clave>   (o ?key=<clave>)
+ *   Respuesta: { success, generated_at, agent_version, site, plugins, updates, storage, backups }
+ *
+ * Regla de oro (§3.3): agrega EN EL ORIGEN. Los respaldos se miden escaneando las
+ * carpetas de backup en disco (mtime + tamaño), no leyendo el esquema interno de cada
+ * plugin de backup (frágil) ni descargando archivos. La salud del sitio sale de
+ * transients/opciones ya presentes; nunca se llama a WordPress.org desde aquí.
+ */
+
+if (! defined('ABSPATH')) {
+    exit;
+}
+
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.0.0');
+define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
+
+/**
+ * Genera una clave si no existe (al activar o al primer arranque).
+ */
+function imagina_reports_agent_ensure_key() {
+    $key = get_option(IMAGINA_REPORTS_AGENT_KEY_OPTION);
+
+    if (! is_string($key) || strlen($key) < 32) {
+        $key = wp_generate_password(48, false, false);
+        update_option(IMAGINA_REPORTS_AGENT_KEY_OPTION, $key, false);
+    }
+
+    return $key;
+}
+
+register_activation_hook(__FILE__, 'imagina_reports_agent_ensure_key');
+
+/* -------------------------------------------------------------------------- */
+/*  REST API                                                                  */
+/* -------------------------------------------------------------------------- */
+
+add_action('rest_api_init', function () {
+    register_rest_route('imagina-reports/v1', '/metrics', array(
+        'methods'             => 'GET',
+        'callback'            => 'imagina_reports_agent_metrics',
+        'permission_callback' => 'imagina_reports_agent_authorize',
+        'args'                => array(
+            'from' => array('required' => false),
+            'to'   => array('required' => false),
+        ),
+    ));
+});
+
+/**
+ * Autoriza la petición comparando la clave (cabecera X-Imagina-Key o ?key=) con la
+ * almacenada, en tiempo constante (hash_equals).
+ *
+ * @param WP_REST_Request $request
+ * @return bool|WP_Error
+ */
+function imagina_reports_agent_authorize($request) {
+    $provided = $request->get_header('x-imagina-key');
+
+    if (empty($provided)) {
+        $provided = $request->get_param('key');
+    }
+
+    $expected = imagina_reports_agent_ensure_key();
+
+    if (is_string($provided) && hash_equals($expected, $provided)) {
+        return true;
+    }
+
+    return new WP_Error(
+        'imagina_reports_forbidden',
+        'Clave del agente inválida o ausente.',
+        array('status' => 403)
+    );
+}
+
+/**
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
+function imagina_reports_agent_metrics($request) {
+    $from = imagina_reports_agent_period_ts($request->get_param('from'), 0);
+    $to   = imagina_reports_agent_period_ts($request->get_param('to'), PHP_INT_MAX, true);
+
+    $payload = array(
+        'success'       => true,
+        'generated_at'  => gmdate('c'),
+        'agent_version' => IMAGINA_REPORTS_AGENT_VERSION,
+        'site'          => imagina_reports_agent_site(),
+        'plugins'       => imagina_reports_agent_plugins(),
+        'updates'       => imagina_reports_agent_updates(),
+        'storage'       => imagina_reports_agent_storage(),
+        'backups'       => imagina_reports_agent_backups($from, $to),
+    );
+
+    return new WP_REST_Response($payload, 200);
+}
+
+/**
+ * Convierte una fecha YYYY-MM-DD a timestamp. $end=true la lleva al fin del día.
+ *
+ * @param mixed $value
+ * @param int   $default
+ * @param bool  $end
+ * @return int
+ */
+function imagina_reports_agent_period_ts($value, $default, $end = false) {
+    if (! is_string($value) || $value === '') {
+        return $default;
+    }
+
+    $ts = strtotime($value . ($end ? ' 23:59:59' : ' 00:00:00'));
+
+    return $ts === false ? $default : $ts;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Recolectores                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_site() {
+    global $wp_version, $wpdb;
+
+    $theme = wp_get_theme();
+
+    return array(
+        'url'                 => home_url(),
+        'name'                => get_bloginfo('name'),
+        'wp_version'          => $wp_version,
+        'php_version'         => PHP_VERSION,
+        'mysql_version'       => is_object($wpdb) ? $wpdb->db_version() : '',
+        'server_software'     => isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : '',
+        'locale'              => get_locale(),
+        'https'               => strpos(home_url(), 'https://') === 0,
+        'multisite'           => is_multisite(),
+        'active_theme'        => $theme ? $theme->get('Name') : '',
+        'active_theme_version'=> $theme ? $theme->get('Version') : '',
+    );
+}
+
+/**
+ * @return array<string,int>
+ */
+function imagina_reports_agent_plugins() {
+    if (! function_exists('get_plugins')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+
+    $all    = get_plugins();
+    $active = (array) get_option('active_plugins', array());
+
+    if (is_multisite()) {
+        $network = (array) get_site_option('active_sitewide_plugins', array());
+        $active  = array_unique(array_merge($active, array_keys($network)));
+    }
+
+    $total       = count($all);
+    $active_count = count(array_intersect(array_keys($all), $active));
+
+    return array(
+        'total'    => $total,
+        'active'   => $active_count,
+        'inactive' => max(0, $total - $active_count),
+    );
+}
+
+/**
+ * Lee los transients de actualización ya presentes (no fuerza una consulta a
+ * WordPress.org). Si nunca se han poblado, devuelve ceros.
+ *
+ * @return array<string,int>
+ */
+function imagina_reports_agent_updates() {
+    $core    = 0;
+    $plugins = 0;
+    $themes  = 0;
+
+    $core_t = get_site_transient('update_core');
+    if (isset($core_t->updates) && is_array($core_t->updates)) {
+        foreach ($core_t->updates as $update) {
+            if (isset($update->response) && $update->response === 'upgrade') {
+                $core++;
+            }
+        }
+    }
+
+    $plugins_t = get_site_transient('update_plugins');
+    if (isset($plugins_t->response) && is_array($plugins_t->response)) {
+        $plugins = count($plugins_t->response);
+    }
+
+    $themes_t = get_site_transient('update_themes');
+    if (isset($themes_t->response) && is_array($themes_t->response)) {
+        $themes = count($themes_t->response);
+    }
+
+    return array(
+        'core'    => $core,
+        'plugins' => $plugins,
+        'themes'  => $themes,
+        'total'   => $core + $plugins + $themes,
+    );
+}
+
+/**
+ * @return array<string,float>
+ */
+function imagina_reports_agent_storage() {
+    global $wpdb;
+
+    $db_bytes = 0;
+    if (is_object($wpdb)) {
+        $rows = $wpdb->get_results('SHOW TABLE STATUS', ARRAY_A);
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $db_bytes += (int) (isset($row['Data_length']) ? $row['Data_length'] : 0);
+                $db_bytes += (int) (isset($row['Index_length']) ? $row['Index_length'] : 0);
+            }
+        }
+    }
+
+    $uploads = wp_get_upload_dir();
+    $uploads_bytes = isset($uploads['basedir']) ? imagina_reports_agent_dir_size($uploads['basedir']) : 0;
+
+    return array(
+        'db_size_mb'      => imagina_reports_agent_mb($db_bytes),
+        'uploads_size_mb' => imagina_reports_agent_mb($uploads_bytes),
+    );
+}
+
+/**
+ * Escanea las carpetas de backup conocidas en disco y agrega (mtime + tamaño). No
+ * abre los archivos: solo los enumera (rápido, agrega en origen).
+ *
+ * @param int $from_ts
+ * @param int $to_ts
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_backups($from_ts, $to_ts) {
+    $content = defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
+
+    // Patrón de carpeta => proveedor. Soporta comodines via glob.
+    $dirs = array(
+        $content . '/updraft'           => 'UpdraftPlus',
+        $content . '/wpvividbackups'    => 'WPvivid',
+        $content . '/ai1wm-backups'     => 'All-in-One WP Migration',
+        $content . '/backwpup-*'        => 'BackWPup',
+        $content . '/backupwordpress-*' => 'BackUpWordPress',
+        ABSPATH . 'wp-snapshots'        => 'Duplicator',
+    );
+
+    $exts = array('zip', 'gz', 'tar', 'wpress', 'sql', 'bz2', 'tgz');
+
+    $files     = array();
+    $providers = array();
+
+    foreach ($dirs as $pattern => $provider) {
+        foreach (imagina_reports_agent_glob_dirs($pattern) as $dir) {
+            $found = imagina_reports_agent_scan_backup_dir($dir, $exts);
+            foreach ($found as $file) {
+                $file['provider'] = $provider;
+                $files[]          = $file;
+                $providers[$provider] = true;
+            }
+        }
+    }
+
+    // Orden por mtime descendente.
+    usort($files, function ($a, $b) {
+        return $b['mtime'] - $a['mtime'];
+    });
+
+    $count_total     = count($files);
+    $count_in_period = 0;
+    $total_bytes     = 0;
+    foreach ($files as $file) {
+        $total_bytes += $file['size'];
+        if ($file['mtime'] >= $from_ts && $file['mtime'] <= $to_ts) {
+            $count_in_period++;
+        }
+    }
+
+    $latest          = $count_total > 0 ? $files[0] : null;
+    $latest_provider = '';
+    $last_at         = null;
+    $last_age_days   = null;
+    $last_size_mb    = null;
+
+    if ($latest !== null) {
+        $latest_provider = $latest['provider'];
+        $last_at         = gmdate('c', $latest['mtime']);
+        $last_age_days   = (int) floor((time() - $latest['mtime']) / DAY_IN_SECONDS);
+        $last_size_mb    = imagina_reports_agent_mb($latest['size']);
+    }
+
+    $recent = array();
+    foreach (array_slice($files, 0, 10) as $file) {
+        $recent[] = array(
+            'date'     => gmdate('Y-m-d H:i', $file['mtime']),
+            'size_mb'  => imagina_reports_agent_mb($file['size']),
+            'provider' => $file['provider'],
+        );
+    }
+
+    return array(
+        'provider'            => $latest_provider,
+        'providers'           => array_keys($providers),
+        'last_backup_at'      => $last_at,
+        'last_backup_age_days'=> $last_age_days,
+        'last_backup_size_mb' => $last_size_mb,
+        'total_size_mb'       => imagina_reports_agent_mb($total_bytes),
+        'count_total'         => $count_total,
+        'count_in_period'     => $count_in_period,
+        'recent'              => $recent,
+    );
+}
+
+/**
+ * Resuelve un patrón de carpeta (con o sin comodín) a las carpetas existentes.
+ *
+ * @param string $pattern
+ * @return string[]
+ */
+function imagina_reports_agent_glob_dirs($pattern) {
+    if (strpos($pattern, '*') === false) {
+        return is_dir($pattern) ? array($pattern) : array();
+    }
+
+    $matches = glob($pattern, GLOB_ONLYDIR);
+
+    return is_array($matches) ? $matches : array();
+}
+
+/**
+ * Enumera los archivos de backup de una carpeta (un nivel + subcarpetas directas).
+ *
+ * @param string   $dir
+ * @param string[] $exts
+ * @return array<int,array{mtime:int,size:int}>
+ */
+function imagina_reports_agent_scan_backup_dir($dir, $exts) {
+    $result  = array();
+    $entries = @scandir($dir);
+
+    if (! is_array($entries)) {
+        return $result;
+    }
+
+    foreach ($entries as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+
+        $path = $dir . '/' . $entry;
+
+        if (is_dir($path)) {
+            // Un nivel de subcarpetas (algunos plugins agrupan por fecha).
+            $sub = @scandir($path);
+            if (is_array($sub)) {
+                foreach ($sub as $child) {
+                    if ($child === '.' || $child === '..') {
+                        continue;
+                    }
+                    $childPath = $path . '/' . $child;
+                    if (is_file($childPath) && imagina_reports_agent_is_backup($child, $exts)) {
+                        $result[] = array('mtime' => (int) @filemtime($childPath), 'size' => (int) @filesize($childPath));
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (is_file($path) && imagina_reports_agent_is_backup($entry, $exts)) {
+            $result[] = array('mtime' => (int) @filemtime($path), 'size' => (int) @filesize($path));
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * @param string   $filename
+ * @param string[] $exts
+ * @return bool
+ */
+function imagina_reports_agent_is_backup($filename, $exts) {
+    $lower = strtolower($filename);
+
+    foreach ($exts as $ext) {
+        if (substr($lower, -(strlen($ext) + 1)) === '.' . $ext) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Suma recursiva del tamaño de una carpeta (solo stat, sin abrir archivos).
+ *
+ * @param string $dir
+ * @return int
+ */
+function imagina_reports_agent_dir_size($dir) {
+    if (! is_dir($dir)) {
+        return 0;
+    }
+
+    $size = 0;
+
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $size += (int) $file->getSize();
+            }
+        }
+    } catch (Exception $e) {
+        return $size;
+    }
+
+    return $size;
+}
+
+/**
+ * @param int $bytes
+ * @return float
+ */
+function imagina_reports_agent_mb($bytes) {
+    return round($bytes / 1048576, 1);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Página de ajustes                                                         */
+/* -------------------------------------------------------------------------- */
+
+add_action('admin_menu', function () {
+    add_options_page(
+        'Imagina Reports',
+        'Imagina Reports',
+        'manage_options',
+        'imagina-reports-agent',
+        'imagina_reports_agent_settings_page'
+    );
+});
+
+add_action('admin_post_imagina_reports_agent_regenerate', function () {
+    if (! current_user_can('manage_options')) {
+        wp_die('No autorizado.');
+    }
+
+    check_admin_referer('imagina_reports_agent_regenerate');
+
+    update_option(
+        IMAGINA_REPORTS_AGENT_KEY_OPTION,
+        wp_generate_password(48, false, false),
+        false
+    );
+
+    wp_safe_redirect(admin_url('options-general.php?page=imagina-reports-agent&regenerated=1'));
+    exit;
+});
+
+function imagina_reports_agent_settings_page() {
+    $key      = imagina_reports_agent_ensure_key();
+    $endpoint = home_url('/wp-json/imagina-reports/v1/metrics');
+    ?>
+    <div class="wrap">
+        <h1>Imagina Reports — Agente del sitio</h1>
+        <p>Este plugin expone, de forma segura, el estado de respaldos y la salud del sitio para <strong>Imagina Reports</strong>.
+        Copia la clave de abajo y pégala al configurar la fuente «Agente Imagina (sitio)» en Imagina Reports.</p>
+
+        <?php if (isset($_GET['regenerated'])) : ?>
+            <div class="notice notice-success"><p>Clave regenerada. Actualízala en Imagina Reports.</p></div>
+        <?php endif; ?>
+
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row">Clave del agente</th>
+                <td>
+                    <input type="text" readonly class="regular-text code" style="width:30rem"
+                           value="<?php echo esc_attr($key); ?>" onclick="this.select();" />
+                    <p class="description">Trátala como una contraseña. Quien la tenga puede leer estas métricas (solo lectura).</p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">URL de métricas</th>
+                <td>
+                    <input type="text" readonly class="regular-text code" style="width:30rem"
+                           value="<?php echo esc_attr($endpoint); ?>" onclick="this.select();" />
+                    <p class="description">Imagina Reports la deduce sola desde la URL del sitio; aquí solo para referencia.</p>
+                </td>
+            </tr>
+        </table>
+
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <?php wp_nonce_field('imagina_reports_agent_regenerate'); ?>
+            <input type="hidden" name="action" value="imagina_reports_agent_regenerate" />
+            <?php submit_button('Regenerar clave', 'secondary'); ?>
+        </form>
+    </div>
+    <?php
+}

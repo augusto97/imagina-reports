@@ -7,6 +7,31 @@
 ---
 
 ## Where I left off (read me first)
+**🔌 AGENTE IMAGINA (PLUGIN DE SITIO) — BACKUPS REALES + SALUD DEL SITIO (2026-06-25, rama `claude/github-app-analysis-a7b2bd`):**
+cerrado el hilo de backups. Confirmado vía curls (el owner): **MainWP NO expone los backups de WPvivid/UpdraftPlus** —
+`/pro-reports/{dom}/backups?action=created` solo cuenta los backups que gestiona el propio MainWP (`[backup.created.count]`,
+vacío con 18 meses de rango); no existe sección `wpvivid`/`updraftplus` (404); la API **v1** `/mainwp/v1/pro-reports/backups`
+autentica con consumer key/secret pero pide un param `data` que no documenta — callejón. El owner pidió la vía correcta: **un
+plugin propio en cada sitio** que recoja los datos y la app los saque (modelo **pull**, elegido por encajar con todos los demás
+conectores; el sitio WP ya es alcanzable por HTTPS). Como escribimos AMBOS extremos, no hay shapes que adivinar (desaparece el
+riesgo §0). **Construido:**
+- **Plugin WordPress** `wp-plugin/imagina-reports-agent/` (PHP plano, sin deps): endpoint `GET /wp-json/imagina-reports/v1/metrics`
+  autenticado con clave (cabecera `X-Imagina-Key` o `?key=`, comparada con `hash_equals`), página de Ajustes que genera/muestra/
+  regenera la clave. **Backups medidos escaneando las carpetas en disco** (`wp-content/updraft`, `wpvividbackups`, `ai1wm-backups`,
+  `backwpup-*`, `backupwordpress-*`, `wp-snapshots`) → último backup (mtime), antigüedad, tamaño, total y conteo en el periodo —
+  provider-agnóstico, agrega en origen (§3.3), no abre archivos. Además salud del sitio: versiones WP/PHP/MySQL, tema, plugins
+  (activos/inactivos/total) desde `get_plugins`, actualizaciones desde los **transients ya presentes** (sin llamar a WP.org),
+  almacenamiento (BD vía `SHOW TABLE STATUS`, subidas vía iterador).
+- **Conector** `App\Connectors\SiteAgent\SiteAgentConnector` (tipo enum `site_agent`, registrado, visible en el picker, con
+  `ProvidesSetupGuide`). Catálogo: backups (count periodo/total, días desde último, tamaño último/total, tabla estado, tabla
+  recientes) + salud (tabla site_health, plugins_*, updates_*, db/uploads_size_mb). URL = config `url` o la del sitio +
+  `/wp-json/imagina-reports/v1/metrics`; gateado por métrica pedida (vacío = todo); escalares null→null (bloque se oculta).
+- Plantilla de galería **«Sitio y respaldos (Agente Imagina)»**. Tests: `SiteAgentConnectorTest` (13 casos: catálogo, mapeo,
+  cabecera+periodo, override de URL, gating, null, fallo HTTP, testConnection ok/clave inválida); +asserts en
+  ConnectorRegistration y ConnectorApi. **292 tests + PHPStan max + Pint + typecheck + lint(2 warns preexistentes) + build limpios.**
+  **Pendiente del owner:** desplegar; instalar el plugin en un sitio (zipear la carpeta), copiar la clave, añadir la fuente «Agente
+  Imagina (sitio)», probar conexión y validar respaldos/salud reales. Nota: solo mide backups con copia **local** en wp-content.
+
 **🗑️ BACKUPS ELIMINADO — LIMITACIÓN DE MAINWP (2026-06-24, rama `claude/github-app-analysis-a7b2bd` → release v1.13.34):** el owner
 preguntó cómo elegir WPvivid vs UpdraftPlus en backups. Descubrimiento (curl a `imaginawp.com`, que tiene backups al día):
 `/pro-reports/{dom}/backups?action=created` devuelve **`[backup.created.count]:0` con `sections_data` vacío AUN con backups al

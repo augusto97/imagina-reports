@@ -24,6 +24,7 @@ class ConnectorApiTest extends TestCase
         $this->assertContains('mainwp', $keys);
         $this->assertContains('ga4', $keys);
         $this->assertContains('gsc', $keys);
+        $this->assertContains('site_agent', $keys); // own-built per-site agent (backups + site health)
         $this->assertNotContains('crowdsec', $keys); // de-scoped from the source picker for now
         $this->assertNotContains('virusdie', $keys); // folded into MainWP (mainwp.malware_found)
 

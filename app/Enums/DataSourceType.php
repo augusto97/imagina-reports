@@ -21,6 +21,7 @@ enum DataSourceType: string
     case WooCommerce = 'woocommerce';
     case Database = 'database';
     case Endpoint = 'endpoint';
+    case SiteAgent = 'site_agent';
 
     public function label(): string
     {
@@ -35,6 +36,7 @@ enum DataSourceType: string
             self::WooCommerce => 'WooCommerce',
             self::Database => 'Database',
             self::Endpoint => 'Endpoint / CSV',
+            self::SiteAgent => 'Agente Imagina (sitio)',
         };
     }
 }

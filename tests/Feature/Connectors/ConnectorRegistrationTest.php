@@ -24,5 +24,6 @@ class ConnectorRegistrationTest extends TestCase
         $this->assertTrue($registry->has(DataSourceType::WooCommerce->value));
         $this->assertTrue($registry->has(DataSourceType::Database->value));
         $this->assertTrue($registry->has(DataSourceType::Endpoint->value));
+        $this->assertTrue($registry->has(DataSourceType::SiteAgent->value));
     }
 }
