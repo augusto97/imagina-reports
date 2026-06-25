@@ -59,7 +59,7 @@ import {
 import { hexToHslString } from "@shared/lib/color";
 import { SyncStatus } from "./SyncStatus";
 
-import { Button, Field, Input } from "../components/ui";
+import { Button, Card, Field, Input, Modal } from "../components/ui";
 import type { CatalogEntry, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
@@ -323,6 +323,9 @@ export function EditorScreen(): ReactElement {
             },
         });
     };
+
+    // Predesigned templates live in a top-bar modal (kept out of the sidebar to save space).
+    const [galleryOpen, setGalleryOpen] = useState(false);
 
     // A gallery template the user picked while the canvas already has content — we ask
     // whether to append it below or replace everything (for building unified reports).
@@ -615,6 +618,11 @@ export function EditorScreen(): ReactElement {
                     </button>
                 )}
 
+                <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(true)} title="Elegir una plantilla prediseñada">
+                    <LayoutTemplate className="ir-size-4" />
+                    Plantillas
+                </Button>
+
                 <div className="ir-ml-auto ir-flex ir-flex-wrap ir-items-center ir-justify-end ir-gap-2">
                     {/* Compact preview-data control — site + period live here (preview only),
                         not as a giant panel widget. */}
@@ -752,7 +760,7 @@ export function EditorScreen(): ReactElement {
                             )}
                         </Section>
 
-                        <Section title="Plantillas e IA" icon={<LayoutTemplate className="ir-size-4" />}>
+                        <Section title="Generar con IA" icon={<Sparkles className="ir-size-4" />}>
                             <div className="ir-flex ir-flex-col ir-gap-2.5">
                                 <div className="ir-flex ir-gap-2">
                                     <Input
@@ -768,32 +776,9 @@ export function EditorScreen(): ReactElement {
                                 {siteId === null && (
                                     <p className="ir-text-[11px] ir-text-muted-foreground">Elige un sitio en la barra superior para generar con IA.</p>
                                 )}
-                                <Button variant="ghost" onClick={loadDefaultTemplate} disabled={defaultTpl.isPending}>
-                                    <LayoutTemplate className="ir-size-4" />
-                                    Plantilla por defecto
-                                </Button>
-                                <div className="ir-flex ir-flex-col ir-gap-1.5">
-                                    {GALLERY.map((template) => {
-                                        const GalleryIcon = GALLERY_ICONS[template.key] ?? LayoutTemplate;
-
-                                        return (
-                                            <button
-                                                key={template.key}
-                                                type="button"
-                                                onClick={() => chooseTemplate(template)}
-                                                className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-2 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
-                                            >
-                                                <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
-                                                    <GalleryIcon className="ir-size-4" />
-                                                </span>
-                                                <span className="ir-min-w-0">
-                                                    <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
-                                                    <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                <p className="ir-text-[11px] ir-text-muted-foreground">
+                                    ¿Prefieres partir de una plantilla? Pulsa <strong>«Plantillas»</strong> en la barra superior.
+                                </p>
                                 {(create.isSuccess || update.isSuccess) && (
                                     <p className="ir-text-xs ir-text-emerald-600">Guardada.</p>
                                 )}
@@ -1026,6 +1011,64 @@ export function EditorScreen(): ReactElement {
                     </aside>
                 )}
             </div>
+
+            {galleryOpen && (
+                <Modal onClose={() => setGalleryOpen(false)} className="ir-max-w-3xl">
+                    <Card
+                        title="Plantillas prediseñadas"
+                        description="Elige un punto de partida. Si ya tienes contenido, te preguntaremos si añadirla debajo o reemplazar."
+                        actions={
+                            <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(false)}>
+                                Cerrar
+                            </Button>
+                        }
+                    >
+                        <div className="ir-grid ir-gap-2.5 sm:ir-grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    loadDefaultTemplate();
+                                    setGalleryOpen(false);
+                                }}
+                                disabled={defaultTpl.isPending}
+                                className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-3 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5 disabled:ir-opacity-50"
+                            >
+                                <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
+                                    <LayoutTemplate className="ir-size-4" />
+                                </span>
+                                <span className="ir-min-w-0">
+                                    <span className="ir-block ir-text-sm ir-font-medium">Plantilla por defecto</span>
+                                    <span className="ir-block ir-text-xs ir-text-muted-foreground">El informe narrativo estándar de Imagina (§11.5).</span>
+                                </span>
+                            </button>
+
+                            {GALLERY.map((template) => {
+                                const GalleryIcon = GALLERY_ICONS[template.key] ?? LayoutTemplate;
+
+                                return (
+                                    <button
+                                        key={template.key}
+                                        type="button"
+                                        onClick={() => {
+                                            chooseTemplate(template);
+                                            setGalleryOpen(false);
+                                        }}
+                                        className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-3 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
+                                    >
+                                        <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
+                                            <GalleryIcon className="ir-size-4" />
+                                        </span>
+                                        <span className="ir-min-w-0">
+                                            <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
+                                            <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </Card>
+                </Modal>
+            )}
 
             {pendingTpl !== null && (
                 <div

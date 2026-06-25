@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 EDITOR: PLANTILLAS PREDISEÑADAS → MODAL DESDE BOTÓN EN LA BARRA SUPERIOR (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.48, solo frontend):** el owner pidió sacar la galería de plantillas de la barra lateral del editor (ocupaba mucho) y
+ponerla en un modal que se abre con un botón «Plantillas» en la barra superior. Hecho en `editor/EditorScreen.tsx`: nuevo botón
+«Plantillas» (icono LayoutTemplate) en el top bar → abre `Modal` (el de components/ui) con una rejilla de 2 columnas: «Plantilla por
+defecto» + todas las de `GALLERY`; al elegir una se cierra el modal y se aplica (respeta el confirm de «ya hay contenido» → añadir
+debajo/reemplazar). La sección lateral «Plantillas e IA» pasó a llamarse «Generar con IA» (solo IA + pista «pulsa Plantillas arriba»).
+**typecheck + lint(0 err) + build limpios.** **Pendiente del owner:** desplegar v1.13.48 y validar. Nota previa: el rediseño del flujo
+Clientes/Sitios/Fuentes (v1.13.47) quedó funcional pero el owner dijo «le falta un poquito, después lo mejoramos» — pendiente de pulir
+(anchos, alta exprés con varias fuentes, etc.) cuando lo retome.
+
+
 **🎨 REDISEÑO UX: CLIENTES/SITIOS/FUENTES → UN SOLO PANEL MAESTRO-DETALLE (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.47, solo frontend):** el owner pidió simplificar el flujo de alta (3 menús separados Clientes/Sitios/Fuentes, cada uno «solo
 un formulario», obligaban a saltar entre menús). Elegido (AskUserQuestion): **maestro-detalle + alta rápida**. Implementado: **(1)** nuevo
