@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\ReportInsightsController;
 use App\Http\Controllers\Api\V1\ReportNarrativeController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
+use App\Http\Controllers\Api\V1\SiteAgentController;
 use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\SiteWorkLogController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
@@ -148,4 +149,6 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('system/update/run', [SystemUpdateController::class, 'run'])->name('api.system.update.run');
     Route::post('system/update/restart-workers', [SystemUpdateController::class, 'restartWorkers'])->name('api.system.update.restart-workers');
     Route::post('system/update/rollback', [SystemUpdateController::class, 'rollback'])->name('api.system.update.rollback');
+
+    Route::get('system/site-agent/download', [SiteAgentController::class, 'download'])->name('api.system.site-agent.download');
 });

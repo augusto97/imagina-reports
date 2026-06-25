@@ -246,8 +246,15 @@ function imagina_reports_agent_storage() {
 }
 
 /**
- * Escanea las carpetas de backup conocidas en disco y agrega (mtime + tamaño). No
- * abre los archivos: solo los enumera (rápido, agrega en origen).
+ * Estado de respaldos. Combina dos fuentes para cubrir TODAS las configuraciones,
+ * incluidas las que suben a la nube (Google Drive, Dropbox, S3…) sin dejar copia local:
+ *
+ *   1. Historial de UpdraftPlus (opción `updraft_backup_history`): registra cada
+ *      respaldo con su fecha y su destino remoto AUNQUE el archivo local se haya
+ *      borrado tras subirlo. Es la fuente autoritativa para UpdraftPlus.
+ *   2. Escaneo de carpetas en disco para el resto de plugins (WPvivid, BackWPup,
+ *      Duplicator, All-in-One…) que conservan copia local — mtime + tamaño, sin abrir
+ *      los archivos (agrega en origen, §3.3).
  *
  * @param int $from_ts
  * @param int $to_ts
@@ -271,12 +278,24 @@ function imagina_reports_agent_backups($from_ts, $to_ts) {
     $files     = array();
     $providers = array();
 
+    // 1) Historial de UpdraftPlus (incluye respaldos solo-nube).
+    $updraft = imagina_reports_agent_updraft_history();
+    foreach ($updraft as $entry) {
+        $files[]                    = $entry;
+        $providers['UpdraftPlus']   = true;
+    }
+
+    // 2) Escaneo en disco del resto (y de UpdraftPlus solo si NO hubo historial).
     foreach ($dirs as $pattern => $provider) {
+        if ($provider === 'UpdraftPlus' && ! empty($updraft)) {
+            continue; // ya cubierto por el historial; evita contar doble.
+        }
         foreach (imagina_reports_agent_glob_dirs($pattern) as $dir) {
             $found = imagina_reports_agent_scan_backup_dir($dir, $exts);
             foreach ($found as $file) {
-                $file['provider'] = $provider;
-                $files[]          = $file;
+                $file['provider']     = $provider;
+                $file['location']     = 'Local';
+                $files[]              = $file;
                 $providers[$provider] = true;
             }
         }
@@ -299,37 +318,118 @@ function imagina_reports_agent_backups($from_ts, $to_ts) {
 
     $latest          = $count_total > 0 ? $files[0] : null;
     $latest_provider = '';
+    $latest_location = '';
     $last_at         = null;
     $last_age_days   = null;
     $last_size_mb    = null;
 
     if ($latest !== null) {
         $latest_provider = $latest['provider'];
+        $latest_location = isset($latest['location']) ? $latest['location'] : 'Local';
         $last_at         = gmdate('c', $latest['mtime']);
         $last_age_days   = (int) floor((time() - $latest['mtime']) / DAY_IN_SECONDS);
-        $last_size_mb    = imagina_reports_agent_mb($latest['size']);
+        $last_size_mb    = $latest['size'] > 0 ? imagina_reports_agent_mb($latest['size']) : null;
     }
 
     $recent = array();
     foreach (array_slice($files, 0, 10) as $file) {
         $recent[] = array(
             'date'     => gmdate('Y-m-d H:i', $file['mtime']),
-            'size_mb'  => imagina_reports_agent_mb($file['size']),
+            'size_mb'  => $file['size'] > 0 ? imagina_reports_agent_mb($file['size']) : null,
             'provider' => $file['provider'],
+            'location' => isset($file['location']) ? $file['location'] : 'Local',
         );
     }
 
     return array(
-        'provider'            => $latest_provider,
-        'providers'           => array_keys($providers),
-        'last_backup_at'      => $last_at,
-        'last_backup_age_days'=> $last_age_days,
-        'last_backup_size_mb' => $last_size_mb,
-        'total_size_mb'       => imagina_reports_agent_mb($total_bytes),
-        'count_total'         => $count_total,
-        'count_in_period'     => $count_in_period,
-        'recent'              => $recent,
+        'provider'             => $latest_provider,
+        'providers'            => array_keys($providers),
+        'last_backup_at'       => $last_at,
+        'last_backup_age_days' => $last_age_days,
+        'last_backup_size_mb'  => $last_size_mb,
+        'last_backup_location' => $latest_location,
+        'total_size_mb'        => imagina_reports_agent_mb($total_bytes),
+        'count_total'          => $count_total,
+        'count_in_period'      => $count_in_period,
+        'recent'               => $recent,
     );
+}
+
+/**
+ * Lee el historial de UpdraftPlus (`updraft_backup_history`), que está keyed por la
+ * marca de tiempo del respaldo. Cada entrada conserva el destino remoto incluso si el
+ * archivo local ya se subió y borró — así detectamos respaldos en Google Drive/Dropbox/
+ * S3 sin copia local. Defensivo: tolera ausencias de campos y formatos entre versiones.
+ *
+ * @return array<int,array{mtime:int,size:int,provider:string,location:string}>
+ */
+function imagina_reports_agent_updraft_history() {
+    $history = get_option('updraft_backup_history');
+
+    if (! is_array($history) || empty($history)) {
+        return array();
+    }
+
+    $entries = array();
+
+    foreach ($history as $timestamp => $set) {
+        if (! is_array($set) || ! is_numeric($timestamp)) {
+            continue;
+        }
+
+        // Tamaño: suma cualquier subclave «*-size» numérica (no siempre presente).
+        $size = 0;
+        foreach ($set as $sub_key => $sub_value) {
+            if (is_string($sub_key) && substr($sub_key, -5) === '-size' && is_numeric($sub_value)) {
+                $size += (int) $sub_value;
+            }
+        }
+
+        $entries[] = array(
+            'mtime'    => (int) $timestamp,
+            'size'     => $size,
+            'provider' => 'UpdraftPlus',
+            'location' => imagina_reports_agent_updraft_destination(isset($set['service']) ? $set['service'] : 'none'),
+        );
+    }
+
+    return $entries;
+}
+
+/**
+ * Traduce el «service» de UpdraftPlus (string o array de slugs) a un destino legible.
+ *
+ * @param mixed $service
+ * @return string
+ */
+function imagina_reports_agent_updraft_destination($service) {
+    $map = array(
+        'googledrive' => 'Google Drive',
+        'dropbox'     => 'Dropbox',
+        's3'          => 'Amazon S3',
+        's3generic'   => 'S3 compatible',
+        'googlecloud' => 'Google Cloud',
+        'onedrive'    => 'OneDrive',
+        'ftp'         => 'FTP',
+        'sftp'        => 'SFTP',
+        'backblaze'   => 'Backblaze',
+        'azure'       => 'Azure',
+        'webdav'      => 'WebDAV',
+        'email'       => 'Email',
+    );
+
+    $services = is_array($service) ? $service : array($service);
+    $labels   = array();
+
+    foreach ($services as $slug) {
+        $slug = is_string($slug) ? strtolower($slug) : '';
+        if ($slug === '' || $slug === 'none') {
+            continue;
+        }
+        $labels[] = isset($map[$slug]) ? $map[$slug] : ucfirst($slug);
+    }
+
+    return empty($labels) ? 'Local' : implode(', ', $labels);
 }
 
 /**

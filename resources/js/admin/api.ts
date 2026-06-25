@@ -660,3 +660,22 @@ export function useGenerateReport() {
         },
     });
 }
+
+/* -------------------------------- site agent ------------------------------- */
+
+/**
+ * Fetch the companion WordPress plugin ZIP (authenticated) and trigger a browser
+ * download. Used by the "Agente Imagina (sitio)" connector setup panel.
+ */
+export async function downloadSiteAgentPlugin(): Promise<void> {
+    const { data } = await api.get<Blob>('/system/site-agent/download', { responseType: 'blob' });
+
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'imagina-reports-agent.zip';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}

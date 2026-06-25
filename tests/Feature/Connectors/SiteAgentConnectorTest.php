@@ -58,12 +58,13 @@ class SiteAgentConnectorTest extends TestCase
                 'last_backup_at' => '2026-06-22T03:00:00+00:00',
                 'last_backup_age_days' => 3,
                 'last_backup_size_mb' => 120.4,
+                'last_backup_location' => 'Google Drive',
                 'total_size_mb' => 540.0,
                 'count_total' => 18,
                 'count_in_period' => 4,
                 'recent' => [
-                    ['date' => '2026-06-22 03:00', 'size_mb' => 120.4, 'provider' => 'WPvivid'],
-                    ['date' => '2026-06-15 03:00', 'size_mb' => 118.9, 'provider' => 'WPvivid'],
+                    ['date' => '2026-06-22 03:00', 'size_mb' => 120.4, 'provider' => 'WPvivid', 'location' => 'Google Drive'],
+                    ['date' => '2026-06-15 03:00', 'size_mb' => 118.9, 'provider' => 'WPvivid', 'location' => 'Local'],
                 ],
             ],
         ];
@@ -98,12 +99,14 @@ class SiteAgentConnectorTest extends TestCase
 
         $status = $set->get('site_agent.backup_status');
         $this->assertSame(['Concepto' => 'Proveedor de respaldo', 'Valor' => 'WPvivid'], $status[0]);
-        $this->assertSame('3 días', $status[2]['Valor']);
+        $this->assertSame(['Concepto' => 'Destino', 'Valor' => 'Google Drive'], $status[1]);
+        $this->assertSame('3 días', $status[3]['Valor']);
 
         $recent = $set->get('site_agent.recent_backups');
         $this->assertCount(2, $recent);
         $this->assertSame('22/06/2026 03:00', $recent[0]['Fecha']);
         $this->assertSame('120.4 MB', $recent[0]['Tamaño']);
+        $this->assertSame('Google Drive', $recent[0]['Destino']);
 
         $health = $set->get('site_agent.site_health');
         $this->assertContains(['Concepto' => 'WordPress', 'Valor' => '6.5.2'], $health);

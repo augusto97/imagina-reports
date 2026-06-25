@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import {
+    downloadSiteAgentPlugin,
     useConnectors,
     useCreateDataSource,
     useDeleteDataSource,
@@ -13,6 +14,32 @@ import { Button, Card, Field, Select } from '../components/ui';
 import { Input } from '../components/ui';
 import { useAdminUi } from '../store';
 import type { Connector, DataSourceDto } from '../types';
+
+/** One-click download of the companion WordPress plugin (site_agent connector). */
+function SiteAgentDownload(): ReactElement {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(false);
+
+    const download = (): void => {
+        setBusy(true);
+        setError(false);
+        downloadSiteAgentPlugin()
+            .catch(() => setError(true))
+            .finally(() => setBusy(false));
+    };
+
+    return (
+        <div className="ir-mt-3">
+            <Button type="button" size="sm" onClick={download} disabled={busy}>
+                {busy ? 'Preparando…' : '⬇ Descargar plugin del agente'}
+            </Button>
+            <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                Descarga el ZIP e instálalo en el sitio (Plugins → Añadir nuevo → Subir plugin). No necesitas descomprimirlo.
+            </p>
+            {error && <p className="ir-mt-1 ir-text-xs ir-text-destructive">No se pudo descargar el plugin. Inténtalo de nuevo.</p>}
+        </div>
+    );
+}
 
 /** Collapsible "how to connect" guide for the selected connector. */
 function SetupGuidePanel({ connector }: { connector: Connector }): ReactElement | null {
@@ -30,6 +57,7 @@ function SetupGuidePanel({ connector }: { connector: Connector }): ReactElement 
                     <li key={index}>{step}</li>
                 ))}
             </ol>
+            {connector.key === 'site_agent' && <SiteAgentDownload />}
             {guide.docs_url != null && (
                 <a
                     href={guide.docs_url}

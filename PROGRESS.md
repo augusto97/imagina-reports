@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**⬇️ AGENTE IMAGINA — DESCARGA 1-CLICK + BACKUPS EN LA NUBE (2026-06-25, rama `claude/github-app-analysis-a7b2bd`):** dos
+peticiones del owner sobre el agente. **(1) Descarga del plugin a 1 click desde la app:** nuevo `SiteAgentController@download`
+(ruta auth `GET /api/v1/system/site-agent/download`) que **zipea al vuelo** `wp-plugin/imagina-reports-agent/` (Finder→ZipArchive,
+anidado bajo carpeta para que instale limpio) y lo sirve con `deleteFileAfterSend`; helper TS `downloadSiteAgentPlugin()` (blob →
+descarga) + botón «⬇ Descargar plugin del agente» en el panel de guía del conector `site_agent` (`DataSourcesScreen`). Test
+`SiteAgentDownloadTest` (sirve zip auth; 401 sin auth). **(2) Backups en la nube (Google Drive/Dropbox/S3) sin copia local:** el
+escaneo de disco solo veía copias locales. Ahora el plugin **también lee el historial de UpdraftPlus** (`updraft_backup_history`,
+keyed por timestamp) que registra el respaldo y su **destino remoto aunque el archivo local se haya subido y borrado** →
+`imagina_reports_agent_updraft_history()` + mapeo de `service` a destino legible (Google Drive, Dropbox, S3…). Para UpdraftPlus el
+historial es autoritativo (se omite el escaneo de su carpeta para no contar doble); el resto de plugins (WPvivid, BackWPup, etc.)
+siguen por escaneo de disco. El payload gana `last_backup_location` + `location` por entrada; el conector añade fila «Destino» en
+`backup_status` y columna «Destino» en `recent_backups`. **294 tests + PHPStan max + Pint + typecheck + lint(2 warns
+preexistentes) + build limpios.** **Pendiente del owner:** validar con su UpdraftPlus real (el shape de `*-size` en el historial
+varía entre versiones — la fecha/destino son fiables; el tamaño puede salir nulo y el bloque lo tolera). WPvivid solo-nube (sin
+copia local) aún no se detecta — si lo usa así, avisar y confirmo el almacenamiento de WPvivid para añadirlo.
+
 **🔌 AGENTE IMAGINA (PLUGIN DE SITIO) — BACKUPS REALES + SALUD DEL SITIO (2026-06-25, rama `claude/github-app-analysis-a7b2bd`):**
 cerrado el hilo de backups. Confirmado vía curls (el owner): **MainWP NO expone los backups de WPvivid/UpdraftPlus** —
 `/pro-reports/{dom}/backups?action=created` solo cuenta los backups que gestiona el propio MainWP (`[backup.created.count]`,

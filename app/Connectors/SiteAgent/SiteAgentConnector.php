@@ -209,12 +209,14 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
     private function backupStatus(array $backups): array
     {
         $provider = $this->toStr(Arr::get($backups, 'provider'));
+        $location = $this->toStr(Arr::get($backups, 'last_backup_location'));
         $lastAt = $this->toStr(Arr::get($backups, 'last_backup_at'));
         $ageDays = $this->numOrNull(Arr::get($backups, 'last_backup_age_days'));
         $size = $this->numOrNull(Arr::get($backups, 'last_backup_size_mb'));
 
         return [
             ['Concepto' => 'Proveedor de respaldo', 'Valor' => $provider !== '' ? $provider : 'No detectado'],
+            ['Concepto' => 'Destino', 'Valor' => $location !== '' ? $location : '—'],
             ['Concepto' => 'Último respaldo', 'Valor' => $lastAt !== '' ? $this->humanDate($lastAt) : '—'],
             ['Concepto' => 'Antigüedad', 'Valor' => $ageDays !== null ? $this->plural((int) $ageDays, 'día', 'días') : '—'],
             ['Concepto' => 'Tamaño del último', 'Valor' => $size !== null ? $size.' MB' : '—'],
@@ -235,11 +237,13 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             $date = $this->toStr(Arr::get($entry, 'date'));
             $size = $this->numOrNull(Arr::get($entry, 'size_mb'));
             $provider = $this->toStr(Arr::get($entry, 'provider'));
+            $location = $this->toStr(Arr::get($entry, 'location'));
 
             $rows[] = [
                 'Fecha' => $date !== '' ? $this->humanDate($date) : '—',
                 'Tamaño' => $size !== null ? $size.' MB' : '—',
                 'Proveedor' => $provider !== '' ? $provider : '—',
+                'Destino' => $location !== '' ? $location : '—',
             ];
         }
 
