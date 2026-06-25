@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🔌 AGENTE IMAGINA — 2º LOTE IMPLEMENTADO (LOGINS + IMÁGENES) DESDE EL /diagnostics REAL (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
+plugin v1.6.0 → release v1.13.43):** el owner ejecutó `/diagnostics` en imaginawp.com y pegó el JSON. Con el esquema REAL (sin adivinar)
+implementé: **(1) Logins (Wordfence):** tabla `{prefix}wflogins` (cols `fail`,`ctime` unix) → `site_agent.failed_logins` (fallidos en
+periodo); tabla `{prefix}wfblocks7` (col `blockedTime`) → `site_agent.logins_blocked`. Fallback a `limit_login_lockouts_total` si no hay
+Wordfence. **(2) Imágenes (ShortPixel):** tabla `{prefix}shortpixel_postmeta` (cols `original_size`/`compressed_size`) →
+`site_agent.images_optimized` (cuenta `compressed_size>0`, sin asumir códigos de estado) + `site_agent.images_saved_mb` (ahorro real).
+Ambos se ocultan si no se detecta el plugin. **298 tests + PHPStan max + Pint limpios.** **HALLAZGO IMPORTANTE del diagnostics:** el plugin
+de formularios REAL del sitio es **Bit Form** (`bit-form`/`bitformpro`), que no estaba en mis needles → no se descubrió su tabla de envíos.
+Las tablas `fluentform` existen pero con `submissions:0` (no es el que usan). Por eso **leads sigue pendiente**: añadí `bitform`/`bitapps`
+a los needles de /diagnostics → el owner debe **re-ejecutar /diagnostics con v1.6.0** y pegarme el JSON para ver las tablas de Bit Form e
+implementar el contador de envíos. **Pendiente del owner:** desplegar v1.13.43, reinstalar plugin (v1.6.0), re-ejecutar /diagnostics para
+Bit Form. Notas del sitio: Wordfence activo (wflogins 985 filas, wfhits 1448), ShortPixel (postmeta 1848 filas), WooCommerce activo,
+WP Rocket + Cloudflare page cache, UpdraftPlus + WPvivid Pro (backups), really-simple-ssl, wps-hide-login.
+
+
 **🔌 AGENTE IMAGINA — 2º LOTE (DESCUBRIMIENTO) + DETECTOR DE PLUGINS ABANDONADOS (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
 plugin v1.5.0 → release v1.13.42):** el owner pidió las dos cosas. **(1) /diagnostics ampliado:** nueva `imagina_reports_agent_probe_structure($needles)`
 que, para plugins de **formularios** (WPForms/Gravity/Forminator/Ninja/Fluent/Formidable/Flamingo), **seguridad** (Wordfence/Limit Login/

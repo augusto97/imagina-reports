@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.5.0
+ * Version:           1.6.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -27,7 +27,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.5.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.6.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -126,6 +126,8 @@ function imagina_reports_agent_metrics($request) {
         'content'       => imagina_reports_agent_content($from_gmt, $to_gmt),
         'leads'         => imagina_reports_agent_leads($from_gmt, $to_gmt),
         'ecommerce'     => imagina_reports_agent_ecommerce(),
+        'logins'        => imagina_reports_agent_logins($from, $to),
+        'images'        => imagina_reports_agent_images(),
     );
 
     return new WP_REST_Response($payload, 200);
@@ -169,7 +171,7 @@ function imagina_reports_agent_diagnostics($request) {
         // de filas), NUNCA valores: las entradas de formularios contienen datos
         // personales y la config de seguridad puede contener secretos.
         'forms'          => imagina_reports_agent_probe_structure(array(
-            'wpforms', 'gravity', 'gf_', 'gform', 'forminator', 'frmt', 'ninja_forms', 'nf3', 'fluentform', 'frm_', 'flamingo',
+            'wpforms', 'gravity', 'gf_', 'gform', 'forminator', 'frmt', 'ninja_forms', 'nf3', 'fluentform', 'frm_', 'flamingo', 'bitform', 'bitapps',
         )),
         'security'       => imagina_reports_agent_probe_structure(array(
             'wordfence', 'wfls', 'wflogins', 'wfhits', 'wfblocks', 'wfconfig', 'limit_login', 'itsec', 'ithemes_security', 'cerber', 'loginizer', 'lockdown',
@@ -812,6 +814,88 @@ function imagina_reports_agent_ecommerce() {
         'pending_orders'   => $pending,
         'processing_orders' => $processing,
     );
+}
+
+/**
+ * Logins: intentos fallidos y bloqueos en el periodo. Fuente preferente Wordfence
+ * (tabla wflogins: columna `fail` + `ctime` timestamp Unix; tabla wfblocks7: `blockedTime`),
+ * descubierta vía /diagnostics. Fallback: contador de por vida de Limit Login Attempts.
+ * Conteos agregados (§3.3).
+ *
+ * @param int $from_ts
+ * @param int $to_ts
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_logins($from_ts, $to_ts) {
+    global $wpdb;
+
+    $out = array('provider' => '', 'failed_period' => 0, 'blocked_period' => 0, 'blocked_total' => 0);
+
+    if (! is_object($wpdb)) {
+        return $out;
+    }
+
+    $logins = $wpdb->prefix . 'wflogins';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($logins))) === $logins) {
+        $out['provider'] = 'Wordfence';
+
+        $safe_logins = '`' . str_replace('`', '', $logins) . '`';
+        $out['failed_period'] = (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . $safe_logins . ' WHERE fail = 1 AND ctime BETWEEN %f AND %f',
+            (float) $from_ts,
+            (float) $to_ts
+        ));
+
+        $blocks = $wpdb->prefix . 'wfblocks7';
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($blocks))) === $blocks) {
+            $safe_blocks = '`' . str_replace('`', '', $blocks) . '`';
+            $out['blocked_period'] = (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . $safe_blocks . ' WHERE blockedTime BETWEEN %d AND %d',
+                $from_ts,
+                $to_ts
+            ));
+        }
+
+        return $out;
+    }
+
+    // Fallback: Limit Login Attempts (solo contador acumulado, sin periodo).
+    $total = get_option('limit_login_lockouts_total', null);
+    if ($total !== null) {
+        $out['provider']      = 'Limit Login Attempts';
+        $out['blocked_total'] = (int) $total;
+    }
+
+    return $out;
+}
+
+/**
+ * Imágenes optimizadas. Fuente ShortPixel (tabla shortpixel_postmeta), descubierta vía
+ * /diagnostics. Cuenta solo filas ya optimizadas (compressed_size > 0) y suma el ahorro
+ * real, sin asumir códigos de estado internos. Conteos agregados (§3.3).
+ *
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_images() {
+    global $wpdb;
+
+    $out = array('provider' => '', 'optimized' => 0, 'saved_mb' => 0.0);
+
+    if (! is_object($wpdb)) {
+        return $out;
+    }
+
+    $table = $wpdb->prefix . 'shortpixel_postmeta';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) === $table) {
+        $safe = '`' . str_replace('`', '', $table) . '`';
+
+        $out['provider']  = 'ShortPixel';
+        $out['optimized'] = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $safe . ' WHERE compressed_size > 0');
+        $saved            = (int) $wpdb->get_var('SELECT SUM(original_size - compressed_size) FROM ' . $safe . ' WHERE compressed_size > 0 AND original_size >= compressed_size');
+        $out['saved_mb']  = imagina_reports_agent_mb($saved);
+    }
+
+    return $out;
 }
 
 /**

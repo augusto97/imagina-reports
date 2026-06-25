@@ -103,6 +103,17 @@ class SiteAgentConnectorTest extends TestCase
                 'pending_orders' => 4,
                 'processing_orders' => 9,
             ],
+            'logins' => [
+                'provider' => 'Wordfence',
+                'failed_period' => 34,
+                'blocked_period' => 5,
+                'blocked_total' => 0,
+            ],
+            'images' => [
+                'provider' => 'ShortPixel',
+                'optimized' => 1848,
+                'saved_mb' => 512.4,
+            ],
             'backups' => [
                 'provider' => 'WPvivid',
                 'providers' => ['WPvivid'],
@@ -199,6 +210,11 @@ class SiteAgentConnectorTest extends TestCase
         // E-commerce.
         $this->assertSame(7, $set->get('site_agent.out_of_stock'));
         $this->assertSame(4, $set->get('site_agent.pending_orders'));
+        // Logins (Wordfence) + imágenes (ShortPixel).
+        $this->assertSame(34, $set->get('site_agent.failed_logins'));
+        $this->assertSame(5, $set->get('site_agent.logins_blocked'));
+        $this->assertSame(1848, $set->get('site_agent.images_optimized'));
+        $this->assertSame(512.4, $set->get('site_agent.images_saved_mb'));
     }
 
     public function test_leads_and_ecommerce_hide_when_absent(): void
@@ -207,6 +223,8 @@ class SiteAgentConnectorTest extends TestCase
         $payload['leads'] = ['provider' => '', 'count_total' => 0, 'count_period' => 0];
         $payload['ecommerce'] = ['active' => false];
         $payload['ssl'] = ['checked' => false];
+        $payload['logins'] = ['provider' => '', 'failed_period' => 0, 'blocked_period' => 0];
+        $payload['images'] = ['provider' => '', 'optimized' => 0, 'saved_mb' => 0.0];
 
         Http::fake(['*' => Http::response($payload)]);
 
@@ -218,6 +236,8 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertNull($set->get('site_agent.pending_orders'));
         $this->assertNull($set->get('site_agent.ssl_days_remaining'));
         $this->assertNull($set->get('site_agent.ssl_status'));
+        $this->assertNull($set->get('site_agent.failed_logins'));
+        $this->assertNull($set->get('site_agent.images_optimized'));
     }
 
     public function test_detects_abandoned_plugins_via_wporg(): void

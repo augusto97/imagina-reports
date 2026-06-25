@@ -117,6 +117,11 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.out_of_stock', 'Productos agotados', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.low_stock', 'Productos con stock bajo', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.pending_orders', 'Pedidos por atender', MetricType::Scalar, 'count'),
+            // Logins (Wordfence) e imágenes (ShortPixel).
+            new MetricDefinition('site_agent.failed_logins', 'Inicios de sesión fallidos', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.logins_blocked', 'Bloqueos de acceso', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.images_optimized', 'Imágenes optimizadas', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.images_saved_mb', 'Espacio ahorrado en imágenes', MetricType::Scalar, 'MB'),
         );
     }
 
@@ -216,9 +221,13 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         $content = $this->arrayOf(Arr::get($data, 'content'));
         $leads = $this->arrayOf(Arr::get($data, 'leads'));
         $ecommerce = $this->arrayOf(Arr::get($data, 'ecommerce'));
+        $logins = $this->arrayOf(Arr::get($data, 'logins'));
+        $images = $this->arrayOf(Arr::get($data, 'images'));
 
         $hasLeads = $this->toStr(Arr::get($leads, 'provider')) !== '';
         $hasStore = Arr::get($ecommerce, 'active') === true;
+        $hasLogins = $this->toStr(Arr::get($logins, 'provider')) !== '';
+        $hasImages = $this->toStr(Arr::get($images, 'provider')) !== '';
         $sslChecked = Arr::get($ssl, 'checked') === true;
 
         // Abandoned-plugin detection calls wp.org (cached), so only run it when the
@@ -278,6 +287,11 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.out_of_stock' => $hasStore ? $this->toInt(Arr::get($ecommerce, 'out_of_stock')) : null,
             'site_agent.low_stock' => $hasStore ? $this->toInt(Arr::get($ecommerce, 'low_stock')) : null,
             'site_agent.pending_orders' => $hasStore ? $this->toInt(Arr::get($ecommerce, 'pending_orders')) : null,
+            // Logins / imágenes (ocultos si no se detecta el plugin de origen).
+            'site_agent.failed_logins' => $hasLogins ? $this->toInt(Arr::get($logins, 'failed_period')) : null,
+            'site_agent.logins_blocked' => $hasLogins ? $this->toInt(Arr::get($logins, 'blocked_period')) : null,
+            'site_agent.images_optimized' => $hasImages ? $this->toInt(Arr::get($images, 'optimized')) : null,
+            'site_agent.images_saved_mb' => $hasImages ? $this->numOrNull(Arr::get($images, 'saved_mb')) : null,
         ];
 
         if ($requested === []) {
