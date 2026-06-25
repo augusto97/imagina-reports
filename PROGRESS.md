@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**✨ PULIDO PREMIUM DEL PANEL CLIENTES + MODAL PLANTILLAS 3 COLUMNAS (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, release
+v1.13.49, solo frontend):** dos ajustes del owner. **(1) Modal de plantillas del editor:** más ancho (`max-w-5xl`) y rejilla 1 col móvil
+/ 2 sm / 3 lg. **(2) WorkspaceScreen premium:** la izquierda pasó de Card a un `<aside>` redondeado (rounded-xl) sticky en escritorio con
+cabecera propia + buscador con icono (lupa); filas de cliente con chevron + icono Building2 + pill de nº de sitios (se oculta al hover para
+mostrar acciones Pencil/Trash2 como icon-buttons); sitios con icono Globe y estado seleccionado en acento. La derecha: cabecera con tile de
+icono (Globe en bg-accent/10) + nombre + cliente, URL como chip con ExternalLink (sin el `https://`), badges de estado/moneda/horas; empty
+state premium (círculo con icono, copy y CTA). `SiteDataSources`: filas con **dot de estado** de color (verde/ámbar/rojo) en vez de badge,
+contador en pill, hover sutil. **typecheck + lint(0 err) + build limpios.** **Pendiente del owner:** desplegar v1.13.49 y validar; luego
+«pasamos a otra etapa» (el owner lo dirá). Backend/plugin sin cambios.
+
+
 **🎨 EDITOR: PLANTILLAS PREDISEÑADAS → MODAL DESDE BOTÓN EN LA BARRA SUPERIOR (2026-06-25, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.48, solo frontend):** el owner pidió sacar la galería de plantillas de la barra lateral del editor (ocupaba mucho) y
 ponerla en un modal que se abre con un botón «Plantillas» en la barra superior. Hecho en `editor/EditorScreen.tsx`: nuevo botón

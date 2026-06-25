@@ -10,7 +10,7 @@ import {
     useUpdateDataSource,
 } from '../api';
 import type { Connector, DataSourceDto } from '../types';
-import { Badge, Button, Field, Input } from './ui';
+import { Button, Field, Input } from './ui';
 
 /** One-click download of the companion WordPress plugin (site_agent connector). */
 function SiteAgentDownload(): ReactElement {
@@ -232,11 +232,12 @@ function DataSourceEditForm({
     );
 }
 
-function statusTone(status: string): 'success' | 'warning' | 'danger' | 'neutral' {
-    if (status === 'ok') return 'success';
-    if (status === 'error' || status === 'failed') return 'danger';
-    if (status === 'partial' || status === 'pending') return 'warning';
-    return 'neutral';
+/** Colored status dot for a data source (green = ok, red = error, amber = partial). */
+function statusDot(status: string): string {
+    if (status === 'ok') return 'ir-bg-success';
+    if (status === 'error' || status === 'failed') return 'ir-bg-danger';
+    if (status === 'partial' || status === 'pending') return 'ir-bg-warning';
+    return 'ir-bg-muted-foreground/40';
 }
 
 /**
@@ -291,7 +292,10 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     return (
         <div className="ir-flex ir-flex-col ir-gap-3">
             <div className="ir-flex ir-items-center ir-justify-between">
-                <h3 className="ir-text-sm ir-font-semibold">Fuentes de datos ({sources.length})</h3>
+                <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
+                    Fuentes de datos
+                    <span className="ir-rounded-full ir-bg-muted ir-px-1.5 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">{sources.length}</span>
+                </h3>
                 <Button
                     size="sm"
                     variant={adding ? 'ghost' : 'primary'}
@@ -339,47 +343,47 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
             )}
 
             <ul className="ir-flex ir-flex-col ir-gap-2">
-                {sources.map((source) => (
-                    <li key={source.id} className="ir-rounded-md ir-border ir-p-3">
-                        <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
-                            <div className="ir-min-w-0">
-                                <div className="ir-flex ir-items-center ir-gap-2">
-                                    <span className="ir-font-medium">{labelFor(source.type)}</span>
-                                    <Badge tone={statusTone(source.status)}>{source.status}</Badge>
+                {sources.map((source) => {
+                    const detail = results[source.id] ?? source.last_error ?? source.status;
+
+                    return (
+                        <li key={source.id} className="ir-rounded-lg ir-border ir-bg-card ir-px-3 ir-py-2.5 ir-transition-colors hover:ir-border-foreground/15">
+                            <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
+                                <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-2.5">
+                                    <span className={'ir-size-2 ir-shrink-0 ir-rounded-full ' + statusDot(source.status)} title={source.status} />
+                                    <div className="ir-min-w-0">
+                                        <p className="ir-truncate ir-text-sm ir-font-medium">{labelFor(source.type)}</p>
+                                        <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{detail}</p>
+                                    </div>
                                 </div>
-                                {(results[source.id] !== undefined || source.last_error !== null) && (
-                                    <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
-                                        {results[source.id] ?? source.last_error}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
-                                {source.is_push !== true && (
-                                    <Button variant="ghost" size="sm" onClick={() => runTest(source.id)} disabled={test.isPending}>
-                                        Probar
+                                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                                    {source.is_push !== true && (
+                                        <Button variant="ghost" size="sm" onClick={() => runTest(source.id)} disabled={test.isPending}>
+                                            Probar
+                                        </Button>
+                                    )}
+                                    <Button variant="ghost" size="sm" onClick={() => setEditing((current) => (current === source.id ? null : source.id))}>
+                                        {editing === source.id ? 'Cerrar' : 'Editar'}
                                     </Button>
-                                )}
-                                <Button variant="ghost" size="sm" onClick={() => setEditing((current) => (current === source.id ? null : source.id))}>
-                                    {editing === source.id ? 'Cerrar' : 'Editar'}
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
-                                    Eliminar
-                                </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
+                                        Eliminar
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                        <PushInstallPanel source={source} />
-                        {editing === source.id && (
-                            <DataSourceEditForm
-                                source={source}
-                                connector={connectors.find((item) => item.key === source.type)}
-                                siteId={siteId}
-                                onClose={() => setEditing(null)}
-                            />
-                        )}
-                    </li>
-                ))}
+                            <PushInstallPanel source={source} />
+                            {editing === source.id && (
+                                <DataSourceEditForm
+                                    source={source}
+                                    connector={connectors.find((item) => item.key === source.type)}
+                                    siteId={siteId}
+                                    onClose={() => setEditing(null)}
+                                />
+                            )}
+                        </li>
+                    );
+                })}
                 {sources.length === 0 && !adding && (
-                    <li className="ir-rounded-md ir-border ir-border-dashed ir-p-4 ir-text-center ir-text-sm ir-text-muted-foreground">
+                    <li className="ir-rounded-lg ir-border ir-border-dashed ir-p-6 ir-text-center ir-text-sm ir-text-muted-foreground">
                         Aún no hay fuentes. Pulsa «+ Añadir fuente» para conectar GA4, MainWP, el Agente del sitio, WooCommerce…
                     </li>
                 )}
