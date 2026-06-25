@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🔬 AGENTE IMAGINA — DIAGNÓSTICO PARA WPVIVID→GOOGLE DRIVE (2026-06-25, rama `claude/github-app-analysis-a7b2bd`):** el owner
+configura **casi todos sus sitios con WPvivid → Google Drive** (sin copia local), así que el escaneo de disco no los ve y mi
+lector de UpdraftPlus no aplica. NO voy a adivinar cómo guarda WPvivid su historial (§0). Añadí al plugin (v1.1.0) un endpoint
+**`GET /wp-json/imagina-reports/v1/diagnostics`** (gateado por la misma clave) que sondea opciones (`wp_options LIKE %wpvivid%`/
+`%updraft%`) + tablas (`SHOW TABLES LIKE`) y devuelve la **ESTRUCTURA** (claves + tipos, con fechas/timestamps visibles por ser
+útiles y seguros) de las opciones con pinta de lista de respaldos, **nunca los valores** (helper `imagina_reports_agent_shape`,
+salta nombres con remote/setting/token/secret/auth/key → no filtra el token de Google Drive). **Próximo paso (BLOQUEANTE para
+WPvivid-nube):** el owner instala el plugin en un sitio WPvivid+GDrive y hace GET a `/diagnostics` con su clave; con la estructura
+real implemento `imagina_reports_agent_wpvivid_history()` igual que hice con UpdraftPlus. Hasta entonces, WPvivid solo se ve si
+deja copia local. Plugin lint OK; sin cambios de PHP de la app (294 tests siguen verdes). → release v1.13.37.
+
 **⬇️ AGENTE IMAGINA — DESCARGA 1-CLICK + BACKUPS EN LA NUBE (2026-06-25, rama `claude/github-app-analysis-a7b2bd`):** dos
 peticiones del owner sobre el agente. **(1) Descarga del plugin a 1 click desde la app:** nuevo `SiteAgentController@download`
 (ruta auth `GET /api/v1/system/site-agent/download`) que **zipea al vuelo** `wp-plugin/imagina-reports-agent/` (Finder→ZipArchive,

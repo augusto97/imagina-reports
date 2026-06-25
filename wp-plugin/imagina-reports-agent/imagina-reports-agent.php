@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -26,7 +26,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.0.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.1.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 
 /**
@@ -58,6 +58,15 @@ add_action('rest_api_init', function () {
             'from' => array('required' => false),
             'to'   => array('required' => false),
         ),
+    ));
+
+    // Diagnóstico (solo lectura, gateado por clave): revela DÓNDE y con qué ESTRUCTURA
+    // guardan WPvivid/UpdraftPlus su lista de respaldos, para programar el lector exacto
+    // sin adivinar. Muestra claves y tipos, NUNCA valores (no filtra tokens de la nube).
+    register_rest_route('imagina-reports/v1', '/diagnostics', array(
+        'methods'             => 'GET',
+        'callback'            => 'imagina_reports_agent_diagnostics',
+        'permission_callback' => 'imagina_reports_agent_authorize',
     ));
 });
 
@@ -126,6 +135,120 @@ function imagina_reports_agent_period_ts($value, $default, $end = false) {
     $ts = strtotime($value . ($end ? ' 23:59:59' : ' 00:00:00'));
 
     return $ts === false ? $default : $ts;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Diagnóstico (descubrir el almacenamiento de WPvivid/UpdraftPlus)          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
+function imagina_reports_agent_diagnostics($request) {
+    return new WP_REST_Response(array(
+        'success'       => true,
+        'agent_version' => IMAGINA_REPORTS_AGENT_VERSION,
+        'wpvivid'       => imagina_reports_agent_probe('wpvivid'),
+        'updraft'       => imagina_reports_agent_probe('updraft'),
+    ), 200);
+}
+
+/**
+ * Sondea opciones/tablas de un plugin de backup y devuelve la ESTRUCTURA (claves +
+ * tipos), nunca los valores, de las opciones que parezcan una lista de respaldos.
+ *
+ * @param string $needle
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_probe($needle) {
+    global $wpdb;
+
+    $option_names = array();
+    $tables       = array();
+    $samples      = array();
+
+    if (is_object($wpdb)) {
+        $like = '%' . $wpdb->esc_like($needle) . '%';
+
+        $names = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_name", $like));
+        if (is_array($names)) {
+            $option_names = $names;
+        }
+
+        $found_tables = $wpdb->get_col($wpdb->prepare('SHOW TABLES LIKE %s', $like));
+        if (is_array($found_tables)) {
+            $tables = $found_tables;
+        }
+
+        // Muestra la estructura solo de opciones con pinta de «lista de respaldos»,
+        // y evita las que suelen guardar credenciales/tokens.
+        foreach ($option_names as $name) {
+            $lname = strtolower($name);
+            $looks_like_list = (strpos($lname, 'backup') !== false || strpos($lname, 'list') !== false || strpos($lname, 'history') !== false || strpos($lname, 'succeed') !== false || strpos($lname, 'log') !== false);
+            $looks_secret    = (strpos($lname, 'remote') !== false || strpos($lname, 'setting') !== false || strpos($lname, 'token') !== false || strpos($lname, 'secret') !== false || strpos($lname, 'auth') !== false || strpos($lname, 'key') !== false);
+
+            if ($looks_like_list && ! $looks_secret) {
+                $samples[$name] = imagina_reports_agent_shape(get_option($name), 0);
+            }
+        }
+    }
+
+    return array(
+        'option_names' => $option_names,
+        'tables'       => $tables,
+        'samples'      => $samples,
+    );
+}
+
+/**
+ * Descriptor de estructura: para arrays devuelve claves => forma (máx. 2 elementos por
+ * lista, profundidad 4); para escalares devuelve solo el TIPO (y longitud en strings),
+ * nunca el contenido. Así vemos la forma sin filtrar secretos.
+ *
+ * @param mixed $value
+ * @param int   $depth
+ * @return mixed
+ */
+function imagina_reports_agent_shape($value, $depth) {
+    if (is_array($value)) {
+        if ($depth >= 4) {
+            return 'array(' . count($value) . ')';
+        }
+
+        $shape = array();
+        $i     = 0;
+        foreach ($value as $k => $v) {
+            if ($i >= 2) {
+                $shape['…'] = '(' . (count($value) - 2) . ' más)';
+                break;
+            }
+            $shape[$k] = imagina_reports_agent_shape($v, $depth + 1);
+            $i++;
+        }
+
+        return $shape;
+    }
+
+    if (is_object($value)) {
+        return 'object(' . get_class($value) . ')';
+    }
+
+    if (is_string($value)) {
+        // Si parece una fecha/hora o un timestamp, es seguro y útil mostrarlo.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $value) || (is_numeric($value) && (int) $value > 1000000000 && (int) $value < 4000000000)) {
+            return 'string:"' . substr($value, 0, 24) . '"';
+        }
+
+        return 'string(' . strlen($value) . ')';
+    }
+
+    if (is_int($value)) {
+        // Los enteros tipo timestamp son seguros y nos dicen la fecha del backup.
+        return ($value > 1000000000 && $value < 4000000000) ? ('int:' . $value) : 'int';
+    }
+
+    return gettype($value);
 }
 
 /* -------------------------------------------------------------------------- */

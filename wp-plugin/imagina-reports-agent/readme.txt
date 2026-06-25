@@ -4,7 +4,7 @@ Tags: reporting, backups, monitoring, maintenance
 Requires at least: 5.6
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ dejan archivo local que medir; configura tu plugin de backup para conservar una 
 local si quieres verlos en el informe.
 
 == Changelog ==
+
+= 1.1.0 =
+* Detección de respaldos en la nube de UpdraftPlus (historial `updraft_backup_history`) incluso sin copia local; destino visible (Google Drive, Dropbox, S3…).
+* Endpoint de diagnóstico `/diagnostics` (gateado por clave) para descubrir el almacenamiento de WPvivid/UpdraftPlus sin exponer valores.
 
 = 1.0.0 =
 * Primera versión: endpoint de métricas (respaldos + salud del sitio) + página de ajustes con clave.
