@@ -19,7 +19,10 @@ quedan para /diagnostics), `ecommerce` (si WooCommerce: stock agotado/bajo vía 
 `wc_get_orders` compatible HPOS). **Conector:** +18 métricas al catálogo (escalares + 3 tablas: security_audit, performance_status,
 db_cleanup); leads/ecommerce → null si no hay plugin/Woo (bloque se oculta). Plantilla nueva «Seguridad, rendimiento y captación
 (Agente)». **296 tests (+2 en SiteAgentConnectorTest) + PHPStan max + Pint + typecheck + lint(2 warns preexistentes) + build
-limpios.** **Pendiente del owner:** desplegar v1.13.40, reinstalar el plugin (v1.3.0) y validar. **2º lote 🔌 (requiere /diagnostics
+limpios.** **Pendiente del owner:** desplegar v1.13.40, reinstalar el plugin (v1.3.0) y validar. **CI:** el release v1.13.40 salió
+verde; el CI inicial falló por Pint (lintaba `wp-plugin/` con preset Laravel y chocaba con WordPress Coding Standards: `array()`,
+`<?php endif; ?>` en plantillas) → corregido excluyendo `wp-plugin` en `pint.json` (es plugin WP independiente, no app Laravel
+autoload). **2º lote 🔌 (requiere /diagnostics
 por plugin, NO adivinar §0):** logins bloqueados (Wordfence/Limit Login/Solid), leads de WPForms/Gravity/Forminator (tabla propia),
 imágenes optimizadas (Smush/ShortPixel/Imagify).
 
