@@ -8,6 +8,18 @@ import { type Ga4MetaField, type Ga4DatasetSpec, useDeleteGa4Dataset, useGa4Meta
 import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { Button, Card, Field, Input, Modal } from './ui';
 
+type PreviewType = 'kpi' | 'table' | 'bar' | 'line' | 'donut' | 'funnel' | 'geo_map';
+
+const PREVIEW_TABS: { value: PreviewType; label: string }[] = [
+    { value: 'table', label: 'Tabla' },
+    { value: 'kpi', label: 'KPI' },
+    { value: 'bar', label: 'Barras' },
+    { value: 'line', label: 'Líneas' },
+    { value: 'donut', label: 'Donut' },
+    { value: 'funnel', label: 'Embudo' },
+    { value: 'geo_map', label: 'Geografía' },
+];
+
 /** Sanitize an arbitrary string into a stable [a-z0-9_] field/dataset key. */
 function slug(value: string): string {
     return value
@@ -205,6 +217,7 @@ export function Ga4DatasetBuilder({
     const [orderBy, setOrderBy] = useState('');
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
+    const [previewType, setPreviewType] = useState<PreviewType>('table');
     const [sample, setSample] = useState<{ ok: boolean; rows: Record<string, unknown>[]; error: string | null } | null>(null);
 
     const meta = metaQuery.data;
@@ -269,8 +282,9 @@ export function Ga4DatasetBuilder({
         deleteMut.mutate(key, { onSuccess: (result) => setDatasets(result.custom_datasets) });
     };
 
-    // Live preview of how the metric renders in real blocks (KPI / chart / table), built
-    // from the test sample — so you can confirm it brings the right data before saving.
+    // Live preview of how the metric renders in the block type you pick (KPI / table /
+    // chart / funnel / geo) — built from the test sample, so you confirm it brings the
+    // right data before saving. Returns one block + its data for `previewType`.
     const preview = useMemo<{ blocks: Block[]; data: Record<string, unknown> } | null>(() => {
         if (spec === null || sample === null || sample.rows.length === 0) {
             return null;
@@ -282,33 +296,44 @@ export function Ga4DatasetBuilder({
             return null;
         }
 
-        const blocks: Block[] = [];
-        const data: Record<string, unknown> = {};
+        // [{label, value}] of the order measure broken down by the first dimension (top-N).
+        const series = rows.map((row) => ({ label: String(row[dim.key] ?? ''), value: Number(row[orderMeasure.key]) || 0 }));
 
-        // A KPI per measure (sum across the sample's rows).
-        spec.measures.slice(0, 3).forEach((measure) => {
-            const id = `kpi_${measure.key}`;
-            const total = rows.reduce((sum, row) => sum + (Number(row[measure.key]) || 0), 0);
-            blocks.push({ id, type: 'kpi', props: { label: measure.label }, style: measure.unit === 'currency' ? { format: 'currency' } : {}, binding: null });
-            data[id] = total;
-        });
+        if (previewType === 'kpi') {
+            const blocks: Block[] = [];
+            const data: Record<string, unknown> = {};
+            spec.measures.slice(0, 4).forEach((measure) => {
+                const id = `kpi_${measure.key}`;
+                blocks.push({ id, type: 'kpi', props: { label: measure.label }, style: measure.unit === 'currency' ? { format: 'currency' } : {}, binding: null });
+                data[id] = rows.reduce((sum, row) => sum + (Number(row[measure.key]) || 0), 0);
+            });
 
-        // A bar chart: order measure broken down by the first dimension (top 8).
-        blocks.push({ id: 'chart', type: 'chart', props: { title: `${orderMeasure.label} por ${dim.label}`, chartType: 'bar' }, style: {}, binding: null });
-        data.chart = rows.slice(0, 8).map((row) => ({ label: String(row[dim.key] ?? ''), value: Number(row[orderMeasure.key]) || 0 }));
+            return { blocks, data };
+        }
 
-        // A table with friendly (labelled) column headers.
-        blocks.push({ id: 'table', type: 'table', props: { title: spec.label }, style: {}, binding: null });
-        data.table = rows.map((row) => {
-            const labelled: Record<string, unknown> = {};
-            spec.dimensions.forEach((d) => (labelled[d.label] = row[d.key]));
-            spec.measures.forEach((m) => (labelled[m.label] = row[m.key]));
+        if (previewType === 'table') {
+            const labelledRows = rows.map((row) => {
+                const labelled: Record<string, unknown> = {};
+                spec.dimensions.forEach((d) => (labelled[d.label] = row[d.key]));
+                spec.measures.forEach((m) => (labelled[m.label] = row[m.key]));
 
-            return labelled;
-        });
+                return labelled;
+            });
 
-        return { blocks, data };
-    }, [spec, sample]);
+            return { blocks: [{ id: 'table', type: 'table', props: { title: spec.label }, style: { rows_per_page: 8 }, binding: null }], data: { table: labelledRows } };
+        }
+
+        // chart (bar/line/donut), funnel, or geo_map — all consume [{label, value}].
+        const title = `${orderMeasure.label} por ${dim.label}`;
+        if (previewType === 'funnel') {
+            return { blocks: [{ id: 'p', type: 'funnel', props: { title }, style: {}, binding: null }], data: { p: series } };
+        }
+        if (previewType === 'geo_map') {
+            return { blocks: [{ id: 'p', type: 'geo_map', props: { title }, style: {}, binding: null }], data: { p: series } };
+        }
+
+        return { blocks: [{ id: 'p', type: 'chart', props: { title, chartType: previewType }, style: {}, binding: null }], data: { p: series.slice(0, 12) } };
+    }, [spec, sample, previewType]);
 
     return (
         <Modal onClose={onClose} className="ir-max-w-5xl">
@@ -459,17 +484,32 @@ export function Ga4DatasetBuilder({
                                 </p>
                             )}
 
-                            {/* Live block preview — how the metric will actually look. */}
+                            {/* Live block preview — how the metric will actually look, in the block type you pick. */}
                             {preview !== null && (
-                                <div className="ir-flex ir-flex-col ir-gap-2 ir-rounded-lg ir-border ir-bg-muted/20 ir-p-3">
-                                    <p className="ir-text-[11px] ir-font-medium ir-text-emerald-600">
-                                        ✓ Vista previa con datos reales — así se verá en el reporte
-                                    </p>
+                                <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-lg ir-border ir-bg-muted/20 ir-p-3">
+                                    <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-2">
+                                        <p className="ir-text-[11px] ir-font-medium ir-text-emerald-600">✓ Vista previa con datos reales — así se verá en el reporte</p>
+                                        <div className="ir-flex ir-flex-wrap ir-gap-1 ir-rounded-md ir-bg-muted ir-p-0.5">
+                                            {PREVIEW_TABS.map((tab) => (
+                                                <button
+                                                    key={tab.value}
+                                                    type="button"
+                                                    onClick={() => setPreviewType(tab.value)}
+                                                    className={`ir-rounded ir-px-2 ir-py-1 ir-text-[11px] ir-transition ${
+                                                        previewType === tab.value ? 'ir-bg-background ir-font-medium ir-shadow-sm' : 'ir-text-muted-foreground hover:ir-text-foreground'
+                                                    }`}
+                                                >
+                                                    {tab.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                     <div className="ir-rounded-md ir-bg-card ir-p-3">
                                         <BlockList blocks={preview.blocks} data={preview.data} currency="USD" />
                                     </div>
                                     <p className="ir-text-[10px] ir-text-muted-foreground">
-                                        Los KPI suman la muestra del periodo; en el editor podrás elegir el tipo de bloque, el orden y los filtros.
+                                        El KPI suma la muestra del periodo; barras/líneas/embudo/geo usan la medida de orden por la primera dimensión. En el editor
+                                        eliges el bloque definitivo, el orden y los filtros.
                                     </p>
                                 </div>
                             )}
