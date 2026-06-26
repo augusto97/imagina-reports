@@ -1,10 +1,12 @@
 import {
     Activity,
+    BookOpen,
     Bug,
     Calendar,
     Clock,
     Copy,
     Filter,
+    Flag,
     FunctionSquare,
     Globe,
     Layers,
@@ -413,6 +415,37 @@ export function EditorScreen(): ReactElement {
         setPageNames((names) => [...names, ""]);
         setSelectedId(null);
     };
+
+    /** One-click "Portada": a NEW first page with a cover block, shifting everything down. */
+    const addCoverPage = (): void => {
+        const cover = { ...makeBlock("cover"), page: 0 };
+        commit([cover, ...blocks.map((block) => ({ ...block, page: (block.page ?? 0) + 1 }))]);
+        setPageCount((count) => count + 1);
+        setPageNames((names) => ["Portada", ...names]);
+        setCurrentPage(0);
+        setSelectedId(cover.id);
+    };
+
+    /** One-click "Contraportada": a NEW last page with a back-cover block. */
+    const addBackCoverPage = (): void => {
+        const page = pageCount;
+        const back = { ...makeBlock("back_cover"), page };
+        commit([...blocks, back]);
+        setPageCount((count) => count + 1);
+        setPageNames((names) => {
+            const next = [...names];
+            while (next.length < page) {
+                next.push("");
+            }
+            next.push("Contraportada");
+            return next;
+        });
+        setCurrentPage(page);
+        setSelectedId(back.id);
+    };
+
+    const hasCover = blocks.some((block) => block.type === "cover");
+    const hasBackCover = blocks.some((block) => block.type === "back_cover");
 
     /** Delete a page: drop its blocks and renumber the pages after it. */
     const removePage = (page: number): void => {
@@ -889,6 +922,29 @@ export function EditorScreen(): ReactElement {
                             >
                                 <Plus className="ir-size-4" />
                             </Button>
+                            <span className="ir-mx-1 ir-h-5 ir-w-px ir-bg-border" />
+                            {!hasCover && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={addCoverPage}
+                                    title="Añadir una página de portada al inicio"
+                                >
+                                    <BookOpen className="ir-size-4" />
+                                    Portada
+                                </Button>
+                            )}
+                            {!hasBackCover && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={addBackCoverPage}
+                                    title="Añadir una página de contraportada al final"
+                                >
+                                    <Flag className="ir-size-4" />
+                                    Contraportada
+                                </Button>
+                            )}
                         </div>
 
                         <div className="ir-text-xs">
