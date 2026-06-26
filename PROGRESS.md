@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**✅ PENDIENTES SUELTOS DE DASHBOARDS — CERRADOS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release ~v1.13.55):**
+los tres que quedaban. **(1) Datasets de WooCommerce** vía la **WC Analytics API** (`/wp-json/wc-analytics/reports/...`): tres datasets
+(`woocommerce.products`/`categories`/`coupons`), una dimensión + medidas aditivas (items_sold, net_revenue, orders_count / amount),
+agregados en origen (§3.3); aparecen en el binding picker como los de GA4/GSC. Son **opcionales y best-effort**: si la tienda no tiene la
+WC Analytics API, se loguea y se omite — NUNCA degrada las métricas de ventas base a `partial` (§3.1). Nombres de campo = supuesto
+documentado. **(2) Mapa coroplético literal** para el bloque `geo_map`: mapa mundial real (SVG inline con `d3-geo` + atlas `world-atlas`
+empaquetado → offline, idéntico en portal y PDF, sin canvas ni red), coloreado por valor en el acento de la agencia, con la lista rankeada
+debajo. `geo.ts` empareja nombres de país (normaliza acentos/puntuación + alias EN/ES) y devuelve null para no-países → ciudades/regiones
+caen a la lista automáticamente. Control «Visualización» (auto/mapa/lista/ambos) en el Inspector. Deps nuevas: d3-geo, topojson-client,
+world-atlas (+@types) — +~40KB gzip al renderer compartido; las vulns que reporta npm son pre-existentes de esbuild/vite-dev, no de estas.
+**(3) UI de filtros de PÁGINA en el editor** (faltaba la UI; el cascade backend existía desde Etapa A.1): panel «Filtros de página» en la
+barra izquierda → eliges ámbito (todo el informe `all` / esta página) y añades reglas dimensión/op/valor de las dimensiones de los datasets
+conectados. Los filtros del bloque mandan sobre estos; el cliente solo cambia la fecha. EditorScreen pasa `filters` por load/preview/save.
+**338 tests PHP + 15 vitest (geo.test) + PHPStan + Pint + typecheck + lint(0) + build limpios.** Con esto Etapa D + sus pendientes quedan
+cerrados; lo único futuro/opcional es la Etapa E (live explore GA4, cross-filtering real). **SIGUIENTE: desplegar release y verificar.**
+
+
 **🎉 DASHBOARDS — ETAPA D COMPLETA (D.1–D.4): compartir/privacidad + embebido + modo dashboard en vivo + tokens (2026-06-26, rama
 `claude/github-app-analysis-a7b2bd`, sin release aún — sería ~v1.13.54):** cerrada la Etapa D entera. **D.1 Compartir/privacidad:** las
 definiciones llevan `visibility` (público/contraseña/privado), `password_hash` y `embed_domains`. Los endpoints públicos (reporte + portal)
