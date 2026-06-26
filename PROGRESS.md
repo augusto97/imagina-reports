@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🗑️ RETENCIÓN DE DATOS CONFIGURABLE (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release ~v1.13.59):** los snapshots ya no
+crecen sin límite. Cada agencia puede limitar cuánto tiempo se guardan (`ir_agencies.snapshot_retention_months`, nullable = sin límite =
+default, para no borrar datos a nadie). **`SnapshotRetentionService`**: poda por agencia los snapshots con `period_end` anterior al corte,
+PERO **siempre conserva el último snapshot de cada fuente** (una fuente nunca queda vacía); `preview()` cuenta lo liberable (periodos+bytes).
+Los reportes ya generados guardan su propia copia → la poda nunca altera un reporte existente. **Comando `snapshots:prune`** programado diario
+03:30 (routes/console.php). API: el endpoint de agencia setea la retención; `GET /agency/retention/preview` + `POST /agency/retention/prune`
+para estimación en UI y «Liberar ahora» manual. **Pantalla Ajustes**: tarjeta «Retención de datos» (Sin límite / 3 / 6 / 12 / 24 / 36 meses)
++ estimación de liberable + botón liberar. 347 tests PHP (+SnapshotRetentionTest) + 15 vitest + stan/pint/ts/lint/build limpios. Con esto
+queda cubierto lo de «que no me llenen el servidor» y el límite de retención que pediste. **SIGUIENTE: desplegar.**
+
+
 **📅 RANGOS FLEXIBLES DE REPORTE (semana/trimestre/año/personalizado) + MATCH EXACTO DE SNAPSHOT (2026-06-26, rama
 `claude/github-app-analysis-a7b2bd`, release ~v1.13.58):** responde «¿cómo hago un reporte de un trimestre / año completo / semana pasada /
 rango personalizado?». **Modelo correcto (no-BI, §3.3):** los connectores agregan EN ORIGEN para CUALQUIER rango → la forma exacta y precisa
