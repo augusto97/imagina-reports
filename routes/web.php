@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\EmbedController;
 use App\Models\Report;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,10 @@ Route::get('/reports/{token}', static function (string $token, Request $request)
 
     return view('report', ['token' => $token, 'printToken' => $printToken]);
 })->name('report.public');
+
+// Private embedding (CLAUDE.md §11/Etapa D): the report inside an iframe, restricted
+// to the definition's allowlisted domains via a CSP frame-ancestors header.
+Route::get('/embed/{token}', [EmbedController::class, 'show'])->name('report.embed');
 
 // Admin SPA (CLAUDE.md §11.1). Client-side routing handles everything under /admin.
 Route::view('/admin/{any?}', 'admin')

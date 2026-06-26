@@ -32,7 +32,13 @@ export function ShareDialog({
     const [domains, setDomains] = useState((definition.embed_domains ?? []).join('\n'));
     const [copied, setCopied] = useState(false);
 
+    const [embedCopied, setEmbedCopied] = useState(false);
+
     const link = publicToken !== null ? `${window.location.origin}/reports/${publicToken}` : null;
+    const embedCode =
+        publicToken !== null
+            ? `<iframe src="${window.location.origin}/embed/${publicToken}" width="100%" height="800" frameborder="0" style="border:0"></iframe>`
+            : null;
 
     const copyLink = async (): Promise<void> => {
         if (link === null) {
@@ -41,6 +47,15 @@ export function ShareDialog({
         await navigator.clipboard.writeText(link);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1500);
+    };
+
+    const copyEmbed = async (): Promise<void> => {
+        if (embedCode === null) {
+            return;
+        }
+        await navigator.clipboard.writeText(embedCode);
+        setEmbedCopied(true);
+        window.setTimeout(() => setEmbedCopied(false), 1500);
     };
 
     const submit = (): void => {
@@ -127,6 +142,26 @@ export function ShareDialog({
                             Solo estos sitios podrán mostrar el informe dentro de un iframe. Vacío = ninguno.
                         </p>
                     </Field>
+
+                    {embedCode !== null && (
+                        <Field label="Código para incrustar">
+                            <div className="ir-flex ir-gap-2">
+                                <textarea
+                                    readOnly
+                                    value={embedCode}
+                                    rows={2}
+                                    onFocus={(event) => event.currentTarget.select()}
+                                    className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-font-mono ir-text-xs"
+                                />
+                                <Button type="button" variant="outline" size="sm" onClick={() => void copyEmbed()} title="Copiar código">
+                                    {embedCopied ? <Check className="ir-size-4 ir-text-success" /> : <Copy className="ir-size-4" />}
+                                </Button>
+                            </div>
+                            <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                                Pega esto en tu web. Recuerda guardar el dominio en la lista de arriba.
+                            </p>
+                        </Field>
+                    )}
 
                     <div className="ir-flex ir-justify-end ir-gap-2">
                         <Button type="button" variant="ghost" onClick={onClose}>
