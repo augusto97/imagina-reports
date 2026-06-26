@@ -14,6 +14,14 @@ class EmbedRouteTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The embed page renders the SPA blade (@vite). Tests assert the HTTP response,
+        // not the built assets, so stub Vite — the backend CI job doesn't build the SPAs.
+        $this->withoutVite();
+    }
+
     public function test_it_sets_frame_ancestors_to_the_allowlisted_domains(): void
     {
         $agency = Agency::factory()->create();
