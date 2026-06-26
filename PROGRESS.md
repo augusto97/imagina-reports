@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 NAVEGACIÓN DE PÁGINAS CONFIGURABLE (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, releases v1.13.69 botones portada/contraportada,
+v1.13.70 nav configurable):** dos entregas. **(1) BOTONES 1-CLIC (v1.13.69):** en el navegador de páginas del editor, «Portada» crea una
+nueva primera página con bloque `cover` (desplaza el resto) y «Contraportada» añade una última con `back_cover`, nombrándolas auto; el botón
+desaparece si ese bloque ya existe (`hasCover`/`hasBackCover`). **(2) NAV CONFIGURABLE (v1.13.70):** la navegación entre páginas dejó de ser
+botones fijos dentro del informe; ahora es un componente configurable (paridad Looker/Power BI) guardado en `theme.nav` (sin migración nueva, el
+theme ya fluía a todos lados). `ReportNav` (shared/blocks/types) = `{position: tabs|top|sidebar|hidden, style: pill|underline|solid, collapsible}`.
+`BlockList` (modo `paged`) renderiza: sidebar izquierda (fija o colapsable con toggle PanelLeftClose/Open), barra superior, pestañas compactas, o
+ninguna; cada estilo aplica al botón activo. Editor: 2 SegmentedControl (posición + estilo) + Toggle (colapsable, solo si sidebar) bajo «Tema del
+reporte»; `themePayload` ahora persiste si hay `nav`. Validado en los 4 FormRequests (`theme.nav.position` in tabs,top,sidebar,hidden; style;
+collapsible bool). 360 tests PHP (+nav acepta/rechaza) + 15 vitest + stan/pint/ts/lint/build limpios. **SIGUIENTE: desplegar v1.13.70.**
+
+
 **📑 PÁGINAS REALES (LOOKER/POWER BI) + PORTADA/CONTRAPORTADA (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.68):**
 el usuario señaló (con razón) que apilar «hojas» rompe el sentido de paginación: en Looker/Power BI las páginas son páginas reales —el visor
 muestra UNA a la vez con un menú de navegación— y solo el PDF las pone cada una en su folio. Reimplementado así. **(1) NAVEGACIÓN POR PÁGINAS:**
