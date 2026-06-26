@@ -56,6 +56,18 @@ final class ReportSharingController extends Controller
     }
 
     /**
+     * Rotate the dashboard token (CLAUDE.md §8/Etapa D — token management): mints a fresh
+     * token so every previously-shared dashboard/embed URL stops working at once. Useful
+     * when a link leaks. Leaves dashboard_enabled untouched.
+     */
+    public function rotateDashboardToken(ReportDefinition $reportDefinition): ReportDefinitionResource
+    {
+        $reportDefinition->forceFill(['dashboard_token' => Str::random(48)])->save();
+
+        return new ReportDefinitionResource($reportDefinition);
+    }
+
+    /**
      * @param  array<array-key, mixed>|null  $domains
      * @return array<int, string>|null
      */

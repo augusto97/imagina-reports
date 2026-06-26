@@ -192,6 +192,29 @@ class PublicReportEndpointTest extends TestCase
         $this->assertSame($token, $definition->refresh()->dashboard_token);
     }
 
+    public function test_rotating_the_dashboard_token_revokes_the_old_link(): void
+    {
+        $agency = Agency::factory()->create();
+        $user = User::factory()->create(['agency_id' => $agency->id]);
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $agency->id,
+            'dashboard_enabled' => true,
+            'dashboard_token' => 'old-token',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/report-definitions/{$definition->id}/sharing/dashboard-token")
+            ->assertOk();
+
+        $fresh = $definition->refresh()->dashboard_token;
+        $this->assertIsString($fresh);
+        $this->assertNotSame('old-token', $fresh);
+
+        // The old link no longer resolves; the new one does.
+        $this->getJson('/api/v1/public/dashboards/old-token')->assertNotFound();
+        $this->getJson("/api/v1/public/dashboards/{$fresh}")->assertOk();
+    }
+
     public function test_switching_away_from_password_visibility_clears_the_password(): void
     {
         $agency = Agency::factory()->create();

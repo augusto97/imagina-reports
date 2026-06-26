@@ -1,7 +1,7 @@
-import { Check, Copy, Globe, LayoutDashboard, Lock, ShieldOff } from 'lucide-react';
+import { Check, Copy, Globe, LayoutDashboard, Lock, RefreshCw, ShieldOff } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
-import { useUpdateReportSharing } from '../api';
+import { useRotateDashboardToken, useUpdateReportSharing } from '../api';
 import type { ReportDefinitionDto, ReportVisibility } from '../types';
 import { Button, Card, Field, Input, Modal } from './ui';
 
@@ -26,11 +26,13 @@ export function ShareDialog({
     onClose: () => void;
 }): ReactElement {
     const save = useUpdateReportSharing();
+    const rotate = useRotateDashboardToken();
 
     const [visibility, setVisibility] = useState<ReportVisibility>(definition.visibility);
     const [password, setPassword] = useState('');
     const [domains, setDomains] = useState((definition.embed_domains ?? []).join('\n'));
     const [dashboardEnabled, setDashboardEnabled] = useState(definition.dashboard_enabled);
+    const [rotatedToken, setRotatedToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [dashCopied, setDashCopied] = useState(false);
 
@@ -61,8 +63,14 @@ export function ShareDialog({
     };
 
     // The live dashboard link uses the definition's own token (set once enabled & saved).
-    const dashboardLink =
-        definition.dashboard_token !== null ? `${window.location.origin}/dashboard/${definition.dashboard_token}` : null;
+    const dashboardToken = rotatedToken ?? definition.dashboard_token;
+    const dashboardLink = dashboardToken !== null ? `${window.location.origin}/dashboard/${dashboardToken}` : null;
+
+    const rotateToken = (): void => {
+        if (window.confirm('¿Regenerar el enlace? Los enlaces e incrustaciones anteriores dejarán de funcionar.')) {
+            rotate.mutate(definition.id, { onSuccess: (updated) => setRotatedToken(updated.dashboard_token) });
+        }
+    };
 
     const copyDashboard = async (): Promise<void> => {
         if (dashboardLink === null) {
@@ -199,12 +207,18 @@ export function ShareDialog({
                         </label>
 
                         {dashboardEnabled && dashboardLink !== null && (
-                            <div className="ir-mt-3 ir-flex ir-gap-2">
-                                <Input readOnly value={dashboardLink} onFocus={(event) => event.currentTarget.select()} className="ir-font-mono ir-text-xs" />
-                                <Button type="button" variant="outline" size="sm" onClick={() => void copyDashboard()} title="Copiar enlace del panel">
-                                    {dashCopied ? <Check className="ir-size-4 ir-text-success" /> : <Copy className="ir-size-4" />}
-                                </Button>
-                            </div>
+                            <>
+                                <div className="ir-mt-3 ir-flex ir-gap-2">
+                                    <Input readOnly value={dashboardLink} onFocus={(event) => event.currentTarget.select()} className="ir-font-mono ir-text-xs" />
+                                    <Button type="button" variant="outline" size="sm" onClick={() => void copyDashboard()} title="Copiar enlace del panel">
+                                        {dashCopied ? <Check className="ir-size-4 ir-text-success" /> : <Copy className="ir-size-4" />}
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="sm" onClick={rotateToken} disabled={rotate.isPending} title="Regenerar enlace (revoca los anteriores)">
+                                        <RefreshCw className="ir-size-4" />
+                                    </Button>
+                                </div>
+                                {rotatedToken !== null && <p className="ir-mt-1 ir-text-xs ir-text-success">Enlace regenerado. Los anteriores ya no funcionan.</p>}
+                            </>
                         )}
                         {dashboardEnabled && dashboardLink === null && (
                             <p className="ir-mt-2 ir-text-xs ir-text-muted-foreground">Guarda para generar el enlace del panel.</p>

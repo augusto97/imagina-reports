@@ -405,6 +405,16 @@ export function useUpdateReportSharing() {
     });
 }
 
+export function useRotateDashboardToken() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (definitionId: number) =>
+            api.post<ReportDefinitionDto>(`/report-definitions/${definitionId}/sharing/dashboard-token`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
 export function useDeleteReport() {
     const queryClient = useQueryClient();
 

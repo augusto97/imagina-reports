@@ -131,6 +131,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::put('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'update'])->name('api.report-definitions.update');
     Route::delete('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'destroy'])->name('api.report-definitions.destroy');
     Route::put('report-definitions/{reportDefinition}/sharing', [ReportSharingController::class, 'update'])->name('api.report-definitions.sharing.update');
+    Route::post('report-definitions/{reportDefinition}/sharing/dashboard-token', [ReportSharingController::class, 'rotateDashboardToken'])->name('api.report-definitions.sharing.dashboard-token');
 
     Route::get('schedules', [ScheduleController::class, 'index'])->name('api.schedules.index');
     Route::post('schedules', [ScheduleController::class, 'store'])->name('api.schedules.store');
