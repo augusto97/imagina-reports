@@ -109,6 +109,26 @@ class ReportGeneratorTest extends TestCase
         $this->assertNotContains('CDMX', $labels);
     }
 
+    public function test_named_pages_are_frozen_into_the_report(): void
+    {
+        $period = Period::make('2026-06-01', '2026-06-30');
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'blocks' => [
+                ['id' => 'cv', 'type' => 'cover', 'page' => 0],
+                ['id' => 'h', 'type' => 'header', 'page' => 1],
+            ],
+            'pages' => [['name' => 'Portada'], ['name' => 'Resumen']],
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, $period);
+
+        $pages = $report->resolved_blocks['pages'] ?? null;
+        $this->assertSame([['name' => 'Portada'], ['name' => 'Resumen']], $pages);
+    }
+
     public function test_it_resolves_bound_blocks_and_hides_data_less_ones(): void
     {
         $ga4 = $this->dataSource(DataSourceType::Ga4);

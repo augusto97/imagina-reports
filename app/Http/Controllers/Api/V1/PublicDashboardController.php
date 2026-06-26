@@ -54,6 +54,7 @@ final class PublicDashboardController extends Controller
             'currency' => $site !== null ? $site->currency : 'USD',
             'theme' => $resolved['theme'],
             'blocks' => $resolved['blocks'],
+            'pages' => $resolved['pages'],
             'context' => [
                 'agency' => $agency !== null ? $agency->name : '',
                 'site' => $site !== null ? $site->name : '',

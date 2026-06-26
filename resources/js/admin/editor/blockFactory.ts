@@ -6,6 +6,10 @@ let counter = 0;
 /** Sensible default tile size (in 12-col grid units) per block type. */
 export function defaultSize(type: BlockType): { w: number; h: number } {
     switch (type) {
+        case 'cover':
+        case 'back_cover':
+            // A full page — covers stand alone on their own page.
+            return { w: 12, h: 16 };
         case 'header':
             return { w: 12, h: 2 };
         case 'cta':
@@ -63,6 +67,16 @@ export function makeBlock(type: BlockType): Block {
     }
     if (type === 'goal') {
         block.props = { label: 'Meta', target: 100 };
+    }
+    if (type === 'cover') {
+        block.props = { title: 'Informe de soporte y rendimiento', subtitle: '', showScore: true };
+    }
+    if (type === 'back_cover') {
+        block.props = {
+            headline: 'Tu plan de soporte está activo y protegiendo tu sitio.',
+            text: 'Gracias por confiar en nosotros para cuidar tu sitio cada mes.',
+            contact: '',
+        };
     }
 
     return block;
@@ -138,6 +152,8 @@ export function nextWidth(current: BlockWidth): BlockWidth {
 }
 
 export const PALETTE: { type: BlockType; label: string }[] = [
+    { type: 'cover', label: 'Portada' },
+    { type: 'back_cover', label: 'Contraportada' },
     { type: 'header', label: 'Cabecera' },
     { type: 'healthscore', label: 'Health score' },
     { type: 'kpi', label: 'KPI' },
@@ -159,6 +175,10 @@ export const PALETTE: { type: BlockType; label: string }[] = [
 /** Placeholder data so the live preview shows something for each block type. */
 export function sampleData(block: Block): unknown {
     switch (block.type) {
+        case 'cover':
+            // The cover reads client/site/period from the report context at render time;
+            // in the editor we seed period + score so the title page previews realistically.
+            return { period: 'junio 2026', score: '87' };
         case 'header': {
             // Realistic preview so merge-field headers read as a real cover in the editor.
             const headerTitle = typeof block.props?.title === 'string' && block.props.title !== '' ? block.props.title : 'Informe mensual';

@@ -39,7 +39,7 @@ final readonly class ReportGenerator
 
     public function generate(ReportDefinition $definition, Period $period): Report
     {
-        ['blocks' => $visibleBlocks, 'data' => $data, 'health_score' => $score, 'theme' => $theme, 'diagnostics' => $diagnostics] = $this->compose($definition, $period);
+        ['blocks' => $visibleBlocks, 'data' => $data, 'health_score' => $score, 'theme' => $theme, 'diagnostics' => $diagnostics, 'pages' => $pages] = $this->compose($definition, $period);
 
         // AI per-period narrative (§10.6): regenerate the executive-summary text from the
         // resolved figures and inject it into the report's narrative block(s). This is the
@@ -50,7 +50,7 @@ final readonly class ReportGenerator
             $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
         }
 
-        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, $theme, $diagnostics, $summary);
+        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, $theme, $diagnostics, $summary, $pages);
 
         // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
         // webhook and run anomaly detection — keeping this generator free of delivery
@@ -67,7 +67,7 @@ final readonly class ReportGenerator
      * to run per request as the client changes the date range. Still reads only stored
      * snapshots (§3.1) — never a live API.
      *
-     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>}
+     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>, pages: list<array<string, mixed>>}
      */
     public function resolveLive(ReportDefinition $definition, Period $period): array
     {
@@ -79,7 +79,7 @@ final readonly class ReportGenerator
      * calculated metrics) → health score → resolved blocks. Used by both the persisted
      * GENERATE stage and the live dashboard.
      *
-     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>}
+     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>, pages: list<array<string, mixed>>}
      */
     private function compose(ReportDefinition $definition, Period $period): array
     {
@@ -115,7 +115,33 @@ final readonly class ReportGenerator
             'health_score' => $score,
             'theme' => is_array($theme) ? $theme : null,
             'diagnostics' => $diagnostics,
+            'pages' => $this->pageNames($definition),
         ];
+    }
+
+    /**
+     * The report's named pages (CLAUDE.md §11 — Looker/Power-BI parity): the definition's,
+     * falling back to its template's. Shape: list of {name} indexed by the blocks' page
+     * index; drives the interactive page-navigation menu. Sanitised to the {name} shape so
+     * a hand-edited payload can't smuggle other keys into the frozen report.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function pageNames(ReportDefinition $definition): array
+    {
+        $pages = $definition->pages ?? $definition->template?->pages;
+
+        if (! is_array($pages)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($pages as $page) {
+            $name = $page['name'] ?? null;
+            $result[] = ['name' => is_string($name) ? $name : ''];
+        }
+
+        return $result;
     }
 
     /**
@@ -279,15 +305,16 @@ final readonly class ReportGenerator
      * @param  array<array-key, mixed>  $data
      * @param  array<string, mixed>|null  $theme
      * @param  list<array<string, mixed>>  $diagnostics
+     * @param  list<array<string, mixed>>  $pages
      */
-    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null, array $diagnostics = [], ?string $summary = null): Report
+    private function persist(ReportDefinition $definition, Period $period, array $visibleBlocks, array $data, int $score, ?array $theme = null, array $diagnostics = [], ?string $summary = null, array $pages = []): Report
     {
         $report = new Report;
         $report->agency_id = $definition->agency_id;
         $report->report_definition_id = $definition->id;
         $report->period_start = Carbon::instance($period->start);
         $report->period_end = Carbon::instance($period->end);
-        $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data, 'theme' => $theme, 'diagnostics' => $diagnostics];
+        $report->resolved_blocks = ['blocks' => $visibleBlocks, 'data' => $data, 'theme' => $theme, 'diagnostics' => $diagnostics, 'pages' => $pages];
         $report->health_score = $score;
         $report->executive_summary = $summary; // AI per-period narrative (§10.6), null if unavailable
         $report->public_token = Str::random(48);

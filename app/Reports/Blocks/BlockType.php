@@ -11,6 +11,8 @@ namespace App\Reports\Blocks;
  */
 enum BlockType: string
 {
+    case Cover = 'cover';
+    case BackCover = 'back_cover';
     case Header = 'header';
     case Kpi = 'kpi';
     case Chart = 'chart';

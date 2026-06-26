@@ -505,7 +505,7 @@ export function Ga4DatasetBuilder({
                                         </div>
                                     </div>
                                     <div className="ir-rounded-md ir-bg-card ir-p-3">
-                                        <BlockList blocks={preview.blocks} data={preview.data} currency="USD" paginated={false} />
+                                        <BlockList blocks={preview.blocks} data={preview.data} currency="USD" mode="flow" />
                                     </div>
                                     <p className="ir-text-[10px] ir-text-muted-foreground">
                                         El KPI suma la muestra del periodo; barras/líneas/embudo/geo usan la medida de orden por la primera dimensión. En el editor

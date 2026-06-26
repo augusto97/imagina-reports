@@ -71,6 +71,25 @@ class ReportTemplateApiTest extends TestCase
             ->assertJsonValidationErrors('theme.density');
     }
 
+    public function test_store_accepts_named_pages_and_cover_blocks(): void
+    {
+        $this->postJson('/api/v1/report-templates', [
+            'name' => 'Con portada',
+            'blocks' => [
+                ['id' => 'cv', 'type' => 'cover', 'page' => 0],
+                ['id' => 'bc', 'type' => 'back_cover', 'page' => 1],
+            ],
+            'pages' => [['name' => 'Portada'], ['name' => 'Cierre']],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('pages.0.name', 'Portada')
+            ->assertJsonPath('pages.1.name', 'Cierre');
+
+        $template = ReportTemplate::query()->where('name', 'Con portada')->firstOrFail();
+        $this->assertSame('Portada', $template->pages[0]['name'] ?? null);
+        $this->assertContains('cover', array_column($template->blocks, 'type'));
+    }
+
     public function test_store_rejects_an_invalid_block_layout(): void
     {
         $this->postJson('/api/v1/report-templates', [

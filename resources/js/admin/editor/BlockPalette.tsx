@@ -1,7 +1,9 @@
 import {
     BarChart3,
+    BookOpen,
     Box,
     DollarSign,
+    Flag,
     Gauge,
     Hash,
     Heading,
@@ -26,6 +28,8 @@ import type { BlockType } from '@shared/blocks/types';
 
 /** Per-block-type metadata for the palette + (later) layer list: label + icon. */
 export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon }> = {
+    cover: { label: 'Portada', icon: BookOpen },
+    back_cover: { label: 'Contraportada', icon: Flag },
     header: { label: 'Cabecera', icon: Heading },
     healthscore: { label: 'Health score', icon: Gauge },
     kpi: { label: 'KPI', icon: Hash },
@@ -51,6 +55,7 @@ export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon }> 
 const GROUPS: { title: string; types: BlockType[] }[] = [
     { title: 'KPIs & datos', types: ['kpi', 'sales_summary', 'goal', 'healthscore'] },
     { title: 'Gráficos & tablas', types: ['chart', 'table', 'funnel', 'geo_map'] },
+    { title: 'Portada & cierre', types: ['cover', 'back_cover'] },
     { title: 'Texto & marca', types: ['header', 'narrative', 'cta', 'image'] },
     { title: 'Seguridad & soporte', types: ['security_shield', 'worklog_timeline', 'comments'] },
     { title: 'Interacción & layout', types: ['control', 'divider', 'pagebreak'] },

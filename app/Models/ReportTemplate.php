@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property array<int, array<string, mixed>>|null $calculated_metrics
  * @property array<string, mixed>|null $theme
  * @property array<array-key, list<array<string, mixed>>>|null $filters
+ * @property array<int, array<string, mixed>>|null $pages
  * @property bool $is_default
  * @property string $locale
  */
@@ -39,6 +40,7 @@ class ReportTemplate extends Model
         'calculated_metrics',
         'theme',
         'filters',
+        'pages',
         'is_default',
         'locale',
     ];
@@ -53,6 +55,7 @@ class ReportTemplate extends Model
             'calculated_metrics' => 'array',
             'theme' => 'array',
             'filters' => 'array',
+            'pages' => 'array',
             'is_default' => 'boolean',
         ];
     }

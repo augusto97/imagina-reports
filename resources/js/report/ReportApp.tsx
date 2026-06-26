@@ -50,7 +50,19 @@ export function ReportApp({ token, printToken }: { token: string; printToken?: s
                     </span>
                 </div>
             )}
-            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} theme={data.theme} />
+            <BlockList
+                blocks={data.blocks}
+                data={data.data}
+                context={data.context}
+                currency={data.currency}
+                locale={data.agency?.locale}
+                theme={data.theme}
+                pages={data.pages}
+                agency={data.agency}
+                // Browsershot carries the print token → stack every page as its own PDF sheet;
+                // a human viewing the link gets the interactive one-page-at-a-time navigation.
+                mode={printToken != null && printToken !== '' ? 'print' : 'paged'}
+            />
         </div>
     );
 }

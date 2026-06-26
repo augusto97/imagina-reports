@@ -175,6 +175,10 @@ export function EditorScreen(): ReactElement {
     const [theme, setTheme] = useState<ReportTheme>({});
     // Page/dashboard filters (design-time), keyed by scope (`all` or page index).
     const [pageFilters, setPageFilters] = useState<PageFilters>({});
+    // Named pages (§11 — Looker/Power-BI parity): the label of each page in the nav menu,
+    // indexed by page. Empty string falls back to "Página N". Editing index for inline rename.
+    const [pageNames, setPageNames] = useState<string[]>([]);
+    const [renamingPage, setRenamingPage] = useState<number | null>(null);
     // Collapsible side panels — let the canvas take (almost) the whole workspace.
     // Panels start open on desktop, closed on phones (they overlay the canvas there).
     const wideViewport = typeof window !== "undefined" && window.innerWidth >= 1024;
@@ -231,6 +235,7 @@ export function EditorScreen(): ReactElement {
             resetBlocks([makeBlock("header")]);
             setTheme({});
             setPageFilters({});
+            setPageNames([]);
             setSelectedId(null);
             setErrors([]);
         }
@@ -246,6 +251,7 @@ export function EditorScreen(): ReactElement {
             resetBlocks(loaded.length > 0 ? loaded : [makeBlock("header")]);
             setTheme(editingTemplate.theme ?? {});
             setPageFilters(editingTemplate.filters ?? {});
+            setPageNames((editingTemplate.pages ?? []).map((page) => page.name ?? ""));
             setSelectedId(null);
             setErrors([]);
         }
@@ -404,6 +410,7 @@ export function EditorScreen(): ReactElement {
     const addPage = (): void => {
         setPageCount((count) => count + 1);
         setCurrentPage(pageCount);
+        setPageNames((names) => [...names, ""]);
         setSelectedId(null);
     };
 
@@ -422,11 +429,23 @@ export function EditorScreen(): ReactElement {
                 ),
         );
         setPageCount((count) => Math.max(1, count - 1));
+        setPageNames((names) => names.filter((_, index) => index !== page));
         setCurrentPage((current) =>
             current >= page && current > 0 ? current - 1 : current,
         );
         setSelectedId(null);
     };
+
+    /** Rename a page (the nav-menu label). Empty names fall back to "Página N". */
+    const renamePage = (page: number, name: string): void =>
+        setPageNames((names) => {
+            const next = [...names];
+            while (next.length <= page) {
+                next.push("");
+            }
+            next[page] = name;
+            return next;
+        });
     const updateBlock = (next: Block): void =>
         commit(blocks.map((b) => (b.id === next.id ? next : b)));
     const removeBlock = (id: string): void => {
@@ -505,12 +524,17 @@ export function EditorScreen(): ReactElement {
             theme.accent != null || theme.density != null ? theme : null;
         // Only persist filters when some scope actually has rules.
         const filtersPayload = Object.keys(pageFilters).length > 0 ? pageFilters : null;
+        // Named pages for the nav menu — one entry per page, in order.
+        const pagesPayload = Array.from({ length: pageCount }, (_, index) => ({
+            name: pageNames[index] ?? "",
+        }));
         // Calculated metrics are agency-level now (saved from their modal), not on the template.
         const payload = {
             name,
             blocks,
             theme: themePayload,
             filters: filtersPayload,
+            pages: pagesPayload,
         };
         if (editingTemplateId !== null) {
             update.mutate(payload, handlers);
@@ -814,21 +838,39 @@ export function EditorScreen(): ReactElement {
                                     key={index}
                                     className="ir-group ir-relative"
                                 >
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setCurrentPage(index);
-                                            setSelectedId(null);
-                                        }}
-                                        className={
-                                            index === currentPage
-                                                ? "ir-rounded-md ir-border ir-border-primary ir-bg-primary/5 ir-px-3 ir-py-1 ir-text-sm ir-font-medium"
-                                                : "ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-border-primary/60"
-                                        }
-                                    >
-                                        Página {index + 1}
-                                    </button>
-                                    {pageCount > 1 && (
+                                    {renamingPage === index ? (
+                                        <input
+                                            autoFocus
+                                            value={pageNames[index] ?? ""}
+                                            placeholder={`Página ${index + 1}`}
+                                            onChange={(event) => renamePage(index, event.target.value)}
+                                            onBlur={() => setRenamingPage(null)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === "Enter" || event.key === "Escape") {
+                                                    setRenamingPage(null);
+                                                }
+                                            }}
+                                            className="ir-w-28 ir-rounded-md ir-border ir-border-primary ir-bg-background ir-px-2 ir-py-1 ir-text-sm"
+                                        />
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCurrentPage(index);
+                                                setSelectedId(null);
+                                            }}
+                                            onDoubleClick={() => setRenamingPage(index)}
+                                            title="Doble clic para renombrar"
+                                            className={
+                                                index === currentPage
+                                                    ? "ir-rounded-md ir-border ir-border-primary ir-bg-primary/5 ir-px-3 ir-py-1 ir-text-sm ir-font-medium"
+                                                    : "ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-border-primary/60"
+                                            }
+                                        >
+                                            {pageNames[index]?.trim() ? pageNames[index] : `Página ${index + 1}`}
+                                        </button>
+                                    )}
+                                    {pageCount > 1 && renamingPage !== index && (
                                         <button
                                             type="button"
                                             title="Eliminar página"

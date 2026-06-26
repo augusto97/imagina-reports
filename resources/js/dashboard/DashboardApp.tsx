@@ -104,7 +104,7 @@ export function DashboardApp({ token }: { token: string }): ReactElement {
                 </div>
             </header>
 
-            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} theme={data.theme} />
+            <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} theme={data.theme} pages={data.pages} agency={data.agency} mode="paged" />
         </div>
     );
 }

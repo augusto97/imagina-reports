@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array<int, array<string, mixed>>|null $calculated_metrics
  * @property array<string, mixed>|null $theme
  * @property array<array-key, list<array<string, mixed>>>|null $filters
+ * @property array<int, array<string, mixed>>|null $pages
  * @property ReportVisibility $visibility
  * @property string|null $password_hash
  * @property array<int, string>|null $embed_domains
@@ -54,6 +55,7 @@ class ReportDefinition extends Model
         'calculated_metrics',
         'theme',
         'filters',
+        'pages',
         'visibility',
         'embed_domains',
         'dashboard_enabled',
@@ -73,6 +75,7 @@ class ReportDefinition extends Model
             'calculated_metrics' => 'array',
             'theme' => 'array',
             'filters' => 'array',
+            'pages' => 'array',
             'visibility' => ReportVisibility::class,
             'embed_domains' => 'array',
             'dashboard_enabled' => 'boolean',

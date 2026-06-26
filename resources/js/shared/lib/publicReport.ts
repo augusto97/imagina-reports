@@ -43,6 +43,8 @@ export interface PublicReport {
     context?: Record<string, string>;
     currency?: string;
     theme?: ReportTheme | null;
+    /** Named pages for the interactive navigation menu (§11 — Looker/Power-BI parity). */
+    pages?: { name?: string }[];
 }
 
 export interface ReportPeriod {

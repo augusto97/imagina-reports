@@ -120,6 +120,20 @@ export function ReportSettingsProvider({
 }
 
 /**
+ * Branding + merge-field context for the cover / back-cover blocks: the agency name, logo
+ * URL and the report's {{client}}/{{site}}/{{period}} tokens — so a cover renders a real
+ * branded title page without each block re-plumbing the agency. Empty by default (editor
+ * preview), where the cover falls back to sample text.
+ */
+interface ReportBrand {
+    agencyName: string;
+    logoUrl: string | null;
+    context: Record<string, string>;
+}
+
+const ReportBrandContext = createContext<ReportBrand>({ agencyName: '', logoUrl: null, context: {} });
+
+/**
  * Active page-level filters (CLAUDE.md §11.3): a map of row-field → selected value, set
  * by `control` blocks and applied to the list blocks on the page. Empty by default, so
  * with no control present every block renders exactly as before (no regression). This is
@@ -839,6 +853,92 @@ function CtaBlock({ block }: BlockComponentProps): ReactElement {
 }
 
 /**
+ * Cover page (CLAUDE.md §11.5 #1 — the branded title page). A full-height, accent-tinted
+ * panel with the agency logo, report title, client · site, period and an optional health
+ * score — the "portada" Looker/Power-BI users expect as the first PDF sheet. Reads the
+ * agency/merge context so it self-populates; falls back to sample text in the editor.
+ */
+function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
+    const brand = useContext(ReportBrandContext);
+    const ctx = brand.context;
+    const record = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+
+    const title = str(prop(block, 'title'), 'Informe de soporte y rendimiento');
+    const subtitle = str(prop(block, 'subtitle'));
+    const client = ctx.client ?? '';
+    const site = ctx.site ?? '';
+    const period = ctx.period ?? str(record?.period);
+    const showScore = prop(block, 'showScore') !== false;
+    const score = ctx.score !== undefined && ctx.score !== '' ? ctx.score : str(record?.score);
+    const logo = brand.logoUrl;
+    const subline = [client, site].filter((part) => part !== '').join(' · ');
+
+    return (
+        <div
+            className={cn(
+                'ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-gap-8 ir-rounded-2xl ir-p-10',
+                typeof block.style?.bg === 'string' && block.style.bg !== '' ? '' : 'ir-bg-primary/[0.06]',
+            )}
+            style={styleCss(block.style)}
+        >
+            <div className="ir-flex ir-items-center ir-justify-between">
+                {logo !== null ? (
+                    <img src={logo} alt={brand.agencyName} className="ir-h-10" />
+                ) : (
+                    <span className="ir-text-sm ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{brand.agencyName || 'Tu Agencia'}</span>
+                )}
+                {period !== '' && <span className="ir-text-xs ir-text-muted-foreground">{period}</span>}
+            </div>
+
+            <div className="ir-flex ir-flex-col ir-gap-3">
+                <h1 className="ir-text-4xl ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
+                {subtitle !== '' && <p className="ir-max-w-xl ir-text-base ir-text-muted-foreground">{subtitle}</p>}
+                {subline !== '' && <p className="ir-text-lg ir-font-medium ir-text-foreground/80">{subline}</p>}
+            </div>
+
+            {showScore && score !== '' && (
+                <div className="ir-flex ir-items-end ir-justify-between">
+                    <div className="ir-w-44">
+                        <Gauge score={Number(score) || 0} />
+                        <p className="ir-mt-1 ir-text-center ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">Estado general</p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Back cover (CLAUDE.md §11.5 #9 — the closing page). A full-height reassurance panel with
+ * the retention message and the agency's contact line — the "contraportada" that closes the
+ * PDF. Like the cover, it self-populates from the brand context.
+ */
+function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
+    const brand = useContext(ReportBrandContext);
+    const headline = str(prop(block, 'headline'), 'Tu plan de soporte está activo y protegiendo tu sitio.');
+    const text = str(prop(block, 'text'));
+    const contact = str(prop(block, 'contact'));
+    const logo = brand.logoUrl;
+
+    return (
+        <div
+            className={cn(
+                'ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-gap-6 ir-rounded-2xl ir-p-10 ir-text-center',
+                typeof block.style?.bg === 'string' && block.style.bg !== '' ? '' : 'ir-bg-primary/[0.06]',
+            )}
+            style={styleCss(block.style)}
+        >
+            {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-h-10" />}
+            <p className="ir-max-w-2xl ir-text-2xl ir-font-bold ir-leading-snug ir-text-primary">{headline}</p>
+            {text !== '' && <p className="ir-max-w-xl ir-text-sm ir-text-muted-foreground">{text}</p>}
+            {(contact !== '' || brand.agencyName !== '') && (
+                <p className="ir-mt-2 ir-text-sm ir-font-medium ir-text-foreground/70">{contact !== '' ? contact : brand.agencyName}</p>
+            )}
+        </div>
+    );
+}
+
+/**
  * Goal / target block: a metric's current value against a target, with a progress
  * bar and an on-track (green) / behind (amber) tint. Competitor parity — "goal
  * tracking". Binds to a metric; the target lives in `props.target`.
@@ -950,6 +1050,8 @@ function ControlBlock({ block, data }: BlockComponentProps): ReactElement {
 
 /* ------------------------------- dispatcher -------------------------------- */
 const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement | null> = {
+    cover: CoverBlock,
+    back_cover: BackCoverBlock,
     header: HeaderBlock,
     kpi: KpiBlock,
     chart: ChartBlock,
@@ -1034,7 +1136,9 @@ export function BlockList({
     currency = 'USD',
     locale,
     theme,
-    paginated = true,
+    mode = 'paged',
+    pages: pageMeta,
+    agency,
 }: {
     blocks: Block[];
     data?: Record<string, unknown>;
@@ -1042,10 +1146,18 @@ export function BlockList({
     currency?: string;
     locale?: string;
     theme?: { accent?: string | null; density?: 'normal' | 'compact' | null } | null;
-    /** Render each page as a visible paper sheet with a page-number footer (CLAUDE.md §10.7).
-     *  On screen the sheets stack like sheets of paper; in print each is one physical page —
-     *  so the boundary you see is exactly where the PDF cuts. Off for tiny inline previews. */
-    paginated?: boolean;
+    /**
+     * How the multi-page report is laid out (CLAUDE.md §11 — Looker/Power-BI parity):
+     * - `paged` (default): interactive — ONE page at a time with a navigation menu, the way
+     *   Looker Studio / Power BI present report pages on screen.
+     * - `print`: every page stacked, each its own physical sheet — what Browsershot prints to PDF.
+     * - `flow`: just the first page's blocks, no chrome — for tiny inline previews.
+     */
+    mode?: 'paged' | 'print' | 'flow';
+    /** Per-page metadata (names) for the navigation menu, indexed by page. */
+    pages?: { name?: string }[];
+    /** Agency branding for the cover / back-cover blocks. */
+    agency?: { name?: string | null; logo_url?: string | null } | null;
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
     const periodLabel = context?.period ?? '';
@@ -1055,13 +1167,28 @@ export function BlockList({
     // templates without coordinates keep the legacy width-flow so they still render.
     const useGrid = resolved.length > 0 && resolved.every((block) => block.layout != null);
 
-    // Multi-page: group blocks by their page index; each page prints on its own sheet.
+    // Multi-page: group blocks by their page index.
     const pages = groupByPage(resolved);
+
+    // Interactive paging: which page the viewer is looking at (Looker/Power-BI tabs).
+    const [active, setActive] = useState(0);
+    const safeActive = Math.min(Math.max(active, 0), pages.length - 1);
+    const pageName = (index: number): string => {
+        const name = pageMeta?.[index]?.name;
+
+        return typeof name === 'string' && name.trim() !== '' ? name : `Página ${index + 1}`;
+    };
 
     // Per-report theme: scope the accent (CSS var, overriding the agency brand) and density.
     const density = theme?.density === 'compact' ? 'compact' : 'normal';
     const accentHsl = typeof theme?.accent === 'string' ? hexToHslString(theme.accent) : null;
     const themeStyle: CSSProperties = accentHsl !== null ? ({ '--ir-primary': accentHsl, '--ir-ring': accentHsl } as CSSProperties) : {};
+
+    const brand: ReportBrand = {
+        agencyName: agency?.name ?? '',
+        logoUrl: agency?.logo_url ?? null,
+        context: context ?? {},
+    };
 
     const renderPage = (pageBlocks: Block[]): ReactElement =>
         useGrid ? (
@@ -1089,29 +1216,62 @@ export function BlockList({
             </div>
         );
 
+    let body: ReactNode;
+    if (mode === 'print') {
+        // PDF: every page on its own physical sheet (the @page margins own the whitespace).
+        body = (
+            <div className="ir-sheets">
+                {pages.map((pageBlocks, pageIndex) => (
+                    <section key={pageIndex} className="ir-sheet">
+                        {renderPage(pageBlocks)}
+                        <footer className="ir-sheet-footer">
+                            <span>{periodLabel}</span>
+                            <span>
+                                {pageName(pageIndex)} · {pageIndex + 1}/{pages.length}
+                            </span>
+                        </footer>
+                    </section>
+                ))}
+            </div>
+        );
+    } else if (mode === 'flow') {
+        body = renderPage(pages[0] ?? []);
+    } else {
+        // Interactive: a navigation menu + the active page only (Looker/Power-BI model).
+        body = (
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                {pages.length > 1 && (
+                    <nav className="ir-flex ir-flex-wrap ir-gap-1 ir-border-b ir-pb-2" aria-label="Páginas del informe">
+                        {pages.map((_, index) => (
+                            <button
+                                key={index}
+                                type="button"
+                                onClick={() => setActive(index)}
+                                aria-current={index === safeActive}
+                                className={cn(
+                                    'ir-rounded-md ir-px-3 ir-py-1.5 ir-text-sm ir-font-medium ir-transition',
+                                    index === safeActive
+                                        ? 'ir-bg-primary/10 ir-text-primary'
+                                        : 'ir-text-muted-foreground hover:ir-bg-muted',
+                                )}
+                            >
+                                {pageName(index)}
+                            </button>
+                        ))}
+                    </nav>
+                )}
+                {renderPage(pages[safeActive] ?? [])}
+            </div>
+        );
+    }
+
     return (
-        <div style={themeStyle} className={paginated ? 'ir-sheets' : undefined}>
-        <ReportSettingsProvider currency={currency} locale={locale} density={density}>
-            <ReportFilterProvider>
-            {paginated
-                ? pages.map((pageBlocks, pageIndex) => (
-                      <section key={pageIndex} className="ir-sheet">
-                          {renderPage(pageBlocks)}
-                          <footer className="ir-sheet-footer">
-                              <span>{periodLabel}</span>
-                              <span>
-                                  Página {pageIndex + 1} de {pages.length}
-                              </span>
-                          </footer>
-                      </section>
-                  ))
-                : pages.map((pageBlocks, pageIndex) => (
-                      <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
-                          {renderPage(pageBlocks)}
-                      </div>
-                  ))}
-            </ReportFilterProvider>
-        </ReportSettingsProvider>
+        <div style={themeStyle}>
+            <ReportBrandContext.Provider value={brand}>
+                <ReportSettingsProvider currency={currency} locale={locale} density={density}>
+                    <ReportFilterProvider>{body}</ReportFilterProvider>
+                </ReportSettingsProvider>
+            </ReportBrandContext.Provider>
         </div>
     );
 }

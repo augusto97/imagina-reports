@@ -709,7 +709,7 @@ export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null; filters?: PageFilters | null }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null; filters?: PageFilters | null; pages?: { name: string }[] }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
@@ -719,7 +719,7 @@ export function useUpdateReportTemplate(id: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null; filters?: PageFilters | null }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null; filters?: PageFilters | null; pages?: { name: string }[] }) =>
             api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ['report-templates'] });

@@ -158,6 +158,8 @@ export interface ReportTemplateDto {
     calculated_metrics: { key: string; label: string; formula: string }[];
     theme?: ReportTheme | null;
     filters?: PageFilters | null;
+    /** Named pages for the navigation menu (§11 — Looker/Power-BI parity), indexed by page. */
+    pages?: { name: string }[] | null;
     is_default: boolean;
     locale: string;
 }

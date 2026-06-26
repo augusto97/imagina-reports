@@ -37,6 +37,7 @@ final class ReportResource extends JsonResource
         $blocks = $resolved['blocks'] ?? [];
         $data = $resolved['data'] ?? [];
         $theme = $resolved['theme'] ?? null;
+        $pages = $resolved['pages'] ?? [];
 
         return [
             'period_start' => $report->period_start->toIso8601String(),
@@ -48,6 +49,8 @@ final class ReportResource extends JsonResource
             // Per-report theme (accent + density), or null to inherit the agency brand.
             'theme' => is_array($theme) ? $theme : null,
             'blocks' => $blocks,
+            // Named pages for the interactive navigation menu (§11 — Looker/Power-BI parity).
+            'pages' => is_array($pages) ? $pages : [],
             // Merge-field context for dynamic {{tokens}} in text blocks (§11.3).
             'context' => [
                 'agency' => $agency !== null ? $agency->name : '',

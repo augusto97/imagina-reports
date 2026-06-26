@@ -31,6 +31,8 @@ final class StoreReportDefinitionRequest extends FormRequest
             'filters' => ['nullable', 'array'],
             'theme.accent' => ['nullable', 'string', 'max:9'],
             'theme.density' => ['nullable', 'in:normal,compact'],
+            'pages' => ['nullable', 'array'],
+            'pages.*.name' => ['nullable', 'string', 'max:80'],
         ];
     }
 }

@@ -3,6 +3,8 @@
 // Chromium-printed PDF (§10.7 / §11.4).
 
 export type BlockType =
+    | 'cover'
+    | 'back_cover'
     | 'header'
     | 'kpi'
     | 'chart'
