@@ -101,6 +101,24 @@ class GscConnectorTest extends TestCase
         ], $set->get('gsc.top_queries'));
     }
 
+    public function test_fetch_parses_the_search_dataset_into_named_rows(): void
+    {
+        Http::fake([self::QUERY => Http::response([
+            'rows' => [
+                ['keys' => ['imagina wp', '/home', 'col', 'DESKTOP'], 'clicks' => 80, 'impressions' => 1000],
+                ['keys' => ['reportes', '/blog', 'mex', 'MOBILE'], 'clicks' => 20, 'impressions' => 600],
+            ],
+        ])]);
+
+        $set = $this->connector()->fetch($this->source(), $this->period(), ['gsc.search']);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame([
+            ['query' => 'imagina wp', 'page' => '/home', 'country' => 'col', 'device' => 'DESKTOP', 'clicks' => 80, 'impressions' => 1000],
+            ['query' => 'reportes', 'page' => '/blog', 'country' => 'mex', 'device' => 'MOBILE', 'clicks' => 20, 'impressions' => 600],
+        ], $set->get('gsc.search'));
+    }
+
     public function test_partial_when_a_table_query_fails(): void
     {
         Http::fake([self::QUERY => Http::sequence()

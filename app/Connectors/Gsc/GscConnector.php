@@ -79,7 +79,7 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
 
     public function metricCatalog(DataSource $source): MetricCatalog
     {
-        return new MetricCatalog(
+        $catalog = new MetricCatalog(
             new MetricDefinition('gsc.clicks', 'Clics en Google', MetricType::Scalar, 'count'),
             new MetricDefinition('gsc.impressions', 'Impresiones', MetricType::Scalar, 'count'),
             new MetricDefinition('gsc.ctr', 'CTR', MetricType::Scalar, 'percent'),
@@ -91,6 +91,65 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
             new MetricDefinition('gsc.by_country', 'Por país', MetricType::Table, dimensions: ['country']),
             new MetricDefinition('gsc.by_device', 'Por dispositivo', MetricType::Table, dimensions: ['device']),
         );
+
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            $measures = [];
+            foreach ($spec['measures'] as $measureKey => $measure) {
+                $measures[] = ['key' => $measureKey, 'label' => $measure['label'], 'unit' => $measure['unit']];
+            }
+
+            $dimensionLabels = [];
+            foreach ($spec['dimensions'] as $dimensionKey => $dimension) {
+                $dimensionLabels[$dimensionKey] = $dimension['label'];
+            }
+
+            $catalog = $catalog->with(new MetricDefinition(
+                $key,
+                $spec['label'],
+                MetricType::Dataset,
+                null,
+                array_keys($spec['dimensions']),
+                null,
+                $measures,
+                $dimensionLabels,
+            ));
+        }
+
+        return $catalog;
+    }
+
+    /**
+     * Bounded multi-dimension dataset for the editor (CLAUDE.md §10): top-N search
+     * performance the agency can filter/break by. Only ADDITIVE measures (clicks,
+     * impressions) — CTR/position are rates that can't be summed on group-by, so they
+     * stay as the period scalars above. `dimensions` map field key → GSC API dimension;
+     * measures map field key → the GSC row field.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     dimensions: array<string, array{label: string, api: string}>,
+     *     measures: array<string, array{label: string, field: string, unit: string|null}>,
+     *     limit: int,
+     * }>
+     */
+    private function datasetSpecs(): array
+    {
+        return [
+            'gsc.search' => [
+                'label' => 'Búsqueda (query/página/país/dispositivo)',
+                'dimensions' => [
+                    'query' => ['label' => 'Búsqueda', 'api' => 'query'],
+                    'page' => ['label' => 'Página', 'api' => 'page'],
+                    'country' => ['label' => 'País', 'api' => 'country'],
+                    'device' => ['label' => 'Dispositivo', 'api' => 'device'],
+                ],
+                'measures' => [
+                    'clicks' => ['label' => 'Clics', 'field' => 'clicks', 'unit' => 'count'],
+                    'impressions' => ['label' => 'Impresiones', 'field' => 'impressions', 'unit' => 'count'],
+                ],
+                'limit' => 250,
+            ],
+        ];
     }
 
     public function setupGuide(): SetupGuide
@@ -152,7 +211,7 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         $keys = $requestedMetrics === []
-            ? [...array_keys(self::SCALARS), ...array_keys(self::SERIES), ...array_keys(self::TABLES)]
+            ? [...array_keys(self::SCALARS), ...array_keys(self::SERIES), ...array_keys(self::TABLES), ...array_keys($this->datasetSpecs())]
             : $requestedMetrics;
 
         $metrics = [];
@@ -161,6 +220,7 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
         $this->collectScalars($token, $siteUrl, $period, $keys, $metrics, $errors);
         $this->collectSeries($token, $siteUrl, $period, $keys, $metrics, $errors);
         $this->collectTables($token, $siteUrl, $period, $keys, $metrics, $errors);
+        $this->collectDatasets($token, $siteUrl, $period, $keys, $metrics, $errors);
 
         if ($metrics === [] && $errors !== []) {
             return MetricSet::failed(implode('; ', $errors));
@@ -292,6 +352,52 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
                 ],
                 $this->rows($response->json()),
             );
+        }
+    }
+
+    /**
+     * Datasets: one multi-dimension query per dataset → named rows
+     * (`{query, page, country, device, clicks, impressions}`) the DatasetEngine shapes.
+     *
+     * @param  list<string>  $keys
+     * @param  array<string, mixed>  $metrics
+     * @param  list<string>  $errors
+     */
+    private function collectDatasets(string $token, string $siteUrl, Period $period, array $keys, array &$metrics, array &$errors): void
+    {
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            if (! in_array($key, $keys, true)) {
+                continue;
+            }
+
+            $dimensionApis = array_values(array_map(static fn (array $d): string => $d['api'], $spec['dimensions']));
+            $dimensionKeys = array_keys($spec['dimensions']);
+
+            try {
+                $response = $this->query($token, $siteUrl, $dimensionApis, $spec['limit'], $period);
+            } catch (Throwable $e) {
+                $errors[] = "{$key}: ".$e->getMessage();
+
+                continue;
+            }
+
+            if ($response->failed()) {
+                $errors[] = "{$key}: HTTP ".$response->status();
+
+                continue;
+            }
+
+            $metrics[$key] = array_map(function (array $row) use ($spec, $dimensionKeys): array {
+                $entry = [];
+                foreach ($dimensionKeys as $index => $dimensionKey) {
+                    $entry[$dimensionKey] = $this->strVal(Arr::get($row, "keys.{$index}"));
+                }
+                foreach ($spec['measures'] as $measureKey => $measure) {
+                    $entry[$measureKey] = $this->intVal(Arr::get($row, $measure['field']));
+                }
+
+                return $entry;
+            }, $this->rows($response->json()));
         }
     }
 
