@@ -13,7 +13,11 @@ final readonly class MetricDefinition
 {
     /**
      * @param  string  $key  Fully-qualified metric key, e.g. "ga4.sessions".
-     * @param  list<string>  $dimensions  Optional dimensions the metric can be broken down by.
+     * @param  list<string>  $dimensions  Dimensions this metric/dataset can be broken down or filtered by.
+     * @param  list<array{key: string, label: string, unit: string|null}>  $measures  For Dataset metrics:
+     *                                                                                the numeric columns a block can pick (the editor's "measure" dropdown). Empty otherwise.
+     * @param  array<string, string>  $dimensionLabels  Human labels for the dimension keys (e.g. country → País),
+     *                                                  so the editor's filter/breakdown pickers read well. Falls back to the key when absent.
      */
     public function __construct(
         public string $key,
@@ -22,5 +26,7 @@ final readonly class MetricDefinition
         public ?string $unit = null,
         public array $dimensions = [],
         public ?string $description = null,
+        public array $measures = [],
+        public array $dimensionLabels = [],
     ) {}
 }

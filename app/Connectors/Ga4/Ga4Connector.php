@@ -111,6 +111,31 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
             $definitions[] = new MetricDefinition($key, $spec['label'], $spec['type'], $spec['unit'], $spec['dimensions']);
         }
 
+        // Datasets (multi-dimension, multi-measure) expose their filterable dimensions and
+        // pickable measures so the editor can model blocks like Looker (§10 dashboards).
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            $measures = [];
+            foreach ($spec['measures'] as $measureKey => $measure) {
+                $measures[] = ['key' => $measureKey, 'label' => $measure['label'], 'unit' => $measure['unit']];
+            }
+
+            $dimensionLabels = [];
+            foreach ($spec['dimensions'] as $dimensionKey => $dimension) {
+                $dimensionLabels[$dimensionKey] = $dimension['label'];
+            }
+
+            $definitions[] = new MetricDefinition(
+                $key,
+                $spec['label'],
+                MetricType::Dataset,
+                null,
+                array_keys($spec['dimensions']),
+                null,
+                $measures,
+                $dimensionLabels,
+            );
+        }
+
         return new MetricCatalog(...$definitions);
     }
 
@@ -133,16 +158,21 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         $specs = $this->specs();
-        $keys = $requestedMetrics === [] ? array_keys($specs) : array_values(array_intersect($requestedMetrics, array_keys($specs)));
+        $datasets = $this->datasetSpecs();
+        $allKeys = array_merge(array_keys($specs), array_keys($datasets));
+        $keys = $requestedMetrics === [] ? $allKeys : array_values(array_intersect($requestedMetrics, $allKeys));
 
         $metrics = [];
         $errors = [];
 
         foreach ($keys as $key) {
             try {
+                $isDataset = isset($datasets[$key]);
+                $body = $isDataset ? $this->datasetBody($datasets[$key], $period) : $this->body($specs[$key], $period);
+
                 $response = Http::withToken($token)
                     ->acceptJson()
-                    ->post(self::API_BASE."/properties/{$propertyId}:runReport", $this->body($specs[$key], $period));
+                    ->post(self::API_BASE."/properties/{$propertyId}:runReport", $body);
 
                 if ($response->failed()) {
                     $errors[] = "{$key}: HTTP ".$response->status();
@@ -150,7 +180,9 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
                     continue;
                 }
 
-                $metrics[$key] = $this->parse($specs[$key], $response->json());
+                $metrics[$key] = $isDataset
+                    ? $this->parseDataset($datasets[$key], $response->json())
+                    : $this->parse($specs[$key], $response->json());
             } catch (Throwable $e) {
                 $errors[] = "{$key}: ".$e->getMessage();
             }
@@ -254,6 +286,119 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
             'ga4.sessions_by_hour' => ['label' => 'Visitas por hora', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['hour'], 'limit' => 24, 'cast' => 'int', 'scale' => 1],
             'ga4.sessions_by_weekday' => ['label' => 'Visitas por día de semana', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['dayOfWeek'], 'limit' => 7, 'cast' => 'int', 'scale' => 1],
         ];
+    }
+
+    /**
+     * Datasets: bounded, multi-dimension, multi-measure top-N cuts that the editor shapes
+     * with filters/breakdown/measure (CLAUDE.md §10 dashboards). Each row carries its
+     * dimension columns so an agency can pre-filter a block ("cities, only Colombia";
+     * "sessions from Facebook"). Still one aggregated runReport per dataset, top-N — never
+     * raw rows (§3.3). `dimensions`/`measures` map our field keys → GA4 API names.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     dimensions: array<string, array{label: string, api: string}>,
+     *     measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>,
+     *     limit: int,
+     * }>
+     */
+    private function datasetSpecs(): array
+    {
+        return [
+            'ga4.geo' => [
+                'label' => 'Geografía',
+                'dimensions' => [
+                    'country' => ['label' => 'País', 'api' => 'country'],
+                    'region' => ['label' => 'Región', 'api' => 'region'],
+                    'city' => ['label' => 'Ciudad', 'api' => 'city'],
+                ],
+                'measures' => [
+                    'sessions' => ['label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'users' => ['label' => 'Usuarios', 'api' => 'totalUsers', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                ],
+                'limit' => 250,
+            ],
+            'ga4.traffic' => [
+                'label' => 'Tráfico (canal/fuente/medio)',
+                'dimensions' => [
+                    'channel' => ['label' => 'Canal', 'api' => 'sessionDefaultChannelGroup'],
+                    'source' => ['label' => 'Fuente', 'api' => 'sessionSource'],
+                    'medium' => ['label' => 'Medio', 'api' => 'sessionMedium'],
+                ],
+                'measures' => [
+                    'sessions' => ['label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'users' => ['label' => 'Usuarios', 'api' => 'totalUsers', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'conversions' => ['label' => 'Conversiones', 'api' => 'conversions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                ],
+                'limit' => 250,
+            ],
+            'ga4.pages' => [
+                'label' => 'Páginas',
+                'dimensions' => [
+                    'page' => ['label' => 'Página', 'api' => 'pagePath'],
+                    'landing' => ['label' => 'Página de entrada', 'api' => 'landingPage'],
+                ],
+                'measures' => [
+                    'views' => ['label' => 'Páginas vistas', 'api' => 'screenPageViews', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'sessions' => ['label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                ],
+                'limit' => 250,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array{label: string, dimensions: array<string, array{label: string, api: string}>, measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>, limit: int}  $spec
+     * @return array<string, mixed>
+     */
+    private function datasetBody(array $spec, Period $period): array
+    {
+        $measureApis = array_values(array_map(static fn (array $m): string => $m['api'], $spec['measures']));
+
+        return [
+            'dateRanges' => [[
+                'startDate' => $period->start->toDateString(),
+                'endDate' => $period->end->toDateString(),
+            ]],
+            'dimensions' => array_values(array_map(static fn (array $d): array => ['name' => $d['api']], $spec['dimensions'])),
+            'metrics' => array_map(static fn (string $api): array => ['name' => $api], $measureApis),
+            'orderBys' => [['metric' => ['metricName' => $measureApis[0]], 'desc' => true]],
+            'limit' => $spec['limit'],
+        ];
+    }
+
+    /**
+     * Map GA4's positional dimensionValues/metricValues into named dataset rows
+     * (`{country, region, city, sessions, users}`) the DatasetEngine can filter/group.
+     *
+     * @param  array{label: string, dimensions: array<string, array{label: string, api: string}>, measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>, limit: int}  $spec
+     * @return list<array<string, string|int|float>>
+     */
+    private function parseDataset(array $spec, mixed $json): array
+    {
+        $dimensionKeys = array_keys($spec['dimensions']);
+        $measureKeys = array_keys($spec['measures']);
+        $measureMeta = array_values($spec['measures']);
+
+        $out = [];
+        foreach ($this->rows($json) as $row) {
+            $entry = [];
+
+            foreach ($dimensionKeys as $index => $dimensionKey) {
+                $value = Arr::get($row, "dimensionValues.{$index}.value");
+                $entry[$dimensionKey] = is_string($value) ? $value : '';
+            }
+
+            foreach ($measureKeys as $index => $measureKey) {
+                $value = Arr::get($row, "metricValues.{$index}.value");
+                $raw = (is_numeric($value) ? (float) $value : 0.0) * $measureMeta[$index]['scale'];
+                $entry[$measureKey] = $measureMeta[$index]['cast'] === 'int' ? (int) round($raw) : round($raw, 2);
+            }
+
+            $out[] = $entry;
+        }
+
+        return $out;
     }
 
     /**

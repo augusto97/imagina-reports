@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Connectors;
 
 use App\Connectors\Ga4\Ga4Connector;
+use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -139,6 +140,40 @@ class Ga4ConnectorTest extends TestCase
         $this->assertTrue($catalog->has('ga4.revenue'));
         $this->assertTrue($catalog->has('ga4.transactions'));
         $this->assertTrue($catalog->has('ga4.top_products'));
+    }
+
+    public function test_catalog_lists_datasets_with_dimensions_and_measures(): void
+    {
+        $catalog = $this->connector()->metricCatalog($this->source());
+
+        $this->assertTrue($catalog->has('ga4.geo'));
+        $this->assertTrue($catalog->has('ga4.traffic'));
+        $this->assertTrue($catalog->has('ga4.pages'));
+
+        $geo = $catalog->get('ga4.geo');
+        $this->assertNotNull($geo);
+        $this->assertSame(MetricType::Dataset, $geo->type);
+        $this->assertSame(['country', 'region', 'city'], $geo->dimensions);
+        $this->assertSame('País', $geo->dimensionLabels['country']);
+        $this->assertSame(['sessions', 'users'], array_column($geo->measures, 'key'));
+    }
+
+    public function test_fetch_parses_a_dataset_into_named_multi_dimension_rows(): void
+    {
+        Http::fake([self::RUN_REPORT => Http::response([
+            'rows' => [
+                ['dimensionValues' => [['value' => 'Colombia'], ['value' => 'Bogota D.C.'], ['value' => 'Bogotá']], 'metricValues' => [['value' => '120'], ['value' => '90']]],
+                ['dimensionValues' => [['value' => 'México'], ['value' => 'CDMX'], ['value' => 'CDMX']], 'metricValues' => [['value' => '200'], ['value' => '150']]],
+            ],
+        ])]);
+
+        $set = $this->connector()->fetch($this->source(), $this->period(), ['ga4.geo']);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame([
+            ['country' => 'Colombia', 'region' => 'Bogota D.C.', 'city' => 'Bogotá', 'sessions' => 120, 'users' => 90],
+            ['country' => 'México', 'region' => 'CDMX', 'city' => 'CDMX', 'sessions' => 200, 'users' => 150],
+        ], $set->get('ga4.geo'));
     }
 
     public function test_a_partial_failure_keeps_the_succeeding_metric(): void

@@ -74,6 +74,10 @@ final class MetricCatalogController extends Controller
             'type' => $definition->type->value,
             'unit' => $definition->unit,
             'dimensions' => $definition->dimensions,
+            // Dataset modeling metadata (empty for plain metrics) — drives the editor's
+            // measure/breakdown/filter pickers (CLAUDE.md §10 dashboards).
+            'measures' => $definition->measures,
+            'dimension_labels' => $definition->dimensionLabels,
         ];
     }
 }

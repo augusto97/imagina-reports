@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS FASE 3 — ETAPA A.2 (parte 1): DATASETS REALES EN GA4 (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, sin release —
+sigue siendo base sin UI):** datos reales para el motor de datasets. **Hecho:** `MetricDefinition` ahora lleva `measures` (list de
+{key,label,unit}) y `dimensionLabels` (map key→label) para datasets; `MetricCatalogController` los expone en `/metric-catalog` (campos
+`measures` + `dimension_labels`) para que el editor construya el panel de modelado. **GA4** (`Ga4Connector`): nuevo `datasetSpecs()` con 3
+datasets multi-dimensión — `ga4.geo` (país/región/ciudad × sesiones/usuarios), `ga4.traffic` (canal/fuente/medio × sesiones/usuarios/
+conversiones), `ga4.pages` (página/landing × vistas/sesiones); `fetch()` los detecta y hace un runReport multi-dim acotado (top 250);
+`parseDataset()` mapea las posiciones de GA4 a filas con nombre `[{country,region,city,sessions,users}]`. **La interactividad a nivel de
+BLOQUE ya funciona end-to-end** (binding con filters/breakdown/measure → resolver → motor sobre las filas de GA4). 313 tests (+2 GA4) +
+PHPStan + Pint limpios. **PENDIENTE en A.2:** (a) almacenamiento + threading de filtros de PÁGINA/dashboard en la definición → resolve()
+(el motor ya lo acepta vía `$filtersByPage`, falta dónde guardarlos + pasarlos desde ReportGenerator/Preview); (b) datasets en GSC y Woo
+(mismo patrón); (c) **panel de modelado en el editor** (medida/desglose/filtros desde el catálogo). Luego A.3 (builder con Metadata API),
+Etapa B (fecha cliente + tablas), C (geo_map/funnel), D (dashboard permanente + privacidad/embebido).
+
+
 **📊 DASHBOARDS INTERACTIVOS (FASE 3) — ETAPA A.1: MOTOR DE DATASETS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, sin release
 aún — es base backend sin efecto visible todavía):** arrancó el gran build de reportes dinámicos tipo Looker. Plan completo y decisión
 registrados en CLAUDE.md §13 Phase 3. **Decisión clave:** datos-filtrados / cortes materializados, NO motor BI (interactividad = rebanar
