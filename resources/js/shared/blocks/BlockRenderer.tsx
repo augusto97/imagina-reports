@@ -408,9 +408,12 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const rows = useFilteredRows(asRecords(data));
-    // Interactive sort for the portal (clicking a header). The PDF prints the
-    // default order; the editor canvas is pointer-events-none so it stays static.
+    // Interactive sort/search/paginate for the portal (the PDF prints fresh with no
+    // interaction → default order, no search, and ALL rows since paginated rows are kept
+    // in the DOM and only hidden on screen — see `print:ir-table-row` below).
     const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+    const [query, setQuery] = useState('');
+    const [page, setPage] = useState(0);
 
     const sorted = useMemo(() => {
         if (sort === null) {
@@ -427,19 +430,49 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
         });
     }, [rows, sort]);
 
+    const columns = Object.keys(rows[0] ?? {});
+
+    const q = query.trim().toLowerCase();
+    const filtered = useMemo(
+        () => (q === '' ? sorted : sorted.filter((row) => columns.some((col) => String(row[col] ?? '').toLowerCase().includes(q)))),
+        [sorted, q, columns],
+    );
+
     if (rows.length === 0) {
         return null;
     }
 
-    const columns = Object.keys(rows[0] ?? {});
     const numeric = new Set(columns.filter((col) => rows.every((row) => row[col] === undefined || typeof row[col] === 'number' || (row[col] !== '' && !Number.isNaN(Number(row[col]))))));
     const bars = block.style?.bars === true;
     const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
     const toggleSort = (col: string): void =>
         setSort((current) => (current?.col === col ? { col, dir: current.dir === 1 ? -1 : 1 } : { col, dir: -1 }));
 
+    const pageSizeRaw = Number(block.style?.rows_per_page);
+    const pageSize = pageSizeRaw > 0 ? pageSizeRaw : 10;
+    // Only show the toolbar (search + pager) once the table is big enough to need it.
+    const interactive = rows.length > pageSize;
+    const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const safePage = Math.min(Math.max(page, 0), pageCount - 1);
+    const start = safePage * pageSize;
+    const end = start + pageSize;
+
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
+            {interactive && (
+                <div className="ir-mb-2 ir-flex ir-justify-end print:ir-hidden">
+                    <input
+                        type="search"
+                        value={query}
+                        onChange={(event) => {
+                            setQuery(event.target.value);
+                            setPage(0);
+                        }}
+                        placeholder="Buscar…"
+                        className="ir-h-8 ir-w-40 ir-rounded-md ir-border ir-bg-background ir-px-2.5 ir-text-sm ir-outline-none focus:ir-border-accent"
+                    />
+                </div>
+            )}
             <table className="ir-w-full ir-text-left ir-text-sm">
                 <thead>
                     <tr className="ir-border-b ir-text-[11px] ir-uppercase ir-tracking-wide ir-text-muted-foreground">
@@ -458,8 +491,15 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                     </tr>
                 </thead>
                 <tbody>
-                    {sorted.map((row, index) => (
-                        <tr key={index} className="ir-border-b ir-border-border/50 last:ir-border-0">
+                    {filtered.map((row, index) => (
+                        <tr
+                            key={index}
+                            className={cn(
+                                'ir-border-b ir-border-border/50 last:ir-border-0',
+                                // Off-page rows stay in the DOM (so the PDF prints them all) but hide on screen.
+                                interactive && (index < start || index >= end) && 'ir-hidden print:ir-table-row',
+                            )}
+                        >
                             {columns.map((col) => (
                                 <td key={col} className={cn('ir-py-2', numeric.has(col) && 'ir-text-right ir-tabular-nums')}>
                                     {bars && col === 'value' && typeof row[col] !== 'undefined' ? (
@@ -479,8 +519,44 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                             ))}
                         </tr>
                     ))}
+                    {filtered.length === 0 && (
+                        <tr>
+                            <td colSpan={columns.length} className="ir-py-3 ir-text-center ir-text-xs ir-text-muted-foreground">
+                                Sin resultados.
+                            </td>
+                        </tr>
+                    )}
                 </tbody>
             </table>
+
+            {interactive && pageCount > 1 && (
+                <div className="ir-mt-2 ir-flex ir-items-center ir-justify-between ir-text-xs ir-text-muted-foreground print:ir-hidden">
+                    <span>
+                        {filtered.length === 0 ? 0 : start + 1}–{Math.min(end, filtered.length)} de {filtered.length}
+                    </span>
+                    <span className="ir-flex ir-items-center ir-gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setPage(safePage - 1)}
+                            disabled={safePage === 0}
+                            className="ir-rounded-md ir-border ir-px-2 ir-py-1 disabled:ir-opacity-40 hover:ir-bg-muted"
+                        >
+                            ‹
+                        </button>
+                        <span className="ir-tabular-nums">
+                            {safePage + 1} / {pageCount}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setPage(safePage + 1)}
+                            disabled={safePage >= pageCount - 1}
+                            className="ir-rounded-md ir-border ir-px-2 ir-py-1 disabled:ir-opacity-40 hover:ir-bg-muted"
+                        >
+                            ›
+                        </button>
+                    </span>
+                </div>
+            )}
         </Section>
     );
 }

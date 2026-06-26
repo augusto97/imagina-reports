@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS — ETAPA B (parte 1): TABLAS INTERACTIVAS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.52):**
+`TableBlock` (shared/blocks/BlockRenderer.tsx) gana **buscador** + **paginación** (el orden por columna ya existía). Solo aparecen cuando
+la tabla supera el tamaño de página (def. 10, configurable con `style.rows_per_page`). CLAVE para el PDF: las filas fuera de página se
+quedan en el DOM y solo se ocultan en pantalla (`ir-hidden print:ir-table-row`), y la barra de buscador/paginación lleva `print:ir-hidden`
+→ **el PDF imprime TODAS las filas** (se renderiza fresco sin interacción). typecheck + lint(0 err) + build limpios; sin cambios PHP.
+**DECISIÓN sobre el RANGO DE FECHAS del cliente:** NO se hace sobre el reporte congelado (solo movería las series/charts y dejaría KPIs/
+tablas fijos = sensación de medio roto). Se hará bien en la **Etapa D (modo dashboard)**, donde el reporte se re-resuelve en vivo desde
+snapshots y TODOS los números cambian con el periodo elegido. Así B = tablas interactivas (hecho); el date-range va con D. **SIGUIENTE:**
+Etapa C (bloques `geo_map` + `funnel`), luego D (dashboard permanente + rango de fechas cliente + privado/contraseña/embebido).
+
+
 **🎉 DASHBOARDS — ETAPA A COMPLETA (A.1+A.2+A.3): builder de métricas GA4 con UI (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.51):** cerrada toda la Etapa A. **UI del builder** (`components/Ga4DatasetBuilder.tsx`): modal abierto desde la acción
 «Métricas» de cada fuente GA4 en el panel de Clientes. Lee la Metadata API → dos listas con buscador (medidas/métricas y dimensiones,
