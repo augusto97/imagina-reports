@@ -21,9 +21,11 @@ import {
     useSendReport,
     useSites,
     useSnapshotPeriods,
+    useSyncSiteById,
     useUpdateReportNarrative,
     useUpdateReportDefinition,
 } from '../api';
+import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { DataTable } from '../components/DataTable';
 import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
@@ -266,6 +268,7 @@ export function ReportsScreen(): ReactElement {
     const selectedDefinition = definitions.find((definition) => String(definition.id) === genDefinition);
     const selectedSiteId = selectedDefinition?.site_id ?? null;
     const { data: snapshotPeriods = [] } = useSnapshotPeriods(selectedSiteId);
+    const syncRange = useSyncSiteById();
 
     // Default the generate dates to the most recent period that actually has data.
     useEffect(() => {
@@ -583,24 +586,66 @@ export function ReportsScreen(): ReactElement {
                             ))}
                         </select>
                     </Field>
-                    <Field label="Desde">
-                        <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+                    <Field label="Periodo">
+                        <select
+                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                            value=""
+                            onChange={(event) => {
+                                const preset = RANGE_PRESETS.find((entry) => entry.key === event.target.value);
+                                if (preset !== undefined) {
+                                    const range = preset.range();
+                                    setStart(range.start);
+                                    setEnd(range.end);
+                                }
+                            }}
+                        >
+                            <option value="">Rango rápido… (o usa las fechas)</option>
+                            {RANGE_PRESETS.map((preset) => (
+                                <option key={preset.key} value={preset.key}>
+                                    {preset.label}
+                                </option>
+                            ))}
+                        </select>
                     </Field>
-                    <Field label="Hasta">
-                        <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
-                    </Field>
+                    <div className="ir-flex ir-gap-3">
+                        <Field label="Desde">
+                            <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+                        </Field>
+                        <Field label="Hasta">
+                            <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+                        </Field>
+                    </div>
 
                     {genDefinition !== '' && start !== '' && end !== '' && (
                         periodHasData ? (
-                            <p className="ir-text-xs ir-text-emerald-600">✓ Hay datos sincronizados para este periodo.</p>
+                            <p className="ir-text-xs ir-text-emerald-600">✓ Hay datos sincronizados que cubren este periodo.</p>
                         ) : (
-                            <p className="ir-text-xs ir-text-amber-600">
-                                ⚠ Este sitio no tiene datos sincronizados para este periodo
-                                {snapshotPeriods.length > 0 && (
-                                    <> (datos disponibles: {snapshotPeriods.map((period) => `${period.period_start.slice(0, 10)}→${period.period_end.slice(0, 10)}`).join(', ')})</>
+                            <div className="ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-bg-amber-50 ir-p-3">
+                                <p className="ir-text-xs ir-text-amber-700">
+                                    ⚠ No hay datos sincronizados para este rango exacto. Para un reporte correcto, las fuentes agregan los
+                                    totales del rango en origen: sincroniza este rango y luego genera.
+                                    {snapshotPeriods.length > 0 && (
+                                        <> Datos disponibles: {snapshotPeriods.slice(0, 6).map((period) => `${period.period_start.slice(0, 10)}→${period.period_end.slice(0, 10)}`).join(', ')}.</>
+                                    )}
+                                </p>
+                                {selectedSiteId !== null && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="ir-self-start"
+                                        onClick={() => syncRange.mutate({ siteId: selectedSiteId, period_start: start, period_end: end })}
+                                        disabled={syncRange.isPending}
+                                    >
+                                        {syncRange.isPending ? 'Sincronizando…' : 'Sincronizar este rango'}
+                                    </Button>
                                 )}
-                                . El reporte saldría sin métricas. Sincroniza ese mes en el Editor antes de generar.
-                            </p>
+                                {syncRange.isSuccess && (
+                                    <p className="ir-text-xs ir-text-emerald-700">
+                                        Sincronización de este rango encolada. Espera unos segundos y vuelve a comprobar antes de generar.
+                                    </p>
+                                )}
+                            </div>
                         )
                     )}
 

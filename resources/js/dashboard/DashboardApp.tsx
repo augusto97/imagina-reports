@@ -2,6 +2,7 @@ import { type ReactElement, useEffect, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
 import { PasswordPrompt } from '@shared/components/PasswordPrompt';
+import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { applyBrandAccent, isPasswordRequired, isPrivate, usePublicDashboard } from '@shared/lib/publicReport';
 
 const dayInput = (iso: string): string => iso.slice(0, 10);
@@ -62,7 +63,27 @@ export function DashboardApp({ token }: { token: string }): ReactElement {
                     </span>
                 </div>
 
-                <div className="ir-flex ir-items-center ir-gap-2 ir-text-sm">
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-sm">
+                    <select
+                        value=""
+                        onChange={(event) => {
+                            const preset = RANGE_PRESETS.find((entry) => entry.key === event.target.value);
+                            if (preset !== undefined) {
+                                const range = preset.range();
+                                // Clamp to the data the agency actually synced.
+                                setFrom(min !== undefined && range.start < min ? min : range.start);
+                                setTo(max !== undefined && range.end > max ? max : range.end);
+                            }
+                        }}
+                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5"
+                    >
+                        <option value="">Rango rápido…</option>
+                        {RANGE_PRESETS.map((preset) => (
+                            <option key={preset.key} value={preset.key}>
+                                {preset.label}
+                            </option>
+                        ))}
+                    </select>
                     <input
                         type="date"
                         value={from}

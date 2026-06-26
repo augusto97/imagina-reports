@@ -32,17 +32,27 @@ final readonly class MetricBagLoader
         $sources = DataSource::query()->where('site_id', $siteId)->get();
 
         foreach ($sources as $source) {
-            // Match the most recent snapshot whose window OVERLAPS the requested period,
-            // not one strictly contained in it. Snapshots are stored with end-of-month
-            // timestamps (e.g. 23:59:59) while a report period end is often a bare date
-            // (midnight), so strict containment dropped the very month just synced — the
-            // root cause of "the report shows no metrics" (CLAUDE.md §3.1: use last snapshot).
-            $snapshot = MetricSnapshot::query()
+            // Find the snapshot whose window OVERLAPS the requested period (not strictly
+            // contained — snapshots store end-of-month timestamps like 23:59:59 while a
+            // period end is often a bare midnight date; strict containment dropped the very
+            // month just synced, §3.1: use last snapshot).
+            //
+            // PREFER an exact-range match (same start+end day) so a report over an arbitrary
+            // span — a quarter, a full year, a custom range — uses the snapshot SYNCED FOR
+            // THAT SPAN (the connector aggregated it at source, §3.3) instead of a stray
+            // monthly snapshot that merely overlaps. Only when there's no exact match do we
+            // fall back to the latest overlapping snapshot.
+            $overlapping = MetricSnapshot::query()
                 ->where('data_source_id', $source->id)
                 ->where('period_start', '<=', $period->end)
-                ->where('period_end', '>=', $period->start)
-                ->orderByDesc('period_end')
-                ->first();
+                ->where('period_end', '>=', $period->start);
+
+            $snapshot = (clone $overlapping)
+                ->whereDate('period_start', $period->start->toDateString())
+                ->whereDate('period_end', $period->end->toDateString())
+                ->orderByDesc('captured_at')
+                ->first()
+                ?? $overlapping->orderByDesc('period_end')->first();
 
             if ($snapshot === null) {
                 continue;
