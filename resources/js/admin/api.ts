@@ -287,6 +287,73 @@ export function useTestConnection() {
     });
 }
 
+/* ----------------------- GA4 self-serve dataset builder -------------------- */
+
+export interface Ga4MetaField {
+    api: string;
+    label: string;
+    category: string;
+    custom: boolean;
+}
+export interface Ga4Metadata {
+    dimensions: Ga4MetaField[];
+    metrics: (Ga4MetaField & { type: string })[];
+}
+export interface Ga4DatasetSpec {
+    key: string;
+    label: string;
+    dimensions: { key: string; label: string; api: string }[];
+    measures: { key: string; label: string; api: string; unit: string | null; cast: 'int' | 'float'; scale: number }[];
+    limit: number;
+}
+
+/** GA4 property metadata for the builder dropdowns (only fetched while the builder is open). */
+export function useGa4Metadata(dataSourceId: number | null) {
+    return useQuery({
+        queryKey: ['ga4-metadata', dataSourceId],
+        queryFn: () => get<Ga4Metadata>(`/data-sources/${dataSourceId ?? 0}/ga4/metadata`),
+        enabled: dataSourceId !== null,
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+    });
+}
+
+/** Dry-run a composed dataset for the last 28 days (no save) → a sample of rows. */
+export function useTestGa4Dataset(dataSourceId: number) {
+    return useMutation({
+        mutationFn: (spec: Ga4DatasetSpec) =>
+            api
+                .post<{ ok: boolean; rows: Record<string, unknown>[]; error: string | null }>(`/data-sources/${dataSourceId}/ga4/datasets/test`, spec)
+                .then((r) => r.data),
+    });
+}
+
+export function useSaveGa4Dataset(dataSourceId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (spec: Ga4DatasetSpec) =>
+            api.post<{ custom_datasets: Ga4DatasetSpec[] }>(`/data-sources/${dataSourceId}/ga4/datasets`, spec).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['data-sources'] });
+            void queryClient.invalidateQueries({ queryKey: ['metric-catalog'] });
+        },
+    });
+}
+
+export function useDeleteGa4Dataset(dataSourceId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (key: string) =>
+            api.delete<{ custom_datasets: Ga4DatasetSpec[] }>(`/data-sources/${dataSourceId}/ga4/datasets/${key}`).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['data-sources'] });
+            void queryClient.invalidateQueries({ queryKey: ['metric-catalog'] });
+        },
+    });
+}
+
 /* ---------------------------- report definitions --------------------------- */
 
 export interface SnapshotPeriod {

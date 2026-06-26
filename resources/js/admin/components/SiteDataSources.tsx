@@ -9,7 +9,9 @@ import {
     useTestConnection,
     useUpdateDataSource,
 } from '../api';
+import type { Ga4DatasetSpec } from '../api';
 import type { Connector, DataSourceDto } from '../types';
+import { Ga4DatasetBuilder } from './Ga4DatasetBuilder';
 import { Button, Field, Input } from './ui';
 
 /** One-click download of the companion WordPress plugin (site_agent connector). */
@@ -257,6 +259,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     const [values, setValues] = useState<Record<string, string>>({});
     const [results, setResults] = useState<Record<number, string>>({});
     const [editing, setEditing] = useState<number | null>(null);
+    const [builderFor, setBuilderFor] = useState<DataSourceDto | null>(null);
 
     const connector = connectors.find((item) => item.key === type);
     const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? sourceType;
@@ -357,6 +360,11 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                                     </div>
                                 </div>
                                 <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                                    {source.type === 'ga4' && (
+                                        <Button variant="ghost" size="sm" onClick={() => setBuilderFor(source)} title="Crear métricas personalizadas de GA4">
+                                            Métricas
+                                        </Button>
+                                    )}
                                     {source.is_push !== true && (
                                         <Button variant="ghost" size="sm" onClick={() => runTest(source.id)} disabled={test.isPending}>
                                             Probar
@@ -388,6 +396,14 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     </li>
                 )}
             </ul>
+
+            {builderFor !== null && (
+                <Ga4DatasetBuilder
+                    dataSourceId={builderFor.id}
+                    initialDatasets={(builderFor.config?.custom_datasets as Ga4DatasetSpec[] | undefined) ?? []}
+                    onClose={() => setBuilderFor(null)}
+                />
+            )}
         </div>
     );
 }

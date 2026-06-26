@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🎉 DASHBOARDS — ETAPA A COMPLETA (A.1+A.2+A.3): builder de métricas GA4 con UI (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.51):** cerrada toda la Etapa A. **UI del builder** (`components/Ga4DatasetBuilder.tsx`): modal abierto desde la acción
+«Métricas» de cada fuente GA4 en el panel de Clientes. Lee la Metadata API → dos listas con buscador (medidas/métricas y dimensiones,
+con badge «custom») → nombre + máx filas → **«Probar»** (muestra tabla de las filas reales de los últimos 28 días) → **«Guardar métrica»**
+(persiste en config.custom_datasets e invalida data-sources + metric-catalog) → la métrica aparece en el editor como cualquier dataset.
+Lista las personalizadas existentes con borrar. Hooks en api.ts (useGa4Metadata/useTestGa4Dataset/useSaveGa4Dataset/useDeleteGa4Dataset).
+typecheck + lint(0 err) + build + 322 tests PHP limpios. **CIERRA EL "sin desarrollo conmigo": el owner crea métricas GA4 nuevas solo,
+las prueba y las usa.** **Pendiente del owner:** desplegar v1.13.51; para verlo: sincronizar GA4, ir a Clientes → sitio → fuente GA4 →
+«Métricas». **SIGUIENTE: Etapa B** — selector de RANGO DE FECHAS para el cliente + tablas con orden/paginación/buscador (lo que ve el
+cliente final). Luego C (geo_map/funnel), D (dashboard permanente + privado/contraseña/embebido). Pendientes sueltos: Woo datasets (WC
+Analytics API), UI de filtros de PÁGINA (va con dashboard mode/Etapa D).
+
+
 **📊 DASHBOARDS — A.3 (builder) BACKEND COMPLETO (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, sin release — falta la UI):**
 endpoints del builder listos en `Ga4DatasetController`: `POST /data-sources/{ds}/ga4/datasets/test` (corre la spec compuesta para los
 últimos 28 días SIN guardar → muestra de filas), `POST …/ga4/datasets` (valida y persiste/reemplaza por key en `config.custom_datasets`)
