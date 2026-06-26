@@ -98,9 +98,26 @@ final class PreviewController extends Controller
             ? new Period(Carbon::parse($start)->startOfDay(), Carbon::parse($end)->endOfDay())
             : $this->currentMonth();
 
+        // Optionally sync only specific sources (e.g. a newly-added connector or one with a
+        // new metric) instead of every source — no need to re-pull sources already up to
+        // date. Absent → all of the site's sources (the original "Sincronizar todo").
+        $sources = $site->dataSources();
+
+        $requested = $request->input('data_source_ids');
+        if (is_array($requested) && $requested !== []) {
+            $ids = [];
+            foreach ($requested as $id) {
+                if (is_numeric($id) && (int) $id > 0) {
+                    $ids[] = (int) $id;
+                }
+            }
+            // Scoped by the site relation, so an id from another site/agency is ignored.
+            $sources->whereIn('id', $ids);
+        }
+
         $queued = 0;
 
-        foreach ($site->dataSources()->get() as $source) {
+        foreach ($sources->get() as $source) {
             SyncSourceJob::dispatch(
                 $source->id,
                 $period->start->toIso8601String(),

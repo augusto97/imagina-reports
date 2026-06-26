@@ -721,11 +721,14 @@ export function usePreview(siteId: number) {
     });
 }
 
-/** Trigger an on-demand sync of the site's data sources ("Sincronizar ahora"). */
+/**
+ * Trigger an on-demand sync of the site's data sources ("Sincronizar ahora"). Pass
+ * `data_source_ids` to sync only those (e.g. a new source/metric) instead of all.
+ */
 export function useSyncSite(siteId: number) {
     return useMutation({
-        mutationFn: (period?: { period_start: string; period_end: string }) =>
-            api.post<{ queued: number; period: { start: string; end: string } }>(`/sites/${siteId}/sync`, period ?? {}).then((r) => r.data),
+        mutationFn: (payload?: { period_start: string; period_end: string; data_source_ids?: number[] }) =>
+            api.post<{ queued: number; period: { start: string; end: string } }>(`/sites/${siteId}/sync`, payload ?? {}).then((r) => r.data),
     });
 }
 

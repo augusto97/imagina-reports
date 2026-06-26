@@ -306,4 +306,50 @@ class PreviewApiTest extends TestCase
 
         Queue::assertPushed(SyncSourceJob::class, 2);
     }
+
+    public function test_sync_now_can_target_only_specific_sources(): void
+    {
+        Queue::fake();
+
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        $sources = DataSource::factory()->count(3)->create([
+            'agency_id' => $agency->id,
+            'site_id' => $site->id,
+            'type' => DataSourceType::Ga4,
+        ]);
+        $only = $sources->first();
+
+        $this->postJson("/api/v1/sites/{$site->id}/sync", ['data_source_ids' => [$only->id]])
+            ->assertStatus(202)
+            ->assertJsonPath('queued', 1);
+
+        Queue::assertPushed(SyncSourceJob::class, 1);
+        Queue::assertPushed(SyncSourceJob::class, static fn (SyncSourceJob $job): bool => $job->dataSourceId === $only->id);
+    }
+
+    public function test_sync_now_ignores_source_ids_from_another_site(): void
+    {
+        Queue::fake();
+
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        $other = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+
+        DataSource::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Ga4]);
+        $foreign = DataSource::factory()->create(['agency_id' => $agency->id, 'site_id' => $other->id, 'type' => DataSourceType::Ga4]);
+
+        // The foreign id is scoped out by the site relation → nothing queued.
+        $this->postJson("/api/v1/sites/{$site->id}/sync", ['data_source_ids' => [$foreign->id]])
+            ->assertStatus(202)
+            ->assertJsonPath('queued', 0);
+
+        Queue::assertNotPushed(SyncSourceJob::class);
+    }
 }

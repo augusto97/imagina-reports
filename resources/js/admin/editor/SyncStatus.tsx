@@ -105,30 +105,34 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
         }
     }, [sources, baseline, onSynced]);
 
-    const start = (): void => {
+    // Sync all sources, or only the given ids (e.g. a single newly-added source).
+    const start = (ids?: number[]): void => {
         if (siteId === null) {
             return;
         }
+        const tracked = ids === undefined ? sources : sources.filter((source) => ids.includes(source.id));
         const snapshot: Record<number, string | null> = {};
-        for (const source of sources) {
+        for (const source of tracked) {
             snapshot[source.id] = source.last_synced_at;
         }
         startedAt.current = Date.now();
         setBaseline(snapshot);
         setOpen(true);
-        sync.mutate(period);
+        sync.mutate(ids === undefined ? period : { ...period, data_source_ids: ids });
     };
 
-    const doneCount = baseline !== null ? sources.filter(isDone).length : 0;
+    // Count progress over the TRACKED sources only (a single-source sync tracks just one).
+    const trackedCount = baseline !== null ? Object.keys(baseline).length : sources.length;
+    const doneCount = baseline !== null ? sources.filter((source) => baseline[source.id] !== undefined && isDone(source)).length : 0;
     const okCount = sources.filter((source) => source.status === 'ok').length;
     const errorCount = sources.filter((source) => source.status === 'error').length;
 
     return (
         <div className="ir-relative" ref={wrapRef}>
             <div className="ir-flex ir-items-center">
-                <Button variant="ghost" onClick={start} disabled={siteId === null || syncing}>
+                <Button variant="ghost" onClick={() => start()} disabled={siteId === null || syncing}>
                     <RefreshCw className={cn('ir-size-4', syncing && 'ir-animate-spin')} />
-                    {syncing ? `Sincronizando… ${doneCount}/${sources.length}` : 'Sincronizar'}
+                    {syncing ? `Sincronizando… ${doneCount}/${trackedCount}` : 'Sincronizar'}
                 </Button>
                 <button
                     type="button"
@@ -175,8 +179,18 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
                                         <div className="ir-min-w-0 ir-flex-1">
                                             <div className="ir-flex ir-items-center ir-justify-between ir-gap-2">
                                                 <span className="ir-truncate ir-text-sm ir-font-medium">{label(source.type)}</span>
-                                                <span className="ir-shrink-0 ir-text-[11px] ir-text-muted-foreground">
+                                                <span className="ir-flex ir-shrink-0 ir-items-center ir-gap-1 ir-text-[11px] ir-text-muted-foreground">
                                                     {busy ? 'sincronizando…' : timeAgo(source.last_synced_at)}
+                                                    {!syncing && (
+                                                        <button
+                                                            type="button"
+                                                            title="Sincronizar solo esta fuente"
+                                                            onClick={() => start([source.id])}
+                                                            className="ir-rounded ir-p-0.5 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                                                        >
+                                                            <RefreshCw className="ir-size-3" />
+                                                        </button>
+                                                    )}
                                                 </span>
                                             </div>
                                             {source.status === 'error' && source.last_error !== null && !busy && (
@@ -204,7 +218,7 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
                             </span>
                             <Button
                                 variant="ghost"
-                                onClick={start}
+                                onClick={() => start()}
                                 disabled={siteId === null || syncing}
                                 className="ir-h-7 ir-px-2 ir-text-xs"
                             >
