@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\PreviewController;
+use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
@@ -54,6 +55,11 @@ Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
     ->name('api.public.reports.show');
 Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
     ->name('api.public.reports.periods');
+
+// Live dashboard data (Etapa D): a published definition re-resolved for a client-chosen
+// date range, from stored snapshots only (CLAUDE.md §3.1).
+Route::get('/public/dashboards/{token}', [PublicDashboardController::class, 'show'])
+    ->name('api.public.dashboards.show');
 
 // Push ingest (CLAUDE.md §9 — CrowdSec push model). Public: each client VPS POSTs its
 // aggregated data outbound, authenticated by the source's per-source push token (no

@@ -161,6 +161,37 @@ class PublicReportEndpointTest extends TestCase
         $this->assertTrue(Hash::check('letmein', (string) $definition->password_hash));
     }
 
+    public function test_enabling_dashboard_mode_mints_a_stable_token(): void
+    {
+        $agency = Agency::factory()->create();
+        $user = User::factory()->create(['agency_id' => $agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/report-definitions/{$definition->id}/sharing", [
+                'visibility' => 'public',
+                'dashboard_enabled' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('dashboard_enabled', true);
+
+        $token = $definition->refresh()->dashboard_token;
+        $this->assertIsString($token);
+        $this->assertNotEmpty($token);
+
+        // Disabling then re-enabling reuses the same URL (stable token).
+        $this->actingAs($user)
+            ->putJson("/api/v1/report-definitions/{$definition->id}/sharing", ['visibility' => 'public', 'dashboard_enabled' => false])
+            ->assertOk()
+            ->assertJsonPath('dashboard_enabled', false);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/report-definitions/{$definition->id}/sharing", ['visibility' => 'public', 'dashboard_enabled' => true])
+            ->assertOk();
+
+        $this->assertSame($token, $definition->refresh()->dashboard_token);
+    }
+
     public function test_switching_away_from_password_visibility_clears_the_password(): void
     {
         $agency = Agency::factory()->create();

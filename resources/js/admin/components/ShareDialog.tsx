@@ -1,4 +1,4 @@
-import { Check, Copy, Globe, Lock, ShieldOff } from 'lucide-react';
+import { Check, Copy, Globe, LayoutDashboard, Lock, ShieldOff } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import { useUpdateReportSharing } from '../api';
@@ -30,7 +30,9 @@ export function ShareDialog({
     const [visibility, setVisibility] = useState<ReportVisibility>(definition.visibility);
     const [password, setPassword] = useState('');
     const [domains, setDomains] = useState((definition.embed_domains ?? []).join('\n'));
+    const [dashboardEnabled, setDashboardEnabled] = useState(definition.dashboard_enabled);
     const [copied, setCopied] = useState(false);
+    const [dashCopied, setDashCopied] = useState(false);
 
     const [embedCopied, setEmbedCopied] = useState(false);
 
@@ -58,6 +60,19 @@ export function ShareDialog({
         window.setTimeout(() => setEmbedCopied(false), 1500);
     };
 
+    // The live dashboard link uses the definition's own token (set once enabled & saved).
+    const dashboardLink =
+        definition.dashboard_token !== null ? `${window.location.origin}/dashboard/${definition.dashboard_token}` : null;
+
+    const copyDashboard = async (): Promise<void> => {
+        if (dashboardLink === null) {
+            return;
+        }
+        await navigator.clipboard.writeText(dashboardLink);
+        setDashCopied(true);
+        window.setTimeout(() => setDashCopied(false), 1500);
+    };
+
     const submit = (): void => {
         const embedDomains = domains
             .split(/[\n,]/)
@@ -71,6 +86,7 @@ export function ShareDialog({
                 // Only send a password when typing a new one in "password" mode.
                 password: visibility === 'password' && password !== '' ? password : null,
                 embed_domains: embedDomains,
+                dashboard_enabled: dashboardEnabled,
             },
             { onSuccess: onClose },
         );
@@ -162,6 +178,38 @@ export function ShareDialog({
                             </p>
                         </Field>
                     )}
+
+                    <div className="ir-rounded-lg ir-border ir-p-3">
+                        <label className="ir-flex ir-items-start ir-gap-3">
+                            <input
+                                type="checkbox"
+                                checked={dashboardEnabled}
+                                onChange={(event) => setDashboardEnabled(event.target.checked)}
+                                className="ir-mt-0.5 ir-size-4"
+                            />
+                            <span className="ir-flex ir-flex-col">
+                                <span className="ir-flex ir-items-center ir-gap-1.5 ir-text-sm ir-font-medium">
+                                    <LayoutDashboard className="ir-size-4 ir-text-muted-foreground" />
+                                    Panel en vivo
+                                </span>
+                                <span className="ir-text-xs ir-text-muted-foreground">
+                                    Publica un panel permanente y siempre actualizado donde el cliente elige el rango de fechas.
+                                </span>
+                            </span>
+                        </label>
+
+                        {dashboardEnabled && dashboardLink !== null && (
+                            <div className="ir-mt-3 ir-flex ir-gap-2">
+                                <Input readOnly value={dashboardLink} onFocus={(event) => event.currentTarget.select()} className="ir-font-mono ir-text-xs" />
+                                <Button type="button" variant="outline" size="sm" onClick={() => void copyDashboard()} title="Copiar enlace del panel">
+                                    {dashCopied ? <Check className="ir-size-4 ir-text-success" /> : <Copy className="ir-size-4" />}
+                                </Button>
+                            </div>
+                        )}
+                        {dashboardEnabled && dashboardLink === null && (
+                            <p className="ir-mt-2 ir-text-xs ir-text-muted-foreground">Guarda para generar el enlace del panel.</p>
+                        )}
+                    </div>
 
                     <div className="ir-flex ir-justify-end ir-gap-2">
                         <Button type="button" variant="ghost" onClick={onClose}>

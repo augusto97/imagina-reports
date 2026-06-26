@@ -34,3 +34,8 @@ Route::view('/admin/{any?}', 'admin')
 // Interactive client portal SPA (CLAUDE.md §11.2), opened via a signed public token.
 Route::get('/portal/{token}', static fn (string $token): View => view('portal', ['token' => $token]))
     ->name('portal');
+
+// Live client dashboard SPA (CLAUDE.md §11.2/Etapa D), opened via a definition's
+// dashboard token; explorable by date range, always current from the latest snapshots.
+Route::get('/dashboard/{token}', static fn (string $token): View => view('dashboard', ['token' => $token]))
+    ->name('dashboard');

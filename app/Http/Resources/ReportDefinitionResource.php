@@ -36,6 +36,8 @@ final class ReportDefinitionResource extends JsonResource
             'visibility' => ($definition->visibility ?? ReportVisibility::Public)->value,
             'has_password' => is_string($definition->password_hash) && $definition->password_hash !== '',
             'embed_domains' => $definition->embed_domains ?? [],
+            'dashboard_enabled' => (bool) $definition->dashboard_enabled,
+            'dashboard_token' => $definition->dashboard_token,
         ];
     }
 }

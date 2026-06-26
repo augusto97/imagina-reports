@@ -30,6 +30,8 @@ final class UpdateReportSharingRequest extends FormRequest
             'password' => ['nullable', 'string', 'min:4', 'max:255'],
             'embed_domains' => ['nullable', 'array', 'max:50'],
             'embed_domains.*' => ['string', 'max:255'],
+            // Publish the definition as a permanent, client-explorable live dashboard.
+            'dashboard_enabled' => ['sometimes', 'boolean'],
         ];
     }
 }

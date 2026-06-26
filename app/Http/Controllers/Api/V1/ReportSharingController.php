@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateReportSharingRequest;
 use App\Http\Resources\ReportDefinitionResource;
 use App\Models\ReportDefinition;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Manages a report definition's sharing & privacy (CLAUDE.md §10/Etapa D): visibility,
@@ -36,6 +37,17 @@ final class ReportSharingController extends Controller
             $attributes['password_hash'] = null;
         } elseif (is_string($password) && $password !== '') {
             $attributes['password_hash'] = Hash::make($password);
+        }
+
+        // Publishing the live dashboard mints a stable token on first enable; disabling
+        // keeps the token so re-enabling reuses the same URL.
+        if ($request->has('dashboard_enabled')) {
+            $enabled = (bool) $request->validated('dashboard_enabled');
+            $attributes['dashboard_enabled'] = $enabled;
+
+            if ($enabled && ($reportDefinition->dashboard_token === null || $reportDefinition->dashboard_token === '')) {
+                $attributes['dashboard_token'] = Str::random(48);
+            }
         }
 
         $reportDefinition->forceFill($attributes)->save();

@@ -51,6 +51,32 @@ export interface ReportPeriod {
     period_end: string;
 }
 
+export interface PublicDashboard extends PublicReport {
+    // The full span of available snapshots, so the date picker can't wander past data.
+    range: { start: string; end: string } | null;
+}
+
+export function usePublicDashboard(token: string, options?: { from?: string; to?: string; password?: string }) {
+    return useQuery({
+        queryKey: ['public-dashboard', token, options?.from ?? '', options?.to ?? '', options?.password ?? ''],
+        queryFn: async () => {
+            const headers: Record<string, string> = {};
+            if (options?.password != null && options.password !== '') headers['X-Report-Password'] = options.password;
+
+            const params: Record<string, string> = {};
+            if (options?.from != null && options.from !== '') params.from = options.from;
+            if (options?.to != null && options.to !== '') params.to = options.to;
+
+            const { data } = await api.get<PublicDashboard>(`/public/dashboards/${token}`, { headers, params });
+
+            return data;
+        },
+        retry: false,
+        // Keep the previous page on screen while a new date range loads (no flash).
+        placeholderData: (previous) => previous,
+    });
+}
+
 export function usePublicReport(token: string, options?: { printToken?: string; password?: string }) {
     return useQuery({
         queryKey: ['public-report', token, options?.password ?? ''],

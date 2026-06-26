@@ -13,6 +13,7 @@ export default defineConfig({
                 'resources/js/admin/main.tsx',
                 'resources/js/portal/main.tsx',
                 'resources/js/report/main.tsx',
+                'resources/js/dashboard/main.tsx',
             ],
             refresh: true,
         }),

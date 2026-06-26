@@ -28,6 +28,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property ReportVisibility $visibility
  * @property string|null $password_hash
  * @property array<int, string>|null $embed_domains
+ * @property bool $dashboard_enabled
+ * @property string|null $dashboard_token
  * @property string $locale
  * @property array<string, mixed>|null $schedule
  * @property array<int, string>|null $recipients
@@ -54,6 +56,7 @@ class ReportDefinition extends Model
         'filters',
         'visibility',
         'embed_domains',
+        'dashboard_enabled',
         'locale',
         'schedule',
         'recipients',
@@ -72,6 +75,7 @@ class ReportDefinition extends Model
             'filters' => 'array',
             'visibility' => ReportVisibility::class,
             'embed_domains' => 'array',
+            'dashboard_enabled' => 'boolean',
             'schedule' => 'array',
             'recipients' => 'array',
         ];

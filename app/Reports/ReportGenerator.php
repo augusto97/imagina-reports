@@ -39,6 +39,50 @@ final readonly class ReportGenerator
 
     public function generate(ReportDefinition $definition, Period $period): Report
     {
+        ['blocks' => $visibleBlocks, 'data' => $data, 'health_score' => $score, 'theme' => $theme, 'diagnostics' => $diagnostics] = $this->compose($definition, $period);
+
+        // AI per-period narrative (§10.6): regenerate the executive-summary text from the
+        // resolved figures and inject it into the report's narrative block(s). This is the
+        // one acknowledged exception to "no external APIs during GENERATE" (§3.1/§10.6); it
+        // is fully resilient — a failure leaves the summary empty and never breaks the report.
+        $summary = $this->narrative($definition, $visibleBlocks, $data, $score);
+        if ($summary !== null) {
+            $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
+        }
+
+        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, $theme, $diagnostics, $summary);
+
+        // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
+        // webhook and run anomaly detection — keeping this generator free of delivery
+        // concerns.
+        Event::dispatch(new ReportGenerated($report));
+
+        return $report;
+    }
+
+    /**
+     * Resolve a definition's blocks against a period's snapshots WITHOUT persisting —
+     * the live dashboard mode (CLAUDE.md §11.2/Etapa D). Same composition as generate(),
+     * but no AI narrative, no persistence, and no lifecycle event, so it's cheap enough
+     * to run per request as the client changes the date range. Still reads only stored
+     * snapshots (§3.1) — never a live API.
+     *
+     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>}
+     */
+    public function resolveLive(ReportDefinition $definition, Period $period): array
+    {
+        return $this->compose($definition, $period);
+    }
+
+    /**
+     * The shared resolution core (CLAUDE.md §10.4): layout → bags (with work logs +
+     * calculated metrics) → health score → resolved blocks. Used by both the persisted
+     * GENERATE stage and the live dashboard.
+     *
+     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>}
+     */
+    private function compose(ReportDefinition $definition, Period $period): array
+    {
         $blocks = $this->resolveLayout($definition);
         $bags = $this->bags->forSite($definition->site_id, $period);
         $previousBags = $this->bags->previousForSite($definition->site_id, $period);
@@ -62,26 +106,16 @@ final readonly class ReportGenerator
         // Page/dashboard filters cascade in; each block's own filters then override them.
         ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags, $this->pageFilters($definition));
 
-        // AI per-period narrative (§10.6): regenerate the executive-summary text from the
-        // resolved figures and inject it into the report's narrative block(s). This is the
-        // one acknowledged exception to "no external APIs during GENERATE" (§3.1/§10.6); it
-        // is fully resilient — a failure leaves the summary empty and never breaks the report.
-        $summary = $this->narrative($definition, $visibleBlocks, $data, $score);
-        if ($summary !== null) {
-            $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
-        }
-
         // Per-report theme (accent + density): the definition's, falling back to its template's.
         $theme = $definition->theme ?? $definition->template?->theme;
 
-        $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, is_array($theme) ? $theme : null, $diagnostics, $summary);
-
-        // Fire the lifecycle event (CLAUDE.md §8): listeners emit the report.generated
-        // webhook and run anomaly detection — keeping this generator free of delivery
-        // concerns.
-        Event::dispatch(new ReportGenerated($report));
-
-        return $report;
+        return [
+            'blocks' => $visibleBlocks,
+            'data' => $data,
+            'health_score' => $score,
+            'theme' => is_array($theme) ? $theme : null,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

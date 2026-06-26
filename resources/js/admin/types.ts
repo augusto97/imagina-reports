@@ -89,12 +89,15 @@ export interface ReportDefinitionDto {
     visibility: ReportVisibility;
     has_password: boolean;
     embed_domains: string[];
+    dashboard_enabled: boolean;
+    dashboard_token: string | null;
 }
 
 export interface ReportSharingPayload {
     visibility: ReportVisibility;
     password?: string | null;
     embed_domains?: string[];
+    dashboard_enabled?: boolean;
 }
 
 export interface ReportSummary {

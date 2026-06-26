@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\ReportVisibility;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
+use App\Reports\Sharing\ShareGate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 /**
  * Public, token-authenticated report data for the interactive portal and the PDF
@@ -76,27 +75,6 @@ final class PublicReportController extends Controller
             return null;
         }
 
-        $definition = $report->definition;
-        if ($definition === null) {
-            // No definition (e.g. an ad-hoc report) → treated as public.
-            return null;
-        }
-
-        $visibility = $definition->visibility;
-
-        if ($visibility === ReportVisibility::Private) {
-            return response()->json(['message' => 'Este informe es privado y no está disponible públicamente.'], 403);
-        }
-
-        if ($visibility === ReportVisibility::Password) {
-            $provided = $request->header('X-Report-Password') ?: $request->query('password');
-            $hash = $definition->password_hash;
-
-            if (! is_string($provided) || ! is_string($hash) || $hash === '' || ! Hash::check($provided, $hash)) {
-                return response()->json(['requires_password' => true, 'message' => 'Este informe está protegido con contraseña.'], 401);
-            }
-        }
-
-        return null;
+        return ShareGate::deny($report->definition, $request);
     }
 }
