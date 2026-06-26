@@ -48,6 +48,28 @@ final class MetricCatalogController extends Controller
             ];
         }
 
+        // Agency-level reusable calculated metrics (CLAUDE.md §10.1) — bindable as `calc.*`
+        // in every report, just like a connector metric.
+        $agencyCalc = $site->agency->calculated_metrics ?? [];
+        foreach ($agencyCalc as $calc) {
+            if (! is_array($calc)) {
+                continue;
+            }
+            $key = $calc['key'] ?? null;
+            if (! is_string($key) || $key === '') {
+                continue;
+            }
+            $catalog[] = [
+                'source' => 'calc',
+                'metric' => $key,
+                'key' => "calc.{$key}",
+                'label' => is_string($calc['label'] ?? null) && $calc['label'] !== '' ? $calc['label'] : $key,
+                'type' => 'number',
+                'unit' => null,
+                'dimensions' => [],
+            ];
+        }
+
         return response()->json($catalog);
     }
 

@@ -113,6 +113,7 @@ final class AgencyController extends Controller
             'logo_url' => $agency->logoUrl(),
             'ai_key_set' => $agency->anthropicKey() !== null,
             'snapshot_retention_months' => $agency->snapshot_retention_months,
+            'calculated_metrics' => $agency->calculated_metrics ?? [],
         ];
     }
 }

@@ -20,12 +20,15 @@ export function CalcMetricsEditor({
     onAdd,
     onUpdate,
     onRemove,
+    values,
 }: {
     metrics: CalcMetric[];
     catalog: CatalogEntry[];
     onAdd: () => void;
     onUpdate: (index: number, patch: Partial<CalcMetric>) => void;
     onRemove: (index: number) => void;
+    /** calc.<key> → computed value with real data, shown live next to each formula. */
+    values?: Record<string, number>;
 }): ReactElement {
     const knownKeys = useMemo(() => new Set(catalog.map((entry) => entry.key)), [catalog]);
 
@@ -98,17 +101,26 @@ export function CalcMetricsEditor({
                             </select>
                         </div>
 
-                        {check !== null && (
-                            check.ok ? (
-                                <p className="ir-flex ir-items-center ir-gap-1 ir-text-[11px] ir-text-emerald-600">
-                                    <Check className="ir-size-3" /> Fórmula válida
-                                </p>
+                        <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-2">
+                            {check !== null ? (
+                                check.ok ? (
+                                    <p className="ir-flex ir-items-center ir-gap-1 ir-text-[11px] ir-text-emerald-600">
+                                        <Check className="ir-size-3" /> Fórmula válida
+                                    </p>
+                                ) : (
+                                    <p className="ir-flex ir-items-center ir-gap-1 ir-text-[11px] ir-text-amber-600">
+                                        <TriangleAlert className="ir-size-3" /> {check.error}
+                                    </p>
+                                )
                             ) : (
-                                <p className="ir-flex ir-items-center ir-gap-1 ir-text-[11px] ir-text-amber-600">
-                                    <TriangleAlert className="ir-size-3" /> {check.error}
-                                </p>
-                            )
-                        )}
+                                <span />
+                            )}
+                            {values !== undefined && metric.key !== '' && values[`calc.${metric.key}`] !== undefined && (
+                                <span className="ir-rounded ir-bg-primary/10 ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-tabular-nums ir-text-primary">
+                                    = {Number(values[`calc.${metric.key}`]).toLocaleString('es', { maximumFractionDigits: 2 })}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 );
             })}

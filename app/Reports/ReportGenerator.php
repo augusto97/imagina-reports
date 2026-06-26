@@ -149,20 +149,48 @@ final readonly class ReportGenerator
     }
 
     /**
-     * The definition's calculated-metric formulas, falling back to its template's.
+     * The calculated-metric formulas in effect: the agency's reusable ones (CLAUDE.md §10.1)
+     * merged with the definition's own (falling back to its template's), where a report-level
+     * metric overrides an agency one with the same key.
      *
      * @return array<int, array<array-key, mixed>>
      */
     private function calcDefinitions(ReportDefinition $definition): array
     {
-        $defs = $definition->calculated_metrics;
+        $reportDefs = $definition->calculated_metrics;
 
-        if ($defs === null || $defs === []) {
+        if ($reportDefs === null || $reportDefs === []) {
             $template = $definition->template;
-            $defs = $template !== null ? ($template->calculated_metrics ?? []) : [];
+            $reportDefs = $template !== null ? ($template->calculated_metrics ?? []) : [];
         }
 
-        return array_values(array_filter($defs, 'is_array'));
+        $agencyDefs = $definition->agency->calculated_metrics ?? [];
+
+        return self::mergeCalcDefinitions(
+            array_values(array_filter($agencyDefs, 'is_array')),
+            array_values(array_filter($reportDefs, 'is_array')),
+        );
+    }
+
+    /**
+     * Merge agency-level and report-level calc metrics; the report-level set wins on a
+     * key clash (a report can override a reusable formula).
+     *
+     * @param  array<int, array<array-key, mixed>>  $agencyDefs
+     * @param  array<int, array<array-key, mixed>>  $reportDefs
+     * @return array<int, array<array-key, mixed>>
+     */
+    public static function mergeCalcDefinitions(array $agencyDefs, array $reportDefs): array
+    {
+        $byKey = [];
+        foreach ([...$agencyDefs, ...$reportDefs] as $def) {
+            $key = $def['key'] ?? null;
+            if (is_string($key) && $key !== '') {
+                $byKey[$key] = $def;
+            }
+        }
+
+        return array_values($byKey);
     }
 
     /**

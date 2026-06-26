@@ -14,6 +14,7 @@ use App\Reports\Blocks\BlocksValidator;
 use App\Reports\Calc\CalculatedMetrics;
 use App\Reports\HealthScoreCalculator;
 use App\Reports\MetricBagLoader;
+use App\Reports\ReportGenerator;
 use App\Reports\WorkLogMetrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,9 +58,13 @@ final class PreviewController extends Controller
         }
 
         // Inject calculated metrics (formulas over the bag) as a `calc` source so
-        // blocks bind to them like any connector metric (CLAUDE.md §10.1).
-        $calcDefs = $this->calcDefinitions($request->input('calculated_metrics'));
-        $bags = $this->withCalc($bags, $calculated->compute($calcDefs, $bags));
+        // blocks bind to them like any connector metric (CLAUDE.md §10.1). The computed
+        // values are surfaced too, so the calc editor can show each formula's live result.
+        // Agency-level reusable metrics merge in; the draft (report-level) ones override.
+        $agencyDefs = array_values(array_filter($site->agency->calculated_metrics ?? [], 'is_array'));
+        $calcDefs = ReportGenerator::mergeCalcDefinitions($agencyDefs, $this->calcDefinitions($request->input('calculated_metrics')));
+        $calcValues = $calculated->compute($calcDefs, $bags);
+        $bags = $this->withCalc($bags, $calcValues);
         $previousBags = $this->withCalc($previousBags, $calculated->compute($calcDefs, $previousBags));
 
         $score = $health->calculate($bags);
@@ -85,6 +90,8 @@ final class PreviewController extends Controller
             'period' => $period->toArray(),
             'has_data' => $bags !== [],
             'sources_with_data' => array_keys($bags),
+            // calc.<key> → computed number, for the live "= value" in the calc editor.
+            'calc_values' => $calcValues,
         ]);
     }
 

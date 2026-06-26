@@ -48,6 +48,7 @@ import type { Block, BlockType } from "@shared/blocks/types";
 import {
     type CalcMetric,
     type PreviewResult,
+    useAgency,
     useAiTemplate,
     useCreateReportTemplate,
     useDefaultTemplateBlocks,
@@ -55,6 +56,7 @@ import {
     usePreview,
     useReportTemplate,
     useSites,
+    useUpdateCalculatedMetrics,
     useUpdateReportTemplate,
 } from "../api";
 import { hexToHslString } from "@shared/lib/color";
@@ -155,11 +157,18 @@ export function EditorScreen(): ReactElement {
 
     const preview = usePreview(siteId ?? 0);
 
+    // Calculated metrics are agency-level & reusable (CLAUDE.md §10.1): seeded from the
+    // agency, edited in the "Métricas calculadas" modal, saved back to the agency.
+    const { data: agency } = useAgency();
+    const saveCalc = useUpdateCalculatedMetrics();
+    const [calcModalOpen, setCalcModalOpen] = useState(false);
+
     const [name, setName] = useState("");
     const [aiPrompt, setAiPrompt] = useState("");
     const [month, setMonth] = useState(currentMonth());
     const [blocks, setBlocks] = useState<Block[]>([makeBlock("header")]);
     const [calcMetrics, setCalcMetrics] = useState<CalcMetric[]>([]);
+    const [calcSeeded, setCalcSeeded] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [preview_, setPreview] = useState<PreviewResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
@@ -241,13 +250,20 @@ export function EditorScreen(): ReactElement {
             const loaded = editingTemplate.blocks as Block[];
             setName(editingTemplate.name);
             resetBlocks(loaded.length > 0 ? loaded : [makeBlock("header")]);
-            setCalcMetrics(editingTemplate.calculated_metrics ?? []);
             setTheme(editingTemplate.theme ?? {});
             setPageFilters(editingTemplate.filters ?? {});
             setSelectedId(null);
             setErrors([]);
         }
     }, [editingTemplate, editingTemplateId]);
+
+    // Seed the calc metrics from the agency once (they're agency-level / reusable now).
+    useEffect(() => {
+        if (!calcSeeded && agency !== undefined) {
+            setCalcMetrics(agency.calculated_metrics ?? []);
+            setCalcSeeded(true);
+        }
+    }, [agency, calcSeeded]);
 
     // Keyboard shortcuts: Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo.
     useEffect(() => {
@@ -504,10 +520,10 @@ export function EditorScreen(): ReactElement {
             theme.accent != null || theme.density != null ? theme : null;
         // Only persist filters when some scope actually has rules.
         const filtersPayload = Object.keys(pageFilters).length > 0 ? pageFilters : null;
+        // Calculated metrics are agency-level now (saved from their modal), not on the template.
         const payload = {
             name,
             blocks,
-            calculated_metrics: calcMetrics,
             theme: themePayload,
             filters: filtersPayload,
         };
@@ -531,6 +547,13 @@ export function EditorScreen(): ReactElement {
         );
     const removeCalc = (index: number): void =>
         setCalcMetrics((prev) => prev.filter((_, i) => i !== index));
+
+    // Persist the calc metrics to the agency (reusable across all reports).
+    const saveCalcMetrics = (): void =>
+        saveCalc.mutate(
+            calcMetrics.filter((metric) => metric.key !== "" && metric.formula.trim() !== ""),
+            { onSuccess: () => setCalcModalOpen(false) },
+        );
 
     // Calculated metrics appear in the binding picker as a "calc" source.
     const fullCatalog: CatalogEntry[] = [
@@ -632,6 +655,11 @@ export function EditorScreen(): ReactElement {
                 <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(true)} title="Elegir una plantilla prediseñada">
                     <LayoutTemplate className="ir-size-4" />
                     Plantillas
+                </Button>
+
+                <Button variant="ghost" size="sm" onClick={() => setCalcModalOpen(true)} title="Crear métricas calculadas (fórmulas) reutilizables">
+                    <FunctionSquare className="ir-size-4" />
+                    Métricas calculadas
                 </Button>
 
                 <div className="ir-ml-auto ir-flex ir-flex-wrap ir-items-center ir-justify-end ir-gap-2">
@@ -794,16 +822,6 @@ export function EditorScreen(): ReactElement {
                                     <p className="ir-text-xs ir-text-emerald-600">Guardada.</p>
                                 )}
                             </div>
-                        </Section>
-
-                        <Section title="Métricas calculadas" icon={<FunctionSquare className="ir-size-4" />} defaultOpen={false}>
-                            <CalcMetricsEditor
-                                metrics={calcMetrics}
-                                catalog={catalog}
-                                onAdd={addCalc}
-                                onUpdate={updateCalc}
-                                onRemove={removeCalc}
-                            />
                         </Section>
 
                         <Section title="Filtros de página" icon={<Filter className="ir-size-4" />} defaultOpen={false}>
@@ -1080,6 +1098,42 @@ export function EditorScreen(): ReactElement {
                                     </button>
                                 );
                             })}
+                        </div>
+                    </Card>
+                </Modal>
+            )}
+
+            {calcModalOpen && (
+                <Modal onClose={() => setCalcModalOpen(false)} className="ir-max-w-3xl">
+                    <Card
+                        title="Métricas calculadas"
+                        description="Fórmulas sobre tus métricas (p. ej. ingresos ÷ pedidos = ticket medio). Se definen una vez y quedan disponibles en TODOS los reportes. El «=» muestra el resultado con datos reales del periodo seleccionado arriba."
+                        actions={
+                            <Button variant="ghost" size="sm" onClick={() => setCalcModalOpen(false)}>
+                                Cerrar
+                            </Button>
+                        }
+                    >
+                        <div className="ir-flex ir-flex-col ir-gap-4">
+                            {siteId === null && (
+                                <p className="ir-rounded-md ir-bg-amber-50 ir-p-2 ir-text-[11px] ir-text-amber-700">
+                                    Elige un sitio arriba para ver el resultado de cada fórmula con datos reales.
+                                </p>
+                            )}
+                            <CalcMetricsEditor
+                                metrics={calcMetrics}
+                                catalog={fullCatalog}
+                                onAdd={addCalc}
+                                onUpdate={updateCalc}
+                                onRemove={removeCalc}
+                                values={preview_?.calc_values}
+                            />
+                            <div className="ir-flex ir-items-center ir-justify-end ir-gap-2 ir-border-t ir-pt-3">
+                                {saveCalc.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Guardadas. Ya están en todos los reportes.</span>}
+                                <Button onClick={saveCalcMetrics} disabled={saveCalc.isPending}>
+                                    {saveCalc.isPending ? "Guardando…" : "Guardar métricas"}
+                                </Button>
+                            </div>
                         </div>
                     </Card>
                 </Modal>

@@ -759,12 +759,37 @@ export interface PreviewResult {
     period: { start: string; end: string };
     has_data: boolean;
     sources_with_data: string[];
+    // calc.<key> → computed value, for the live result shown in the calc editor.
+    calc_values?: Record<string, number>;
 }
 
 export interface CalcMetric {
     key: string;
     label: string;
     formula: string;
+}
+
+/** Save the agency's reusable calculated metrics (available in every report). */
+export function useUpdateCalculatedMetrics() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (metrics: CalcMetric[]) =>
+            api.put<{ calculated_metrics: CalcMetric[] }>('/agency/calculated-metrics', { calculated_metrics: metrics }).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['agency'] });
+            // The binding picker reads calc.* from the catalog — refresh it.
+            void queryClient.invalidateQueries({ queryKey: ['metric-catalog'] });
+        },
+    });
+}
+
+/** Evaluate draft calc formulas against a site's real data → calc.<key> values (live preview). */
+export function useCalcPreview(siteId: number) {
+    return useMutation({
+        mutationFn: (payload: { calculated_metrics: CalcMetric[]; period_start?: string; period_end?: string }) =>
+            api.post<{ values: Record<string, number>; period: { start: string; end: string } }>(`/sites/${siteId}/calc-preview`, payload).then((r) => r.data),
+    });
 }
 
 /** Resolve a draft layout against a site + period into REAL metric data (CLAUDE.md §11.3). */

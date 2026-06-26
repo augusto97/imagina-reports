@@ -233,6 +233,7 @@ export interface AgencySettings {
     logo_url: string | null;
     ai_key_set: boolean;
     snapshot_retention_months: number | null;
+    calculated_metrics: { key: string; label: string; formula: string }[];
 }
 
 export interface UpdateStatus {

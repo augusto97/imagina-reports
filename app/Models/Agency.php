@@ -25,6 +25,7 @@ use Throwable;
  * @property string|null $domain
  * @property array<string, mixed>|null $settings
  * @property int|null $snapshot_retention_months
+ * @property array<int, mixed>|null $calculated_metrics
  */
 class Agency extends Model
 {
@@ -45,6 +46,7 @@ class Agency extends Model
         'domain',
         'settings',
         'snapshot_retention_months',
+        'calculated_metrics',
     ];
 
     /**
@@ -55,6 +57,7 @@ class Agency extends Model
         return [
             'settings' => 'array',
             'snapshot_retention_months' => 'integer',
+            'calculated_metrics' => 'array',
         ];
     }
 

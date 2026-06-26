@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CalculatedMetricController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
@@ -87,6 +88,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('agency/logo', [AgencyController::class, 'uploadLogo'])->name('api.agency.logo');
     Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
     Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
+    // Agency-level reusable calculated metrics (§10.1).
+    Route::put('agency/calculated-metrics', [CalculatedMetricController::class, 'update'])->name('api.agency.calculated-metrics.update');
 
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');
@@ -111,6 +114,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
     Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');
+    Route::post('sites/{site}/calc-preview', [CalculatedMetricController::class, 'preview'])->name('api.sites.calc-preview');
     Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
     Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
     Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
