@@ -7,7 +7,9 @@ describe('cn', () => {
         expect(cn('a', false, undefined, 'b', null)).toBe('a b');
     });
 
-    it('lets later Tailwind utilities win conflicts (twMerge)', () => {
-        expect(cn('p-2', 'p-4')).toBe('p-4');
+    it('lets later ir-prefixed Tailwind utilities win conflicts (twMerge with the ir- prefix)', () => {
+        // The SPAs use the `ir-` prefix; cn() is configured for it, so conflicts merge.
+        expect(cn('ir-p-2', 'ir-p-4')).toBe('ir-p-4');
+        expect(cn('ir-max-w-lg', 'ir-max-w-5xl')).toBe('ir-max-w-5xl');
     });
 });

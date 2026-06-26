@@ -410,10 +410,18 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const rows = useFilteredRows(asRecords(data));
-    // Interactive sort/search/paginate for the portal (the PDF prints fresh with no
-    // interaction → default order, no search, and ALL rows since paginated rows are kept
-    // in the DOM and only hidden on screen — see `print:ir-table-row` below).
-    const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+    // Interactive sort/search/paginate for the portal. A predefined order (set in the editor
+    // via style.sort_col/sort_dir) is the DEFAULT — so the PDF and first view come pre-sorted;
+    // a visitor clicking a header overrides it for their session (userSort). The PDF prints
+    // fresh with no interaction → the predefined order, no search, and ALL rows (paginated
+    // rows stay in the DOM, only hidden on screen — see `print:ir-table-row` below).
+    const predefinedSort = useMemo<{ col: string; dir: 1 | -1 } | null>(() => {
+        const col = str(block.style?.sort_col);
+
+        return col === '' ? null : { col, dir: block.style?.sort_dir === 'asc' ? 1 : -1 };
+    }, [block.style?.sort_col, block.style?.sort_dir]);
+    const [userSort, setUserSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+    const sort = userSort ?? predefinedSort;
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(0);
 
@@ -448,7 +456,11 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const bars = block.style?.bars === true;
     const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
     const toggleSort = (col: string): void =>
-        setSort((current) => (current?.col === col ? { col, dir: current.dir === 1 ? -1 : 1 } : { col, dir: -1 }));
+        setUserSort((current) => {
+            const active = (current ?? predefinedSort)?.col === col ? (current ?? predefinedSort) : null;
+
+            return active !== null ? { col, dir: active.dir === 1 ? -1 : 1 } : { col, dir: -1 };
+        });
 
     const pageSizeRaw = Number(block.style?.rows_per_page);
     const pageSize = pageSizeRaw > 0 ? pageSizeRaw : 10;

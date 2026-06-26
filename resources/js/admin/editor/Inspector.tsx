@@ -165,6 +165,22 @@ export function Inspector({
     const dimLabel = (key: string): string => boundEntry?.dimension_labels?.[key] ?? key;
     const filters: DatasetFilter[] = block.binding?.filters ?? [];
 
+    // Columns a table can be ordered by (the predefined order). Datasets expose their
+    // dimensions + measures; simpler tables fall back to label/value.
+    const tableSortColumns: string[] = isDataset
+        ? [...dimensions, ...measures.map((measure) => measure.key)]
+        : dimensions.length > 0
+          ? [...dimensions, 'value']
+          : ['label', 'value'];
+    const sortLabel = (key: string): string => {
+        const measure = measures.find((entry) => entry.key === key);
+        if (measure !== undefined) return measure.label;
+        if (key === 'value') return 'Valor';
+        if (key === 'label') return 'Etiqueta';
+
+        return dimLabel(key);
+    };
+
     const patchBinding = (patch: Partial<BlockBinding>): void => {
         if (block.binding == null) {
             return;
@@ -518,6 +534,52 @@ export function Inspector({
                             )}
                         </div>
                     </Section>
+
+                    {block.type === 'table' && (
+                        <Section title="Tabla">
+                            <div className="ir-flex ir-flex-col ir-gap-3">
+                                <Field label="Filas por página (antes de paginar)">
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={block.style?.rows_per_page === undefined ? '' : String(block.style.rows_per_page)}
+                                        placeholder="10"
+                                        onChange={(event) => {
+                                            const n = Number(event.target.value);
+                                            setStyle('rows_per_page', event.target.value === '' || Number.isNaN(n) || n <= 0 ? undefined : n);
+                                        }}
+                                    />
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
+                                        El buscador y la paginación aparecen solo si la tabla supera este número (def. 10).
+                                    </p>
+                                </Field>
+                                <Field label="Orden predefinido">
+                                    <select
+                                        className={selectClass}
+                                        value={str(block.style?.sort_col)}
+                                        onChange={(event) => setStyle('sort_col', event.target.value === '' ? undefined : event.target.value)}
+                                    >
+                                        <option value="">Por defecto (sin ordenar)</option>
+                                        {tableSortColumns.map((col) => (
+                                            <option key={col} value={col}>
+                                                {sortLabel(col)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                {str(block.style?.sort_col) !== '' && (
+                                    <SegmentedControl
+                                        value={block.style?.sort_dir === 'asc' ? 'asc' : 'desc'}
+                                        onChange={(value) => setStyle('sort_dir', value)}
+                                        options={[
+                                            { value: 'desc', label: 'Mayor → menor' },
+                                            { value: 'asc', label: 'Menor → mayor' },
+                                        ]}
+                                    />
+                                )}
+                            </div>
+                        </Section>
+                    )}
 
                     <Section title="Color">
                         <div className="ir-flex ir-flex-col ir-gap-3">
