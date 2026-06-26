@@ -7,6 +7,12 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS — A.3 (builder) BACKEND COMPLETO (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, sin release — falta la UI):**
+endpoints del builder listos en `Ga4DatasetController`: `POST /data-sources/{ds}/ga4/datasets/test` (corre la spec compuesta para los
+últimos 28 días SIN guardar → muestra de filas), `POST …/ga4/datasets` (valida y persiste/reemplaza por key en `config.custom_datasets`)
+y `DELETE …/ga4/datasets/{key}`. Validación con topes (≤5 dims, ≤10 medidas, limit ≤1000). 322 tests (+4 feature builder) verdes. **Solo
+falta la UI del builder** (Metadata→desplegables→Probar→guardar) para cerrar A.3.
+
 **📊 DASHBOARDS — A.3 (builder) backend: datasets personalizados + Metadata API (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 sin release — falta la UI del builder):** dos piezas. **(1)** `Ga4Connector` ahora lee **datasets personalizados** desde
 `source.config['custom_datasets']` (`customDatasetSpecs()` + `allDatasetSpecs()`) y los trata IGUAL que los de fábrica — mismo
