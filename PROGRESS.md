@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🔎 HUECOS DE COBERTURA + MODAL PLANTILLAS ANCHO + PANEL SYNC LIMPIO + FIX CI (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release ~v1.13.60):** cuatro cosas. **(1) FIX CI:** el job Backend fallaba porque `EmbedRouteTest` renderiza un blade con `@vite` y el job
+no compila el frontend (no hay manifest) → 500. Arreglado con `withoutVite()` en el test (verificado borrando el manifest local). Los correos
+de «Run failed» eran por eso (CI corre en cada push y el owner está suscrito); venía rojo desde Etapa D.2. **(2) MODAL PLANTILLAS:** raíz =
+`cn()`/tailwind-merge NO estaba configurado con el prefijo `ir-`, así que los overrides `ir-max-w-*` no se aplicaban (sobrevivían ambos).
+Corregido `cn` con `extendTailwindMerge({prefix:'ir-'})` (arregla TODOS los overrides de clase) + modal a 6xl/7xl con grid de 4 columnas.
+**(3) HUECOS DE COBERTURA (el punto clave):** `DataSourceController::coverage` ahora devuelve `gaps` = rangos de días SIN cubrir entre los
+periodos guardados de una fuente (merge a nivel de día). Así un mes intermedio no escaneado SE VE (antes el span min→max lo ocultaba). Se
+muestra en el panel de sync del editor y en el menú de sync de la fila de reportes («Faltan datos: may 2026»). Helpers compartidos en
+`admin/lib/coverage.ts` (span/bytes/formato de huecos). **Modelo de completitud:** un snapshot ES el agregado de la fuente para TODO su
+periodo, así que «todos los días escaneados» = cubiertos por algún snapshot; un hueco = días que ningún snapshot cubre. **(4) PANEL SYNC:**
+rediseñado más limpio (más ancho, filas divididas, estado+nombre+última sync en una línea, cobertura/almacenamiento debajo). 349 tests PHP
+(+gap detection) + 15 vitest + stan/pint/ts/lint/build limpios. **SIGUIENTE: desplegar.**
+
+
 **🗑️ RETENCIÓN DE DATOS CONFIGURABLE (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release ~v1.13.59):** los snapshots ya no
 crecen sin límite. Cada agencia puede limitar cuánto tiempo se guardan (`ir_agencies.snapshot_retention_months`, nullable = sin límite =
 default, para no borrar datos a nadie). **`SnapshotRetentionService`**: poda por agencia los snapshots con `period_end` anterior al corte,
