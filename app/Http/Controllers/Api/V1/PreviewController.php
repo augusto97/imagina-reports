@@ -64,7 +64,19 @@ final class PreviewController extends Controller
 
         $score = $health->calculate($bags);
 
-        ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags);
+        // Page/dashboard filters being edited cascade into the preview (block filters win),
+        // so the live preview matches exactly what the generated report will show.
+        $rawFilters = $request->input('filters');
+        $filtersByPage = [];
+        if (is_array($rawFilters)) {
+            foreach ($rawFilters as $page => $list) {
+                if (is_array($list)) {
+                    $filtersByPage[$page] = array_values(array_filter($list, is_array(...)));
+                }
+            }
+        }
+
+        ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags, $filtersByPage);
 
         return response()->json([
             'blocks' => $visibleBlocks,

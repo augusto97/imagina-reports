@@ -76,6 +76,39 @@ class ReportGeneratorTest extends TestCase
         return array_map(static fn (array $block): string => (string) $block['id'], is_array($blocks) ? $blocks : []);
     }
 
+    public function test_page_filters_baked_in_the_definition_apply_when_generating(): void
+    {
+        $ga4 = $this->dataSource(DataSourceType::Ga4);
+        $period = Period::make('2026-06-01', '2026-06-30');
+
+        $this->snapshot($ga4, '2026-06-15 00:00:00', '2026-06-15 23:59:59', [
+            'ga4.geo' => [
+                ['country' => 'Colombia', 'city' => 'Bogotá', 'sessions' => 120],
+                ['country' => 'Colombia', 'city' => 'Medellín', 'sessions' => 80],
+                ['country' => 'México', 'city' => 'CDMX', 'sessions' => 200],
+            ],
+        ]);
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'blocks' => [
+                ['id' => 'geo', 'type' => 'table', 'binding' => ['source' => 'ga4', 'metric' => 'geo', 'measure' => 'sessions', 'breakdown' => 'city']],
+            ],
+            // Whole-dashboard filter: only Colombia. Block has no filter → page filter drives it.
+            'filters' => ['all' => [['dimension' => 'country', 'op' => 'is', 'value' => 'Colombia']]],
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, $period);
+
+        $rows = $report->resolved_blocks['data']['geo'] ?? null;
+        $this->assertIsArray($rows);
+        $labels = array_column($rows, 'label');
+        $this->assertContains('Bogotá', $labels);
+        $this->assertContains('Medellín', $labels);
+        $this->assertNotContains('CDMX', $labels);
+    }
+
     public function test_it_resolves_bound_blocks_and_hides_data_less_ones(): void
     {
         $ga4 = $this->dataSource(DataSourceType::Ga4);

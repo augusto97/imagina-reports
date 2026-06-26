@@ -28,6 +28,7 @@ final class StoreReportDefinitionRequest extends FormRequest
             'recipients' => ['nullable', 'array'],
             'recipients.*' => ['email'],
             'theme' => ['nullable', 'array'],
+            'filters' => ['nullable', 'array'],
             'theme.accent' => ['nullable', 'string', 'max:9'],
             'theme.density' => ['nullable', 'in:normal,compact'],
         ];

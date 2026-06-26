@@ -31,6 +31,7 @@ final class UpdateReportTemplateRequest extends FormRequest
             'calculated_metrics.*.label' => ['nullable', 'string', 'max:120'],
             'calculated_metrics.*.formula' => ['required_with:calculated_metrics', 'string', 'max:500'],
             'theme' => ['sometimes', 'nullable', 'array'],
+            'filters' => ['sometimes', 'nullable', 'array'],
             'theme.accent' => ['nullable', 'string', 'max:9'],
             'theme.density' => ['nullable', 'in:normal,compact'],
         ];

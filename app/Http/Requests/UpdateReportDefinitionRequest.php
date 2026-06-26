@@ -30,6 +30,7 @@ final class UpdateReportDefinitionRequest extends FormRequest
             'recipients' => ['sometimes', 'nullable', 'array'],
             'recipients.*' => ['email'],
             'theme' => ['sometimes', 'nullable', 'array'],
+            'filters' => ['sometimes', 'nullable', 'array'],
             'theme.accent' => ['nullable', 'string', 'max:9'],
             'theme.density' => ['nullable', 'in:normal,compact'],
         ];

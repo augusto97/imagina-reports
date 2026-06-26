@@ -59,7 +59,8 @@ final readonly class ReportGenerator
 
         // Resolve blocks→data via the shared resolver — the same logic the live
         // editor preview uses, so the preview matches the generated report exactly.
-        ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags);
+        // Page/dashboard filters cascade in; each block's own filters then override them.
+        ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags, $this->pageFilters($definition));
 
         // AI per-period narrative (§10.6): regenerate the executive-summary text from the
         // resolved figures and inject it into the report's narrative block(s). This is the
@@ -81,6 +82,19 @@ final readonly class ReportGenerator
         Event::dispatch(new ReportGenerated($report));
 
         return $report;
+    }
+
+    /**
+     * Page/dashboard filters for the resolver cascade: the definition's, falling back to
+     * its template's. Shape: { all|<pageIndex> : [{dimension, op, value}, ...] }.
+     *
+     * @return array<array-key, list<array<array-key, mixed>>>
+     */
+    private function pageFilters(ReportDefinition $definition): array
+    {
+        $filters = $definition->filters ?? $definition->template?->filters;
+
+        return is_array($filters) ? $filters : [];
     }
 
     /**

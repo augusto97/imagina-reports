@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS — ETAPA A.2 avanza: GSC datasets + filtros de PÁGINA cableados (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+sin release — base sin UI todavía):** dos slices. **(1) GSC dataset** `gsc.search` (query/página/país/dispositivo × clics/impresiones,
+top-250) → filas con nombre; solo medidas aditivas (CTR/posición siguen como escalares de periodo porque no se suman al agrupar). Woo
+diferido (su API legacy de reports no da dimensiones para un dataset; necesitaría la WC Analytics API). **(2) Filtros de página/dashboard
+cableados de punta a punta:** nueva migración `filters` (json) en `ir_report_templates` + `ir_report_definitions`; casts + @property en
+ambos modelos; `ReportGenerator` pasa `definition.filters` (fallback a template) al resolver; `PreviewController` lee `filters` del request
+para que la vista previa coincida; requests (Store/Update de definición y plantilla) + resources exponen/aceptan `filters`. La cascada
+(global de página + override por bloque) ya estaba testeada en el resolver (A.1); añadí test de generación end-to-end (filtro all=Colombia
+sobre `ga4.geo` → solo ciudades de Colombia). **315 tests + PHPStan + Pint limpios.** **PENDIENTE en A.2:** **panel de modelado en el
+EDITOR** (medida/desglose/filtros desde el catálogo `/metric-catalog` que ya expone `measures`+`dimension_labels`) — esto es lo que el
+owner podrá ver/tocar. Luego A.3 (builder Metadata API), Etapa B (fecha cliente + tablas), C (geo_map/funnel), D (dashboard permanente +
+privacidad/embebido). Nota: Woo datasets pendientes (WC Analytics API).
+
+
 **📊 DASHBOARDS FASE 3 — ETAPA A.2 (parte 1): DATASETS REALES EN GA4 (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, sin release —
 sigue siendo base sin UI):** datos reales para el motor de datasets. **Hecho:** `MetricDefinition` ahora lleva `measures` (list de
 {key,label,unit}) y `dimensionLabels` (map key→label) para datasets; `MetricCatalogController` los expone en `/metric-catalog` (campos

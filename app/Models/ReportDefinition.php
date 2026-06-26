@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array<int, string>|null $requested_metrics
  * @property array<int, array<string, mixed>>|null $calculated_metrics
  * @property array<string, mixed>|null $theme
+ * @property array<array-key, list<array<string, mixed>>>|null $filters
  * @property string $locale
  * @property array<string, mixed>|null $schedule
  * @property array<int, string>|null $recipients
@@ -46,6 +47,7 @@ class ReportDefinition extends Model
         'requested_metrics',
         'calculated_metrics',
         'theme',
+        'filters',
         'locale',
         'schedule',
         'recipients',
@@ -61,6 +63,7 @@ class ReportDefinition extends Model
             'requested_metrics' => 'array',
             'calculated_metrics' => 'array',
             'theme' => 'array',
+            'filters' => 'array',
             'schedule' => 'array',
             'recipients' => 'array',
         ];
