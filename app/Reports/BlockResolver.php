@@ -6,6 +6,9 @@ namespace App\Reports;
 
 use App\Reports\Blocks\Block;
 use App\Reports\Blocks\BlockType;
+use App\Reports\Datasets\DatasetEngine;
+use App\Reports\Datasets\DatasetFilter;
+use App\Reports\Datasets\DatasetQuery;
 
 /**
  * Resolves a validated block layout against a period's metric bags into the
@@ -28,20 +31,25 @@ final readonly class BlockResolver
 {
     private const HIDDEN = '__hidden__';
 
+    public function __construct(private DatasetEngine $engine = new DatasetEngine) {}
+
     /**
      * @param  list<Block>  $blocks
      * @param  MetricBags  $bags
      * @param  MetricBags  $previousBags  Equal-length prior period, for "vs previous" comparisons.
+     * @param  array<array-key, list<array<array-key, mixed>>>  $filtersByPage  Page/dashboard
+     *                                                                          filters keyed by page index, plus 'all' applied to every page (CLAUDE.md §10
+     *                                                                          dashboards). Block-level filters override these per dimension.
      * @return Resolved
      */
-    public function resolve(array $blocks, array $bags, int $score, array $previousBags = []): array
+    public function resolve(array $blocks, array $bags, int $score, array $previousBags = [], array $filtersByPage = []): array
     {
         $visibleBlocks = [];
         $data = [];
         $diagnostics = [];
 
         foreach ($blocks as $block) {
-            $value = $this->resolveBlock($block, $bags, $previousBags, $score);
+            $value = $this->resolveBlock($block, $bags, $previousBags, $score, $filtersByPage);
 
             if ($value === self::HIDDEN) {
                 // A bound block disappeared because its metric had no data for the period.
@@ -75,9 +83,10 @@ final readonly class BlockResolver
     /**
      * @param  MetricBags  $bags
      * @param  MetricBags  $previousBags
+     * @param  array<array-key, list<array<array-key, mixed>>>  $filtersByPage
      * @return mixed|self::HIDDEN resolved value, null (render from props), or HIDDEN
      */
-    private function resolveBlock(Block $block, array $bags, array $previousBags, int $score): mixed
+    private function resolveBlock(Block $block, array $bags, array $previousBags, int $score, array $filtersByPage = []): mixed
     {
         $binding = $block->binding;
         $source = is_array($binding) ? ($binding['source'] ?? null) : null;
@@ -89,6 +98,13 @@ final readonly class BlockResolver
 
             if ($value === null) {
                 return self::HIDDEN;
+            }
+
+            // Dataset binding (has breakdown/measure): shape the stored rows with the
+            // block's query, merged with the page/dashboard filter cascade (§10).
+            $query = DatasetQuery::fromBinding($binding);
+            if ($query->isDataset() && is_array($value)) {
+                return $this->engine->shape($value, $query, $this->pageFiltersFor($filtersByPage, $block->page));
             }
 
             $compare = $binding['compare'] ?? null;
@@ -106,6 +122,42 @@ final readonly class BlockResolver
             BlockType::WorklogTimeline => [], // populated from ir_report_work_logs later
             default => null,
         };
+    }
+
+    /**
+     * Effective page-level filters for a block: the dashboard-global 'all' set merged
+     * with the block's own page set (the page-specific filter wins per dimension). The
+     * block's own filters then override these inside the DatasetEngine.
+     *
+     * @param  array<array-key, list<array<array-key, mixed>>>  $filtersByPage
+     * @return list<DatasetFilter>
+     */
+    private function pageFiltersFor(array $filtersByPage, int $page): array
+    {
+        $all = $this->parseFilters($filtersByPage['all'] ?? []);
+        $pageSpecific = $this->parseFilters($filtersByPage[$page] ?? []);
+
+        return $this->engine->cascade($all, $pageSpecific);
+    }
+
+    /**
+     * @return list<DatasetFilter>
+     */
+    private function parseFilters(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $filters = [];
+        foreach ($raw as $entry) {
+            $filter = DatasetFilter::fromArray($entry);
+            if ($filter !== null) {
+                $filters[] = $filter;
+            }
+        }
+
+        return $filters;
     }
 
     /**

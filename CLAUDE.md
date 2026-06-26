@@ -484,6 +484,35 @@ ServerAvatar **custom webroot** points to `current/public`.
 - [ ] Upsell-opportunity detector.
 - [ ] Advanced comparisons + multi-client trends dashboard.
 
+#### Interactive dashboards (Looker-Studio-style) — the big Phase 3 build
+> **Decision (2026-06-26): filtered-data / materialized cuts, NOT a BI engine.** Interactivity slices
+> *pre-aggregated, bounded top-N cuts* stored at sync; it never queries raw rows live (§3.3). This keeps
+> reports instant, decoupled (§3.1) and cheap on a single VPS, and matches the product's job (retention via
+> clarity, not ad-hoc analytics). The honest limit: no arbitrary multi-dimension cross-filtering (the "cube").
+> A future opt-in "live explore" (GA4-only, cached) can cover that without making it the core.
+>
+> **Powerful filtering lives in the EDITOR (design-time); the CLIENT gets the date.** The agency bakes
+> dimension filters into blocks ("cities, only Colombia"; "sessions from Facebook"); the client only changes
+> the date range at runtime. Filters cascade: page/dashboard filters are the base, **block-level filters
+> override per dimension** (block wins).
+>
+> **New primitive — datasets** (`MetricType::Dataset`): bounded, multi-dimension, pre-aggregated rows
+> `[{dim1, dim2, …, measures}]`. A "factory" dataset and a user-built one are the same thing: a query spec.
+> The `DatasetEngine` (`app/Reports/Datasets/`) shapes them (filter/breakdown/measure/sort/limit) into the
+> existing `[{label,value}]`/scalar shapes the renderer already understands.
+>
+> Build order (see PROGRESS for live status):
+> - **Etapa A — Editor data-shaping + datasets:** A.1 dataset engine + filter cascade in the resolver
+>   (done); A.2 datasets in connectors (GA4 → GSC → Woo + generic pattern) + editor modeling panel;
+>   A.3 **self-serve metric builder** (compose a GA4 `runReport` from the property's Metadata API, validate,
+>   "Test", register as a dataset — no per-metric code).
+> - **Etapa B — Client date range + interactive tables** (sort + pagination + search).
+> - **Etapa C — Visualizations:** `geo_map` + `funnel` block types.
+> - **Etapa D — Permanent dashboard mode + privacy/sharing:** live-from-latest-snapshots mode, visibility
+>   (public / password / private), private embedding (CSP `frame-ancestors` allowlist), token mgmt.
+> - **Etapa E (optional, future) — live explore** (GA4-only, cached) for true cross-filtering.
+> Distinct from **calculated metrics** (formulas over existing metrics) — the builder *fetches* new data.
+
 ---
 
 ## 14. Testing & Definition of Done

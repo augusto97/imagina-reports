@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS INTERACTIVOS (FASE 3) — ETAPA A.1: MOTOR DE DATASETS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, sin release
+aún — es base backend sin efecto visible todavía):** arrancó el gran build de reportes dinámicos tipo Looker. Plan completo y decisión
+registrados en CLAUDE.md §13 Phase 3. **Decisión clave:** datos-filtrados / cortes materializados, NO motor BI (interactividad = rebanar
+cortes pre-agregados top-N, nunca consulta cruda en vivo §3.3); filtros potentes en el EDITOR (diseño), al CLIENTE solo la fecha; filtros
+en cascada (global de página + override por bloque, **bloque gana** por dimensión). **Hecho en A.1:** nuevo `MetricType::Dataset`; clases
+`app/Reports/Datasets/{DatasetFilter,DatasetQuery,DatasetEngine}` (motor puro que filtra/agrupa/ordena/limita filas de dataset →
+`[{label,value}]` o escalar, semántica "filtro sobre dimensión ausente no excluye"); `BlockResolver` detecta binding de dataset (tiene
+`breakdown`/`measure`) y aplica el motor con la cascada de filtros (`resolve(...,$filtersByPage)`). Back-compat total (métricas legacy sin
+breakdown/measure se resuelven igual). **11 tests nuevos (DatasetEngineTest + BlockResolverDatasetTest), 311 total + PHPStan + Pint
+limpios.** **SIGUIENTE — Etapa A.2:** datasets reales en conectores empezando por **GA4** (geo país/región/ciudad, traffic source/medium,
+pages), patrón genérico para que GSC/Woo declaren datasets, y pasar `filtersByPage` desde la definición en ReportGenerator/Preview. Luego
+A.3 (builder de métricas vía Metadata API), Etapa B (fecha cliente + tablas), C (geo_map/funnel), D (dashboard permanente + privacidad/
+embebido). El owner pidió **amplio y completo desde el inicio**.
+
+
 **✨ PULIDO PREMIUM DEL PANEL CLIENTES + MODAL PLANTILLAS 3 COLUMNAS (2026-06-25, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.49, solo frontend):** dos ajustes del owner. **(1) Modal de plantillas del editor:** más ancho (`max-w-5xl`) y rejilla 1 col móvil
 / 2 sm / 3 lg. **(2) WorkspaceScreen premium:** la izquierda pasó de Card a un `<aside>` redondeado (rounded-xl) sticky en escritorio con
@@ -1453,6 +1468,11 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-06-26) **Dashboards interactivos = datos filtrados, NO motor BI.** Se rebanan cortes pre-agregados top-N (datasets), nunca consulta
+  cruda en vivo. Motivo: el job del producto es retención por claridad (no análisis ad-hoc), las restricciones (VPS único, "reporte en
+  segundos", fuentes que ya agregan) lo hacen impráctico e innecesario, y el moat es amplitud+marca+narrativa+automatización, no profundidad.
+  Filtrado potente en el editor (diseño); el cliente solo cambia la fecha. Filtros en cascada con el bloque ganando sobre el global de página.
+  Puerta abierta a un "explorar en vivo" GA4 cacheado (Etapa E) si algún cliente premium lo pide, sin volver el core un motor BI.
 - (2026-06-25) **El Agente Imagina reemplaza los datos por-sitio de MainWP en los reportes.** El agente corre dentro de cada sitio y
   lee directamente updates (core/plugins/themes), inventario de plugins, salud y SSL — todo lo que MainWP aporta por sitio. MainWP es
   un agregador multi-sitio, pero Imagina Reports ya centraliza por su multi-tenancy + el agente por sitio. Excepción: «plugins

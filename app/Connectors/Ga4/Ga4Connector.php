@@ -306,6 +306,9 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
                 fn (array $row): array => ['label' => $this->dimensionValue($row), 'value' => $apply($this->numericValue($row))],
                 $rows,
             ),
+            // Datasets (multi-dimension top-N) are fetched via a dedicated path, not this
+            // single-dimension parser — unreachable here.
+            MetricType::Dataset => [],
         };
     }
 
