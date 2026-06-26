@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS — A.3 (builder) backend: datasets personalizados + Metadata API (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+sin release — falta la UI del builder):** dos piezas. **(1)** `Ga4Connector` ahora lee **datasets personalizados** desde
+`source.config['custom_datasets']` (`customDatasetSpecs()` + `allDatasetSpecs()`) y los trata IGUAL que los de fábrica — mismo
+catálogo/fetch/parse. Topes para que sigan agregados-en-origen y acotados (§3.3): máx 5 dimensiones, 10 medidas, top-N ≤ 1000; claves
+`ga4.custom.<key>`; entradas malformadas se ignoran. **Esto es el núcleo del "sin desarrollo conmigo": un dataset creado por el usuario
+es solo una spec en config y ya funciona.** **(2)** `Ga4Connector::metadata()` consulta la **Metadata API** (`/properties/{id}/metadata`)
+y normaliza dimensiones+métricas (incluidas las CUSTOM del cliente) → nuevo endpoint `GET /data-sources/{ds}/ga4/metadata`
+(`Ga4DatasetController`). 318 tests (+4 GA4) + PHPStan + Pint limpios. **PENDIENTE A.3:** endpoints de **probar** (runReport de muestra
+con una spec sin guardar) y **guardar/borrar** datasets en config, y la **UI del builder** (Metadata→desplegables→Probar→guardar). Luego
+Etapa B (rango de fechas cliente + tablas), C (geo_map/funnel), D (dashboard permanente + privacidad/embebido). Woo datasets pendientes.
 **📊 DASHBOARDS — ETAPA A.2 CERRADA: PANEL DE MODELADO EN EL EDITOR (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.50):** el editor ya deja "construir como Looker" a nivel de bloque. **Frontend:** `BlockBinding` (shared/blocks/types.ts) gana
 `measure`, `breakdown`, `filters[{dimension,op,value}]` + tipo `DatasetFilter`; `CatalogEntry` (admin/types.ts) gana `measures` +

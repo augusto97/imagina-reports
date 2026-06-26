@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
+use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\PreviewController;
@@ -104,6 +105,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
     Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
+    // Self-serve GA4 dataset builder (§10.6/A.3): the property's metadata dictionary.
+    Route::get('data-sources/{dataSource}/ga4/metadata', [Ga4DatasetController::class, 'metadata'])->name('api.data-sources.ga4.metadata');
 
     Route::get('report-templates/default-blocks', [ReportTemplateController::class, 'defaultBlocks'])->name('api.report-templates.default-blocks');
     Route::get('report-templates', [ReportTemplateController::class, 'index'])->name('api.report-templates.index');

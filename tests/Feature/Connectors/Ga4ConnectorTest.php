@@ -176,6 +176,72 @@ class Ga4ConnectorTest extends TestCase
         ], $set->get('ga4.geo'));
     }
 
+    private function sourceWithCustomDataset(): DataSource
+    {
+        return DataSource::factory()->make([
+            'agency_id' => 1,
+            'type' => DataSourceType::Ga4,
+            'config' => [
+                'property_id' => '123456789',
+                'custom_datasets' => [[
+                    'key' => 'campaigns',
+                    'label' => 'Campañas',
+                    'dimensions' => [['key' => 'campaign', 'label' => 'Campaña', 'api' => 'sessionCampaignName']],
+                    'measures' => [['key' => 'sessions', 'label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1]],
+                    'limit' => 100,
+                ]],
+            ],
+            'credentials' => ['type' => 'service_account', 'client_email' => 'sa@example.iam'],
+        ]);
+    }
+
+    public function test_catalog_includes_user_built_custom_datasets_from_config(): void
+    {
+        $catalog = $this->connector()->metricCatalog($this->sourceWithCustomDataset());
+
+        $custom = $catalog->get('ga4.custom.campaigns');
+        $this->assertNotNull($custom);
+        $this->assertSame(MetricType::Dataset, $custom->type);
+        $this->assertSame('Campañas', $custom->label);
+        $this->assertSame(['campaign'], $custom->dimensions);
+        $this->assertSame(['sessions'], array_column($custom->measures, 'key'));
+    }
+
+    public function test_fetch_runs_a_user_built_custom_dataset(): void
+    {
+        Http::fake([self::RUN_REPORT => Http::response([
+            'rows' => [
+                ['dimensionValues' => [['value' => 'Black Friday']], 'metricValues' => [['value' => '42']]],
+            ],
+        ])]);
+
+        $set = $this->connector()->fetch($this->sourceWithCustomDataset(), $this->period(), ['ga4.custom.campaigns']);
+
+        $this->assertTrue($set->isOk());
+        $this->assertSame([['campaign' => 'Black Friday', 'sessions' => 42]], $set->get('ga4.custom.campaigns'));
+    }
+
+    public function test_metadata_normalizes_property_dimensions_and_metrics(): void
+    {
+        Http::fake([self::RUN_REPORT => Http::response([
+            'dimensions' => [
+                ['apiName' => 'sessionSource', 'uiName' => 'Session source', 'category' => 'Traffic Sources', 'customDefinition' => false],
+                ['apiName' => 'customEvent:plan', 'uiName' => 'Plan', 'category' => 'Custom', 'customDefinition' => true],
+            ],
+            'metrics' => [
+                ['apiName' => 'sessions', 'uiName' => 'Sessions', 'category' => 'Page / Screen', 'type' => 'TYPE_INTEGER', 'customDefinition' => false],
+            ],
+        ])]);
+
+        $meta = $this->connector()->metadata($this->source());
+
+        $this->assertSame('sessionSource', $meta['dimensions'][0]['api']);
+        $this->assertSame('Session source', $meta['dimensions'][0]['label']);
+        $this->assertTrue($meta['dimensions'][1]['custom']);
+        $this->assertSame('sessions', $meta['metrics'][0]['api']);
+        $this->assertSame('TYPE_INTEGER', $meta['metrics'][0]['type']);
+    }
+
     public function test_a_partial_failure_keeps_the_succeeding_metric(): void
     {
         Http::fake([self::RUN_REPORT => Http::sequence()

@@ -20,6 +20,7 @@ use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -113,7 +114,8 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
 
         // Datasets (multi-dimension, multi-measure) expose their filterable dimensions and
         // pickable measures so the editor can model blocks like Looker (§10 dashboards).
-        foreach ($this->datasetSpecs() as $key => $spec) {
+        // Includes user-built datasets from config (the self-serve builder, §10.6/A.3).
+        foreach ($this->allDatasetSpecs($source) as $key => $spec) {
             $measures = [];
             foreach ($spec['measures'] as $measureKey => $measure) {
                 $measures[] = ['key' => $measureKey, 'label' => $measure['label'], 'unit' => $measure['unit']];
@@ -139,6 +141,70 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         return new MetricCatalog(...$definitions);
     }
 
+    /**
+     * GA4 property metadata (the self-serve builder's dictionary, §10.6/A.3): the
+     * dimensions and metrics THIS property supports — including its own custom
+     * definitions — so the builder offers exactly what's valid, no per-metric code.
+     *
+     * @return array{dimensions: list<array{api: string, label: string, category: string, custom: bool}>, metrics: list<array{api: string, label: string, category: string, type: string, custom: bool}>}
+     */
+    public function metadata(DataSource $source): array
+    {
+        $propertyId = $this->propertyId($source);
+        if ($propertyId === '') {
+            throw new RuntimeException('GA4 property_id is not configured.');
+        }
+
+        $token = $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+        if ($token === '') {
+            throw new RuntimeException('GA4 authentication returned no access token.');
+        }
+
+        $response = Http::withToken($token)->acceptJson()->get(self::API_BASE."/properties/{$propertyId}/metadata");
+        if ($response->failed()) {
+            throw new RuntimeException('GA4 metadata: HTTP '.$response->status());
+        }
+
+        $json = $response->json();
+
+        $dimensions = [];
+        foreach (is_array($json) && is_array($json['dimensions'] ?? null) ? $json['dimensions'] : [] as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $api = is_string($entry['apiName'] ?? null) ? $entry['apiName'] : '';
+            if ($api === '') {
+                continue;
+            }
+            $dimensions[] = [
+                'api' => $api,
+                'label' => is_string($entry['uiName'] ?? null) && $entry['uiName'] !== '' ? $entry['uiName'] : $api,
+                'category' => is_string($entry['category'] ?? null) ? $entry['category'] : '',
+                'custom' => ($entry['customDefinition'] ?? false) === true,
+            ];
+        }
+
+        $metrics = [];
+        foreach (is_array($json) && is_array($json['metrics'] ?? null) ? $json['metrics'] : [] as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $api = is_string($entry['apiName'] ?? null) ? $entry['apiName'] : '';
+            if ($api === '') {
+                continue;
+            }
+            $metrics[] = [
+                'api' => $api,
+                'label' => is_string($entry['uiName'] ?? null) && $entry['uiName'] !== '' ? $entry['uiName'] : $api,
+                'category' => is_string($entry['category'] ?? null) ? $entry['category'] : '',
+                'type' => is_string($entry['type'] ?? null) ? $entry['type'] : '',
+                'custom' => ($entry['customDefinition'] ?? false) === true,
+            ];
+        }
+
+        return ['dimensions' => $dimensions, 'metrics' => $metrics];
+    }
+
     public function fetch(DataSource $source, Period $period, array $requestedMetrics): MetricSet
     {
         $propertyId = $this->propertyId($source);
@@ -158,7 +224,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         $specs = $this->specs();
-        $datasets = $this->datasetSpecs();
+        $datasets = $this->allDatasetSpecs($source);
         $allKeys = array_merge(array_keys($specs), array_keys($datasets));
         $keys = $requestedMetrics === [] ? $allKeys : array_values(array_intersect($requestedMetrics, $allKeys));
 
@@ -345,6 +411,104 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
                 'limit' => 250,
             ],
         ];
+    }
+
+    /**
+     * Built-in datasets plus any the agency built with the self-serve builder (stored on
+     * the source config under `custom_datasets`, §10.6/A.3). User datasets are just a
+     * query spec — they run through the exact same fetch/parse path as the factory ones.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     dimensions: array<string, array{label: string, api: string}>,
+     *     measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>,
+     *     limit: int,
+     * }>
+     */
+    private function allDatasetSpecs(DataSource $source): array
+    {
+        return array_merge($this->datasetSpecs(), $this->customDatasetSpecs($source));
+    }
+
+    /**
+     * Parse user-built datasets from the source config into the same spec shape, with
+     * caps that keep them aggregate-at-source and bounded (§3.3): max 5 dimensions,
+     * 10 measures, and a top-N limit of 1000. Malformed entries are skipped, never fatal.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     dimensions: array<string, array{label: string, api: string}>,
+     *     measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>,
+     *     limit: int,
+     * }>
+     */
+    private function customDatasetSpecs(DataSource $source): array
+    {
+        $raw = ($source->config ?? [])['custom_datasets'] ?? null;
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $key = is_string($entry['key'] ?? null) ? trim($entry['key']) : '';
+            if ($key === '' || preg_match('/^[a-z0-9_]+$/i', $key) !== 1) {
+                continue;
+            }
+
+            $dimensions = [];
+            foreach (is_array($entry['dimensions'] ?? null) ? $entry['dimensions'] : [] as $dimension) {
+                if (! is_array($dimension) || count($dimensions) >= 5) {
+                    continue;
+                }
+                $dimensionKey = is_string($dimension['key'] ?? null) ? $dimension['key'] : '';
+                $api = is_string($dimension['api'] ?? null) ? $dimension['api'] : '';
+                if ($dimensionKey === '' || $api === '') {
+                    continue;
+                }
+                $label = is_string($dimension['label'] ?? null) && $dimension['label'] !== '' ? $dimension['label'] : $dimensionKey;
+                $dimensions[$dimensionKey] = ['label' => $label, 'api' => $api];
+            }
+
+            $measures = [];
+            foreach (is_array($entry['measures'] ?? null) ? $entry['measures'] : [] as $measure) {
+                if (! is_array($measure) || count($measures) >= 10) {
+                    continue;
+                }
+                $measureKey = is_string($measure['key'] ?? null) ? $measure['key'] : '';
+                $api = is_string($measure['api'] ?? null) ? $measure['api'] : '';
+                if ($measureKey === '' || $api === '') {
+                    continue;
+                }
+                $label = is_string($measure['label'] ?? null) && $measure['label'] !== '' ? $measure['label'] : $measureKey;
+                $measures[$measureKey] = [
+                    'label' => $label,
+                    'api' => $api,
+                    'unit' => is_string($measure['unit'] ?? null) ? $measure['unit'] : null,
+                    'cast' => ($measure['cast'] ?? null) === 'int' ? 'int' : 'float',
+                    'scale' => is_numeric($measure['scale'] ?? null) ? (int) $measure['scale'] : 1,
+                ];
+            }
+
+            if ($dimensions === [] || $measures === []) {
+                continue;
+            }
+
+            $limit = is_numeric($entry['limit'] ?? null) ? (int) $entry['limit'] : 250;
+
+            $out["ga4.custom.{$key}"] = [
+                'label' => is_string($entry['label'] ?? null) && $entry['label'] !== '' ? $entry['label'] : $key,
+                'dimensions' => $dimensions,
+                'measures' => $measures,
+                'limit' => max(1, min($limit, 1000)),
+            ];
+        }
+
+        return $out;
     }
 
     /**
