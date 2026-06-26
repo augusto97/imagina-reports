@@ -500,11 +500,15 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
 
             $limit = is_numeric($entry['limit'] ?? null) ? (int) $entry['limit'] : 250;
 
+            // Order top-N by this measure key (must be one of the chosen measures).
+            $orderBy = is_string($entry['order_by'] ?? null) && isset($measures[$entry['order_by']]) ? $entry['order_by'] : null;
+
             $out["ga4.custom.{$key}"] = [
                 'label' => is_string($entry['label'] ?? null) && $entry['label'] !== '' ? $entry['label'] : $key,
                 'dimensions' => $dimensions,
                 'measures' => $measures,
                 'limit' => max(1, min($limit, 1000)),
+                'order_by' => $orderBy,
             ];
         }
 
@@ -512,12 +516,20 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
     }
 
     /**
-     * @param  array{label: string, dimensions: array<string, array{label: string, api: string}>, measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>, limit: int}  $spec
+     * @param  array{label: string, dimensions: array<string, array{label: string, api: string}>, measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>, limit: int, order_by?: string|null}  $spec
      * @return array<string, mixed>
      */
     private function datasetBody(array $spec, Period $period): array
     {
         $measureApis = array_values(array_map(static fn (array $m): string => $m['api'], $spec['measures']));
+
+        // Top-N is ordered by the chosen measure (so the rows that matter come first);
+        // falls back to the first measure when none is set.
+        $orderApi = $measureApis[0];
+        $orderKey = $spec['order_by'] ?? null;
+        if (is_string($orderKey) && is_string($spec['measures'][$orderKey]['api'] ?? null)) {
+            $orderApi = $spec['measures'][$orderKey]['api'];
+        }
 
         return [
             'dateRanges' => [[
@@ -526,7 +538,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
             ]],
             'dimensions' => array_values(array_map(static fn (array $d): array => ['name' => $d['api']], $spec['dimensions'])),
             'metrics' => array_map(static fn (string $api): array => ['name' => $api], $measureApis),
-            'orderBys' => [['metric' => ['metricName' => $measureApis[0]], 'desc' => true]],
+            'orderBys' => [['metric' => ['metricName' => $orderApi], 'desc' => true]],
             'limit' => $spec['limit'],
         ];
     }
@@ -535,7 +547,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
      * Map GA4's positional dimensionValues/metricValues into named dataset rows
      * (`{country, region, city, sessions, users}`) the DatasetEngine can filter/group.
      *
-     * @param  array{label: string, dimensions: array<string, array{label: string, api: string}>, measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>, limit: int}  $spec
+     * @param  array{label: string, dimensions: array<string, array{label: string, api: string}>, measures: array<string, array{label: string, api: string, unit: string|null, cast: 'int'|'float', scale: int}>, limit: int, order_by?: string|null}  $spec
      * @return list<array<string, string|int|float>>
      */
     private function parseDataset(array $spec, mixed $json): array

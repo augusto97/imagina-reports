@@ -50,12 +50,13 @@ final class Ga4DatasetController extends Controller
         $spec = $this->validateSpec($request);
         $spec['key'] = 'preview';
 
-        // Register the spec in-memory only (never persisted) and fetch a recent sample.
+        // Register the spec in-memory only (never persisted) and fetch a sample for the
+        // chosen window (defaults to the last 28 days) so the builder can preview real data.
         $config = $dataSource->config ?? [];
         $config['custom_datasets'] = [$spec];
         $dataSource->config = $config;
 
-        $set = $connector->fetch($dataSource, Period::make('28 days ago', 'today'), ['ga4.custom.preview']);
+        $set = $connector->fetch($dataSource, $this->previewPeriod($request), ['ga4.custom.preview']);
         $rows = $set->get('ga4.custom.preview');
 
         return response()->json([
@@ -129,6 +130,26 @@ final class Ga4DatasetController extends Controller
             'measures.*.cast' => ['nullable', 'in:int,float'],
             'measures.*.scale' => ['nullable', 'numeric'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'order_by' => ['nullable', 'string', 'max:50'],
         ])->validate();
+    }
+
+    /**
+     * The window the builder wants to preview: validated from/to dates, else the last 28 days.
+     */
+    private function previewPeriod(Request $request): Period
+    {
+        $from = $request->input('from');
+        $to = $request->input('to');
+
+        if (is_string($from) && is_string($to) && $from !== '' && $to !== '') {
+            try {
+                return Period::make($from, $to);
+            } catch (Throwable) {
+                // Fall through to the default window on an unparseable range.
+            }
+        }
+
+        return Period::make('28 days ago', 'today');
     }
 }

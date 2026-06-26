@@ -98,6 +98,36 @@ class Ga4DatasetBuilderTest extends TestCase
             ->assertJsonPath('metrics.0.api', 'sessions');
     }
 
+    public function test_test_endpoint_orders_top_n_by_the_chosen_measure_for_the_given_period(): void
+    {
+        $this->app->instance(GoogleTokenProvider::class, new FakeGoogleTokenProvider);
+        Http::fake(['analyticsdata.googleapis.com/*' => Http::response(['rows' => []])]);
+
+        $ga4 = $this->ga4Source();
+
+        $this->postJson("/api/v1/data-sources/{$ga4->id}/ga4/datasets/test", [
+            'key' => 'preview',
+            'label' => 'Preview',
+            'dimensions' => [['key' => 'campaign', 'api' => 'sessionCampaignName']],
+            'measures' => [
+                ['key' => 'sessions', 'api' => 'sessions'],
+                ['key' => 'revenue', 'api' => 'totalRevenue'],
+            ],
+            'order_by' => 'revenue',
+            'from' => '2026-05-01',
+            'to' => '2026-05-31',
+        ])->assertOk();
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return str_contains($request->url(), 'analyticsdata.googleapis.com')
+                && ($body['orderBys'][0]['metric']['metricName'] ?? null) === 'totalRevenue'
+                && ($body['dateRanges'][0]['startDate'] ?? null) === '2026-05-01'
+                && ($body['dateRanges'][0]['endDate'] ?? null) === '2026-05-31';
+        });
+    }
+
     public function test_a_non_ga4_source_404s(): void
     {
         $agency = Agency::factory()->create();

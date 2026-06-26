@@ -359,6 +359,8 @@ export interface Ga4DatasetSpec {
     dimensions: { key: string; label: string; api: string }[];
     measures: { key: string; label: string; api: string; unit: string | null; cast: 'int' | 'float'; scale: number }[];
     limit: number;
+    // Measure key the top-N is ordered by (defaults to the first measure).
+    order_by?: string | null;
 }
 
 /** GA4 property metadata for the builder dropdowns (only fetched while the builder is open). */
@@ -375,9 +377,9 @@ export function useGa4Metadata(dataSourceId: number | null) {
 /** Dry-run a composed dataset for the last 28 days (no save) → a sample of rows. */
 export function useTestGa4Dataset(dataSourceId: number) {
     return useMutation({
-        mutationFn: (spec: Ga4DatasetSpec) =>
+        mutationFn: ({ spec, from, to }: { spec: Ga4DatasetSpec; from?: string; to?: string }) =>
             api
-                .post<{ ok: boolean; rows: Record<string, unknown>[]; error: string | null }>(`/data-sources/${dataSourceId}/ga4/datasets/test`, spec)
+                .post<{ ok: boolean; rows: Record<string, unknown>[]; error: string | null }>(`/data-sources/${dataSourceId}/ga4/datasets/test`, { ...spec, from, to })
                 .then((r) => r.data),
     });
 }

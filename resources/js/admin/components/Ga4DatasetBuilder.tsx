@@ -1,7 +1,11 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { type ReactElement, useMemo, useState } from 'react';
 
+import { BlockList } from '@shared/blocks/BlockRenderer';
+import type { Block } from '@shared/blocks/types';
+
 import { type Ga4MetaField, type Ga4DatasetSpec, useDeleteGa4Dataset, useGa4Metadata, useSaveGa4Dataset, useTestGa4Dataset } from '../api';
+import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { Button, Card, Field, Input, Modal } from './ui';
 
 /** Sanitize an arbitrary string into a stable [a-z0-9_] field/dataset key. */
@@ -198,6 +202,9 @@ export function Ga4DatasetBuilder({
     const [measures, setMeasures] = useState<Set<string>>(new Set());
     const [dimensions, setDimensions] = useState<Set<string>>(new Set());
     const [limit, setLimit] = useState(250);
+    const [orderBy, setOrderBy] = useState('');
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
     const [sample, setSample] = useState<{ ok: boolean; rows: Record<string, unknown>[]; error: string | null } | null>(null);
 
     const meta = metaQuery.data;
@@ -226,15 +233,24 @@ export function Ga4DatasetBuilder({
             const field = meta.metrics.find((metric) => metric.api === api);
             return { key: slug(api), label: field?.label ?? api, api, unit: unitForType(field?.type ?? ''), cast: castForType(field?.type ?? ''), scale: 1 };
         });
+        // The order-by measure must be one of the chosen measures; else default to the first.
+        const order = meas.some((m) => m.key === orderBy) ? orderBy : undefined;
 
-        return { key, label: label.trim(), dimensions: dims, measures: meas, limit };
+        return { key, label: label.trim(), dimensions: dims, measures: meas, limit, order_by: order };
     };
 
     const spec = buildSpec();
 
+    // The chosen measures, as { key, label } — for the "order by" picker.
+    const measureOptions = [...measures].map((api) => {
+        const field = meta?.metrics.find((metric) => metric.api === api);
+
+        return { key: slug(api), label: field?.label ?? api };
+    });
+
     const runTest = (): void => {
         if (spec === null) return;
-        testMut.mutate(spec, { onSuccess: (result) => setSample(result) });
+        testMut.mutate({ spec, from: from || undefined, to: to || undefined }, { onSuccess: (result) => setSample(result) });
     };
     const save = (): void => {
         if (spec === null) return;
@@ -244,6 +260,7 @@ export function Ga4DatasetBuilder({
                 setLabel('');
                 setMeasures(new Set());
                 setDimensions(new Set());
+                setOrderBy('');
                 setSample(null);
             },
         });
@@ -252,8 +269,46 @@ export function Ga4DatasetBuilder({
         deleteMut.mutate(key, { onSuccess: (result) => setDatasets(result.custom_datasets) });
     };
 
-    const firstRow = sample?.rows[0];
-    const sampleCols = firstRow !== undefined ? Object.keys(firstRow) : [];
+    // Live preview of how the metric renders in real blocks (KPI / chart / table), built
+    // from the test sample — so you can confirm it brings the right data before saving.
+    const preview = useMemo<{ blocks: Block[]; data: Record<string, unknown> } | null>(() => {
+        if (spec === null || sample === null || sample.rows.length === 0) {
+            return null;
+        }
+        const rows = sample.rows;
+        const dim = spec.dimensions[0];
+        const orderMeasure = spec.measures.find((m) => m.key === spec.order_by) ?? spec.measures[0];
+        if (dim === undefined || orderMeasure === undefined) {
+            return null;
+        }
+
+        const blocks: Block[] = [];
+        const data: Record<string, unknown> = {};
+
+        // A KPI per measure (sum across the sample's rows).
+        spec.measures.slice(0, 3).forEach((measure) => {
+            const id = `kpi_${measure.key}`;
+            const total = rows.reduce((sum, row) => sum + (Number(row[measure.key]) || 0), 0);
+            blocks.push({ id, type: 'kpi', props: { label: measure.label }, style: measure.unit === 'currency' ? { format: 'currency' } : {}, binding: null });
+            data[id] = total;
+        });
+
+        // A bar chart: order measure broken down by the first dimension (top 8).
+        blocks.push({ id: 'chart', type: 'chart', props: { title: `${orderMeasure.label} por ${dim.label}`, chartType: 'bar' }, style: {}, binding: null });
+        data.chart = rows.slice(0, 8).map((row) => ({ label: String(row[dim.key] ?? ''), value: Number(row[orderMeasure.key]) || 0 }));
+
+        // A table with friendly (labelled) column headers.
+        blocks.push({ id: 'table', type: 'table', props: { title: spec.label }, style: {}, binding: null });
+        data.table = rows.map((row) => {
+            const labelled: Record<string, unknown> = {};
+            spec.dimensions.forEach((d) => (labelled[d.label] = row[d.key]));
+            spec.measures.forEach((m) => (labelled[m.label] = row[m.key]));
+
+            return labelled;
+        });
+
+        return { blocks, data };
+    }, [spec, sample]);
 
     return (
         <Modal onClose={onClose} className="ir-max-w-5xl">
@@ -334,55 +389,88 @@ export function Ga4DatasetBuilder({
                                 </div>
                             )}
 
-                            <div className="ir-flex ir-flex-wrap ir-items-end ir-gap-3">
-                                <Field label="Máx. filas (top-N)">
-                                    <Input type="number" min="1" max="1000" value={limit} onChange={(event) => setLimit(Math.max(1, Math.min(1000, Number(event.target.value) || 250)))} className="ir-w-28" />
+                            <div className="ir-grid ir-gap-3 sm:ir-grid-cols-3">
+                                <Field label="Ordenar (top-N) por">
+                                    <select className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-2 ir-text-sm" value={orderBy} onChange={(event) => setOrderBy(event.target.value)}>
+                                        <option value="">Primera medida</option>
+                                        {measureOptions.map((option) => (
+                                            <option key={option.key} value={option.key}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </Field>
-                                <div className="ir-flex ir-flex-1 ir-items-center ir-justify-end ir-gap-2">
-                                    {spec === null && (label !== '' || measures.size > 0 || dimensions.size > 0) && (
-                                        <span className="ir-text-[11px] ir-text-amber-600">Falta: nombre + ≥1 medida + ≥1 dimensión.</span>
-                                    )}
-                                    <Button variant="outline" onClick={runTest} disabled={spec === null || testMut.isPending}>
-                                        {testMut.isPending ? 'Probando…' : 'Probar'}
-                                    </Button>
-                                    <Button onClick={save} disabled={spec === null || saveMut.isPending}>
-                                        {saveMut.isPending ? 'Guardando…' : 'Guardar métrica'}
-                                    </Button>
-                                </div>
+                                <Field label="Máx. filas (top-N)">
+                                    <Input type="number" min="1" max="1000" value={limit} onChange={(event) => setLimit(Math.max(1, Math.min(1000, Number(event.target.value) || 250)))} />
+                                </Field>
+                                <Field label="Periodo de prueba">
+                                    <select
+                                        className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-2 ir-text-sm"
+                                        value=""
+                                        onChange={(event) => {
+                                            const preset = RANGE_PRESETS.find((entry) => entry.key === event.target.value);
+                                            if (preset !== undefined) {
+                                                const range = preset.range();
+                                                setFrom(range.start);
+                                                setTo(range.end);
+                                            }
+                                        }}
+                                    >
+                                        <option value="">Últimos 28 días</option>
+                                        {RANGE_PRESETS.map((preset) => (
+                                            <option key={preset.key} value={preset.key}>
+                                                {preset.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
                             </div>
 
-                            {/* Sample preview */}
-                            {sample !== null && (
-                                <div className="ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
-                                    {sample.error !== null && <p className="ir-text-xs ir-text-danger">{sample.error}</p>}
-                                    {sample.rows.length === 0 && sample.error === null && (
-                                        <p className="ir-text-xs ir-text-muted-foreground">Sin datos en los últimos 28 días (la combinación es válida; guárdala igual).</p>
-                                    )}
-                                    {sample.rows.length > 0 && (
-                                        <>
-                                            <p className="ir-mb-2 ir-text-[11px] ir-font-medium ir-text-emerald-600">✓ Datos reales (últimos 28 días) — muestra de {Math.min(8, sample.rows.length)} filas</p>
-                                            <div className="ir-overflow-x-auto">
-                                                <table className="ir-w-full ir-text-left ir-text-xs">
-                                                    <thead>
-                                                        <tr className="ir-border-b">
-                                                            {sampleCols.map((col) => (
-                                                                <th key={col} className="ir-px-2 ir-py-1 ir-font-medium">{col}</th>
-                                                            ))}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {sample.rows.slice(0, 8).map((row, index) => (
-                                                            <tr key={index} className="ir-border-b last:ir-border-b-0">
-                                                                {sampleCols.map((col) => (
-                                                                    <td key={col} className="ir-px-2 ir-py-1 ir-text-muted-foreground">{String(row[col] ?? '')}</td>
-                                                                ))}
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </>
-                                    )}
+                            {(from !== '' || to !== '') && (
+                                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-xs ir-text-muted-foreground">
+                                    <span>Probar con:</span>
+                                    <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="ir-h-8 ir-w-auto" />
+                                    <span>→</span>
+                                    <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="ir-h-8 ir-w-auto" />
+                                    <button type="button" className="ir-text-primary hover:ir-underline" onClick={() => { setFrom(''); setTo(''); }}>
+                                        usar 28 días
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="ir-flex ir-items-center ir-justify-end ir-gap-2">
+                                {spec === null && (label !== '' || measures.size > 0 || dimensions.size > 0) && (
+                                    <span className="ir-text-[11px] ir-text-amber-600">Falta: nombre + ≥1 medida + ≥1 dimensión.</span>
+                                )}
+                                <Button variant="outline" onClick={runTest} disabled={spec === null || testMut.isPending}>
+                                    {testMut.isPending ? 'Probando…' : 'Probar'}
+                                </Button>
+                                <Button onClick={save} disabled={spec === null || saveMut.isPending}>
+                                    {saveMut.isPending ? 'Guardando…' : 'Guardar métrica'}
+                                </Button>
+                            </div>
+
+                            {sample !== null && sample.error !== null && (
+                                <p className="ir-rounded-md ir-border ir-border-danger/30 ir-bg-danger/5 ir-p-3 ir-text-xs ir-text-danger">{sample.error}</p>
+                            )}
+                            {sample !== null && sample.error === null && sample.rows.length === 0 && (
+                                <p className="ir-rounded-md ir-border ir-bg-muted/20 ir-p-3 ir-text-xs ir-text-muted-foreground">
+                                    Sin datos en el periodo de prueba (la combinación es válida; puedes guardarla igual).
+                                </p>
+                            )}
+
+                            {/* Live block preview — how the metric will actually look. */}
+                            {preview !== null && (
+                                <div className="ir-flex ir-flex-col ir-gap-2 ir-rounded-lg ir-border ir-bg-muted/20 ir-p-3">
+                                    <p className="ir-text-[11px] ir-font-medium ir-text-emerald-600">
+                                        ✓ Vista previa con datos reales — así se verá en el reporte
+                                    </p>
+                                    <div className="ir-rounded-md ir-bg-card ir-p-3">
+                                        <BlockList blocks={preview.blocks} data={preview.data} currency="USD" />
+                                    </div>
+                                    <p className="ir-text-[10px] ir-text-muted-foreground">
+                                        Los KPI suman la muestra del periodo; en el editor podrás elegir el tipo de bloque, el orden y los filtros.
+                                    </p>
                                 </div>
                             )}
                         </div>
