@@ -1,40 +1,12 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { Check, ChevronDown, Clock, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Clock, RefreshCw, X } from 'lucide-react';
 import { cn } from '@shared/lib/utils';
 import { Button } from '../components/ui';
 import { useConnectors, useDataSourceCoverage, useSiteDataSources, useSyncSite } from '../api';
+import { coverageSpan, formatGaps, humanBytes } from '../lib/coverage';
 import type { DataSourceDto } from '../types';
 
 const SYNC_TIMEOUT_MS = 45000;
-
-/** Humanize a byte count: 0 B / 12 KB / 3.4 MB. */
-function humanBytes(bytes: number): string {
-    if (bytes <= 0) {
-        return '0 B';
-    }
-    if (bytes < 1024) {
-        return `${bytes} B`;
-    }
-    const kb = bytes / 1024;
-    if (kb < 1024) {
-        return `${Math.round(kb)} KB`;
-    }
-
-    return `${(kb / 1024).toFixed(1)} MB`;
-}
-
-/** Compact month span from two ISO dates, e.g. "ene 2026 → jun 2026" (or one month). */
-function coverageSpan(from: string | null, to: string | null): string | null {
-    if (from === null || to === null) {
-        return null;
-    }
-    const fmt = (iso: string): string =>
-        new Date(iso).toLocaleDateString('es', { month: 'short', year: 'numeric' });
-    const a = fmt(from);
-    const b = fmt(to);
-
-    return a === b ? a : `${a} → ${b}`;
-}
 
 /** Spanish relative time for a last-synced timestamp. */
 function timeAgo(iso: string | null): string {
@@ -183,74 +155,73 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
             </div>
 
             {open && (
-                <div className="ir-absolute ir-right-0 ir-top-full ir-z-50 ir-mt-1 ir-w-80 ir-rounded-lg ir-border ir-bg-card ir-p-3 ir-shadow-lg">
-                    <div className="ir-mb-2 ir-flex ir-items-center ir-justify-between">
+                <div className="ir-absolute ir-right-0 ir-top-full ir-z-50 ir-mt-1 ir-w-[26rem] ir-max-w-[92vw] ir-rounded-xl ir-border ir-bg-card ir-shadow-lg">
+                    <div className="ir-flex ir-items-center ir-justify-between ir-border-b ir-px-4 ir-py-3">
                         <span className="ir-text-sm ir-font-semibold">Sincronización</span>
-                        <span className="ir-text-xs ir-text-muted-foreground">{monthLabel}</span>
+                        <span className="ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground">{monthLabel}</span>
                     </div>
 
                     {siteId === null ? (
-                        <p className="ir-text-xs ir-text-muted-foreground">Selecciona un sitio para sincronizar sus fuentes.</p>
+                        <p className="ir-px-4 ir-py-4 ir-text-xs ir-text-muted-foreground">Selecciona un sitio para sincronizar sus fuentes.</p>
                     ) : sources.length === 0 ? (
-                        <p className="ir-text-xs ir-text-muted-foreground">Este sitio no tiene fuentes de datos configuradas.</p>
+                        <p className="ir-px-4 ir-py-4 ir-text-xs ir-text-muted-foreground">Este sitio no tiene fuentes de datos configuradas.</p>
                     ) : (
-                        <ul className="ir-space-y-1.5">
+                        <ul className="ir-max-h-[60vh] ir-divide-y ir-overflow-y-auto">
                             {sources.map((source) => {
                                 const busy = syncing && !isDone(source);
-                                return (
-                                    <li key={source.id} className="ir-flex ir-items-start ir-gap-2 ir-rounded ir-px-1 ir-py-1">
-                                        <span className="ir-mt-0.5 ir-shrink-0">
-                                            {busy ? (
-                                                <RefreshCw className="ir-size-3.5 ir-animate-spin ir-text-muted-foreground" />
-                                            ) : source.status === 'error' ? (
-                                                <X className="ir-size-3.5 ir-text-red-500" />
-                                            ) : source.status === 'ok' ? (
-                                                <Check className="ir-size-3.5 ir-text-emerald-500" />
-                                            ) : (
-                                                <Clock className="ir-size-3.5 ir-text-muted-foreground" />
-                                            )}
-                                        </span>
-                                        <div className="ir-min-w-0 ir-flex-1">
-                                            <div className="ir-flex ir-items-center ir-justify-between ir-gap-2">
-                                                <span className="ir-truncate ir-text-sm ir-font-medium">{label(source.type)}</span>
-                                                <span className="ir-flex ir-shrink-0 ir-items-center ir-gap-1 ir-text-[11px] ir-text-muted-foreground">
-                                                    {busy ? 'sincronizando…' : timeAgo(source.last_synced_at)}
-                                                    {!syncing && (
-                                                        <button
-                                                            type="button"
-                                                            title="Sincronizar solo esta fuente"
-                                                            onClick={() => start([source.id])}
-                                                            className="ir-rounded ir-p-0.5 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
-                                                        >
-                                                            <RefreshCw className="ir-size-3" />
-                                                        </button>
-                                                    )}
-                                                </span>
-                                            </div>
-                                            {(() => {
-                                                const cov = coverageOf(source.id);
-                                                const span = cov !== undefined ? coverageSpan(cov.period_start, cov.period_end) : null;
+                                const cov = coverageOf(source.id);
+                                const span = cov !== undefined ? coverageSpan(cov.period_start, cov.period_end) : null;
+                                const gaps = cov?.gaps ?? [];
 
-                                                return (
-                                                    <p className="ir-mt-0.5 ir-text-[11px] ir-text-muted-foreground">
-                                                        {span === null
-                                                            ? 'Sin datos almacenados'
-                                                            : `Datos: ${span} · ${cov?.snapshots ?? 0} ${cov?.snapshots === 1 ? 'periodo' : 'periodos'} · ${humanBytes(cov?.bytes ?? 0)}`}
-                                                    </p>
-                                                );
-                                            })()}
-                                            {source.status === 'error' && source.last_error !== null && !busy && (
-                                                <p className="ir-mt-0.5 ir-text-[11px] ir-text-red-600">{source.last_error}</p>
-                                            )}
-                                            {source.type === 'mainwp' && source.child_reports_active === false && !busy && (
-                                                <p className="ir-mt-0.5 ir-text-[11px] ir-text-amber-600">
-                                                    Instala «MainWP Child Reports» en el sitio para registrar el historial de actualizaciones.
-                                                </p>
-                                            )}
-                                            {source.type === 'mainwp' && source.child_reports_active === true && !busy && (
-                                                <p className="ir-mt-0.5 ir-text-[11px] ir-text-emerald-600">Child Reports activo · registrando historial.</p>
+                                return (
+                                    <li key={source.id} className="ir-px-4 ir-py-2.5">
+                                        <div className="ir-flex ir-items-center ir-gap-2">
+                                            <span className="ir-shrink-0">
+                                                {busy ? (
+                                                    <RefreshCw className="ir-size-4 ir-animate-spin ir-text-muted-foreground" />
+                                                ) : source.status === 'error' ? (
+                                                    <X className="ir-size-4 ir-text-red-500" />
+                                                ) : source.status === 'ok' ? (
+                                                    <Check className="ir-size-4 ir-text-emerald-500" />
+                                                ) : (
+                                                    <Clock className="ir-size-4 ir-text-muted-foreground" />
+                                                )}
+                                            </span>
+                                            <span className="ir-min-w-0 ir-flex-1 ir-truncate ir-text-sm ir-font-medium">{label(source.type)}</span>
+                                            <span className="ir-shrink-0 ir-text-[11px] ir-text-muted-foreground">{busy ? 'sincronizando…' : timeAgo(source.last_synced_at)}</span>
+                                            {!syncing && (
+                                                <button
+                                                    type="button"
+                                                    title="Sincronizar solo esta fuente"
+                                                    onClick={() => start([source.id])}
+                                                    className="ir-shrink-0 ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                                                >
+                                                    <RefreshCw className="ir-size-3.5" />
+                                                </button>
                                             )}
                                         </div>
+
+                                        {/* Coverage + storage, indented under the name. */}
+                                        <p className="ir-mt-1 ir-pl-6 ir-text-[11px] ir-text-muted-foreground">
+                                            {span === null
+                                                ? 'Sin datos almacenados'
+                                                : `${span} · ${cov?.snapshots ?? 0} ${cov?.snapshots === 1 ? 'periodo' : 'periodos'} · ${humanBytes(cov?.bytes ?? 0)}`}
+                                        </p>
+
+                                        {gaps.length > 0 && !busy && (
+                                            <p className="ir-mt-1 ir-flex ir-items-start ir-gap-1 ir-pl-6 ir-text-[11px] ir-text-amber-600">
+                                                <AlertTriangle className="ir-mt-px ir-size-3 ir-shrink-0" />
+                                                <span>Faltan datos: {formatGaps(gaps)}</span>
+                                            </p>
+                                        )}
+                                        {source.status === 'error' && source.last_error !== null && !busy && (
+                                            <p className="ir-mt-1 ir-pl-6 ir-text-[11px] ir-text-red-600">{source.last_error}</p>
+                                        )}
+                                        {source.type === 'mainwp' && source.child_reports_active === false && !busy && (
+                                            <p className="ir-mt-1 ir-pl-6 ir-text-[11px] ir-text-amber-600">
+                                                Instala «MainWP Child Reports» en el sitio para registrar el historial de actualizaciones.
+                                            </p>
+                                        )}
                                     </li>
                                 );
                             })}
@@ -258,27 +229,22 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
                     )}
 
                     {sources.length > 0 && (
-                        <>
+                        <div className="ir-border-t ir-px-4 ir-py-3">
                             {totalSnapshots > 0 && (
-                                <p className="ir-mt-2 ir-text-[11px] ir-text-muted-foreground">
-                                    Almacenamiento del sitio: {humanBytes(totalBytes)} · {totalSnapshots} {totalSnapshots === 1 ? 'periodo' : 'periodos'} guardados.
+                                <p className="ir-mb-2 ir-text-[11px] ir-text-muted-foreground">
+                                    Almacenamiento del sitio: <strong>{humanBytes(totalBytes)}</strong> · {totalSnapshots} {totalSnapshots === 1 ? 'periodo' : 'periodos'} guardados.
                                 </p>
                             )}
-                            <div className="ir-mt-2.5 ir-flex ir-items-center ir-justify-between ir-border-t ir-pt-2">
+                            <div className="ir-flex ir-items-center ir-justify-between">
                                 <span className="ir-text-[11px] ir-text-muted-foreground">
                                     {errorCount > 0 ? `${okCount} ok · ${errorCount} con error` : `${okCount}/${sources.length} al día`}
                                 </span>
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => start()}
-                                    disabled={siteId === null || syncing}
-                                    className="ir-h-7 ir-px-2 ir-text-xs"
-                                >
+                                <Button variant="outline" onClick={() => start()} disabled={siteId === null || syncing} className="ir-h-7 ir-px-2.5 ir-text-xs">
                                     <RefreshCw className={cn('ir-size-3.5', syncing && 'ir-animate-spin')} />
-                                    Sincronizar ahora
+                                    Sincronizar todo
                                 </Button>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             )}

@@ -1,24 +1,13 @@
-import { ChevronDown, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ChevronDown, RefreshCw } from 'lucide-react';
 import { type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { useConnectors, useDataSourceCoverage, useSiteDataSources, useSyncSiteById } from '../api';
-
-/** Compact month span from two ISO dates, e.g. "ene 2026 → jun 2026". */
-function coverageSpan(from: string | null, to: string | null): string | null {
-    if (from === null || to === null) {
-        return null;
-    }
-    const fmt = (iso: string): string => new Date(iso).toLocaleDateString('es', { month: 'short', year: 'numeric' });
-    const a = fmt(from);
-    const b = fmt(to);
-
-    return a === b ? a : `${a} → ${b}`;
-}
+import { coverageSpan, formatGaps } from '../lib/coverage';
 
 /**
  * Sync control for a report row: "Sincronizar periodo" (all sources) plus a dropdown to
- * sync just one source, each showing the date span it already has stored — so you don't
- * re-pull a source whose data you already have (CLAUDE.md §3.1 decoupling).
+ * sync just one source, each showing the date span it already has stored (and any gaps) —
+ * so you don't re-pull a source whose data you already have (CLAUDE.md §3.1 decoupling).
  */
 export function PeriodSyncMenu({ siteId, periodStart, periodEnd }: { siteId: number; periodStart: string; periodEnd: string }): ReactElement {
     const [open, setOpen] = useState(false);
@@ -30,11 +19,7 @@ export function PeriodSyncMenu({ siteId, periodStart, periodEnd }: { siteId: num
     const { data: connectors = [] } = useConnectors();
 
     const label = (type: string): string => connectors.find((connector) => connector.key === type)?.label ?? type;
-    const spanOf = (id: number): string | null => {
-        const cov = coverage.find((entry) => entry.data_source_id === id);
-
-        return cov !== undefined ? coverageSpan(cov.period_start, cov.period_end) : null;
-    };
+    const coverageOf = (id: number): (typeof coverage)[number] | undefined => coverage.find((entry) => entry.data_source_id === id);
 
     useEffect(() => {
         if (!open) {
@@ -83,18 +68,26 @@ export function PeriodSyncMenu({ siteId, periodStart, periodEnd }: { siteId: num
                     <p className="ir-mb-1 ir-px-1 ir-text-[11px] ir-font-medium ir-text-muted-foreground">Sincronizar solo una fuente</p>
                     <ul className="ir-space-y-0.5">
                         {sources.map((source) => {
-                            const span = spanOf(source.id);
+                            const cov = coverageOf(source.id);
+                            const span = cov !== undefined ? coverageSpan(cov.period_start, cov.period_end) : null;
+                            const gaps = cov?.gaps ?? [];
 
                             return (
                                 <li key={source.id}>
                                     <button
                                         type="button"
                                         onClick={() => run([source.id])}
-                                        className="ir-flex ir-w-full ir-items-center ir-justify-between ir-gap-2 ir-rounded ir-px-1.5 ir-py-1 ir-text-left hover:ir-bg-muted"
+                                        className="ir-flex ir-w-full ir-items-center ir-justify-between ir-gap-2 ir-rounded ir-px-1.5 ir-py-1.5 ir-text-left hover:ir-bg-muted"
                                     >
                                         <span className="ir-min-w-0">
                                             <span className="ir-block ir-truncate ir-text-xs ir-font-medium">{label(source.type)}</span>
                                             <span className="ir-block ir-text-[11px] ir-text-muted-foreground">{span === null ? 'sin datos' : `datos: ${span}`}</span>
+                                            {gaps.length > 0 && (
+                                                <span className="ir-mt-0.5 ir-flex ir-items-center ir-gap-1 ir-text-[11px] ir-text-amber-600">
+                                                    <AlertTriangle className="ir-size-3 ir-shrink-0" />
+                                                    faltan: {formatGaps(gaps, 2)}
+                                                </span>
+                                            )}
                                         </span>
                                         <RefreshCw className="ir-size-3 ir-shrink-0 ir-text-muted-foreground" />
                                     </button>

@@ -18,6 +18,7 @@ use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -68,39 +69,112 @@ final class DataSourceController extends Controller
 
     /**
      * Stored-data coverage per source for a site: the date span of its snapshots, how many
-     * there are, and roughly how much storage they use. Lets the admin see what's already
-     * synced (so they don't re-pull data they have) and gauge storage for retention (§5).
+     * there are, roughly how much storage they use, AND the GAPS — uncovered day-ranges
+     * inside the span (e.g. a month that was never synced). Lets the admin see exactly what
+     * is already synced, spot a missing period before generating a report, and gauge storage
+     * for retention (§5). The span (period_start→period_end) alone hides interior gaps, so we
+     * report them explicitly.
      */
     public function coverage(Site $site): JsonResponse
     {
         $sources = $site->dataSources()->get();
+        $sourceIds = $sources->pluck('id');
 
-        // One grouped query: span, count, and approximate stored bytes (LENGTH of the JSON
-        // payload text) per source. Tenant-safe — only this site's sources.
+        // Count + approximate stored bytes (LENGTH of the JSON payload) per source.
         $rows = MetricSnapshot::query()
-            ->whereIn('data_source_id', $sources->pluck('id'))
-            ->selectRaw('data_source_id, MIN(period_start) as period_start, MAX(period_end) as period_end, COUNT(*) as snapshots, COALESCE(SUM(LENGTH(payload)), 0) as bytes')
+            ->whereIn('data_source_id', $sourceIds)
+            ->selectRaw('data_source_id, COUNT(*) as snapshots, COALESCE(SUM(LENGTH(payload)), 0) as bytes')
             ->groupBy('data_source_id')
             ->get()
             ->keyBy('data_source_id');
 
-        $coverage = $sources->map(static function (DataSource $source) use ($rows): array {
+        // The actual stored periods per source, for the span + gap detection.
+        $periods = MetricSnapshot::query()
+            ->whereIn('data_source_id', $sourceIds)
+            ->orderBy('period_start')
+            ->get(['data_source_id', 'period_start', 'period_end'])
+            ->groupBy('data_source_id');
+
+        $coverage = $sources->map(function (DataSource $source) use ($rows, $periods): array {
             $row = $rows->get($source->id);
-            $from = $row?->getAttribute('period_start');
-            $to = $row?->getAttribute('period_end');
             $snapshots = $row?->getAttribute('snapshots');
             $bytes = $row?->getAttribute('bytes');
 
+            /** @var Collection<int, MetricSnapshot> $list */
+            $list = $periods->get($source->id) ?? collect();
+            $intervals = array_values($list
+                ->map(static fn (MetricSnapshot $s): array => ['start' => $s->period_start, 'end' => $s->period_end])
+                ->all());
+
+            $first = $list->first()?->period_start;
+            $last = $list->max('period_end');
+            $gaps = $this->gaps($intervals);
+
             return [
                 'data_source_id' => $source->id,
-                'period_start' => $from instanceof Carbon ? $from->toIso8601String() : null,
-                'period_end' => $to instanceof Carbon ? $to->toIso8601String() : null,
+                'period_start' => $first instanceof Carbon ? $first->toIso8601String() : null,
+                'period_end' => $last instanceof Carbon ? $last->toIso8601String() : null,
                 'snapshots' => is_numeric($snapshots) ? (int) $snapshots : 0,
                 'bytes' => is_numeric($bytes) ? (int) $bytes : 0,
+                'gaps' => array_map(static fn (array $gap): array => [
+                    'start' => $gap['start']->toIso8601String(),
+                    'end' => $gap['end']->toIso8601String(),
+                ], $gaps),
             ];
         });
 
         return response()->json($coverage->values()->all());
+    }
+
+    /**
+     * Uncovered day-ranges between a source's stored periods. Snapshots are merged at day
+     * granularity (adjacent days count as continuous); any whole day between two covered
+     * stretches with no snapshot is a gap — so a skipped month shows up even though the
+     * overall span looks continuous.
+     *
+     * @param  list<array{start: Carbon, end: Carbon}>  $intervals
+     * @return list<array{start: Carbon, end: Carbon}>
+     */
+    private function gaps(array $intervals): array
+    {
+        if (count($intervals) < 2) {
+            return [];
+        }
+
+        // Normalize to day boundaries and sort by start.
+        $days = array_map(static fn (array $i): array => [
+            'start' => $i['start']->copy()->startOfDay(),
+            'end' => $i['end']->copy()->startOfDay(),
+        ], $intervals);
+        usort($days, static fn (array $a, array $b): int => $a['start']->getTimestamp() <=> $b['start']->getTimestamp());
+
+        // Merge overlapping / adjacent intervals.
+        $merged = [$days[0]];
+        foreach (array_slice($days, 1) as $interval) {
+            $lastIndex = count($merged) - 1;
+            $continues = $interval['start']->lessThanOrEqualTo($merged[$lastIndex]['end']->copy()->addDay());
+
+            if ($continues) {
+                if ($interval['end']->greaterThan($merged[$lastIndex]['end'])) {
+                    $merged[$lastIndex]['end'] = $interval['end'];
+                }
+            } else {
+                $merged[] = $interval;
+            }
+        }
+
+        // The holes between consecutive merged stretches.
+        $gaps = [];
+        for ($i = 0; $i < count($merged) - 1; $i++) {
+            $gapStart = $merged[$i]['end']->copy()->addDay();
+            $gapEnd = $merged[$i + 1]['start']->copy()->subDay();
+
+            if ($gapStart->lessThanOrEqualTo($gapEnd)) {
+                $gaps[] = ['start' => $gapStart, 'end' => $gapEnd];
+            }
+        }
+
+        return $gaps;
     }
 
     private function childReportsActive(DataSource $source): ?bool

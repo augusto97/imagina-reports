@@ -275,12 +275,19 @@ export function useSiteDataSources(siteId: number | null, options?: { refetchInt
     });
 }
 
+export interface CoverageGap {
+    start: string;
+    end: string;
+}
+
 export interface DataSourceCoverage {
     data_source_id: number;
     period_start: string | null;
     period_end: string | null;
     snapshots: number;
     bytes: number;
+    // Uncovered day-ranges inside the span (e.g. a month that was never synced).
+    gaps: CoverageGap[];
 }
 
 /** Stored-data coverage per source (date span, snapshot count, approx storage). */

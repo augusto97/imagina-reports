@@ -206,4 +206,49 @@ class DataSourceApiTest extends TestCase
         $this->assertNull($blank['period_start']);
         $this->assertSame(0, $blank['snapshots']);
     }
+
+    public function test_coverage_reports_a_gap_for_a_missing_month(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Ga4]);
+
+        // January and March synced; FEBRUARY was never synced → a gap.
+        foreach (['2026-01-01' => '2026-01-31 23:59:59', '2026-03-01' => '2026-03-31 23:59:59'] as $start => $end) {
+            MetricSnapshot::factory()->create([
+                'agency_id' => $this->agency->id,
+                'data_source_id' => $source->id,
+                'period_start' => $start,
+                'period_end' => $end,
+                'payload' => ['status' => 'ok', 'error' => null, 'metrics' => ['ga4.sessions' => 1]],
+            ]);
+        }
+
+        $covered = collect($this->getJson("/api/v1/sites/{$site->id}/data-sources/coverage")->assertOk()->json())
+            ->firstWhere('data_source_id', $source->id);
+
+        $this->assertCount(1, $covered['gaps']);
+        $this->assertStringStartsWith('2026-02-01', (string) $covered['gaps'][0]['start']);
+        $this->assertStringStartsWith('2026-02-28', (string) $covered['gaps'][0]['end']);
+    }
+
+    public function test_coverage_has_no_gaps_for_contiguous_months(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Ga4]);
+
+        foreach (['2026-01-01' => '2026-01-31 23:59:59', '2026-02-01' => '2026-02-28 23:59:59'] as $start => $end) {
+            MetricSnapshot::factory()->create([
+                'agency_id' => $this->agency->id,
+                'data_source_id' => $source->id,
+                'period_start' => $start,
+                'period_end' => $end,
+                'payload' => ['status' => 'ok', 'error' => null, 'metrics' => ['ga4.sessions' => 1]],
+            ]);
+        }
+
+        $covered = collect($this->getJson("/api/v1/sites/{$site->id}/data-sources/coverage")->assertOk()->json())
+            ->firstWhere('data_source_id', $source->id);
+
+        $this->assertSame([], $covered['gaps']);
+    }
 }

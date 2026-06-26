@@ -1028,7 +1028,7 @@ export function EditorScreen(): ReactElement {
             </div>
 
             {galleryOpen && (
-                <Modal onClose={() => setGalleryOpen(false)} className="ir-max-w-5xl">
+                <Modal onClose={() => setGalleryOpen(false)} className="ir-max-w-6xl xl:ir-max-w-7xl">
                     <Card
                         title="Plantillas prediseñadas"
                         description="Elige un punto de partida. Si ya tienes contenido, te preguntaremos si añadirla debajo o reemplazar."
@@ -1038,7 +1038,7 @@ export function EditorScreen(): ReactElement {
                             </Button>
                         }
                     >
-                        <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-3">
+                        <div className="ir-grid ir-max-h-[70vh] ir-gap-3 ir-overflow-y-auto sm:ir-grid-cols-2 lg:ir-grid-cols-3 xl:ir-grid-cols-4">
                             <button
                                 type="button"
                                 onClick={() => {
