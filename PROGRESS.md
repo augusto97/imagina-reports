@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**📄 MÉTRICAS CALCULADAS NIVEL SITIO + REPORTE EN HOJAS PAGINADAS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.67):** dos cosas. **(1) CALC METRICS NIVEL SITIO:** además de agencia, ahora se pueden definir métricas calculadas **solo para
+un sitio** (`ir_sites.calculated_metrics` json). Precedencia **agencia → sitio → reporte** (la más específica gana por clave) vía
+`ReportGenerator::mergeCalcDefinitions(...$lists)` variádico, aplicada en generación, PreviewController y MetricCatalogController (el catálogo
+fusiona ambos ámbitos; sitio gana en colisión de clave). Backend: `CalculatedMetricController::updateSite` (`PUT /sites/{site}/calculated-metrics`)
++ helper `validatedMetrics`. Front: el modal `CalcMetricsModal` (autocontenido) tiene un **toggle de ámbito** (Agencia / Solo este sitio), preview
+en vivo «= valor» evaluando AMBOS ámbitos contra datos reales del periodo, y guardado por ámbito. `EditorScreen` ya no mantiene estado de calc
+(borrados addCalc/updateCalc/removeCalc/saveCalcMetrics y el mapeo a `fullCatalog`); el catálogo del servidor ya trae las `calc.*`. **(2) REPORTE
+EN HOJAS:** la vista web del informe (y el PDF) ahora renderiza cada página como una **hoja de papel** (`.ir-sheet`: card blanca con borde+sombra
+sobre un canalón gris, footer «Página N de M»). En pantalla las hojas se apilan como papel; en impresión el cromo desaparece y cada hoja = una
+página física (los márgenes `@page` mandan, sin doble margen). Resuelve «no sé hasta dónde llega una página o dónde se corta para impresión».
+`BlockList` recibe `paginated` (default true; el preview inline del GA4 builder usa `paginated={false}`). 356 tests PHP + 15 vitest +
+stan/pint/ts/lint/build limpios. **PENDIENTE/PROPUESTO:** portada/contraportada dedicadas — hoy se logran poniendo el bloque `header` solo en la
+pág. 0 (portada) y un `cta` solo en la última (contraportada); ofrecí bloques `cover`/`back_cover` full-bleed como siguiente paso si el owner lo confirma.
+
+
 **🧮 MÉTRICAS CALCULADAS REUTILIZABLES (NIVEL AGENCIA) + MODAL + PREVIEW EN VIVO (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release ~v1.13.66):** decisión: NO meterlas en el constructor GA4 (capas distintas); en su lugar se hicieron **reutilizables a nivel de
 agencia** (defines `ingresos / pedidos = ticket medio` UNA vez y aparece en TODOS los reportes) y se movieron a un **modal amplio** (botón
