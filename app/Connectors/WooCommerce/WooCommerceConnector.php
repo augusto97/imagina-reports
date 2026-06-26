@@ -21,6 +21,7 @@ use App\Models\DataSource;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -34,6 +35,8 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
     use ParsesValues;
 
     private const API_PREFIX = '/wp-json/wc/v3';
+
+    private const ANALYTICS_PREFIX = '/wp-json/wc-analytics';
 
     public function key(): string
     {
@@ -56,7 +59,7 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
 
     public function metricCatalog(DataSource $source): MetricCatalog
     {
-        return new MetricCatalog(
+        $catalog = new MetricCatalog(
             new MetricDefinition('woocommerce.revenue', 'Ingresos (brutos)', MetricType::Scalar, 'currency'),
             new MetricDefinition('woocommerce.net_revenue', 'Ingresos netos', MetricType::Scalar, 'currency'),
             new MetricDefinition('woocommerce.orders', 'Pedidos', MetricType::Scalar, 'count'),
@@ -71,6 +74,97 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
             new MetricDefinition('woocommerce.orders_by_date', 'Pedidos por día', MetricType::Series, 'count'),
             new MetricDefinition('woocommerce.top_products', 'Productos más vendidos', MetricType::Table),
         );
+
+        // Datasets (multi-measure, bounded top-N) from the WC Analytics API, so the editor
+        // can model sales blocks like Looker (filter/break/sort) — §10 dashboards.
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            $measures = [];
+            foreach ($spec['measures'] as $measureKey => $measure) {
+                $measures[] = ['key' => $measureKey, 'label' => $measure['label'], 'unit' => $measure['unit']];
+            }
+
+            $dimensionLabels = [];
+            foreach ($spec['dimensions'] as $dimensionKey => $dimension) {
+                $dimensionLabels[$dimensionKey] = $dimension['label'];
+            }
+
+            $catalog = $catalog->with(new MetricDefinition(
+                $key,
+                $spec['label'],
+                MetricType::Dataset,
+                null,
+                array_keys($spec['dimensions']),
+                null,
+                $measures,
+                $dimensionLabels,
+            ));
+        }
+
+        return $catalog;
+    }
+
+    /**
+     * Bounded multi-measure datasets from the WooCommerce **Analytics** API
+     * (`/wp-json/wc-analytics/reports/...`, aggregated server-side, §3.3). Each report is
+     * single-dimension (product / category / coupon) with several additive measures; the
+     * DatasetEngine then shapes them (filter/break/sort/limit). `dimensions` map field key →
+     * the row path holding the label; `measures` map field key → the row path + cast/unit.
+     * The exact field names are a documented assumption — see PROGRESS Open Questions.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     endpoint: string,
+     *     order_by: string,
+     *     dimensions: array<string, array{label: string, path: string}>,
+     *     measures: array<string, array{label: string, path: string, unit: string|null, cast: 'int'|'float'}>,
+     *     limit: int,
+     * }>
+     */
+    private function datasetSpecs(): array
+    {
+        return [
+            'woocommerce.products' => [
+                'label' => 'Productos (ventas)',
+                'endpoint' => '/reports/products',
+                'order_by' => 'items_sold',
+                'dimensions' => [
+                    'product' => ['label' => 'Producto', 'path' => 'extended_info.name'],
+                ],
+                'measures' => [
+                    'items_sold' => ['label' => 'Unidades vendidas', 'path' => 'items_sold', 'unit' => 'count', 'cast' => 'int'],
+                    'net_revenue' => ['label' => 'Ingresos netos', 'path' => 'net_revenue', 'unit' => 'currency', 'cast' => 'float'],
+                    'orders_count' => ['label' => 'Pedidos', 'path' => 'orders_count', 'unit' => 'count', 'cast' => 'int'],
+                ],
+                'limit' => 100,
+            ],
+            'woocommerce.categories' => [
+                'label' => 'Categorías (ventas)',
+                'endpoint' => '/reports/categories',
+                'order_by' => 'items_sold',
+                'dimensions' => [
+                    'category' => ['label' => 'Categoría', 'path' => 'extended_info.name'],
+                ],
+                'measures' => [
+                    'items_sold' => ['label' => 'Unidades vendidas', 'path' => 'items_sold', 'unit' => 'count', 'cast' => 'int'],
+                    'net_revenue' => ['label' => 'Ingresos netos', 'path' => 'net_revenue', 'unit' => 'currency', 'cast' => 'float'],
+                    'orders_count' => ['label' => 'Pedidos', 'path' => 'orders_count', 'unit' => 'count', 'cast' => 'int'],
+                ],
+                'limit' => 100,
+            ],
+            'woocommerce.coupons' => [
+                'label' => 'Cupones (uso)',
+                'endpoint' => '/reports/coupons',
+                'order_by' => 'orders_count',
+                'dimensions' => [
+                    'coupon' => ['label' => 'Cupón', 'path' => 'extended_info.code'],
+                ],
+                'measures' => [
+                    'amount' => ['label' => 'Descuento', 'path' => 'amount', 'unit' => 'currency', 'cast' => 'float'],
+                    'orders_count' => ['label' => 'Pedidos', 'path' => 'orders_count', 'unit' => 'count', 'cast' => 'int'],
+                ],
+                'limit' => 100,
+            ],
+        ];
     }
 
     public function setupGuide(): SetupGuide
@@ -132,7 +226,67 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
             'woocommerce.top_products' => $this->topProducts($top->failed() ? null : $top->json()),
         ];
 
+        // Datasets (WC Analytics): only the requested ones (all when sync asks for everything).
+        $datasetKeys = $requestedMetrics === []
+            ? array_keys($this->datasetSpecs())
+            : array_values(array_intersect($requestedMetrics, array_keys($this->datasetSpecs())));
+
+        $this->collectDatasets($source, $period, $datasetKeys, $metrics);
+
         return MetricSet::ok($metrics);
+    }
+
+    /**
+     * Run each requested dataset's WC Analytics report → named rows
+     * (`{<dimension>, <measures…>}`) the DatasetEngine shapes. Best-effort and OPTIONAL:
+     * the WC Analytics API may be absent on a store, so a failure is logged and skipped —
+     * it never degrades the base sales metrics to partial (§3.1: a missing optional source
+     * must not break the report).
+     *
+     * @param  list<string>  $keys
+     * @param  array<string, mixed>  $metrics
+     */
+    private function collectDatasets(DataSource $source, Period $period, array $keys, array &$metrics): void
+    {
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            if (! in_array($key, $keys, true)) {
+                continue;
+            }
+
+            try {
+                $response = $this->analyticsClient($source)->get($spec['endpoint'], [
+                    'after' => $period->start->toIso8601String(),
+                    'before' => $period->end->toIso8601String(),
+                    'per_page' => $spec['limit'],
+                    'orderby' => $spec['order_by'],
+                    'order' => 'desc',
+                    'extended_info' => 'true',
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('WooCommerce dataset fetch failed.', ['dataset' => $key, 'error' => $e->getMessage()]);
+
+                continue;
+            }
+
+            if ($response->failed()) {
+                Log::warning('WooCommerce dataset request failed.', ['dataset' => $key, 'status' => $response->status()]);
+
+                continue;
+            }
+
+            $metrics[$key] = array_map(function (array $row) use ($spec): array {
+                $entry = [];
+                foreach ($spec['dimensions'] as $dimensionKey => $dimension) {
+                    $entry[$dimensionKey] = $this->toStr(Arr::get($row, $dimension['path']));
+                }
+                foreach ($spec['measures'] as $measureKey => $measure) {
+                    $value = Arr::get($row, $measure['path']);
+                    $entry[$measureKey] = $measure['cast'] === 'int' ? $this->toInt($value) : $this->toFloat($value);
+                }
+
+                return $entry;
+            }, $this->listOf($response->json()));
+        }
     }
 
     /**
@@ -175,10 +329,24 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
 
     private function client(DataSource $source): PendingRequest
     {
+        return $this->httpFor($source, self::API_PREFIX);
+    }
+
+    /**
+     * Client for the WooCommerce **Analytics** API (`/wp-json/wc-analytics`), which powers
+     * the dataset reports (products/categories/coupons) with server-side aggregation.
+     */
+    private function analyticsClient(DataSource $source): PendingRequest
+    {
+        return $this->httpFor($source, self::ANALYTICS_PREFIX);
+    }
+
+    private function httpFor(DataSource $source, string $prefix): PendingRequest
+    {
         $config = $source->config ?? [];
         $credentials = $source->credentials ?? [];
 
-        return Http::baseUrl(rtrim($this->toStr(Arr::get($config, 'store_url')), '/').self::API_PREFIX)
+        return Http::baseUrl(rtrim($this->toStr(Arr::get($config, 'store_url')), '/').$prefix)
             ->withBasicAuth(
                 $this->toStr(Arr::get($credentials, 'consumer_key')),
                 $this->toStr(Arr::get($credentials, 'consumer_secret')),

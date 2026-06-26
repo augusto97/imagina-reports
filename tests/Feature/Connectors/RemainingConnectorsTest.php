@@ -72,6 +72,30 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame([['name' => 'Camiseta', 'quantity' => 5]], $set->get('woocommerce.top_products'));
     }
 
+    public function test_woocommerce_builds_the_products_dataset_from_analytics(): void
+    {
+        Http::fake([
+            '*/wc-analytics/reports/products*' => Http::response([
+                ['items_sold' => 42, 'net_revenue' => '1234.50', 'orders_count' => 18, 'extended_info' => ['name' => 'Camiseta']],
+                ['items_sold' => 10, 'net_revenue' => '300.00', 'orders_count' => 7, 'extended_info' => ['name' => 'Gorra']],
+            ]),
+            // Base sales/top must succeed first (a base failure aborts before datasets run).
+            '*/reports/sales*' => Http::response([[]]),
+            '*/reports/top_sellers*' => Http::response([]),
+        ]);
+
+        $set = (new WooCommerceConnector)->fetch(
+            $this->source(DataSourceType::WooCommerce, ['store_url' => 'https://shop.test'], ['consumer_key' => 'ck', 'consumer_secret' => 'cs']),
+            $this->period(),
+            ['woocommerce.products'],
+        );
+
+        $this->assertSame([
+            ['product' => 'Camiseta', 'items_sold' => 42, 'net_revenue' => 1234.5, 'orders_count' => 18],
+            ['product' => 'Gorra', 'items_sold' => 10, 'net_revenue' => 300.0, 'orders_count' => 7],
+        ], $set->get('woocommerce.products'));
+    }
+
     public function test_cloudflare_sums_graphql_groups(): void
     {
         Http::fake(['*' => Http::response([
