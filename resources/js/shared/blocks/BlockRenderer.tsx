@@ -22,8 +22,10 @@ import { cn } from '@shared/lib/utils';
 
 import { hexToHslString } from '@shared/lib/color';
 
+import { matchCountry } from './geo';
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
 import type { Block, BlockComponentProps, BlockLayout, BlockType } from './types';
+import { WorldChoropleth } from './WorldChoropleth';
 
 /* ------------------------------- prop helpers ------------------------------ */
 
@@ -633,8 +635,22 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
     const total = rows.reduce((sum, row) => sum + row.value, 0);
     const max = Math.max(0, ...rows.map((row) => row.value));
 
+    // Choropleth when the data is country-level: show the map if a majority of rows match a
+    // country (otherwise it's cities/regions and the ranked list alone is the honest view).
+    // `display` lets the editor force 'map' / 'list' / 'both' (default: auto = both).
+    const display = str(prop(block, 'display'), 'auto');
+    const matched = rows.filter((row) => matchCountry(row.label) !== null).length;
+    const showMap = display !== 'list' && matched > 0 && (display === 'map' || display === 'both' || matched >= Math.ceil(rows.length / 2));
+    const showList = display !== 'map';
+
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
+            {showMap && (
+                <div className="ir-mb-4">
+                    <WorldChoropleth rows={rows} />
+                </div>
+            )}
+            {showList && (
             <div className="ir-flex ir-flex-col ir-gap-2">
                 {rows.map((row, index) => (
                     <div key={index} className="ir-flex ir-items-center ir-gap-3 ir-text-sm">
@@ -650,6 +666,7 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
                     </div>
                 ))}
             </div>
+            )}
         </Section>
     );
 }

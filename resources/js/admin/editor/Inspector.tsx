@@ -450,6 +450,20 @@ export function Inspector({
                         </Field>
                     )}
 
+                    {block.type === 'geo_map' && (
+                        <Field label="Visualización">
+                            <select className={selectClass} value={str(block.props?.display) || 'auto'} onChange={(event) => setProp('display', event.target.value)}>
+                                <option value="auto">Automática (mapa si son países + lista)</option>
+                                <option value="map">Solo mapa</option>
+                                <option value="list">Solo lista (ranking)</option>
+                                <option value="both">Mapa y lista</option>
+                            </select>
+                            <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                                El mapa (coroplético) solo aplica a datos por país; para ciudades o regiones usa la lista.
+                            </p>
+                        </Field>
+                    )}
+
                     {block.type === 'control' && (
                         <>
                             <Field label="Etiqueta del filtro">
