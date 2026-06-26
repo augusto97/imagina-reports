@@ -1,15 +1,17 @@
-import { type ReactElement, useEffect } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
-import { applyBrandAccent, usePublicReport } from '@shared/lib/publicReport';
+import { PasswordPrompt } from '@shared/components/PasswordPrompt';
+import { applyBrandAccent, isPasswordRequired, isPrivate, usePublicReport } from '@shared/lib/publicReport';
 
 /**
  * The public report page (CLAUDE.md §11.2/§11.4). Fetches the frozen resolved
  * blocks by public token and renders them with the shared BlockList — the very
  * same view Browsershot prints to PDF. Sets `window.reportReady` when done.
  */
-export function ReportApp({ token }: { token: string }): ReactElement {
-    const { data, isLoading, isError } = usePublicReport(token);
+export function ReportApp({ token, printToken }: { token: string; printToken?: string }): ReactElement {
+    const [password, setPassword] = useState<string | undefined>(undefined);
+    const { data, isLoading, isError, error } = usePublicReport(token, { printToken, password });
 
     useEffect(() => {
         applyBrandAccent(data?.theme?.accent ?? data?.agency?.brand_color);
@@ -19,6 +21,14 @@ export function ReportApp({ token }: { token: string }): ReactElement {
             window.reportReady = true;
         }
     }, [data, isError]);
+
+    if (isPasswordRequired(error)) {
+        return <PasswordPrompt onSubmit={setPassword} error={password !== undefined} />;
+    }
+
+    if (isPrivate(error)) {
+        return <div className="ir-p-8 ir-text-sm ir-text-muted-foreground">Este informe es privado y no está disponible.</div>;
+    }
 
     if (isLoading) {
         return <div className="ir-p-8 ir-text-sm ir-text-muted-foreground">Cargando…</div>;

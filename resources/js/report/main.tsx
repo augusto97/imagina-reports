@@ -17,11 +17,12 @@ if (container === null) {
 }
 
 const token = container.dataset.token ?? '';
+const printToken = container.dataset.printToken ?? '';
 
 createRoot(container).render(
     <StrictMode>
         <QueryClientProvider client={queryClient}>
-            <ReportApp token={token} />
+            <ReportApp token={token} printToken={printToken} />
         </QueryClientProvider>
     </StrictMode>,
 );

@@ -8,6 +8,6 @@
 </head>
 <body>
     {{-- The shared BlockRenderer mounts here; Browsershot prints this same page (§10.7). --}}
-    <div id="ir-report-root" data-token="{{ $token }}"></div>
+    <div id="ir-report-root" data-token="{{ $token }}" data-print-token="{{ $printToken ?? '' }}"></div>
 </body>
 </html>

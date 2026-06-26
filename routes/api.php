@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportInsightsController;
 use App\Http\Controllers\Api\V1\ReportNarrativeController;
+use App\Http\Controllers\Api\V1\ReportSharingController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteAgentController;
@@ -123,6 +124,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'show'])->name('api.report-definitions.show');
     Route::put('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'update'])->name('api.report-definitions.update');
     Route::delete('report-definitions/{reportDefinition}', [ReportDefinitionController::class, 'destroy'])->name('api.report-definitions.destroy');
+    Route::put('report-definitions/{reportDefinition}/sharing', [ReportSharingController::class, 'update'])->name('api.report-definitions.sharing.update');
 
     Route::get('schedules', [ScheduleController::class, 'index'])->name('api.schedules.index');
     Route::post('schedules', [ScheduleController::class, 'store'])->name('api.schedules.store');

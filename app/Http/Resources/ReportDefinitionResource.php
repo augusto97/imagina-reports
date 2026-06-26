@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\ReportVisibility;
 use App\Models\ReportDefinition;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -32,6 +33,9 @@ final class ReportDefinitionResource extends JsonResource
             'recipients' => $definition->recipients ?? [],
             'theme' => $definition->theme,
             'filters' => $definition->filters,
+            'visibility' => ($definition->visibility ?? ReportVisibility::Public)->value,
+            'has_password' => is_string($definition->password_hash) && $definition->password_hash !== '',
+            'embed_domains' => $definition->embed_domains ?? [],
         ];
     }
 }

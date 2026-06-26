@@ -9,8 +9,10 @@ use App\Models\Client;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Models\Site;
+use App\Models\User;
 use App\Models\WorkLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class PublicReportEndpointTest extends TestCase
@@ -89,6 +91,92 @@ class PublicReportEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonPath('theme.accent', '#10b981')
             ->assertJsonPath('theme.density', 'compact');
+    }
+
+    public function test_a_private_report_is_forbidden_via_the_public_token(): void
+    {
+        $agency = Agency::factory()->create();
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'visibility' => 'private']);
+        $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")
+            ->assertForbidden();
+    }
+
+    public function test_a_private_report_renders_with_the_server_print_token(): void
+    {
+        $agency = Agency::factory()->create();
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'visibility' => 'private']);
+        $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+
+        // Browsershot carries the server-only print token, so the PDF still renders.
+        $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Print-Token' => $report->printToken()])
+            ->assertOk()
+            ->assertJsonPath('status', $report->status->value);
+    }
+
+    public function test_a_password_protected_report_demands_the_password(): void
+    {
+        $agency = Agency::factory()->create();
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $agency->id,
+            'visibility' => 'password',
+            'password_hash' => Hash::make('s3cret'),
+        ]);
+        $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+
+        // No password → 401 with the prompt flag.
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")
+            ->assertUnauthorized()
+            ->assertJsonPath('requires_password', true);
+
+        // Wrong password → still 401.
+        $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Report-Password' => 'nope'])
+            ->assertUnauthorized();
+
+        // Correct password → the report.
+        $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Report-Password' => 's3cret'])
+            ->assertOk();
+    }
+
+    public function test_an_agency_can_update_its_definition_sharing_settings(): void
+    {
+        $agency = Agency::factory()->create();
+        $user = User::factory()->create(['agency_id' => $agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/report-definitions/{$definition->id}/sharing", [
+                'visibility' => 'password',
+                'password' => 'letmein',
+                'embed_domains' => ['https://acme.com/dashboard', ' ACME.com ', 'partner.io'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('visibility', 'password')
+            ->assertJsonPath('has_password', true)
+            // Domains are normalised to bare, de-duplicated hosts.
+            ->assertJsonPath('embed_domains', ['acme.com', 'partner.io']);
+
+        $definition->refresh();
+        $this->assertTrue(Hash::check('letmein', (string) $definition->password_hash));
+    }
+
+    public function test_switching_away_from_password_visibility_clears_the_password(): void
+    {
+        $agency = Agency::factory()->create();
+        $user = User::factory()->create(['agency_id' => $agency->id]);
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $agency->id,
+            'visibility' => 'password',
+            'password_hash' => Hash::make('old'),
+        ]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/report-definitions/{$definition->id}/sharing", ['visibility' => 'public'])
+            ->assertOk()
+            ->assertJsonPath('has_password', false);
+
+        $this->assertNull($definition->refresh()->password_hash);
     }
 
     public function test_it_overlays_site_work_logs_in_period_onto_the_worklog_block(): void

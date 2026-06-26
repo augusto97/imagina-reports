@@ -77,6 +77,8 @@ export interface DataSourceDto {
     ingest_url?: string | null;
 }
 
+export type ReportVisibility = 'public' | 'password' | 'private';
+
 export interface ReportDefinitionDto {
     id: number;
     site_id: number;
@@ -84,6 +86,15 @@ export interface ReportDefinitionDto {
     template_id: number | null;
     locale: string;
     recipients: string[];
+    visibility: ReportVisibility;
+    has_password: boolean;
+    embed_domains: string[];
+}
+
+export interface ReportSharingPayload {
+    visibility: ReportVisibility;
+    password?: string | null;
+    embed_domains?: string[];
 }
 
 export interface ReportSummary {

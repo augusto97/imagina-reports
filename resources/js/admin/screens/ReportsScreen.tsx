@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
-import { FileDown, MessageSquare, PenLine, RefreshCw, RotateCw, Sparkles, Trash2 } from 'lucide-react';
+import { FileDown, Lock, MessageSquare, PenLine, RefreshCw, RotateCw, Share2, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
@@ -26,6 +26,7 @@ import {
     useUpdateReportDefinition,
 } from '../api';
 import { DataTable } from '../components/DataTable';
+import { ShareDialog } from '../components/ShareDialog';
 import { Button, Card, Field, Input } from '../components/ui';
 import type { ReportDefinitionDto, ReportSummary } from '../types';
 
@@ -172,6 +173,28 @@ function DefinitionRecipientsEditor({ definition }: { definition: ReportDefiniti
     );
 }
 
+/** A small inline pill showing a definition's sharing visibility (Etapa D). */
+function VisibilityTag({ definition }: { definition: ReportDefinitionDto }): ReactElement | null {
+    if (definition.visibility === 'public') {
+        return null;
+    }
+
+    const isPrivate = definition.visibility === 'private';
+    const Icon = isPrivate ? ShieldOff : Lock;
+
+    return (
+        <span
+            className={`ir-inline-flex ir-items-center ir-gap-1 ir-rounded-full ir-px-2 ir-py-0.5 ir-text-[10px] ir-font-medium ${
+                isPrivate ? 'ir-bg-danger/10 ir-text-danger' : 'ir-bg-warning/10 ir-text-warning'
+            }`}
+            title={isPrivate ? 'Privado' : 'Protegido con contraseña'}
+        >
+            <Icon className="ir-size-3" />
+            {isPrivate ? 'Privado' : 'Contraseña'}
+        </span>
+    );
+}
+
 /** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
 function parseRecipients(raw: string): string[] {
     return raw
@@ -196,6 +219,12 @@ export function ReportsScreen(): ReactElement {
         definitions.find((definition) => definition.id === definitionId)?.site_id ?? null;
     const deleteReport = useDeleteReport();
     const deleteDefinition = useDeleteReportDefinition();
+
+    // Sharing dialog (Etapa D): which definition's privacy is being edited.
+    const [sharingDefinition, setSharingDefinition] = useState<ReportDefinitionDto | null>(null);
+    // The public link points at the definition's most recent report token.
+    const latestTokenForDefinition = (definitionId: number): string | null =>
+        reports.find((report) => report.report_definition_id === definitionId)?.public_token ?? null;
 
     // Surface which template each definition uses, so the association is verifiable.
     const templateLabel = (templateId: number | null): string =>
@@ -490,10 +519,22 @@ export function ReportsScreen(): ReactElement {
                             <div key={definition.id} className="ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-border ir-p-3">
                                 <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
                                     <div className="ir-min-w-0">
-                                        <p className="ir-text-sm ir-font-medium">{definition.name}</p>
+                                        <p className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-medium">
+                                            {definition.name}
+                                            <VisibilityTag definition={definition} />
+                                        </p>
                                         <p className="ir-text-xs ir-text-muted-foreground">{siteLabel(definition.site_id)}</p>
                                     </div>
                                     <div className="ir-flex ir-items-center ir-gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            title="Compartir / privacidad"
+                                            onClick={() => setSharingDefinition(definition)}
+                                        >
+                                            <Share2 className="ir-size-3.5" />
+                                            <span className="ir-ml-1.5 ir-hidden sm:ir-inline">Compartir</span>
+                                        </Button>
                                         <span className="ir-text-xs ir-text-muted-foreground">Plantilla:</span>
                                         <select
                                             className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-sm"
@@ -637,6 +678,14 @@ export function ReportsScreen(): ReactElement {
                     </Card>
                 )}
             </div>
+
+            {sharingDefinition !== null && (
+                <ShareDialog
+                    definition={sharingDefinition}
+                    publicToken={latestTokenForDefinition(sharingDefinition.id)}
+                    onClose={() => setSharingDefinition(null)}
+                />
+            )}
         </div>
     );
 }

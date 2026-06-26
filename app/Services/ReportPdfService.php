@@ -19,7 +19,9 @@ final readonly class ReportPdfService
 
     public function generate(Report $report): string
     {
-        $url = route('report.public', ['token' => $report->public_token]);
+        // The server-only print token bypasses the visibility/password gate (Etapa D)
+        // so private and password-protected reports still render to PDF.
+        $url = route('report.public', ['token' => $report->public_token, 'print' => $report->printToken()]);
 
         $pdf = $this->renderer->render($url);
 

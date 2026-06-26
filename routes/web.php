@@ -2,15 +2,24 @@
 
 declare(strict_types=1);
 
+use App\Models\Report;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 Route::get('/', static fn (): View => view('welcome'));
 
 // Public report page (CLAUDE.md §10.7/§11.2): rendered by the shared BlockRenderer,
-// served to clients and printed to PDF by Browsershot via this same URL.
-Route::get('/reports/{token}', static fn (string $token): View => view('report', ['token' => $token]))
-    ->name('report.public');
+// served to clients and printed to PDF by Browsershot via this same URL. A valid `print`
+// token (server-only, passed by the PDF renderer) is injected so the print page can read
+// password-protected reports; arbitrary visitors get no print token (Etapa D).
+Route::get('/reports/{token}', static function (string $token, Request $request): View {
+    $report = Report::query()->withoutGlobalScopes()->where('public_token', $token)->first();
+    $print = $request->query('print');
+    $printToken = $report !== null && is_string($print) && hash_equals($report->printToken(), $print) ? $print : '';
+
+    return view('report', ['token' => $token, 'printToken' => $printToken]);
+})->name('report.public');
 
 // Admin SPA (CLAUDE.md §11.1). Client-side routing handles everything under /admin.
 Route::view('/admin/{any?}', 'admin')

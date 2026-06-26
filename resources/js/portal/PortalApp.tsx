@@ -1,7 +1,8 @@
 import { type ReactElement, useEffect, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
-import { applyBrandAccent, usePublicReport, useReportPeriods } from '@shared/lib/publicReport';
+import { PasswordPrompt } from '@shared/components/PasswordPrompt';
+import { applyBrandAccent, isPasswordRequired, isPrivate, usePublicReport, useReportPeriods } from '@shared/lib/publicReport';
 
 function formatPeriod(start: string, end: string): string {
     return `${start.slice(0, 10)} → ${end.slice(0, 10)}`;
@@ -14,13 +15,22 @@ function formatPeriod(start: string, end: string): string {
  */
 export function PortalApp({ token }: { token: string }): ReactElement {
     const [current, setCurrent] = useState(token);
-    const { data, isLoading, isError } = usePublicReport(current);
-    const { data: periods = [] } = useReportPeriods(token);
+    const [password, setPassword] = useState<string | undefined>(undefined);
+    const { data, isLoading, isError, error } = usePublicReport(current, { password });
+    const { data: periods = [] } = useReportPeriods(token, { password });
 
     useEffect(() => {
         // Per-report accent overrides the agency brand when set.
         applyBrandAccent(data?.theme?.accent ?? data?.agency?.brand_color);
     }, [data]);
+
+    if (isPasswordRequired(error)) {
+        return <PasswordPrompt onSubmit={setPassword} error={password !== undefined} />;
+    }
+
+    if (isPrivate(error)) {
+        return <div className="ir-p-8 ir-text-sm ir-text-muted-foreground">Este informe es privado y no está disponible.</div>;
+    }
 
     if (isLoading) {
         return <div className="ir-p-8 ir-text-sm ir-text-muted-foreground">Cargando…</div>;

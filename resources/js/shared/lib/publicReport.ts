@@ -1,8 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 
 import type { Block } from '../blocks/types';
 import { api } from './api';
 import { hexToHslString } from './color';
+
+/** True when the report is password-protected and the supplied password was missing/wrong (Etapa D). */
+export function isPasswordRequired(error: unknown): boolean {
+    return (
+        axios.isAxiosError(error) &&
+        error.response?.status === 401 &&
+        (error.response.data as { requires_password?: boolean } | undefined)?.requires_password === true
+    );
+}
+
+/** True when the report is private and not reachable via its public token (Etapa D). */
+export function isPrivate(error: unknown): boolean {
+    return axios.isAxiosError(error) && error.response?.status === 403;
+}
 
 export interface PublicReportAgency {
     name: string;
@@ -36,25 +51,36 @@ export interface ReportPeriod {
     period_end: string;
 }
 
-export function usePublicReport(token: string) {
+export function usePublicReport(token: string, options?: { printToken?: string; password?: string }) {
     return useQuery({
-        queryKey: ['public-report', token],
+        queryKey: ['public-report', token, options?.password ?? ''],
         queryFn: async () => {
-            const { data } = await api.get<PublicReport>(`/public/reports/${token}`);
+            const headers: Record<string, string> = {};
+            // The PDF renderer carries the server-only print token (bypasses the gate);
+            // the portal sends the password the visitor typed (Etapa D).
+            if (options?.printToken != null && options.printToken !== '') headers['X-Print-Token'] = options.printToken;
+            if (options?.password != null && options.password !== '') headers['X-Report-Password'] = options.password;
+
+            const { data } = await api.get<PublicReport>(`/public/reports/${token}`, { headers });
 
             return data;
         },
+        retry: false,
     });
 }
 
-export function useReportPeriods(token: string) {
+export function useReportPeriods(token: string, options?: { password?: string }) {
     return useQuery({
-        queryKey: ['report-periods', token],
+        queryKey: ['report-periods', token, options?.password ?? ''],
         queryFn: async () => {
-            const { data } = await api.get<ReportPeriod[]>(`/public/reports/${token}/periods`);
+            const headers: Record<string, string> = {};
+            if (options?.password != null && options.password !== '') headers['X-Report-Password'] = options.password;
+
+            const { data } = await api.get<ReportPeriod[]>(`/public/reports/${token}/periods`, { headers });
 
             return data;
         },
+        retry: false,
     });
 }
 

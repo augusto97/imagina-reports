@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ReportVisibility;
 use App\Models\Concerns\BelongsToAgency;
 use Database\Factories\ReportDefinitionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,6 +25,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array<int, array<string, mixed>>|null $calculated_metrics
  * @property array<string, mixed>|null $theme
  * @property array<array-key, list<array<string, mixed>>>|null $filters
+ * @property ReportVisibility $visibility
+ * @property string|null $password_hash
+ * @property array<int, string>|null $embed_domains
  * @property string $locale
  * @property array<string, mixed>|null $schedule
  * @property array<int, string>|null $recipients
@@ -48,6 +52,8 @@ class ReportDefinition extends Model
         'calculated_metrics',
         'theme',
         'filters',
+        'visibility',
+        'embed_domains',
         'locale',
         'schedule',
         'recipients',
@@ -64,6 +70,8 @@ class ReportDefinition extends Model
             'calculated_metrics' => 'array',
             'theme' => 'array',
             'filters' => 'array',
+            'visibility' => ReportVisibility::class,
+            'embed_domains' => 'array',
             'schedule' => 'array',
             'recipients' => 'array',
         ];

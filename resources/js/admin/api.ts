@@ -14,6 +14,7 @@ import type {
     Connector,
     DataSourceDto,
     ReportDefinitionDto,
+    ReportSharingPayload,
     ReportSummary,
     ReportComment,
     ReportTemplateDto,
@@ -390,6 +391,16 @@ export function useUpdateReportDefinition() {
     return useMutation({
         mutationFn: ({ id, ...payload }: { id: number; template_id?: number | null; name?: string; recipients?: string[] }) =>
             api.put<ReportDefinitionDto>(`/report-definitions/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
+export function useUpdateReportSharing() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: number } & ReportSharingPayload) =>
+            api.put<ReportDefinitionDto>(`/report-definitions/${id}/sharing`, payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
     });
 }

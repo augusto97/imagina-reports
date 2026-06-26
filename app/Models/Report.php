@@ -90,4 +90,16 @@ class Report extends Model
     {
         return $this->hasMany(ReportComment::class)->latest();
     }
+
+    /**
+     * Server-only token that lets the PDF renderer bypass the portal's visibility/password
+     * gate (CLAUDE.md §10.7/Etapa D). Derived from the public token + the app key, so it
+     * can't be forged without the server secret; only the PDF service ever produces it.
+     */
+    public function printToken(): string
+    {
+        $key = config('app.key');
+
+        return hash_hmac('sha256', 'print:'.$this->public_token, is_string($key) ? $key : '');
+    }
 }
