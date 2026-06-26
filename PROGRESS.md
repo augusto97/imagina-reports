@@ -7,6 +7,14 @@
 ---
 
 ## Where I left off (read me first)
+**🔧 SYNC SELECTIVO POR FUENTE (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release ~v1.13.55+):** ya no obliga a re-sincronizar
+TODAS las fuentes. `PreviewController::sync` acepta `data_source_ids` opcional → sincroniza solo esas (acotado por la relación del sitio, así
+un id de otro sitio se ignora); sin el parámetro = todas (como antes). Front: `useSyncSite` manda `data_source_ids`; en el panel `SyncStatus`
+cada fuente tiene su botón «Sincronizar solo esta fuente» (icono refresh) y el contador de progreso cuenta solo las fuentes objetivo. Útil
+cuando agregas una fuente nueva o una métrica nueva para un reporte de un mes pasado: sincronizas solo la que falta. 340 tests + stan + pint
++ ts + lint + build limpios. (Nota: el botón global «Sincronizar» del editor y el de la fila de reporte siguen sincronizando todo a propósito.)
+
+
 **✅ PENDIENTES SUELTOS DE DASHBOARDS — CERRADOS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release ~v1.13.55):**
 los tres que quedaban. **(1) Datasets de WooCommerce** vía la **WC Analytics API** (`/wp-json/wc-analytics/reports/...`): tres datasets
 (`woocommerce.products`/`categories`/`coupons`), una dimensión + medidas aditivas (items_sold, net_revenue, orders_count / amount),
