@@ -104,6 +104,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::delete('work-logs/{workLog}', [SiteWorkLogController::class, 'destroy'])->name('api.work-logs.destroy');
 
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
+    Route::get('sites/{site}/data-sources/coverage', [DataSourceController::class, 'coverage'])->name('api.sites.data-sources.coverage');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');

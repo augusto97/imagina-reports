@@ -17,6 +17,7 @@ use App\Models\MetricSnapshot;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -63,6 +64,43 @@ final class DataSourceController extends Controller
         $source->setAttribute('is_push', true);
         $source->setAttribute('push_token', $source->push_token);
         $source->setAttribute('ingest_url', route('api.ingest.store', ['token' => $source->push_token]));
+    }
+
+    /**
+     * Stored-data coverage per source for a site: the date span of its snapshots, how many
+     * there are, and roughly how much storage they use. Lets the admin see what's already
+     * synced (so they don't re-pull data they have) and gauge storage for retention (§5).
+     */
+    public function coverage(Site $site): JsonResponse
+    {
+        $sources = $site->dataSources()->get();
+
+        // One grouped query: span, count, and approximate stored bytes (LENGTH of the JSON
+        // payload text) per source. Tenant-safe — only this site's sources.
+        $rows = MetricSnapshot::query()
+            ->whereIn('data_source_id', $sources->pluck('id'))
+            ->selectRaw('data_source_id, MIN(period_start) as period_start, MAX(period_end) as period_end, COUNT(*) as snapshots, COALESCE(SUM(LENGTH(payload)), 0) as bytes')
+            ->groupBy('data_source_id')
+            ->get()
+            ->keyBy('data_source_id');
+
+        $coverage = $sources->map(static function (DataSource $source) use ($rows): array {
+            $row = $rows->get($source->id);
+            $from = $row?->getAttribute('period_start');
+            $to = $row?->getAttribute('period_end');
+            $snapshots = $row?->getAttribute('snapshots');
+            $bytes = $row?->getAttribute('bytes');
+
+            return [
+                'data_source_id' => $source->id,
+                'period_start' => $from instanceof Carbon ? $from->toIso8601String() : null,
+                'period_end' => $to instanceof Carbon ? $to->toIso8601String() : null,
+                'snapshots' => is_numeric($snapshots) ? (int) $snapshots : 0,
+                'bytes' => is_numeric($bytes) ? (int) $bytes : 0,
+            ];
+        });
+
+        return response()->json($coverage->values()->all());
     }
 
     private function childReportsActive(DataSource $source): ?bool

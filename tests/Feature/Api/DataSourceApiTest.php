@@ -8,6 +8,7 @@ use App\Enums\DataSourceType;
 use App\Models\Agency;
 use App\Models\Client;
 use App\Models\DataSource;
+use App\Models\MetricSnapshot;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -167,5 +168,42 @@ class DataSourceApiTest extends TestCase
 
         $this->putJson("/api/v1/data-sources/{$source->id}", ['config' => []])->assertNotFound();
         $this->deleteJson("/api/v1/data-sources/{$source->id}")->assertNotFound();
+    }
+
+    public function test_coverage_reports_the_stored_data_span_and_size_per_source(): void
+    {
+        $site = $this->site();
+        $source = DataSource::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Ga4]);
+        $empty = DataSource::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Gsc]);
+
+        MetricSnapshot::factory()->create([
+            'agency_id' => $this->agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => '2026-04-01',
+            'period_end' => '2026-04-30',
+            'payload' => ['status' => 'ok', 'error' => null, 'metrics' => ['ga4.sessions' => 10]],
+        ]);
+        MetricSnapshot::factory()->create([
+            'agency_id' => $this->agency->id,
+            'data_source_id' => $source->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'payload' => ['status' => 'ok', 'error' => null, 'metrics' => ['ga4.sessions' => 20]],
+        ]);
+
+        $response = $this->getJson("/api/v1/sites/{$site->id}/data-sources/coverage")->assertOk();
+
+        $covered = collect($response->json())->firstWhere('data_source_id', $source->id);
+        $this->assertNotNull($covered);
+        $this->assertStringStartsWith('2026-04-01', (string) $covered['period_start']);
+        $this->assertStringStartsWith('2026-06-30', (string) $covered['period_end']);
+        $this->assertSame(2, $covered['snapshots']);
+        $this->assertGreaterThan(0, $covered['bytes']);
+
+        // A source with no snapshots is still listed, with nulls/zeros.
+        $blank = collect($response->json())->firstWhere('data_source_id', $empty->id);
+        $this->assertNotNull($blank);
+        $this->assertNull($blank['period_start']);
+        $this->assertSame(0, $blank['snapshots']);
     }
 }

@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
-import { FileDown, Lock, MessageSquare, PenLine, RefreshCw, RotateCw, Share2, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
+import { FileDown, Lock, MessageSquare, PenLine, RotateCw, Share2, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
@@ -11,7 +11,6 @@ import {
     useGenerateReport,
     useRegenerateReportNarrative,
     useReportComments,
-    useSyncSiteById,
     useReportDefinitions,
     useReportInsights,
     useReportTemplates,
@@ -26,6 +25,7 @@ import {
     useUpdateReportDefinition,
 } from '../api';
 import { DataTable } from '../components/DataTable';
+import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
 import { Button, Card, Field, Input } from '../components/ui';
 import type { ReportDefinitionDto, ReportSummary } from '../types';
@@ -211,7 +211,6 @@ export function ReportsScreen(): ReactElement {
     const createDefinition = useCreateReportDefinition();
     const updateDefinition = useUpdateReportDefinition();
     const generate = useGenerateReport();
-    const syncSite = useSyncSiteById();
     const downloadPdf = useDownloadReportPdf();
 
     // Map a report's definition → its site, so per-row sync/regenerate know where to act.
@@ -339,21 +338,11 @@ export function ReportsScreen(): ReactElement {
                             ⚠ {hidden.length} sin datos
                         </span>
                         {siteId !== null && (
-                            <button
-                                type="button"
-                                className="ir-text-left ir-text-xs ir-text-primary hover:ir-underline"
-                                onClick={() =>
-                                    syncSite.mutate({
-                                        siteId,
-                                        period_start: report.period_start.slice(0, 10),
-                                        period_end: report.period_end.slice(0, 10),
-                                    })
-                                }
-                                disabled={syncSite.isPending}
-                            >
-                                <RefreshCw className="ir-mr-1 ir-inline ir-size-3" />
-                                {syncSite.isPending && syncSite.variables?.siteId === siteId ? 'Sincronizando…' : 'Sincronizar periodo'}
-                            </button>
+                            <PeriodSyncMenu
+                                siteId={siteId}
+                                periodStart={report.period_start.slice(0, 10)}
+                                periodEnd={report.period_end.slice(0, 10)}
+                            />
                         )}
                     </div>
                 );
@@ -630,11 +619,6 @@ export function ReportsScreen(): ReactElement {
                 {send.isSuccess && (
                     <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">
                         Envío encolado: el reporte se enviará por email a los destinatarios.
-                    </p>
-                )}
-                {syncSite.isSuccess && (
-                    <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">
-                        Sincronización encolada. Espera unos segundos y pulsa «Regenerar» en ese reporte.
                     </p>
                 )}
                 {approve.isSuccess && (

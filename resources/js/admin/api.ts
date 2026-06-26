@@ -248,6 +248,24 @@ export function useSiteDataSources(siteId: number | null, options?: { refetchInt
     });
 }
 
+export interface DataSourceCoverage {
+    data_source_id: number;
+    period_start: string | null;
+    period_end: string | null;
+    snapshots: number;
+    bytes: number;
+}
+
+/** Stored-data coverage per source (date span, snapshot count, approx storage). */
+export function useDataSourceCoverage(siteId: number | null, options?: { refetchInterval?: number | false }) {
+    return useQuery({
+        queryKey: ['data-source-coverage', siteId],
+        queryFn: () => get<DataSourceCoverage[]>(`/sites/${siteId}/data-sources/coverage`),
+        enabled: siteId !== null,
+        refetchInterval: options?.refetchInterval ?? false,
+    });
+}
+
 export function useCreateDataSource(siteId: number) {
     const queryClient = useQueryClient();
 
@@ -735,8 +753,8 @@ export function useSyncSite(siteId: number) {
 /** Sync a site for a period from anywhere (siteId provided per call, e.g. a report row). */
 export function useSyncSiteById() {
     return useMutation({
-        mutationFn: ({ siteId, period_start, period_end }: { siteId: number; period_start: string; period_end: string }) =>
-            api.post<{ queued: number }>(`/sites/${siteId}/sync`, { period_start, period_end }).then((r) => r.data),
+        mutationFn: ({ siteId, period_start, period_end, data_source_ids }: { siteId: number; period_start: string; period_end: string; data_source_ids?: number[] }) =>
+            api.post<{ queued: number }>(`/sites/${siteId}/sync`, { period_start, period_end, data_source_ids }).then((r) => r.data),
     });
 }
 

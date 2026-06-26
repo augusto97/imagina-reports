@@ -2,10 +2,39 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Check, ChevronDown, Clock, RefreshCw, X } from 'lucide-react';
 import { cn } from '@shared/lib/utils';
 import { Button } from '../components/ui';
-import { useConnectors, useSiteDataSources, useSyncSite } from '../api';
+import { useConnectors, useDataSourceCoverage, useSiteDataSources, useSyncSite } from '../api';
 import type { DataSourceDto } from '../types';
 
 const SYNC_TIMEOUT_MS = 45000;
+
+/** Humanize a byte count: 0 B / 12 KB / 3.4 MB. */
+function humanBytes(bytes: number): string {
+    if (bytes <= 0) {
+        return '0 B';
+    }
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+        return `${Math.round(kb)} KB`;
+    }
+
+    return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+/** Compact month span from two ISO dates, e.g. "ene 2026 → jun 2026" (or one month). */
+function coverageSpan(from: string | null, to: string | null): string | null {
+    if (from === null || to === null) {
+        return null;
+    }
+    const fmt = (iso: string): string =>
+        new Date(iso).toLocaleDateString('es', { month: 'short', year: 'numeric' });
+    const a = fmt(from);
+    const b = fmt(to);
+
+    return a === b ? a : `${a} → ${b}`;
+}
 
 /** Spanish relative time for a last-synced timestamp. */
 function timeAgo(iso: string | null): string {
@@ -70,7 +99,12 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
     const syncing = baseline !== null;
     const sync = useSyncSite(siteId ?? 0);
     const { data: sources = [] } = useSiteDataSources(siteId, { refetchInterval: syncing ? 2000 : false });
+    const { data: coverage = [] } = useDataSourceCoverage(siteId, { refetchInterval: syncing ? 2000 : false });
     const { data: connectors = [] } = useConnectors();
+
+    const coverageOf = (id: number): (typeof coverage)[number] | undefined => coverage.find((entry) => entry.data_source_id === id);
+    const totalBytes = coverage.reduce((sum, entry) => sum + entry.bytes, 0);
+    const totalSnapshots = coverage.reduce((sum, entry) => sum + entry.snapshots, 0);
 
     const label = (type: string): string => connectors.find((connector) => connector.key === type)?.label ?? type;
     const isDone = (source: DataSourceDto): boolean =>
@@ -193,6 +227,18 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
                                                     )}
                                                 </span>
                                             </div>
+                                            {(() => {
+                                                const cov = coverageOf(source.id);
+                                                const span = cov !== undefined ? coverageSpan(cov.period_start, cov.period_end) : null;
+
+                                                return (
+                                                    <p className="ir-mt-0.5 ir-text-[11px] ir-text-muted-foreground">
+                                                        {span === null
+                                                            ? 'Sin datos almacenados'
+                                                            : `Datos: ${span} · ${cov?.snapshots ?? 0} ${cov?.snapshots === 1 ? 'periodo' : 'periodos'} · ${humanBytes(cov?.bytes ?? 0)}`}
+                                                    </p>
+                                                );
+                                            })()}
                                             {source.status === 'error' && source.last_error !== null && !busy && (
                                                 <p className="ir-mt-0.5 ir-text-[11px] ir-text-red-600">{source.last_error}</p>
                                             )}
@@ -212,20 +258,27 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
                     )}
 
                     {sources.length > 0 && (
-                        <div className="ir-mt-2.5 ir-flex ir-items-center ir-justify-between ir-border-t ir-pt-2">
-                            <span className="ir-text-[11px] ir-text-muted-foreground">
-                                {errorCount > 0 ? `${okCount} ok · ${errorCount} con error` : `${okCount}/${sources.length} al día`}
-                            </span>
-                            <Button
-                                variant="ghost"
-                                onClick={() => start()}
-                                disabled={siteId === null || syncing}
-                                className="ir-h-7 ir-px-2 ir-text-xs"
-                            >
-                                <RefreshCw className={cn('ir-size-3.5', syncing && 'ir-animate-spin')} />
-                                Sincronizar ahora
-                            </Button>
-                        </div>
+                        <>
+                            {totalSnapshots > 0 && (
+                                <p className="ir-mt-2 ir-text-[11px] ir-text-muted-foreground">
+                                    Almacenamiento del sitio: {humanBytes(totalBytes)} · {totalSnapshots} {totalSnapshots === 1 ? 'periodo' : 'periodos'} guardados.
+                                </p>
+                            )}
+                            <div className="ir-mt-2.5 ir-flex ir-items-center ir-justify-between ir-border-t ir-pt-2">
+                                <span className="ir-text-[11px] ir-text-muted-foreground">
+                                    {errorCount > 0 ? `${okCount} ok · ${errorCount} con error` : `${okCount}/${sources.length} al día`}
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => start()}
+                                    disabled={siteId === null || syncing}
+                                    className="ir-h-7 ir-px-2 ir-text-xs"
+                                >
+                                    <RefreshCw className={cn('ir-size-3.5', syncing && 'ir-animate-spin')} />
+                                    Sincronizar ahora
+                                </Button>
+                            </div>
+                        </>
                     )}
                 </div>
             )}
