@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🧮 MÉTRICAS CALCULADAS REUTILIZABLES (NIVEL AGENCIA) + MODAL + PREVIEW EN VIVO (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release ~v1.13.66):** decisión: NO meterlas en el constructor GA4 (capas distintas); en su lugar se hicieron **reutilizables a nivel de
+agencia** (defines `ingresos / pedidos = ticket medio` UNA vez y aparece en TODOS los reportes) y se movieron a un **modal amplio** (botón
+«Métricas calculadas» en la barra del editor) porque la sección del sidebar era muy pequeña. Backend: `ir_agencies.calculated_metrics` (json);
+`CalculatedMetricController` (`PUT /agency/calculated-metrics`, `POST /sites/{site}/calc-preview`); `ReportGenerator::mergeCalcDefinitions`
+(agencia + reporte, el reporte gana por clave) usado en generación Y en PreviewController; `MetricCatalogController` expone las de agencia como
+`calc.*` (binding picker). El editor de calculadas muestra «= valor» en vivo con datos reales (PreviewController devuelve `calc_values`). Front:
+botón en barra → modal con `CalcMetricsEditor` (sembrado desde la agencia, guarda a la agencia, invalida catálogo); quitada la sección del
+sidebar; ya NO se guardan en la plantilla (compat hacia atrás: las de plantilla/definición existentes siguen funcionando al generar). 354
+tests PHP (+CalculatedMetricTest) + 15 vitest + stan/pint/ts/lint/build limpios. **SIGUIENTE: desplegar.** (Sigue pendiente decidir si además
+se quieren a nivel SITIO; hoy son a nivel agencia.)
+
+
 **🔎 HUECOS DE COBERTURA + MODAL PLANTILLAS ANCHO + PANEL SYNC LIMPIO + FIX CI (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release ~v1.13.60):** cuatro cosas. **(1) FIX CI:** el job Backend fallaba porque `EmbedRouteTest` renderiza un blade con `@vite` y el job
 no compila el frontend (no hay manifest) → 500. Arreglado con `withoutVite()` en el test (verificado borrando el manifest local). Los correos
