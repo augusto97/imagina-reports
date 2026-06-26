@@ -4,6 +4,7 @@ import {
     Calendar,
     Clock,
     Copy,
+    Filter,
     FunctionSquare,
     Globe,
     Layers,
@@ -60,7 +61,7 @@ import { hexToHslString } from "@shared/lib/color";
 import { SyncStatus } from "./SyncStatus";
 
 import { Button, Card, Field, Input, Modal } from "../components/ui";
-import type { CatalogEntry, ReportTheme } from "../types";
+import type { CatalogEntry, PageFilters, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
 import {
@@ -70,6 +71,7 @@ import {
     sampleData,
 } from "./blockFactory";
 import { BlockPalette, BLOCK_META } from "./BlockPalette";
+import { PageFiltersPanel } from "./PageFiltersPanel";
 import { CalcMetricsEditor } from "./CalcMetricsEditor";
 import { GALLERY } from "./templateGallery";
 import { Inspector } from "./Inspector";
@@ -167,6 +169,8 @@ export function EditorScreen(): ReactElement {
     const [pageCount, setPageCount] = useState(1);
     // Per-report theme (accent + density).
     const [theme, setTheme] = useState<ReportTheme>({});
+    // Page/dashboard filters (design-time), keyed by scope (`all` or page index).
+    const [pageFilters, setPageFilters] = useState<PageFilters>({});
     // Collapsible side panels — let the canvas take (almost) the whole workspace.
     // Panels start open on desktop, closed on phones (they overlay the canvas there).
     const wideViewport = typeof window !== "undefined" && window.innerWidth >= 1024;
@@ -223,6 +227,7 @@ export function EditorScreen(): ReactElement {
             resetBlocks([makeBlock("header")]);
             setCalcMetrics([]);
             setTheme({});
+            setPageFilters({});
             setSelectedId(null);
             setErrors([]);
         }
@@ -238,6 +243,7 @@ export function EditorScreen(): ReactElement {
             resetBlocks(loaded.length > 0 ? loaded : [makeBlock("header")]);
             setCalcMetrics(editingTemplate.calculated_metrics ?? []);
             setTheme(editingTemplate.theme ?? {});
+            setPageFilters(editingTemplate.filters ?? {});
             setSelectedId(null);
             setErrors([]);
         }
@@ -277,6 +283,7 @@ export function EditorScreen(): ReactElement {
                 {
                     blocks,
                     calculated_metrics: calcMetrics,
+                    filters: pageFilters,
                     ...monthPeriod(month),
                 },
                 { onSuccess: (result) => setPreview(result) },
@@ -285,7 +292,7 @@ export function EditorScreen(): ReactElement {
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [siteId, blocks, calcMetrics, month]);
+    }, [siteId, blocks, calcMetrics, month, pageFilters]);
 
     const loadDefaultTemplate = (): void => {
         defaultTpl.mutate(undefined, {
@@ -495,11 +502,14 @@ export function EditorScreen(): ReactElement {
         // Only send a theme when something is set, so an unstyled template stays null.
         const themePayload =
             theme.accent != null || theme.density != null ? theme : null;
+        // Only persist filters when some scope actually has rules.
+        const filtersPayload = Object.keys(pageFilters).length > 0 ? pageFilters : null;
         const payload = {
             name,
             blocks,
             calculated_metrics: calcMetrics,
             theme: themePayload,
+            filters: filtersPayload,
         };
         if (editingTemplateId !== null) {
             update.mutate(payload, handlers);
@@ -548,11 +558,12 @@ export function EditorScreen(): ReactElement {
             {
                 blocks,
                 calculated_metrics: calcMetrics,
+                filters: pageFilters,
                 ...monthPeriod(month),
             },
             { onSuccess: (result) => setPreview(result) },
         );
-    }, [siteId, blocks, calcMetrics, month, runPreview]);
+    }, [siteId, blocks, calcMetrics, month, pageFilters, runPreview]);
 
     const hasRealData = siteId !== null && preview_ !== null;
     const renderData: Record<string, unknown> = {};
@@ -793,6 +804,10 @@ export function EditorScreen(): ReactElement {
                                 onUpdate={updateCalc}
                                 onRemove={removeCalc}
                             />
+                        </Section>
+
+                        <Section title="Filtros de página" icon={<Filter className="ir-size-4" />} defaultOpen={false}>
+                            <PageFiltersPanel catalog={catalog} currentPage={currentPage} filters={pageFilters} onChange={setPageFilters} />
                         </Section>
 
                         <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />} defaultOpen={false}>

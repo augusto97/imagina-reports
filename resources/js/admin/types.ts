@@ -1,3 +1,7 @@
+import type { DatasetFilter } from '@shared/blocks/types';
+
+export type { DatasetFilter };
+
 export interface Client {
     id: number;
     name: string;
@@ -139,12 +143,20 @@ export interface ReportTheme {
     density?: 'normal' | 'compact' | null;
 }
 
+/**
+ * Page/dashboard filters (CLAUDE.md §10 dashboards): keyed by scope — `all` applies to
+ * every page, a numeric page index applies to that page only. Block-level filters then
+ * override these per dimension (block wins).
+ */
+export type PageFilters = Record<string, DatasetFilter[]>;
+
 export interface ReportTemplateDto {
     id: number;
     name: string;
     blocks: unknown[];
     calculated_metrics: { key: string; label: string; formula: string }[];
     theme?: ReportTheme | null;
+    filters?: PageFilters | null;
     is_default: boolean;
     locale: string;
 }

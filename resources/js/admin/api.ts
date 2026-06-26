@@ -13,6 +13,7 @@ import type {
     Client,
     Connector,
     DataSourceDto,
+    PageFilters,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportSummary,
@@ -654,7 +655,7 @@ export function useCreateReportTemplate() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null; filters?: PageFilters | null }) =>
             api.post<ReportTemplateDto>('/report-templates', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-templates'] }),
     });
@@ -664,7 +665,7 @@ export function useUpdateReportTemplate(id: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null }) =>
+        mutationFn: (payload: { name: string; blocks: Block[]; calculated_metrics?: CalcMetric[]; theme?: ReportTheme | null; filters?: PageFilters | null }) =>
             api.put<ReportTemplateDto>(`/report-templates/${id}`, payload).then((r) => r.data),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ['report-templates'] });
@@ -715,7 +716,7 @@ export interface CalcMetric {
 /** Resolve a draft layout against a site + period into REAL metric data (CLAUDE.md §11.3). */
 export function usePreview(siteId: number) {
     return useMutation({
-        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string; calculated_metrics?: CalcMetric[] }) =>
+        mutationFn: (payload: { blocks: Block[]; period_start?: string; period_end?: string; calculated_metrics?: CalcMetric[]; filters?: PageFilters }) =>
             api.post<PreviewResult>(`/sites/${siteId}/preview`, payload).then((r) => r.data),
     });
 }
