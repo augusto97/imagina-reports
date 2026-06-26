@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**📅 RANGOS FLEXIBLES DE REPORTE (semana/trimestre/año/personalizado) + MATCH EXACTO DE SNAPSHOT (2026-06-26, rama
+`claude/github-app-analysis-a7b2bd`, release ~v1.13.58):** responde «¿cómo hago un reporte de un trimestre / año completo / semana pasada /
+rango personalizado?». **Modelo correcto (no-BI, §3.3):** los connectores agregan EN ORIGEN para CUALQUIER rango → la forma exacta y precisa
+es **sincronizar el rango y reportar el rango** (una llamada devuelve totales/top-N/series correctos del span entero). Cambios: **(1)**
+`MetricBagLoader` ahora **prefiere el snapshot cuyo periodo coincide EXACTO** (mismo día inicio+fin) antes de caer al overlapping más reciente
+→ así un reporte anual usa el snapshot sincronizado del año, no un snapshot mensual que solo solapa (que daría 1 mes silenciosamente). **(2)**
+Presets compartidos `RANGE_PRESETS` (semana pasada, este mes, mes pasado, últimos 3/6 meses, este año, año pasado) en `shared/lib/dateRanges`.
+**(3)** Form «Generar reporte»: selector «Rango rápido» que setea Desde/Hasta + cuando el rango no tiene datos, botón **«Sincronizar este
+rango»** que sincroniza el sitio para ese span exacto ahí mismo. **(4)** Dashboard en vivo: mismos presets en el selector del cliente,
+acotados a los datos disponibles. 343 tests PHP (+MetricBagLoaderTest: exacto gana sobre overlap, y fallback) + 15 vitest + stan/pint/ts/lint/
+build limpios. **LÍMITE HONESTO (documentado):** combinar snapshots mensuales ya guardados en un trimestre/año al vuelo NO se hace —
+promedios/tasas/top-N no se pueden fusionar bien en cliente (sería motor BI). Se sincroniza el span que se quiere reportar. **SIGUIENTE: desplegar.**
+
+
 **📦 COBERTURA/ALMACENAMIENTO DE DATOS POR FUENTE + SYNC SELECTIVO EN REPORTES (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release ~v1.13.57):** dos cosas. **(1)** Nuevo endpoint `GET /sites/{site}/data-sources/coverage` (`DataSourceController::coverage`): una
 query agrupada → por fuente `{period_start, period_end, snapshots, bytes}` (bytes = `LENGTH(payload)` del JSON; proxy de almacenamiento).
