@@ -7,6 +7,25 @@
 ---
 
 ## Where I left off (read me first)
+**🎉 DASHBOARDS — ETAPA D COMPLETA (D.1–D.4): compartir/privacidad + embebido + modo dashboard en vivo + tokens (2026-06-26, rama
+`claude/github-app-analysis-a7b2bd`, sin release aún — sería ~v1.13.54):** cerrada la Etapa D entera. **D.1 Compartir/privacidad:** las
+definiciones llevan `visibility` (público/contraseña/privado), `password_hash` y `embed_domains`. Los endpoints públicos (reporte + portal)
+**gatean** con un `ShareGate` compartido: privado→403, contraseña→401 hasta acertar. El **PDF nunca se rompe**: Browsershot lleva un
+`print_token` HMAC (solo-servidor, = hash del public_token + app key) que salta el gate. UI admin `ShareDialog` (botón «Compartir» por
+definición): selector de visibilidad, copiar enlace, contraseña, dominios; pill de estado en la fila. Front: `PasswordPrompt` compartido →
+report + portal piden contraseña en 401 y muestran aviso de privado en 403. **D.2 Embebido privado:** ruta `/embed/{token}` (EmbedController +
+embed.blade) que sirve el mismo SPA pero con cabecera **CSP `frame-ancestors`** = allowlist (vacío→`'none'`, embebido rechazado); ShareDialog
+genera el snippet `<iframe>`. **D.3 Modo dashboard en vivo + RANGO DE FECHAS del cliente:** `ReportGenerator::resolveLive()`/`compose()`
+(núcleo de resolución compartido, sin persistir/AI/evento) → `PublicDashboardController` (`GET /public/dashboards/{token}`) re-resuelve desde
+los snapshots para el rango pedido (por `from`/`to`, default = ventana del último snapshot, con `range` de límites). Definición se publica con
+`dashboard_enabled` + `dashboard_token` estable. **Nuevo SPA dashboard** (entry Vite + ruta `/dashboard/{token}`) con selector de rango acotado
+a los datos. **D.4 Gestión de tokens:** `rotateDashboardToken` (`POST .../sharing/dashboard-token`) regenera el token → revoca todos los
+enlaces/embebidos anteriores; botón «Regenerar» en ShareDialog. **337 tests** (PublicDashboardTest + EmbedRouteTest + gate/sharing en
+PublicReportEndpointTest) + PHPStan + Pint + typecheck + lint(0) + build limpios. **SIGUIENTE: desplegar (release ~v1.13.54)** y verificar en
+servidor. Pendientes sueltos (no bloqueantes): Woo datasets (WC Analytics API), choropleth literal con lib de mapas + ISO, UI de filtros de
+PÁGINA en el editor (encaja ahora con el modo dashboard). Etapa E (live explore GA4) sigue opcional/futura.
+
+
 **📊 DASHBOARDS — ETAPA C: BLOQUES `funnel` + `geo_map` (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.53):**
 dos visualizaciones nuevas, ambas **renderers sobre la forma `[{label,value}]` que ya producen los datasets/tablas** — sin plumbing nuevo.
 **`funnel`** (Embudo): etapas ordenadas como embudo centrado que se estrecha, con % sobre la primera etapa y caída entre etapas (la agencia
