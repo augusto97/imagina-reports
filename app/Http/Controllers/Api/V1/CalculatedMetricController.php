@@ -26,6 +26,29 @@ final class CalculatedMetricController extends Controller
     /** PUT /agency/calculated-metrics — replace the agency's reusable calculated metrics. */
     public function update(Request $request, TenantContext $tenant): JsonResponse
     {
+        $agency = Agency::query()->findOrFail($tenant->id());
+        $agency->calculated_metrics = $this->validatedMetrics($request);
+        $agency->save();
+
+        return response()->json(['calculated_metrics' => $agency->calculated_metrics]);
+    }
+
+    /** PUT /sites/{site}/calculated-metrics — replace a site's own calculated metrics. */
+    public function updateSite(Request $request, Site $site): JsonResponse
+    {
+        $site->calculated_metrics = $this->validatedMetrics($request);
+        $site->save();
+
+        return response()->json(['calculated_metrics' => $site->calculated_metrics]);
+    }
+
+    /**
+     * Validate + normalize a posted calculated-metrics list.
+     *
+     * @return array<int, array<array-key, mixed>>
+     */
+    private function validatedMetrics(Request $request): array
+    {
         $request->validate([
             'calculated_metrics' => ['present', 'array', 'max:50'],
             'calculated_metrics.*.key' => ['required', 'string', 'regex:/^[a-zA-Z][a-zA-Z0-9_]*$/', 'max:50'],
@@ -34,13 +57,8 @@ final class CalculatedMetricController extends Controller
         ]);
 
         $raw = $request->input('calculated_metrics', []);
-        $metrics = is_array($raw) ? array_values(array_filter($raw, 'is_array')) : [];
 
-        $agency = Agency::query()->findOrFail($tenant->id());
-        $agency->calculated_metrics = $metrics;
-        $agency->save();
-
-        return response()->json(['calculated_metrics' => $agency->calculated_metrics]);
+        return is_array($raw) ? array_values(array_filter($raw, 'is_array')) : [];
     }
 
     /**

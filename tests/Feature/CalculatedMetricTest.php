@@ -87,4 +87,29 @@ class CalculatedMetricTest extends TestCase
 
         $this->assertContains('calc.aov', array_column($catalog, 'key'));
     }
+
+    public function test_it_persists_site_level_calculated_metrics(): void
+    {
+        $site = $this->siteWithRevenue();
+
+        $this->putJson("/api/v1/sites/{$site->id}/calculated-metrics", [
+            'calculated_metrics' => [
+                ['key' => 'aov', 'label' => 'Ticket medio sitio', 'formula' => 'woocommerce.revenue / woocommerce.orders'],
+            ],
+        ])->assertOk();
+
+        $this->assertSame('aov', $site->refresh()->calculated_metrics[0]['key']);
+    }
+
+    public function test_a_site_calc_metric_overrides_the_agency_one_in_the_catalog(): void
+    {
+        $site = $this->siteWithRevenue();
+        $this->agency->update(['calculated_metrics' => [['key' => 'aov', 'label' => 'Agencia', 'formula' => 'woocommerce.revenue / woocommerce.orders']]]);
+        $site->update(['calculated_metrics' => [['key' => 'aov', 'label' => 'Solo este sitio', 'formula' => 'woocommerce.revenue / woocommerce.orders']]]);
+
+        $catalog = $this->getJson("/api/v1/sites/{$site->id}/metric-catalog")->assertOk()->json();
+
+        $entry = collect($catalog)->firstWhere('key', 'calc.aov');
+        $this->assertSame('Solo este sitio', $entry['label']);
+    }
 }

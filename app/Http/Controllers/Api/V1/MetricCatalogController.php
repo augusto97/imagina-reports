@@ -48,10 +48,10 @@ final class MetricCatalogController extends Controller
             ];
         }
 
-        // Agency-level reusable calculated metrics (CLAUDE.md §10.1) — bindable as `calc.*`
-        // in every report, just like a connector metric.
-        $agencyCalc = $site->agency->calculated_metrics ?? [];
-        foreach ($agencyCalc as $calc) {
+        // Calculated metrics (CLAUDE.md §10.1) — bindable as `calc.*` in every report, like a
+        // connector metric. Agency-level (reusable) + this site's own; site wins on a key clash.
+        $calcByKey = [];
+        foreach ([...($site->agency->calculated_metrics ?? []), ...($site->calculated_metrics ?? [])] as $calc) {
             if (! is_array($calc)) {
                 continue;
             }
@@ -59,7 +59,7 @@ final class MetricCatalogController extends Controller
             if (! is_string($key) || $key === '') {
                 continue;
             }
-            $catalog[] = [
+            $calcByKey[$key] = [
                 'source' => 'calc',
                 'metric' => $key,
                 'key' => "calc.{$key}",
@@ -69,6 +69,7 @@ final class MetricCatalogController extends Controller
                 'dimensions' => [],
             ];
         }
+        $catalog = [...$catalog, ...array_values($calcByKey)];
 
         return response()->json($catalog);
     }

@@ -784,6 +784,20 @@ export function useUpdateCalculatedMetrics() {
     });
 }
 
+/** Save a SITE's own calculated metrics (layered on top of the agency's). */
+export function useUpdateSiteCalculatedMetrics(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (metrics: CalcMetric[]) =>
+            api.put<{ calculated_metrics: CalcMetric[] }>(`/sites/${siteId}/calculated-metrics`, { calculated_metrics: metrics }).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['sites'] });
+            void queryClient.invalidateQueries({ queryKey: ['metric-catalog', siteId] });
+        },
+    });
+}
+
 /** Evaluate draft calc formulas against a site's real data → calc.<key> values (live preview). */
 export function useCalcPreview(siteId: number) {
     return useMutation({

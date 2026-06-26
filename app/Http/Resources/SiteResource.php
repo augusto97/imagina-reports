@@ -32,6 +32,7 @@ final class SiteResource extends JsonResource
             'status' => $site->status,
             'currency' => $site->currency,
             'plan_hours' => $site->plan_hours,
+            'calculated_metrics' => $site->calculated_metrics ?? [],
         ];
     }
 }

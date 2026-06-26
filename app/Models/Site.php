@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $status
  * @property string $currency
  * @property numeric-string|null $plan_hours
+ * @property array<int, mixed>|null $calculated_metrics
  */
 class Site extends Model
 {
@@ -69,7 +70,18 @@ class Site extends Model
         'status',
         'currency',
         'plan_hours',
+        'calculated_metrics',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'calculated_metrics' => 'array',
+        ];
+    }
 
     /**
      * @return BelongsTo<Client, $this>

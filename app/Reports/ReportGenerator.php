@@ -165,28 +165,32 @@ final readonly class ReportGenerator
         }
 
         $agencyDefs = $definition->agency->calculated_metrics ?? [];
+        $siteDefs = $definition->site->calculated_metrics ?? [];
 
+        // Precedence (more specific wins): agency → site → report.
         return self::mergeCalcDefinitions(
             array_values(array_filter($agencyDefs, 'is_array')),
+            array_values(array_filter($siteDefs, 'is_array')),
             array_values(array_filter($reportDefs, 'is_array')),
         );
     }
 
     /**
-     * Merge agency-level and report-level calc metrics; the report-level set wins on a
-     * key clash (a report can override a reusable formula).
+     * Merge calc-metric lists by key, where LATER lists win on a key clash — so the order
+     * agency → site → report makes the more specific scope override the broader one.
      *
-     * @param  array<int, array<array-key, mixed>>  $agencyDefs
-     * @param  array<int, array<array-key, mixed>>  $reportDefs
+     * @param  array<int, array<array-key, mixed>>  ...$lists
      * @return array<int, array<array-key, mixed>>
      */
-    public static function mergeCalcDefinitions(array $agencyDefs, array $reportDefs): array
+    public static function mergeCalcDefinitions(array ...$lists): array
     {
         $byKey = [];
-        foreach ([...$agencyDefs, ...$reportDefs] as $def) {
-            $key = $def['key'] ?? null;
-            if (is_string($key) && $key !== '') {
-                $byKey[$key] = $def;
+        foreach ($lists as $list) {
+            foreach ($list as $def) {
+                $key = $def['key'] ?? null;
+                if (is_string($key) && $key !== '') {
+                    $byKey[$key] = $def;
+                }
             }
         }
 

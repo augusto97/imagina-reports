@@ -21,6 +21,7 @@ export interface Site {
     status: string;
     currency: string;
     plan_hours: string | null;
+    calculated_metrics: { key: string; label: string; formula: string }[];
 }
 
 export interface ReportComment {
