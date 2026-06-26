@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS — ETAPA A.2 CERRADA: PANEL DE MODELADO EN EL EDITOR (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
+v1.13.50):** el editor ya deja "construir como Looker" a nivel de bloque. **Frontend:** `BlockBinding` (shared/blocks/types.ts) gana
+`measure`, `breakdown`, `filters[{dimension,op,value}]` + tipo `DatasetFilter`; `CatalogEntry` (admin/types.ts) gana `measures` +
+`dimension_labels`. El **Inspector** detecta `boundEntry.type==='dataset'` y muestra una sección **«Modelado de datos»**: desplegable de
+**Medida** (de `measures`), **Desglosar por** (dimensiones con etiquetas legibles), y un **editor de filtros del bloque** (dimensión / es·
+no es·contiene·no contiene / valor, con +Filtro y quitar). El picker de dimensión legacy se oculta para datasets. El binding se serializa
+en el bloque y fluye al resolver/preview (ya cableado). typecheck + lint(0 err) + build + 315 tests PHP limpios. **CON ESTO el owner ya
+puede, en el editor, enlazar una tabla/gráfico a `ga4.geo`/`ga4.traffic`/`gsc.search`, elegir medida+desglose y hornear filtros
+(p.ej. país=Colombia).** **Pendiente del owner:** desplegar v1.13.50 (¡y antes sincronizar un sitio GA4/GSC para que existan los datasets
+en snapshots!) y validar. **SIGUIENTE:** A.3 (builder con Metadata API), **Etapa B** (selector de RANGO DE FECHAS para el cliente +
+tablas con orden/paginación/buscador), C (geo_map/funnel), D (dashboard permanente + privacidad/embebido). Woo datasets pendientes (WC
+Analytics API). UI de filtros de PÁGINA (no solo bloque) va con la Etapa D / dashboard mode.
+
+
 **📊 DASHBOARDS — ETAPA A.2 avanza: GSC datasets + filtros de PÁGINA cableados (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 sin release — base sin UI todavía):** dos slices. **(1) GSC dataset** `gsc.search` (query/página/país/dispositivo × clics/impresiones,
 top-250) → filas con nombre; solo medidas aditivas (CTR/posición siguen como escalares de periodo porque no se suman al agrupar). Woo

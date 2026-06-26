@@ -100,6 +100,12 @@ export interface ReportSummary {
     created_at: string | null;
 }
 
+export interface CatalogMeasure {
+    key: string;
+    label: string;
+    unit: string | null;
+}
+
 export interface CatalogEntry {
     source: string;
     metric: string;
@@ -108,6 +114,10 @@ export interface CatalogEntry {
     type: string;
     unit: string | null;
     dimensions: string[];
+    // Dataset metadata (empty for plain metrics): the measures a block can pick and the
+    // human labels for each dimension key — drives the editor's modeling panel.
+    measures?: CatalogMeasure[];
+    dimension_labels?: Record<string, string>;
 }
 
 export interface ReportTheme {

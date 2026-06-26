@@ -21,11 +21,23 @@ export type BlockType =
     | 'control'
     | 'custom';
 
+/** One design-time filter on a dataset block ({dimension} {op} {value}). */
+export interface DatasetFilter {
+    dimension: string;
+    op: string;
+    value: string;
+}
+
 export interface BlockBinding {
     source: string;
     metric: string;
     dimension?: string;
     compare?: string;
+    // Dataset modeling (CLAUDE.md §10 dashboards): pick a measure, break it down by a
+    // dimension, and bake in filters. Block filters override the page/dashboard ones.
+    measure?: string;
+    breakdown?: string;
+    filters?: DatasetFilter[];
 }
 
 /** Grid placement on the 12-column dashboard canvas (CLAUDE.md §11.3). x/w in columns, y/h in row units. */

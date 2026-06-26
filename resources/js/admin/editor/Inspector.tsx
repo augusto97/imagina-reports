@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
-import type { Block } from '@shared/blocks/types';
+import type { Block, BlockBinding, DatasetFilter } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
 
 import { Field, Input } from '../components/ui';
@@ -158,6 +158,29 @@ export function Inspector({
         }
         onChange({ ...block, binding });
     };
+
+    // ---- Dataset modeling (measure / breakdown / filters) — Looker-style block config ----
+    const isDataset = boundEntry?.type === 'dataset';
+    const measures = boundEntry?.measures ?? [];
+    const dimLabel = (key: string): string => boundEntry?.dimension_labels?.[key] ?? key;
+    const filters: DatasetFilter[] = block.binding?.filters ?? [];
+
+    const patchBinding = (patch: Partial<BlockBinding>): void => {
+        if (block.binding == null) {
+            return;
+        }
+        const binding: BlockBinding = { ...block.binding, ...patch };
+        // Drop emptied optional keys so the saved binding stays clean.
+        if (binding.measure === undefined || binding.measure === '') delete binding.measure;
+        if (binding.breakdown === undefined || binding.breakdown === '') delete binding.breakdown;
+        if (binding.filters !== undefined && binding.filters.length === 0) delete binding.filters;
+        onChange({ ...block, binding });
+    };
+    const setFilters = (next: DatasetFilter[]): void => patchBinding({ filters: next });
+    const addFilter = (): void => setFilters([...filters, { dimension: dimensions[0] ?? '', op: 'is', value: '' }]);
+    const updateFilter = (index: number, patch: Partial<DatasetFilter>): void =>
+        setFilters(filters.map((filter, i) => (i === index ? { ...filter, ...patch } : filter)));
+    const removeFilter = (index: number): void => setFilters(filters.filter((_, i) => i !== index));
     const setStyle = (key: string, value: unknown): void => {
         const nextStyle: Record<string, unknown> = { ...block.style, [key]: value };
         if (value === undefined || value === '') {
@@ -288,7 +311,7 @@ export function Inspector({
                         </Field>
                     )}
 
-                    {isData && dimensions.length > 0 && (
+                    {isData && !isDataset && dimensions.length > 0 && (
                         <Field label="Desglose (dimensión)">
                             <select className={selectClass} value={str(block.binding?.dimension)} onChange={(event) => setDimension(event.target.value)}>
                                 <option value="">Sin desglose</option>
@@ -299,6 +322,93 @@ export function Inspector({
                                 ))}
                             </select>
                         </Field>
+                    )}
+
+                    {isDataset && block.binding != null && (
+                        <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-border-dashed ir-bg-muted/20 ir-p-3">
+                            <p className="ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wide ir-text-muted-foreground">Modelado de datos</p>
+
+                            <Field label="Medida">
+                                <select className={selectClass} value={str(block.binding?.measure)} onChange={(event) => patchBinding({ measure: event.target.value })}>
+                                    <option value="">Elige una medida…</option>
+                                    {measures.map((measure) => (
+                                        <option key={measure.key} value={measure.key}>
+                                            {measure.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+
+                            <Field label="Desglosar por">
+                                <select className={selectClass} value={str(block.binding?.breakdown)} onChange={(event) => patchBinding({ breakdown: event.target.value })}>
+                                    <option value="">Sin desglose (total)</option>
+                                    {dimensions.map((dimension) => (
+                                        <option key={dimension} value={dimension}>
+                                            {dimLabel(dimension)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+
+                            <div className="ir-flex ir-flex-col ir-gap-2">
+                                <div className="ir-flex ir-items-center ir-justify-between">
+                                    <span className="ir-text-xs ir-font-medium ir-text-foreground/80">Filtros del bloque</span>
+                                    <button
+                                        type="button"
+                                        onClick={addFilter}
+                                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-xs ir-font-medium hover:ir-bg-muted"
+                                    >
+                                        + Filtro
+                                    </button>
+                                </div>
+
+                                {filters.map((filter, index) => (
+                                    <div key={index} className="ir-flex ir-items-center ir-gap-1">
+                                        <select
+                                            className="ir-min-w-0 ir-flex-1 ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5 ir-text-xs"
+                                            value={filter.dimension}
+                                            onChange={(event) => updateFilter(index, { dimension: event.target.value })}
+                                        >
+                                            {dimensions.map((dimension) => (
+                                                <option key={dimension} value={dimension}>
+                                                    {dimLabel(dimension)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            className="ir-shrink-0 ir-rounded-md ir-border ir-bg-background ir-px-1 ir-py-1.5 ir-text-xs"
+                                            value={filter.op}
+                                            onChange={(event) => updateFilter(index, { op: event.target.value })}
+                                        >
+                                            <option value="is">es</option>
+                                            <option value="is_not">no es</option>
+                                            <option value="contains">contiene</option>
+                                            <option value="not_contains">no contiene</option>
+                                        </select>
+                                        <Input
+                                            className="ir-h-8 ir-min-w-0 ir-flex-1 ir-text-xs"
+                                            value={filter.value}
+                                            placeholder="valor"
+                                            onChange={(event) => updateFilter(index, { value: event.target.value })}
+                                        />
+                                        <button
+                                            type="button"
+                                            title="Quitar filtro"
+                                            onClick={() => removeFilter(index)}
+                                            className="ir-shrink-0 ir-rounded-md ir-p-1 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {filters.length === 0 && (
+                                    <p className="ir-text-[11px] ir-text-muted-foreground">
+                                        Sin filtros — el bloque muestra todo (o lo que filtre la página). Los filtros del bloque mandan sobre los de la página.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {canCompare && block.binding != null && (
