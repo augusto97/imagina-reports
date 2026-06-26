@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**📑 PÁGINAS REALES (LOOKER/POWER BI) + PORTADA/CONTRAPORTADA (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.68):**
+el usuario señaló (con razón) que apilar «hojas» rompe el sentido de paginación: en Looker/Power BI las páginas son páginas reales —el visor
+muestra UNA a la vez con un menú de navegación— y solo el PDF las pone cada una en su folio. Reimplementado así. **(1) NAVEGACIÓN POR PÁGINAS:**
+`BlockList` ahora tiene `mode` (`paged` | `print` | `flow`) en vez del apilado por defecto. `paged` (portal, informe web en pantalla, dashboard) =
+menú de pestañas con nombres + SOLO la página activa (estado `active` interno). `print` (Browsershot, cuando hay `printToken`) = todas las hojas
+apiladas (cada una su folio). `flow` = preview inline del GA4 builder (sin cromo). `ReportApp` elige `print` si hay printToken, si no `paged`.
+**(2) PÁGINAS CON NOMBRE:** nueva columna `pages` json en `ir_report_templates` + `ir_report_definitions` (`[{name}]` por índice), validada en los
+4 FormRequests, casteada/fillable en ambos modelos, congelada en `resolved_blocks['pages']` por `ReportGenerator::pageNames()` (definición →
+plantilla) y expuesta en `ReportResource` + `PublicDashboardController` (+ `ReportTemplateResource`). El editor: estado `pageNames`, pestañas
+renombrables (doble clic → input), se siembran/guardan con la plantilla. **(3) PORTADA/CONTRAPORTADA:** nuevos bloques `cover` + `back_cover`
+(enum PHP + union TS + renderers `CoverBlock`/`BackCoverBlock` + registry + palette grupo «Portada & cierre» + blockFactory defaults/sizes
+full-page). Se autollenan desde el logo de agencia + contexto cliente/sitio/periodo vía nuevo `ReportBrandContext` (BlockList lo provee con la prop
+`agency`). 358 tests PHP (+pages frozen, +cover/named-pages en template API) + 15 vitest + stan/pint/ts/lint/build limpios. **SIGUIENTE: desplegar
+v1.13.68.** (Idea futura opcional: botón «+ Portada»/«+ Contraportada» que cree una página dedicada de un clic; hoy se arrastran desde la paleta.)
+
+
 **📄 MÉTRICAS CALCULADAS NIVEL SITIO + REPORTE EN HOJAS PAGINADAS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.67):** dos cosas. **(1) CALC METRICS NIVEL SITIO:** además de agencia, ahora se pueden definir métricas calculadas **solo para
 un sitio** (`ir_sites.calculated_metrics` json). Precedencia **agencia → sitio → reporte** (la más específica gana por clave) vía
