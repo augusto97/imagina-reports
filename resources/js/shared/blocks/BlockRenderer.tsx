@@ -1034,6 +1034,7 @@ export function BlockList({
     currency = 'USD',
     locale,
     theme,
+    paginated = true,
 }: {
     blocks: Block[];
     data?: Record<string, unknown>;
@@ -1041,8 +1042,13 @@ export function BlockList({
     currency?: string;
     locale?: string;
     theme?: { accent?: string | null; density?: 'normal' | 'compact' | null } | null;
+    /** Render each page as a visible paper sheet with a page-number footer (CLAUDE.md §10.7).
+     *  On screen the sheets stack like sheets of paper; in print each is one physical page —
+     *  so the boundary you see is exactly where the PDF cuts. Off for tiny inline previews. */
+    paginated?: boolean;
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
+    const periodLabel = context?.period ?? '';
 
     // Dashboard grid mode: when every block carries grid coordinates, place them on a
     // 12-column CSS grid identical to the editor canvas (CLAUDE.md §11.3/§11.4). Older
@@ -1057,38 +1063,53 @@ export function BlockList({
     const accentHsl = typeof theme?.accent === 'string' ? hexToHslString(theme.accent) : null;
     const themeStyle: CSSProperties = accentHsl !== null ? ({ '--ir-primary': accentHsl, '--ir-ring': accentHsl } as CSSProperties) : {};
 
+    const renderPage = (pageBlocks: Block[]): ReactElement =>
+        useGrid ? (
+            <div
+                className="ir-grid ir-report-grid"
+                style={{
+                    gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                    gridAutoRows: `${GRID_ROW_HEIGHT}px`,
+                    gap: `${GRID_MARGIN}px`,
+                }}
+            >
+                {pageBlocks.map((block) => (
+                    <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-report-cell ir-overflow-hidden">
+                        <BlockRenderer block={block} data={data[block.id]} />
+                    </div>
+                ))}
+            </div>
+        ) : (
+            <div className="ir-grid ir-grid-cols-6 ir-gap-6">
+                {pageBlocks.map((block) => (
+                    <div key={block.id} className={widthSpan(block)}>
+                        <BlockRenderer block={block} data={data[block.id]} />
+                    </div>
+                ))}
+            </div>
+        );
+
     return (
-        <div style={themeStyle}>
+        <div style={themeStyle} className={paginated ? 'ir-sheets' : undefined}>
         <ReportSettingsProvider currency={currency} locale={locale} density={density}>
             <ReportFilterProvider>
-            {pages.map((pageBlocks, pageIndex) => (
-                <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
-                    {useGrid ? (
-                        <div
-                            className="ir-grid ir-report-grid"
-                            style={{
-                                gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-                                gridAutoRows: `${GRID_ROW_HEIGHT}px`,
-                                gap: `${GRID_MARGIN}px`,
-                            }}
-                        >
-                            {pageBlocks.map((block) => (
-                                <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-report-cell ir-overflow-hidden">
-                                    <BlockRenderer block={block} data={data[block.id]} />
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="ir-grid ir-grid-cols-6 ir-gap-6">
-                            {pageBlocks.map((block) => (
-                                <div key={block.id} className={widthSpan(block)}>
-                                    <BlockRenderer block={block} data={data[block.id]} />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            ))}
+            {paginated
+                ? pages.map((pageBlocks, pageIndex) => (
+                      <section key={pageIndex} className="ir-sheet">
+                          {renderPage(pageBlocks)}
+                          <footer className="ir-sheet-footer">
+                              <span>{periodLabel}</span>
+                              <span>
+                                  Página {pageIndex + 1} de {pages.length}
+                              </span>
+                          </footer>
+                      </section>
+                  ))
+                : pages.map((pageBlocks, pageIndex) => (
+                      <div key={pageIndex} className={pageIndex > 0 ? 'ir-break-before-page ir-mt-8' : undefined}>
+                          {renderPage(pageBlocks)}
+                      </div>
+                  ))}
             </ReportFilterProvider>
         </ReportSettingsProvider>
         </div>
