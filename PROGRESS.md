@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**📦 COBERTURA/ALMACENAMIENTO DE DATOS POR FUENTE + SYNC SELECTIVO EN REPORTES (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release ~v1.13.57):** dos cosas. **(1)** Nuevo endpoint `GET /sites/{site}/data-sources/coverage` (`DataSourceController::coverage`): una
+query agrupada → por fuente `{period_start, period_end, snapshots, bytes}` (bytes = `LENGTH(payload)` del JSON; proxy de almacenamiento).
+Tenant-safe; fuentes sin snapshots se listan con nulls/0. Hook `useDataSourceCoverage`. El panel `SyncStatus` del editor ahora muestra en
+cada fuente «Datos: <ene 2026 → jun 2026> · N periodos · ~tamaño» y un total de almacenamiento del sitio al pie → **ya sabes desde/hasta qué
+fecha tienes datos de cada fuente y cuánto ocupan** (para decidir si resincronizar o poner retención a futuro). **(2)** El sync selectivo
+por fuente ahora también está en la **lista de Reportes**: componente nuevo `PeriodSyncMenu` (botón «Sincronizar periodo» = todas + un
+desplegable para sincronizar UNA fuente, cada una mostrando el rango que ya tiene). `useSyncSiteById` lleva `data_source_ids`. 341 tests PHP
+(+coverage) + 15 vitest + stan + pint + ts + lint + build limpios. **NOTA futura:** aún NO hay retención automática (borrado de snapshots
+viejos); cuando se quiera, con `bytes`/`snapshots` por fuente ya hay base para un job de retención configurable. **SIGUIENTE: desplegar.**
+
+
 **🔧 SYNC SELECTIVO POR FUENTE (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release ~v1.13.55+):** ya no obliga a re-sincronizar
 TODAS las fuentes. `PreviewController::sync` acepta `data_source_ids` opcional → sincroniza solo esas (acotado por la relación del sitio, así
 un id de otro sitio se ignora); sin el parámetro = todas (como antes). Front: `useSyncSite` manda `data_source_ids`; en el panel `SyncStatus`
