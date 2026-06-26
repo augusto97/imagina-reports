@@ -15,6 +15,8 @@ enum BlockType: string
     case Kpi = 'kpi';
     case Chart = 'chart';
     case Table = 'table';
+    case Funnel = 'funnel';
+    case GeoMap = 'geo_map';
     case Narrative = 'narrative';
     case HealthScore = 'healthscore';
     case SecurityShield = 'security_shield';

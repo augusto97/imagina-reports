@@ -26,6 +26,8 @@ export function defaultSize(type: BlockType): { w: number; h: number } {
             return { w: 4, h: 7 };
         case 'chart':
         case 'table':
+        case 'funnel':
+        case 'geo_map':
         case 'worklog_timeline':
             return { w: 6, h: 7 };
         case 'security_shield':
@@ -112,7 +114,7 @@ export function ensureLayouts(blocks: Block[]): Block[] {
     });
 }
 
-export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'sales_summary', 'goal', 'control'];
+export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'funnel', 'geo_map', 'sales_summary', 'goal', 'control'];
 
 export type BlockWidth = 'full' | 'half' | 'third';
 
@@ -204,6 +206,20 @@ export function sampleData(block: Block): unknown {
                 { label: '/precios', value: 120 },
             ];
         }
+        case 'funnel':
+            return [
+                { label: 'Sesiones', value: 1000 },
+                { label: 'Añadido al carrito', value: 240 },
+                { label: 'Checkout', value: 130 },
+                { label: 'Compra', value: 78 },
+            ];
+        case 'geo_map':
+            return [
+                { label: 'Colombia', value: 1200 },
+                { label: 'México', value: 800 },
+                { label: 'España', value: 300 },
+                { label: 'Argentina', value: 180 },
+            ];
         case 'control':
             return [{ name: 'Escritorio', value: 1 }, { name: 'Móvil', value: 1 }, { name: 'Tablet', value: 1 }];
         case 'comments':

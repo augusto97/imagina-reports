@@ -7,6 +7,8 @@ export type BlockType =
     | 'kpi'
     | 'chart'
     | 'table'
+    | 'funnel'
+    | 'geo_map'
     | 'narrative'
     | 'healthscore'
     | 'security_shield'

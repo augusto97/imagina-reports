@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DASHBOARDS — ETAPA C: BLOQUES `funnel` + `geo_map` (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.53):**
+dos visualizaciones nuevas, ambas **renderers sobre la forma `[{label,value}]` que ya producen los datasets/tablas** — sin plumbing nuevo.
+**`funnel`** (Embudo): etapas ordenadas como embudo centrado que se estrecha, con % sobre la primera etapa y caída entre etapas (la agencia
+enlaza un desglose ordenado, p.ej. sesiones→carrito→checkout→compra). **`geo_map`** (Geografía): lista jerarquizada de regiones/ciudades con
+barra proporcional + % de cuota (vista geo honesta, **sin dependencia de mapas**; un choropleth literal vendría luego con lib de mapas +
+códigos ISO). Registrados en: `BlockType` (TS shared + enum PHP), `BlockRenderer` registry, `BLOCK_META`+grupo del palette, `DATA_BLOCKS`/
+`defaultSize`/`sampleData` del factory. El resolver ya los resuelve por binding (igual que table → datasets con filtros). 322 tests +
+PHPStan + lint(0) + build limpios. **SIGUIENTE: Etapa D (la grande)** — modo dashboard permanente (re-resuelve en vivo desde snapshots) +
+**rango de fechas del cliente** (aquí, donde todos los números cambian bien) + visibilidad privado/contraseña + **embebido privado** con
+allowlist de dominios (CSP frame-ancestors) + gestión de tokens. Pendientes sueltos: Woo datasets (WC Analytics API), choropleth literal,
+UI de filtros de página.
+
+
 **📊 DASHBOARDS — ETAPA B (parte 1): TABLAS INTERACTIVAS (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.52):**
 `TableBlock` (shared/blocks/BlockRenderer.tsx) gana **buscador** + **paginación** (el orden por columna ya existía). Solo aparecen cuando
 la tabla supera el tamaño de página (def. 10, configurable con `style.rows_per_page`). CLAVE para el PDF: las filas fuera de página se

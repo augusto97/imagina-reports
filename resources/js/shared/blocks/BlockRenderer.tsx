@@ -561,6 +561,99 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     );
 }
 
+/**
+ * Sales/conversion funnel (CLAUDE.md §10 — Etapa C). Renders ordered `[{label, value}]`
+ * stages as a centered narrowing funnel with each stage's share of the top and the
+ * step-to-step drop-off. Data shape is the same the datasets/tables already produce, so
+ * the agency just binds an ordered breakdown (e.g. sessions → add-to-cart → purchase).
+ */
+function FunnelBlock({ block, data }: BlockComponentProps): ReactElement | null {
+    const rows = useFilteredRows(asRecords(data));
+    const stages = rows
+        .map((row) => ({ label: String(row.label ?? row.name ?? ''), value: Number(row.value) || 0 }))
+        .filter((stage) => stage.label !== '');
+
+    if (stages.length === 0) {
+        return null;
+    }
+
+    const top = stages[0]?.value ?? 0;
+    const max = Math.max(0, ...stages.map((stage) => stage.value));
+
+    return (
+        <Section title={str(prop(block, 'title'))} style={block.style}>
+            <div className="ir-flex ir-flex-col ir-gap-2.5">
+                {stages.map((stage, index) => {
+                    const shareOfTop = top > 0 ? (stage.value / top) * 100 : 0;
+                    const widthPct = max > 0 ? Math.max(8, (stage.value / max) * 100) : 0;
+                    const prev = index > 0 ? stages[index - 1]?.value ?? 0 : null;
+                    const drop = prev !== null && prev > 0 ? ((prev - stage.value) / prev) * 100 : null;
+
+                    return (
+                        <div key={index}>
+                            <div className="ir-mb-1 ir-flex ir-items-baseline ir-justify-between ir-text-xs">
+                                <span className="ir-font-medium">{stage.label}</span>
+                                <span className="ir-tabular-nums ir-text-muted-foreground">
+                                    {stage.value.toLocaleString()} · {shareOfTop.toFixed(0)}%
+                                </span>
+                            </div>
+                            <div className="ir-flex ir-justify-center">
+                                <div
+                                    className="ir-flex ir-h-7 ir-items-center ir-justify-center ir-rounded ir-bg-primary/80 ir-text-[11px] ir-font-medium ir-text-primary-foreground"
+                                    style={{ width: `${widthPct}%` }}
+                                >
+                                    {shareOfTop.toFixed(0)}%
+                                </div>
+                            </div>
+                            {drop !== null && drop > 0.5 && (
+                                <p className="ir-mt-0.5 ir-text-center ir-text-[10px] ir-text-muted-foreground">↓ {drop.toFixed(0)}% de caída</p>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </Section>
+    );
+}
+
+/**
+ * Geographic breakdown (CLAUDE.md §10 — Etapa C). A ranked regions/cities list with a
+ * proportional bar and each row's share of the total — the honest, dependency-free "geo"
+ * view over the same `[{label, value}]` the geo datasets produce (country/region/city).
+ */
+function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null {
+    const rows = useFilteredRows(asRecords(data))
+        .map((row) => ({ label: String(row.label ?? row.name ?? ''), value: Number(row.value) || 0 }))
+        .filter((row) => row.label !== '');
+
+    if (rows.length === 0) {
+        return null;
+    }
+
+    const total = rows.reduce((sum, row) => sum + row.value, 0);
+    const max = Math.max(0, ...rows.map((row) => row.value));
+
+    return (
+        <Section title={str(prop(block, 'title'))} style={block.style}>
+            <div className="ir-flex ir-flex-col ir-gap-2">
+                {rows.map((row, index) => (
+                    <div key={index} className="ir-flex ir-items-center ir-gap-3 ir-text-sm">
+                        <span className="ir-w-5 ir-shrink-0 ir-text-right ir-text-xs ir-tabular-nums ir-text-muted-foreground">{index + 1}</span>
+                        <span className="ir-w-32 ir-shrink-0 ir-truncate ir-font-medium">{row.label}</span>
+                        <div className="ir-h-2 ir-flex-1 ir-overflow-hidden ir-rounded ir-bg-muted">
+                            <div className="ir-h-full ir-rounded ir-bg-accent" style={{ width: `${max > 0 ? (row.value / max) * 100 : 0}%` }} />
+                        </div>
+                        <span className="ir-w-24 ir-shrink-0 ir-text-right ir-tabular-nums">
+                            {row.value.toLocaleString()}
+                            <span className="ir-ml-1 ir-text-xs ir-text-muted-foreground">{total > 0 ? `${((row.value / total) * 100).toFixed(0)}%` : ''}</span>
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </Section>
+    );
+}
+
 function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement {
     const text = str(data, str(prop(block, 'text')));
 
@@ -832,6 +925,8 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     kpi: KpiBlock,
     chart: ChartBlock,
     table: TableBlock,
+    funnel: FunnelBlock,
+    geo_map: GeoMapBlock,
     narrative: NarrativeBlock,
     healthscore: HealthScoreBlock,
     security_shield: SecurityShieldBlock,
