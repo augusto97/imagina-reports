@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 NAV COMO CHROME (FUERA DEL INFORME) + PREVIEW EN EL EDITOR (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.71):**
+el usuario notó dos fallos del nav configurable: (a) no se veía en el editor (había que ir al reporte/dashboard) y (b) lo rendericé DENTRO del
+informe, pero Looker/Power BI lo manejan como **chrome alrededor** del lienzo, no como contenido. Corregido. **(1) NAV = CHROME:** extraído
+`ReportPageNav` (componente exportado en BlockRenderer) + helper `navButtonClass`. En `BlockList` modo `paged`, el nav ahora va FUERA de una
+**superficie blanca** del informe (`ir-rounded-xl ir-border ir-bg-card ir-shadow-sm`): barra superior / pestañas arriba, o riel lateral izquierdo
+(card aparte), sobre un **canalón gris**. Las 3 apps (report/portal/dashboard) cambiaron su contenedor de `ir-bg-card` a `ir-bg-muted/30`
+(`print:ir-bg-transparent` en report) para el look Looker (gris + tarjeta blanca). **(2) PREVIEW EN EDITOR:** el artboard ahora se envuelve con el
+MISMO `ReportPageNav` según `theme.nav` (riel izquierda si sidebar, barra/pestañas arriba si no), cableado a `setCurrentPage` — WYSIWYG real. Se
+mantiene la barra superior de gestión de páginas (renombrar/+/portada/contraportada). Sin cambios de backend (theme.nav ya validado). 360 tests
+PHP + 15 vitest + stan/pint/ts/lint/build limpios. **SIGUIENTE: desplegar v1.13.71.**
+
+
 **🧭 NAVEGACIÓN DE PÁGINAS CONFIGURABLE (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, releases v1.13.69 botones portada/contraportada,
 v1.13.70 nav configurable):** dos entregas. **(1) BOTONES 1-CLIC (v1.13.69):** en el navegador de páginas del editor, «Portada» crea una
 nueva primera página con bloque `cover` (desplaza el resto) y «Contraportada» añade una última con `back_cover`, nombrándolas auto; el botón

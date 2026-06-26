@@ -43,7 +43,7 @@ import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { ReportSettingsProvider } from "@shared/blocks/BlockRenderer";
+import { ReportPageNav, ReportSettingsProvider } from "@shared/blocks/BlockRenderer";
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from "@shared/blocks/types";
 import type { Block, BlockType } from "@shared/blocks/types";
 
@@ -631,6 +631,19 @@ export function EditorScreen(): ReactElement {
               } as CSSProperties)
             : undefined;
 
+    // Live navigation preview (so the editor shows the configured nav exactly as the client
+    // will see it — chrome around the artboard, never inside it). Wired to switch pages.
+    const navPos = theme.nav?.position ?? "tabs";
+    const navStyle = theme.nav?.style ?? "pill";
+    const navLabels = Array.from({ length: pageCount }, (_, index) =>
+        pageNames[index]?.trim() ? (pageNames[index] as string) : `Página ${index + 1}`,
+    );
+    const selectPage = (index: number): void => {
+        setCurrentPage(index);
+        setSelectedId(null);
+    };
+    const showNavPreview = pageCount > 1 && navPos !== "hidden";
+
     return (
         <div className="ir-flex ir-h-full ir-min-h-0 ir-flex-col ir-bg-background">
             {/* ---- Top toolbar (full width) ---- */}
@@ -1038,12 +1051,24 @@ export function EditorScreen(): ReactElement {
                         </div>
                     )}
 
-                    {/* Scrollable workspace with the centered artboard */}
+                    {/* Scrollable workspace with the centered artboard + live nav chrome */}
                     <div className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
                         <div
-                            className="ir-mx-auto ir-w-full ir-max-w-5xl ir-border ir-bg-card ir-p-6 ir-shadow-sm"
+                            className="ir-mx-auto ir-flex ir-w-full ir-max-w-5xl ir-flex-col ir-gap-3"
                             style={canvasThemeStyle}
                         >
+                            {showNavPreview && navPos !== "sidebar" && (
+                                <div className={navPos === "top" ? "ir-rounded-xl ir-border ir-bg-card ir-px-3 ir-py-2 ir-shadow-sm" : undefined}>
+                                    <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="h" />
+                                </div>
+                            )}
+                            <div className="ir-flex ir-items-start ir-gap-5">
+                                {showNavPreview && navPos === "sidebar" && (
+                                    <aside className="ir-w-44 ir-shrink-0 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-sm">
+                                        <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="v" />
+                                    </aside>
+                                )}
+                                <div className="ir-min-w-0 ir-flex-1 ir-border ir-bg-card ir-p-6 ir-shadow-sm">
                             <ReportSettingsProvider
                                 currency={siteCurrency}
                                 density={
@@ -1117,6 +1142,8 @@ export function EditorScreen(): ReactElement {
                                     </div>
                                 </div>
                             )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

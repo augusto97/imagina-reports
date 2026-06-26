@@ -52,7 +52,7 @@ export function DashboardApp({ token }: { token: string }): ReactElement {
     const max = data.range !== null ? dayInput(data.range.end) : undefined;
 
     return (
-        <div className="ir-mx-auto ir-max-w-5xl ir-bg-card ir-p-4 ir-text-foreground sm:ir-p-8">
+        <div className="ir-mx-auto ir-max-w-5xl ir-bg-muted/30 ir-p-4 ir-text-foreground sm:ir-p-8">
             <header className="ir-mb-6 ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
                 <div className="ir-flex ir-items-center ir-gap-3">
                     {data.agency?.logo_url != null && (
