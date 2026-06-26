@@ -15,3 +15,6 @@ Schedule::command('reports:run-schedules')->hourly();
 
 // Register newly published releases so the in-app updater can offer them (§12).
 Schedule::command('system:check-updates')->hourly();
+
+// Prune snapshots past each agency's retention window (CLAUDE.md §5). Daily, off-peak.
+Schedule::command('snapshots:prune')->dailyAt('03:30');

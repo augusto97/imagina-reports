@@ -85,6 +85,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');
     Route::put('agency', [AgencyController::class, 'update'])->name('api.agency.update');
     Route::post('agency/logo', [AgencyController::class, 'uploadLogo'])->name('api.agency.logo');
+    Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
+    Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
 
     Route::get('clients', [ClientController::class, 'index'])->name('api.clients.index');
     Route::post('clients', [ClientController::class, 'store'])->name('api.clients.store');

@@ -24,6 +24,7 @@ use Throwable;
  * @property string $default_locale
  * @property string|null $domain
  * @property array<string, mixed>|null $settings
+ * @property int|null $snapshot_retention_months
  */
 class Agency extends Model
 {
@@ -43,6 +44,7 @@ class Agency extends Model
         'default_locale',
         'domain',
         'settings',
+        'snapshot_retention_months',
     ];
 
     /**
@@ -52,6 +54,7 @@ class Agency extends Model
     {
         return [
             'settings' => 'array',
+            'snapshot_retention_months' => 'integer',
         ];
     }
 

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateAgencyRequest;
 use App\Models\Agency;
+use App\Services\SnapshotRetentionService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,9 +44,32 @@ final class AgencyController extends Controller
             $agency->setAnthropicKey(is_string($key) ? $key : null);
         }
 
+        // Retention absent → leave as-is; present → set the cap or null (keep forever).
+        if (array_key_exists('snapshot_retention_months', $validated)) {
+            $months = $validated['snapshot_retention_months'];
+            $agency->snapshot_retention_months = is_numeric($months) && (int) $months > 0 ? (int) $months : null;
+        }
+
         $agency->save();
 
         return response()->json($this->present($agency));
+    }
+
+    /**
+     * What a retention prune would free for this agency right now (CLAUDE.md §5), so the
+     * settings UI can show the impact before the daily job runs / a manual prune.
+     */
+    public function retentionPreview(TenantContext $tenant, SnapshotRetentionService $retention): JsonResponse
+    {
+        return response()->json($retention->preview($this->current($tenant)));
+    }
+
+    /** Run the retention prune for this agency now; returns how many snapshots were deleted. */
+    public function pruneSnapshots(TenantContext $tenant, SnapshotRetentionService $retention): JsonResponse
+    {
+        $deleted = $retention->pruneAgency($this->current($tenant));
+
+        return response()->json(['deleted' => $deleted]);
     }
 
     /**
@@ -88,6 +112,7 @@ final class AgencyController extends Controller
             'logo_path' => $agency->logo_path,
             'logo_url' => $agency->logoUrl(),
             'ai_key_set' => $agency->anthropicKey() !== null,
+            'snapshot_retention_months' => $agency->snapshot_retention_months,
         ];
     }
 }

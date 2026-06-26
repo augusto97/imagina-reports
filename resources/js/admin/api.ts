@@ -88,6 +88,7 @@ export interface AgencyUpdate {
     brand_color: string | null;
     default_locale: string;
     anthropic_key?: string;
+    snapshot_retention_months?: number | null;
 }
 
 export function useUpdateAgency() {
@@ -95,7 +96,33 @@ export function useUpdateAgency() {
 
     return useMutation({
         mutationFn: (payload: AgencyUpdate) => api.put<AgencySettings>('/agency', payload).then((r) => r.data),
-        onSuccess: (data) => queryClient.setQueryData(['agency'], data),
+        onSuccess: (data) => {
+            queryClient.setQueryData(['agency'], data);
+            void queryClient.invalidateQueries({ queryKey: ['retention-preview'] });
+        },
+    });
+}
+
+export interface RetentionPreview {
+    snapshots: number;
+    bytes: number;
+}
+
+/** How much a retention prune would free for the agency right now. */
+export function useRetentionPreview() {
+    return useQuery({ queryKey: ['retention-preview'], queryFn: () => get<RetentionPreview>('/agency/retention/preview') });
+}
+
+/** Run the retention prune now; returns how many snapshots were deleted. */
+export function usePruneSnapshots() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<{ deleted: number }>('/agency/retention/prune').then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['retention-preview'] });
+            void queryClient.invalidateQueries({ queryKey: ['data-source-coverage'] });
+        },
     });
 }
 

@@ -232,6 +232,7 @@ export interface AgencySettings {
     logo_path: string | null;
     logo_url: string | null;
     ai_key_set: boolean;
+    snapshot_retention_months: number | null;
 }
 
 export interface UpdateStatus {
