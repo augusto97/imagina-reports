@@ -1299,40 +1299,37 @@ export function BlockList({
         const surface = <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5 ir-shadow-sm sm:ir-p-8">{renderPage(pages[safeActive] ?? [])}</div>;
 
         if (position === 'sidebar') {
-            // Left sidebar nav (Looker "Left"): fixed, or collapsible behind a toggle.
+            // Left sidebar nav (Looker "Left"): a FIXED column pinned to the left edge of the
+            // screen — viewer chrome that never steals width from the report (the surface stays
+            // full-size and centred). Optionally collapsible behind a toggle.
             const railOpen = !nav.collapsible || navOpen;
             body = (
-                <div className="ir-flex ir-items-start ir-gap-5">
+                <>
                     {showNav && railOpen && (
-                        <aside className="ir-w-48 ir-shrink-0 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-sm">
-                            {nav.collapsible && (
-                                <button
-                                    type="button"
-                                    onClick={() => setNavOpen(false)}
-                                    className="ir-mb-2 ir-flex ir-w-full ir-items-center ir-justify-between ir-rounded ir-px-1 ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
-                                    aria-label="Ocultar menú"
-                                >
-                                    Páginas
-                                    <PanelLeftClose className="ir-size-4" />
-                                </button>
-                            )}
+                        <aside className="ir-fixed ir-left-0 ir-top-0 ir-z-30 ir-flex ir-h-screen ir-w-44 ir-flex-col ir-gap-1 ir-overflow-y-auto ir-border-r ir-bg-card ir-p-3 ir-shadow-lg print:ir-hidden">
+                            <div className="ir-mb-2 ir-flex ir-items-center ir-justify-between ir-px-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                Páginas
+                                {nav.collapsible && (
+                                    <button type="button" onClick={() => setNavOpen(false)} className="ir-rounded ir-p-0.5 hover:ir-text-foreground" aria-label="Ocultar menú">
+                                        <PanelLeftClose className="ir-size-4" />
+                                    </button>
+                                )}
+                            </div>
                             <ReportPageNav labels={labels} active={safeActive} onSelect={setActive} navStyle={navStyle} orientation="v" />
                         </aside>
                     )}
-                    <div className="ir-min-w-0 ir-flex-1">
-                        {showNav && nav.collapsible && !navOpen && (
-                            <button
-                                type="button"
-                                onClick={() => setNavOpen(true)}
-                                className="ir-mb-3 ir-inline-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-border ir-bg-card ir-px-2 ir-py-1 ir-text-sm ir-text-muted-foreground ir-shadow-sm hover:ir-text-foreground"
-                            >
-                                <PanelLeftOpen className="ir-size-4" />
-                                {pageName(safeActive)}
-                            </button>
-                        )}
-                        {surface}
-                    </div>
-                </div>
+                    {showNav && nav.collapsible && !navOpen && (
+                        <button
+                            type="button"
+                            onClick={() => setNavOpen(true)}
+                            className="ir-fixed ir-left-3 ir-top-3 ir-z-30 ir-inline-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-border ir-bg-card ir-px-2 ir-py-1 ir-text-sm ir-text-muted-foreground ir-shadow-md hover:ir-text-foreground print:ir-hidden"
+                        >
+                            <PanelLeftOpen className="ir-size-4" />
+                            {pageName(safeActive)}
+                        </button>
+                    )}
+                    {surface}
+                </>
             );
         } else {
             // Top bar ("top") or compact tabs ("tabs") — both horizontal, differing in weight.

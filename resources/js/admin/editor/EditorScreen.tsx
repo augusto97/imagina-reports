@@ -1051,8 +1051,19 @@ export function EditorScreen(): ReactElement {
                         </div>
                     )}
 
-                    {/* Scrollable workspace with the centered artboard + live nav chrome */}
-                    <div className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
+                    {/* Scrollable workspace with the centered artboard + live nav chrome.
+                        The sidebar preview floats in the left gutter (absolute) so it mirrors
+                        the viewer's fixed left column WITHOUT shrinking the artboard. */}
+                    <div className="ir-relative ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
+                        {showNavPreview && navPos === "sidebar" && (
+                            <aside
+                                className="ir-absolute ir-left-3 ir-top-3 ir-z-10 ir-w-44 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-md"
+                                style={canvasThemeStyle}
+                            >
+                                <p className="ir-mb-2 ir-px-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">Páginas</p>
+                                <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="v" />
+                            </aside>
+                        )}
                         <div
                             className="ir-mx-auto ir-flex ir-w-full ir-max-w-5xl ir-flex-col ir-gap-3"
                             style={canvasThemeStyle}
@@ -1062,13 +1073,7 @@ export function EditorScreen(): ReactElement {
                                     <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="h" />
                                 </div>
                             )}
-                            <div className="ir-flex ir-items-start ir-gap-5">
-                                {showNavPreview && navPos === "sidebar" && (
-                                    <aside className="ir-w-44 ir-shrink-0 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-sm">
-                                        <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="v" />
-                                    </aside>
-                                )}
-                                <div className="ir-min-w-0 ir-flex-1 ir-border ir-bg-card ir-p-6 ir-shadow-sm">
+                            <div className="ir-border ir-bg-card ir-p-6 ir-shadow-sm">
                             <ReportSettingsProvider
                                 currency={siteCurrency}
                                 density={
@@ -1146,7 +1151,6 @@ export function EditorScreen(): ReactElement {
                             </div>
                         </div>
                     </div>
-                </div>
 
                 {/* ---- Right panel (collapsible): inspector for the selected block ---- */}
                 {rightOpen && (

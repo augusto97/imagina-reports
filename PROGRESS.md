@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 NAV LATERAL = COLUMNA FIJA DE PANTALLA (NO ENCOGE EL REPORTE) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.72):**
+el usuario aclaró que el riel lateral NO debe quitarle ancho al reporte: debe ser una **columna fija a la izquierda de la pantalla** (estilo
+app-shell), sin tocar el tamaño del reporte. Corregido. **VIEWER (`BlockList` sidebar):** el `<aside>` ahora es `ir-fixed ir-left-0 ir-top-0
+ir-h-screen ir-w-44 ... print:ir-hidden` (no flex sibling); la superficie del informe se renderiza a tamaño completo y centrada igual que con
+tabs/top (ya no es flex-1 reducido). Colapsable con toggle fijo arriba-izquierda. **EDITOR (preview):** el contenedor scroll es `ir-relative` y
+el riel se pinta como `ir-absolute ir-left-3 ir-top-3` flotando en el canalón izquierdo — el artboard mantiene `max-w-5xl` completo (no se
+encoge). Nota: en pantallas estrechas el riel fijo puede solapar (tradeoff esperado del «columna fija»); el modo colapsable lo mitiga. Sin
+backend. 360 tests PHP + 15 vitest + ts/lint/build limpios. **SIGUIENTE: desplegar v1.13.72.**
+
+
 **🧭 NAV COMO CHROME (FUERA DEL INFORME) + PREVIEW EN EL EDITOR (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.71):**
 el usuario notó dos fallos del nav configurable: (a) no se veía en el editor (había que ir al reporte/dashboard) y (b) lo rendericé DENTRO del
 informe, pero Looker/Power BI lo manejan como **chrome alrededor** del lienzo, no como contenido. Corregido. **(1) NAV = CHROME:** extraído
