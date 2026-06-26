@@ -34,6 +34,10 @@ final class StoreReportTemplateRequest extends FormRequest
             'filters' => ['nullable', 'array'],
             'theme.accent' => ['nullable', 'string', 'max:9'],
             'theme.density' => ['nullable', 'in:normal,compact'],
+            'theme.nav' => ['nullable', 'array'],
+            'theme.nav.position' => ['nullable', 'in:tabs,top,sidebar,hidden'],
+            'theme.nav.style' => ['nullable', 'in:pill,underline,solid'],
+            'theme.nav.collapsible' => ['nullable', 'boolean'],
             'pages' => ['nullable', 'array'],
             'pages.*.name' => ['nullable', 'string', 'max:80'],
         ];

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 
-import type { Block } from '../blocks/types';
+import type { Block, ReportNav } from '../blocks/types';
 import { api } from './api';
 import { hexToHslString } from './color';
 
@@ -30,6 +30,7 @@ export interface PublicReportAgency {
 export interface ReportTheme {
     accent?: string | null;
     density?: 'normal' | 'compact' | null;
+    nav?: ReportNav | null;
 }
 
 export interface PublicReport {

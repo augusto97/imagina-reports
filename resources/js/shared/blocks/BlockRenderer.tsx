@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import { type CSSProperties, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
@@ -24,7 +24,7 @@ import { hexToHslString } from '@shared/lib/color';
 
 import { matchCountry } from './geo';
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
-import type { Block, BlockComponentProps, BlockLayout, BlockType } from './types';
+import type { Block, BlockComponentProps, BlockLayout, BlockType, ReportNav } from './types';
 import { WorldChoropleth } from './WorldChoropleth';
 
 /* ------------------------------- prop helpers ------------------------------ */
@@ -1145,7 +1145,7 @@ export function BlockList({
     context?: Record<string, string>;
     currency?: string;
     locale?: string;
-    theme?: { accent?: string | null; density?: 'normal' | 'compact' | null } | null;
+    theme?: { accent?: string | null; density?: 'normal' | 'compact' | null; nav?: ReportNav | null } | null;
     /**
      * How the multi-page report is laid out (CLAUDE.md §11 — Looker/Power-BI parity):
      * - `paged` (default): interactive — ONE page at a time with a navigation menu, the way
@@ -1172,6 +1172,7 @@ export function BlockList({
 
     // Interactive paging: which page the viewer is looking at (Looker/Power-BI tabs).
     const [active, setActive] = useState(0);
+    const [navOpen, setNavOpen] = useState(true);
     const safeActive = Math.min(Math.max(active, 0), pages.length - 1);
     const pageName = (index: number): string => {
         const name = pageMeta?.[index]?.name;
@@ -1238,31 +1239,96 @@ export function BlockList({
         body = renderPage(pages[0] ?? []);
     } else {
         // Interactive: a navigation menu + the active page only (Looker/Power-BI model).
-        body = (
-            <div className="ir-flex ir-flex-col ir-gap-4">
-                {pages.length > 1 && (
-                    <nav className="ir-flex ir-flex-wrap ir-gap-1 ir-border-b ir-pb-2" aria-label="Páginas del informe">
-                        {pages.map((_, index) => (
-                            <button
-                                key={index}
-                                type="button"
-                                onClick={() => setActive(index)}
-                                aria-current={index === safeActive}
-                                className={cn(
-                                    'ir-rounded-md ir-px-3 ir-py-1.5 ir-text-sm ir-font-medium ir-transition',
-                                    index === safeActive
-                                        ? 'ir-bg-primary/10 ir-text-primary'
-                                        : 'ir-text-muted-foreground hover:ir-bg-muted',
+        // The nav's position (tabs / top bar / left sidebar / none) and look are configurable
+        // from the report theme, the way Looker Studio and Power BI expose page navigation.
+        const nav: ReportNav = theme?.nav ?? {};
+        const position = nav.position ?? 'tabs';
+        const navStyle = nav.style ?? 'pill';
+        const showNav = pages.length > 1 && position !== 'hidden';
+
+        const navButton = (index: number, orientation: 'h' | 'v'): ReactElement => {
+            const isActive = index === safeActive;
+            const base = 'ir-text-sm ir-font-medium ir-transition ir-text-left';
+            const look =
+                navStyle === 'solid'
+                    ? cn('ir-rounded-md ir-px-3 ir-py-1.5', isActive ? 'ir-bg-primary ir-text-primary-foreground ir-shadow-sm' : 'ir-text-muted-foreground hover:ir-bg-muted')
+                    : navStyle === 'underline'
+                      ? cn(
+                            'ir-px-1 ir-py-1.5 ir-border-b-2',
+                            orientation === 'v' ? 'ir-border-b-0 ir-border-l-2 ir-pl-3' : '',
+                            isActive ? 'ir-border-primary ir-text-primary' : 'ir-border-transparent ir-text-muted-foreground hover:ir-text-foreground',
+                        )
+                      : cn('ir-rounded-md ir-px-3 ir-py-1.5', isActive ? 'ir-bg-primary/10 ir-text-primary' : 'ir-text-muted-foreground hover:ir-bg-muted');
+
+            return (
+                <button
+                    key={index}
+                    type="button"
+                    onClick={() => setActive(index)}
+                    aria-current={isActive}
+                    className={cn(base, look, orientation === 'v' ? 'ir-w-full' : '')}
+                >
+                    {pageName(index)}
+                </button>
+            );
+        };
+
+        if (position === 'sidebar') {
+            // Left sidebar nav (Looker "Left"): fixed, or collapsible behind a toggle.
+            body = (
+                <div className="ir-flex ir-gap-6">
+                    {showNav && (!nav.collapsible || navOpen) && (
+                        <aside className="ir-w-48 ir-shrink-0">
+                            <nav className="ir-flex ir-flex-col ir-gap-1" aria-label="Páginas del informe">
+                                {nav.collapsible && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setNavOpen(false)}
+                                        className="ir-mb-1 ir-self-start ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted"
+                                        aria-label="Ocultar menú"
+                                    >
+                                        <PanelLeftClose className="ir-size-4" />
+                                    </button>
                                 )}
+                                {pages.map((_, index) => navButton(index, 'v'))}
+                            </nav>
+                        </aside>
+                    )}
+                    <div className="ir-min-w-0 ir-flex-1">
+                        {showNav && nav.collapsible && !navOpen && (
+                            <button
+                                type="button"
+                                onClick={() => setNavOpen(true)}
+                                className="ir-mb-3 ir-inline-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-border ir-px-2 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-bg-muted"
                             >
-                                {pageName(index)}
+                                <PanelLeftOpen className="ir-size-4" />
+                                {pageName(safeActive)}
                             </button>
-                        ))}
-                    </nav>
-                )}
-                {renderPage(pages[safeActive] ?? [])}
-            </div>
-        );
+                        )}
+                        {renderPage(pages[safeActive] ?? [])}
+                    </div>
+                </div>
+            );
+        } else {
+            // Top bar ("top") or compact tabs ("tabs") — both horizontal, differing in weight.
+            body = (
+                <div className="ir-flex ir-flex-col ir-gap-4">
+                    {showNav && (
+                        <nav
+                            className={cn(
+                                'ir-flex ir-flex-wrap ir-gap-1',
+                                position === 'top' ? 'ir-border-b ir-pb-2' : '',
+                                navStyle === 'underline' ? 'ir-border-b ir-pb-0' : '',
+                            )}
+                            aria-label="Páginas del informe"
+                        >
+                            {pages.map((_, index) => navButton(index, 'h'))}
+                        </nav>
+                    )}
+                    {renderPage(pages[safeActive] ?? [])}
+                </div>
+            );
+        }
     }
 
     return (

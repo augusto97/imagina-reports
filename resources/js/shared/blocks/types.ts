@@ -25,6 +25,18 @@ export type BlockType =
     | 'control'
     | 'custom';
 
+/**
+ * Page-navigation config (CLAUDE.md §11 — Looker/Power-BI parity). Lives in the report
+ * theme. `position` mirrors Looker's navigation options (tabs / top bar / left sidebar /
+ * none); `style` is a predesigned look for the page buttons; `collapsible` lets a sidebar
+ * fold away behind a toggle.
+ */
+export interface ReportNav {
+    position?: 'tabs' | 'top' | 'sidebar' | 'hidden';
+    style?: 'pill' | 'underline' | 'solid';
+    collapsible?: boolean;
+}
+
 /** One design-time filter on a dataset block ({dimension} {op} {value}). */
 export interface DatasetFilter {
     dimension: string;

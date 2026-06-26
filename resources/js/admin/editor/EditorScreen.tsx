@@ -81,6 +81,7 @@ import {
     ColorSwatch,
     Section,
     SegmentedControl,
+    Toggle,
     ToolbarButton,
     ToolbarDivider,
 } from "./controls";
@@ -554,7 +555,7 @@ export function EditorScreen(): ReactElement {
 
         // Only send a theme when something is set, so an unstyled template stays null.
         const themePayload =
-            theme.accent != null || theme.density != null ? theme : null;
+            theme.accent != null || theme.density != null || theme.nav != null ? theme : null;
         // Only persist filters when some scope actually has rules.
         const filtersPayload = Object.keys(pageFilters).length > 0 ? pageFilters : null;
         // Named pages for the nav menu — one entry per page, in order.
@@ -856,6 +857,45 @@ export function EditorScreen(): ReactElement {
                                         ]}
                                     />
                                 </Field>
+                                <Field label="Navegación entre páginas">
+                                    <SegmentedControl
+                                        value={theme.nav?.position ?? "tabs"}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({ ...current, nav: { ...current.nav, position: value } }))
+                                        }
+                                        options={[
+                                            { value: "tabs", label: "Pestañas" },
+                                            { value: "top", label: "Barra" },
+                                            { value: "sidebar", label: "Lateral" },
+                                            { value: "hidden", label: "Ninguna" },
+                                        ]}
+                                    />
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
+                                        Cómo cambia de página el cliente (estilo Looker/Power BI).
+                                    </p>
+                                </Field>
+                                <Field label="Estilo del menú">
+                                    <SegmentedControl
+                                        value={theme.nav?.style ?? "pill"}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({ ...current, nav: { ...current.nav, style: value } }))
+                                        }
+                                        options={[
+                                            { value: "pill", label: "Píldora" },
+                                            { value: "underline", label: "Subrayado" },
+                                            { value: "solid", label: "Sólido" },
+                                        ]}
+                                    />
+                                </Field>
+                                {theme.nav?.position === "sidebar" && (
+                                    <Toggle
+                                        checked={theme.nav?.collapsible ?? false}
+                                        onChange={(checked) =>
+                                            setTheme((current) => ({ ...current, nav: { ...current.nav, collapsible: checked } }))
+                                        }
+                                        label="Menú lateral colapsable"
+                                    />
+                                )}
                             </div>
                         </Section>
                     </aside>

@@ -142,6 +142,7 @@ export interface CatalogEntry {
 export interface ReportTheme {
     accent?: string | null;
     density?: 'normal' | 'compact' | null;
+    nav?: import('@shared/blocks/types').ReportNav | null;
 }
 
 /**

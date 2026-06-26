@@ -60,6 +60,29 @@ class ReportTemplateApiTest extends TestCase
             ->assertJsonPath('theme.density', 'compact');
     }
 
+    public function test_store_accepts_a_navigation_config(): void
+    {
+        $this->postJson('/api/v1/report-templates', [
+            'name' => 'Con nav',
+            'blocks' => DefaultTemplate::blocks(),
+            'theme' => ['nav' => ['position' => 'sidebar', 'style' => 'underline', 'collapsible' => true]],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('theme.nav.position', 'sidebar')
+            ->assertJsonPath('theme.nav.collapsible', true);
+    }
+
+    public function test_store_rejects_an_invalid_navigation_position(): void
+    {
+        $this->postJson('/api/v1/report-templates', [
+            'name' => 'Nav roto',
+            'blocks' => DefaultTemplate::blocks(),
+            'theme' => ['nav' => ['position' => 'floating']],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('theme.nav.position');
+    }
+
     public function test_store_rejects_an_invalid_theme_density(): void
     {
         $this->postJson('/api/v1/report-templates', [
