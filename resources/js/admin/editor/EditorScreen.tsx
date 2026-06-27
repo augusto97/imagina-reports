@@ -101,6 +101,7 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     crowdsec: ShieldAlert,
     maintenance: Wrench,
     virusdie: Bug,
+    unified: Layers,
 };
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
@@ -346,20 +347,22 @@ export function EditorScreen(): ReactElement {
 
     // A gallery template the user picked while the canvas already has content — we ask
     // whether to append it below or replace everything (for building unified reports).
-    const [pendingTpl, setPendingTpl] = useState<{ build: () => Block[]; name: string } | null>(null);
+    const [pendingTpl, setPendingTpl] = useState<{ build: () => Block[]; name: string; pages?: string[] } | null>(null);
 
-    const chooseTemplate = (template: { build: () => Block[]; name: string }): void => {
+    const chooseTemplate = (template: { build: () => Block[]; name: string; pages?: string[] }): void => {
         // An essentially empty canvas (just the starter header) just loads the template.
         if (blocks.length <= 1) {
-            replaceWithTemplate(template.build);
+            replaceWithTemplate(template);
             return;
         }
         setPendingTpl(template);
     };
 
-    function replaceWithTemplate(build: () => Block[]): void {
-        const next = build();
+    function replaceWithTemplate(template: { build: () => Block[]; pages?: string[] }): void {
+        const next = template.build();
         resetBlocks(next);
+        // Carry the template's named pages (multi-page templates), or clear them.
+        setPageNames(template.pages ?? []);
         setSelectedId(next[0]?.id ?? null);
         setPendingTpl(null);
     }
@@ -1253,11 +1256,11 @@ export function EditorScreen(): ReactElement {
                             actual, o reemplazar todo el informe?
                         </p>
                         <div className="ir-mt-4 ir-flex ir-flex-col ir-gap-2">
-                            <Button onClick={() => appendTemplate(pendingTpl.build)}>
+                            <Button onClick={() => appendTemplate(pendingTpl.build)} title="Añade los bloques debajo (las páginas se aplanan en la actual)">
                                 <Plus className="ir-size-4" />
                                 Añadir debajo
                             </Button>
-                            <Button variant="ghost" onClick={() => replaceWithTemplate(pendingTpl.build)}>
+                            <Button variant="ghost" onClick={() => replaceWithTemplate(pendingTpl)}>
                                 <LayoutTemplate className="ir-size-4" />
                                 Reemplazar todo
                             </Button>

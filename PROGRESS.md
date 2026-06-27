@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 PLANTILLAS PREDISEÑADAS RECONSTRUIDAS + REPORTE 360 UNIFICADO PAGINADO (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
+v1.13.73):** se reconstruyó toda la galería (`templateGallery.ts`) con bloques nuevos (geo_map, goal, comments, healthscore, security_shield) y
+métricas verificadas contra los catálogos reales de TODOS los conectores (ga4, gsc, cloudflare, crowdsec, mainwp, betteruptime, woocommerce,
+virusdie, site_agent, worklog). Helpers nuevos: cover/backCover/geo/donut/goal/comments/healthscore/shield/worklog + page por bloque. Cada
+plantilla quedó más rica (más KPIs, mapas de países donde hay datos geo, donuts, notas del equipo). **NUEVO `unified` (★ Reporte 360 unificado,
+PAGINADO):** 7 páginas con nombre — Portada (cover) · Resumen (healthscore+KPIs multi-fuente+summary) · Seguridad (cloudflare/crowdsec/mainwp +
+geo amenazas) · Tráfico y SEO (ga4+gsc + geo países) · Ventas (woo) · Mantenimiento (work_log+uptime+worklog+comments) · Cierre (back_cover).
+Añadido `crowdsec` como plantilla propia. Galería ahora soporta `pages?: string[]` → el editor (`replaceWithTemplate`) aplica los nombres de
+página al cargar (setPageNames). Bloques sin datos se ocultan solos en generación. Solo frontend (sin backend). 360 tests PHP + 15 vitest +
+ts/lint/build limpios. **SIGUIENTE: desplegar v1.13.73.** Nota: el usuario va a mandar ejemplos del nav lateral porque no le gustó cómo quedó —
+pendiente rediseñarlo cuando los mande.
+
+
 **🧭 NAV LATERAL = COLUMNA FIJA DE PANTALLA (NO ENCOGE EL REPORTE) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.72):**
 el usuario aclaró que el riel lateral NO debe quitarle ancho al reporte: debe ser una **columna fija a la izquierda de la pantalla** (estilo
 app-shell), sin tocar el tamaño del reporte. Corregido. **VIEWER (`BlockList` sidebar):** el `<aside>` ahora es `ir-fixed ir-left-0 ir-top-0
