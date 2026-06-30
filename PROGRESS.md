@@ -7,6 +7,17 @@
 ---
 
 ## Where I left off (read me first)
+**🗓️ ETIQUETAS DE PERIODO LEGIBLES + SINCRONIZAR RANGO CUSTOM DESDE EL ADMIN (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
+v1.13.82):** continuación del fix del panel en vivo. **(1) ETIQUETAS:** `PublicDashboardController::periodLabel()` ahora nombra los periodos:
+mes natural → «Junio 2026», trimestre → «Q2 2026», año → «Año 2026», y si no, el rango literal «d/m/Y – d/m/Y». **(2) SYNC DE RANGO CUSTOM:** el
+backend ya sincronizaba cualquier rango (`POST sites/{site}/sync` con period_start/period_end → snapshot exacto de esa ventana); faltaba la UI.
+Nuevo componente `RangeSyncMenu` (presets de `RANGE_PRESETS` + dos inputs de fecha + botón «Sincronizar») embebido en `SiteDataSources`. Así, si
+un cliente pide del X al Y, la agencia sincroniza ese periodo completo (los conectores agregan EN ORIGEN esa ventana, §3.3 — exacto para todas las
+métricas, incluidas posición media/CTR) y queda disponible para el reporte y como periodo seleccionable en el panel en vivo. Esta es la forma
+correcta de ofrecer rangos arbitrarios (vs. fusionar snapshots con pérdida). 376 tests PHP (+labels) + 15 vitest + stan/pint/ts/build limpios.
+**SIGUIENTE: desplegar v1.13.82.**
+
+
 **📅 FIX PANEL EN VIVO: SELECTOR DE PERIODOS REALES (no rango de días libre) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.81):** el owner reportó que los filtros de fecha del dashboard «no filtran» y que las fechas sin datos deberían no ser seleccionables.
 CAUSA RAÍZ: los snapshots son **agregados por periodo de sync** (un total por mes); `MetricBagLoader` hace exact-match del rango o cae al «último

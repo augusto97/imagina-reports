@@ -86,9 +86,33 @@ class PublicDashboardTest extends TestCase
         // Two periods, June first (most recent) — and the dashboard opens on June, not on the
         // full May→June span (which would silently show only one snapshot).
         $this->assertCount(2, $response->json('periods'));
-        $response->assertJsonPath('periods.0.label', fn (string $label): bool => str_contains($label, '01/06/2026'))
-            ->assertJsonPath('periods.1.label', fn (string $label): bool => str_contains($label, '01/05/2026'))
+        // Whole calendar months get friendly labels.
+        $response->assertJsonPath('periods.0.label', 'Junio 2026')
+            ->assertJsonPath('periods.1.label', 'Mayo 2026')
             ->assertJsonPath('period_start', fn (string $value): bool => str_starts_with($value, '2026-06-01'));
+    }
+
+    public function test_period_labels_name_months_quarters_and_years(): void
+    {
+        [$definition, $site] = $this->publishedDashboard(); // a May snapshot → "Mayo 2026"
+        $source = DataSource::query()->where('site_id', $site->id)->firstOrFail();
+
+        foreach ([['2026-04-01', '2026-06-30'], ['2026-01-01', '2026-12-31']] as [$start, $end]) {
+            MetricSnapshot::factory()->create([
+                'agency_id' => $definition->agency_id,
+                'data_source_id' => $source->id,
+                'period_start' => $start,
+                'period_end' => $end,
+                'payload' => ['status' => 'ok', 'error' => null, 'metrics' => []],
+            ]);
+        }
+
+        $labels = collect($this->getJson("/api/v1/public/dashboards/{$definition->dashboard_token}")->json('periods'))
+            ->pluck('label')->all();
+
+        $this->assertContains('Mayo 2026', $labels);
+        $this->assertContains('Q2 2026', $labels);
+        $this->assertContains('Año 2026', $labels);
     }
 
     public function test_selecting_an_explicit_period_resolves_that_window(): void

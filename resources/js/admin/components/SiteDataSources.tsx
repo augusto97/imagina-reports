@@ -12,6 +12,7 @@ import {
 import type { Ga4DatasetSpec } from '../api';
 import type { Connector, DataSourceDto } from '../types';
 import { Ga4DatasetBuilder } from './Ga4DatasetBuilder';
+import { RangeSyncMenu } from './RangeSyncMenu';
 import { Button, Field, Input } from './ui';
 
 /** One-click download of the companion WordPress plugin (site_agent connector). */
@@ -311,6 +312,8 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     {adding ? 'Cerrar' : '+ Añadir fuente'}
                 </Button>
             </div>
+
+            {sources.length > 0 && <RangeSyncMenu siteId={siteId} />}
 
             {adding && (
                 <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">

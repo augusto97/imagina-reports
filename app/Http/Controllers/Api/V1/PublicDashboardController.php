@@ -111,8 +111,8 @@ final class PublicDashboardController extends Controller
         $periods = [];
 
         foreach ($snapshots as $snapshot) {
-            $start = $snapshot->period_start;
-            $end = $snapshot->period_end;
+            $start = CarbonImmutable::parse($snapshot->period_start);
+            $end = CarbonImmutable::parse($snapshot->period_end);
             $key = $start->toDateString().'|'.$end->toDateString();
 
             if (isset($seen[$key])) {
@@ -123,7 +123,7 @@ final class PublicDashboardController extends Controller
             $periods[] = [
                 'start' => $start->toIso8601String(),
                 'end' => $end->toIso8601String(),
-                'label' => $start->format('d/m/Y').' – '.$end->format('d/m/Y'),
+                'label' => $this->periodLabel($start, $end),
             ];
 
             if (count($periods) >= 36) {
@@ -132,6 +132,33 @@ final class PublicDashboardController extends Controller
         }
 
         return $periods;
+    }
+
+    /**
+     * A human period label: a whole calendar month → "Junio 2026", a whole quarter →
+     * "Q2 2026", a whole year → "Año 2026", otherwise the literal "d/m/Y – d/m/Y" range.
+     */
+    private function periodLabel(CarbonImmutable $start, CarbonImmutable $end): string
+    {
+        $months = [1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'];
+        $endDate = $end->toDateString();
+
+        // Whole year (1 Jan → 31 Dec).
+        if ($start->month === 1 && $start->day === 1 && $endDate === $start->endOfYear()->toDateString()) {
+            return 'Año '.$start->year;
+        }
+
+        // Whole quarter (first day of a quarter → last day of its third month).
+        if ($start->day === 1 && in_array($start->month, [1, 4, 7, 10], true) && $endDate === $start->addMonths(2)->endOfMonth()->toDateString()) {
+            return 'Q'.(intdiv($start->month - 1, 3) + 1).' '.$start->year;
+        }
+
+        // Whole calendar month.
+        if ($start->day === 1 && $endDate === $start->endOfMonth()->toDateString()) {
+            return $months[$start->month].' '.$start->year;
+        }
+
+        return $start->format('d/m/Y').' – '.$end->format('d/m/Y');
     }
 
     /**
