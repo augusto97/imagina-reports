@@ -217,11 +217,6 @@ export function SyncStatus({ siteId, period, monthLabel, onSynced }: SyncStatusP
                                         {source.status === 'error' && source.last_error !== null && !busy && (
                                             <p className="ir-mt-1 ir-pl-6 ir-text-[11px] ir-text-red-600">{source.last_error}</p>
                                         )}
-                                        {source.type === 'mainwp' && source.child_reports_active === false && !busy && (
-                                            <p className="ir-mt-1 ir-pl-6 ir-text-[11px] ir-text-amber-600">
-                                                Instala «MainWP Child Reports» en el sitio para registrar el historial de actualizaciones.
-                                            </p>
-                                        )}
                                     </li>
                                 );
                             })}
