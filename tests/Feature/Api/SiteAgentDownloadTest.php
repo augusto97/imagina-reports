@@ -29,4 +29,13 @@ class SiteAgentDownloadTest extends TestCase
     {
         $this->getJson('/api/v1/system/site-agent/download')->assertUnauthorized();
     }
+
+    public function test_it_reports_the_bundled_plugin_version(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['agency_id' => Agency::factory()->create()->id]));
+
+        $this->getJson('/api/v1/system/site-agent/version')
+            ->assertOk()
+            ->assertJsonPath('version', fn (?string $value): bool => is_string($value) && preg_match('/^\d+\.\d+/', $value) === 1);
+    }
 }

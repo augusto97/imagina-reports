@@ -175,5 +175,6 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('system/update/restart-workers', [SystemUpdateController::class, 'restartWorkers'])->name('api.system.update.restart-workers');
     Route::post('system/update/rollback', [SystemUpdateController::class, 'rollback'])->name('api.system.update.rollback');
 
+    Route::get('system/site-agent/version', [SiteAgentController::class, 'version'])->name('api.system.site-agent.version');
     Route::get('system/site-agent/download', [SiteAgentController::class, 'download'])->name('api.system.site-agent.download');
 });

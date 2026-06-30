@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 use RuntimeException;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -20,6 +21,25 @@ use ZipArchive;
 final class SiteAgentController extends Controller
 {
     private const PLUGIN_DIR = 'imagina-reports-agent';
+
+    /**
+     * The bundled agent plugin version (read from the plugin header), so the admin can see
+     * which version the download will give without opening the ZIP.
+     */
+    public function version(): JsonResponse
+    {
+        $file = base_path('wp-plugin/'.self::PLUGIN_DIR.'/'.self::PLUGIN_DIR.'.php');
+        $version = null;
+
+        if (is_file($file)) {
+            $contents = (string) file_get_contents($file);
+            if (preg_match('/^\s*\*\s*Version:\s*(.+)$/mi', $contents, $matches) === 1) {
+                $version = trim($matches[1]);
+            }
+        }
+
+        return response()->json(['version' => $version]);
+    }
 
     public function download(): BinaryFileResponse
     {

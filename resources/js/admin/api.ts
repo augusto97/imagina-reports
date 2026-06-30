@@ -879,6 +879,14 @@ export function useGenerateReport() {
  * Fetch the companion WordPress plugin ZIP (authenticated) and trigger a browser
  * download. Used by the "Agente Imagina (sitio)" connector setup panel.
  */
+/** The bundled agent plugin version, so the System screen shows what the download gives. */
+export function useSiteAgentVersion() {
+    return useQuery({
+        queryKey: ['site-agent-version'],
+        queryFn: () => api.get<{ version: string | null }>('/system/site-agent/version').then((r) => r.data.version),
+    });
+}
+
 export async function downloadSiteAgentPlugin(): Promise<void> {
     const { data } = await api.get<Blob>('/system/site-agent/download', { responseType: 'blob' });
 
