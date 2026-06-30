@@ -16,6 +16,8 @@ export function defaultSize(type: BlockType): { w: number; h: number } {
             return { w: 12, h: 3 };
         case 'narrative':
             return { w: 12, h: 4 };
+        case 'advisory':
+            return { w: 12, h: 5 };
         case 'divider':
         case 'pagebreak':
             return { w: 12, h: 1 };
@@ -67,6 +69,9 @@ export function makeBlock(type: BlockType): Block {
     }
     if (type === 'goal') {
         block.props = { label: 'Meta', target: 100 };
+    }
+    if (type === 'advisory') {
+        block.props = { title: 'Diagnóstico y recomendaciones' };
     }
     if (type === 'cover') {
         block.props = { title: 'Informe de soporte y rendimiento', subtitle: '', showScore: true };
@@ -160,6 +165,7 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'chart', label: 'Gráfico' },
     { type: 'table', label: 'Tabla' },
     { type: 'narrative', label: 'Texto' },
+    { type: 'advisory', label: 'Diagnóstico IA' },
     { type: 'security_shield', label: 'Seguridad' },
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
@@ -179,6 +185,10 @@ export function sampleData(block: Block): unknown {
             // The cover reads client/site/period from the report context at render time;
             // in the editor we seed period + score so the title page previews realistically.
             return { period: 'junio 2026', score: '87' };
+        case 'advisory':
+            // The real text is written by the AI at generation; show a representative sample
+            // so the editor previews how the insight reads.
+            return 'Este mes tus ventas subieron un 30% y las visitas un 40%. Aplicamos 6 actualizaciones de seguridad y tu sitio estuvo disponible el 99,8% del tiempo, con 4 breves caídas. Ante este crecimiento de tráfico, recomendamos una revisión de rendimiento para que el sitio lo soporte con holgura.';
         case 'header': {
             // Realistic preview so merge-field headers read as a real cover in the editor.
             const headerTitle = typeof block.props?.title === 'string' && block.props.title !== '' ? block.props.title : 'Informe mensual';

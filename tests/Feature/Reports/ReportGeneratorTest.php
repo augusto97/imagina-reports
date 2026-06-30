@@ -244,6 +244,41 @@ class ReportGeneratorTest extends TestCase
         $this->assertContains('summary', $this->visibleIds($report));
     }
 
+    public function test_it_fills_the_advisory_block_with_history_aware_facts(): void
+    {
+        $fake = new FakeAiClient('Tus visitas subieron pero hubo 4 caídas; conviene una revisión de rendimiento.');
+        $this->app->instance(AiClient::class, $fake);
+
+        $ga4 = $this->dataSource(DataSourceType::Ga4);
+        $this->snapshot($ga4, '2026-06-15 00:00:00', '2026-06-15 23:59:59', ['ga4.sessions' => 1500]);
+        $uptime = $this->dataSource(DataSourceType::BetterUptime);
+        $this->snapshot($uptime, '2026-06-15 00:00:00', '2026-06-15 23:59:59', ['betteruptime.uptime_percent' => 99.8, 'betteruptime.incidents' => 4]);
+
+        $template = ReportTemplate::factory()->create([
+            'agency_id' => $this->agency->id,
+            'blocks' => [
+                ['id' => 'k', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions'], 'props' => ['label' => 'Visitas']],
+                ['id' => 'adv', 'type' => 'advisory', 'props' => ['title' => 'Diagnóstico']],
+            ],
+        ]);
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'template_id' => $template->id,
+            'locale' => 'es',
+        ]);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        // The advisory block carries the AI text…
+        $this->assertSame('Tus visitas subieron pero hubo 4 caídas; conviene una revisión de rendimiento.', $report->resolved_blocks['data']['adv'] ?? null);
+        // …and the prompt was fed the uptime/incidents history facts (not just headline KPIs).
+        $this->assertIsString($fake->lastPrompt);
+        $this->assertStringContainsString('disponibilidad', $fake->lastPrompt);
+        $this->assertStringContainsString('incidentes', $fake->lastPrompt);
+        $this->assertStringContainsString('Visitas', $fake->lastPrompt);
+    }
+
     public function test_generation_survives_a_failing_ai_narrative(): void
     {
         // An AI client that throws must not break GENERATE — the summary stays empty.

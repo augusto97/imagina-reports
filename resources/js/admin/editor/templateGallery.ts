@@ -96,6 +96,10 @@ const comments = (layout: BlockLayout, page = 0): Block =>
 const summary = (layout: BlockLayout, page = 0): Block =>
     spec({ type: 'narrative', props: { variant: 'executive_summary', title: 'Resumen del mes' }, layout, page });
 
+/** The AI advisory: a consultative diagnosis + recommendation (filled at generation, §10.6). */
+const advisory = (layout: BlockLayout, page = 0): Block =>
+    spec({ type: 'advisory', props: { title: 'Diagnóstico y recomendaciones' }, layout, page });
+
 /** The retention CTA that closes single-page reports. */
 const cta = (y: number, page = 0): Block => spec({ type: 'cta', layout: { x: 0, y, w: 12, h: 3 }, page });
 
@@ -137,6 +141,7 @@ export const GALLERY: GalleryTemplate[] = [
             kpi('gsc', 'clicks', 'Clics en Google', { x: 4, y: 10, w: 4, h: 4 }, {}, 1),
             kpi('worklog', 'hours', 'Horas de soporte', { x: 8, y: 10, w: 4, h: 4 }, {}, 1),
             summary({ x: 0, y: 14, w: 12, h: 5 }, 1),
+            advisory({ x: 0, y: 19, w: 12, h: 5 }, 1),
 
             // ── Page 2 — Security ────────────────────────────────────────────
             header('Seguridad y protección', { x: 0, y: 0, w: 12, h: 2 }, 2),

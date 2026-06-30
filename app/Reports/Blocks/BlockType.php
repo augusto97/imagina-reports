@@ -20,6 +20,7 @@ enum BlockType: string
     case Funnel = 'funnel';
     case GeoMap = 'geo_map';
     case Narrative = 'narrative';
+    case Advisory = 'advisory';
     case HealthScore = 'healthscore';
     case SecurityShield = 'security_shield';
     case WorklogTimeline = 'worklog_timeline';

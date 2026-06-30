@@ -39,7 +39,7 @@ final readonly class ReportGenerator
 
     public function generate(ReportDefinition $definition, Period $period): Report
     {
-        ['blocks' => $visibleBlocks, 'data' => $data, 'health_score' => $score, 'theme' => $theme, 'diagnostics' => $diagnostics, 'pages' => $pages] = $this->compose($definition, $period);
+        ['blocks' => $visibleBlocks, 'data' => $data, 'health_score' => $score, 'theme' => $theme, 'diagnostics' => $diagnostics, 'pages' => $pages, 'bags' => $bags] = $this->compose($definition, $period);
 
         // AI per-period narrative (§10.6): regenerate the executive-summary text from the
         // resolved figures and inject it into the report's narrative block(s). This is the
@@ -48,6 +48,17 @@ final readonly class ReportGenerator
         $summary = $this->narrative($definition, $visibleBlocks, $data, $score);
         if ($summary !== null) {
             $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
+        }
+
+        // AI advisory "site condition" insight (§10.6 added value): a consultative diagnosis
+        // that also reads the previous period, the maintenance/updates done, downtime and the
+        // multi-month health trend, recommending a follow-up only when the data warrants it.
+        // Same resilience as the narrative — a failure just leaves the block empty.
+        if (AdvisoryInsight::present($visibleBlocks)) {
+            $advisory = $this->advisory($definition, $visibleBlocks, $data, $score, $bags, $period);
+            if ($advisory !== null) {
+                $data = AdvisoryInsight::inject($visibleBlocks, $data, $advisory);
+            }
         }
 
         $report = $this->persist($definition, $period, $visibleBlocks, $data, $score, $theme, $diagnostics, $summary, $pages);
@@ -67,7 +78,7 @@ final readonly class ReportGenerator
      * to run per request as the client changes the date range. Still reads only stored
      * snapshots (§3.1) — never a live API.
      *
-     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>, pages: list<array<string, mixed>>}
+     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>, pages: list<array<string, mixed>>, bags: array<string, array<array-key, mixed>>}
      */
     public function resolveLive(ReportDefinition $definition, Period $period): array
     {
@@ -79,7 +90,7 @@ final readonly class ReportGenerator
      * calculated metrics) → health score → resolved blocks. Used by both the persisted
      * GENERATE stage and the live dashboard.
      *
-     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>, pages: list<array<string, mixed>>}
+     * @return array{blocks: list<array<string, mixed>>, data: array<string, mixed>, health_score: int, theme: array<string, mixed>|null, diagnostics: list<array<string, mixed>>, pages: list<array<string, mixed>>, bags: array<string, array<array-key, mixed>>}
      */
     private function compose(ReportDefinition $definition, Period $period): array
     {
@@ -116,7 +127,218 @@ final readonly class ReportGenerator
             'theme' => is_array($theme) ? $theme : null,
             'diagnostics' => $diagnostics,
             'pages' => $this->pageNames($definition),
+            'bags' => $bags,
         ];
+    }
+
+    /**
+     * Generate the AI advisory text (CLAUDE.md §10.6) from a rich fact set — current figures,
+     * change vs. the previous period, the multi-month health trend, the maintenance done and
+     * uptime/incidents. Returns null (no advisory) on any failure or empty result, never
+     * throwing, so GENERATE always finishes.
+     *
+     * @param  list<array<string, mixed>>  $visibleBlocks
+     * @param  array<array-key, mixed>  $data
+     * @param  array<string, array<array-key, mixed>>  $bags
+     */
+    private function advisory(ReportDefinition $definition, array $visibleBlocks, array $data, int $score, array $bags, Period $period): ?string
+    {
+        $facts = $this->advisoryFacts($definition, $visibleBlocks, $data, $score, $bags, $period);
+
+        if ($facts === []) {
+            return null;
+        }
+
+        try {
+            $text = $this->ai->advisory($facts, $this->locale($definition));
+        } catch (Throwable $e) {
+            Log::warning('Report advisory generation failed; leaving the block empty.', [
+                'definition_id' => $definition->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * The fact set fed to the advisory prompt: the resolved headline figures, the KPI changes
+     * vs. the previous period, the multi-month health trend, the maintenance done and the
+     * uptime/incidents — all read from already-stored data (§3.1).
+     *
+     * @param  list<array<string, mixed>>  $visibleBlocks
+     * @param  array<array-key, mixed>  $data
+     * @param  array<string, array<array-key, mixed>>  $bags
+     * @return array<string, mixed>
+     */
+    private function advisoryFacts(ReportDefinition $definition, array $visibleBlocks, array $data, int $score, array $bags, Period $period): array
+    {
+        $facts = ReportFacts::build($visibleBlocks, $data, $score);
+
+        $changes = [];
+        foreach ($visibleBlocks as $block) {
+            $type = $block['type'] ?? null;
+            if ($type !== 'kpi' && $type !== 'sales_summary') {
+                continue;
+            }
+            $id = $block['id'] ?? null;
+            if (! is_string($id) || ! array_key_exists($id, $data)) {
+                continue;
+            }
+            $value = $data[$id];
+            if (is_array($value) && isset($value['change_percent']) && is_numeric($value['change_percent'])) {
+                $changes[$this->blockLabel($block)] = round((float) $value['change_percent'], 1);
+            }
+        }
+        if ($changes !== []) {
+            $facts['cambio_vs_anterior_pct'] = $changes;
+        }
+
+        $trend = $this->healthTrend($definition, $period, $score);
+        if (count($trend) > 1) {
+            $facts['tendencia_salud'] = $trend;
+        }
+
+        $maintenance = $this->maintenanceFacts($bags);
+        if ($maintenance !== []) {
+            $facts['mantenimiento'] = $maintenance;
+        }
+
+        $uptime = $this->uptimeFacts($bags);
+        if ($uptime !== []) {
+            $facts['disponibilidad'] = $uptime;
+        }
+
+        return $facts;
+    }
+
+    /**
+     * The site's health score over the last few periods (prior reports + the current score),
+     * so the advisory can speak to a trend rather than a single month.
+     *
+     * @return list<array{periodo: string, salud: int|null}>
+     */
+    private function healthTrend(ReportDefinition $definition, Period $period, int $score): array
+    {
+        $prior = Report::query()
+            ->where('report_definition_id', $definition->id)
+            ->where('period_end', '<', Carbon::instance($period->end))
+            ->orderByDesc('period_end')
+            ->take(5)
+            ->get();
+
+        $trend = [];
+        foreach ($prior->sortBy('period_end') as $report) {
+            $trend[] = ['periodo' => $report->period_end->format('Y-m'), 'salud' => $report->health_score];
+        }
+        $trend[] = ['periodo' => Carbon::instance($period->end)->format('Y-m'), 'salud' => $score];
+
+        return $trend;
+    }
+
+    /**
+     * Maintenance done this period for the advisory: updates applied, support hours/tasks, and
+     * the elements actually updated (from the agent's local history or MainWP's work log).
+     *
+     * @param  array<string, array<array-key, mixed>>  $bags
+     * @return array<string, mixed>
+     */
+    private function maintenanceFacts(array $bags): array
+    {
+        $maintenance = [];
+
+        $applied = $this->bagNum($bags, 'mainwp', 'mainwp.updates_applied') ?? $this->bagNum($bags, 'site_agent', 'site_agent.updates_applied');
+        if ($applied !== null) {
+            $maintenance['actualizaciones_aplicadas'] = (int) $applied;
+        }
+
+        $hours = $this->bagNum($bags, 'worklog', 'worklog.hours');
+        if ($hours !== null) {
+            $maintenance['horas_soporte'] = $hours;
+        }
+
+        $tasks = $this->bagNum($bags, 'worklog', 'worklog.tasks');
+        if ($tasks !== null) {
+            $maintenance['tareas'] = (int) $tasks;
+        }
+
+        $log = $bags['site_agent']['site_agent.updates_log'] ?? $bags['mainwp']['mainwp.work_log'] ?? null;
+        if (is_array($log)) {
+            $items = [];
+            foreach (array_slice($log, 0, 8) as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $element = $row['Elemento'] ?? null;
+                $version = $row['Versión'] ?? null;
+                if (is_string($element)) {
+                    $items[] = is_string($version) && $version !== '' ? $element.' ('.$version.')' : $element;
+                }
+            }
+            if ($items !== []) {
+                $maintenance['elementos'] = $items;
+            }
+        }
+
+        return $maintenance;
+    }
+
+    /**
+     * Uptime/incidents for the advisory (so it can flag downtime under a traffic spike).
+     *
+     * @param  array<string, array<array-key, mixed>>  $bags
+     * @return array<string, mixed>
+     */
+    private function uptimeFacts(array $bags): array
+    {
+        $uptime = [];
+
+        $percent = $this->bagNum($bags, 'betteruptime', 'betteruptime.uptime_percent');
+        if ($percent !== null) {
+            $uptime['uptime_percent'] = $percent;
+        }
+
+        $incidents = $this->bagNum($bags, 'betteruptime', 'betteruptime.incidents');
+        if ($incidents !== null) {
+            $uptime['incidentes'] = (int) $incidents;
+        }
+
+        $downtime = $this->bagNum($bags, 'betteruptime', 'betteruptime.total_downtime');
+        if ($downtime !== null) {
+            $uptime['tiempo_caido_seg'] = (int) $downtime;
+        }
+
+        return $uptime;
+    }
+
+    /**
+     * A metric's numeric value from the bag, or null when absent/non-numeric.
+     *
+     * @param  array<string, array<array-key, mixed>>  $bags
+     */
+    private function bagNum(array $bags, string $source, string $key): int|float|null
+    {
+        $value = $bags[$source][$key] ?? null;
+
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+
+        return is_string($value) && is_numeric($value) ? (float) $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $block
+     */
+    private function blockLabel(array $block): string
+    {
+        $props = is_array($block['props'] ?? null) ? $block['props'] : [];
+        $binding = is_array($block['binding'] ?? null) ? $block['binding'] : [];
+        $label = $props['label'] ?? $props['title'] ?? ($binding['metric'] ?? 'metric');
+
+        return is_string($label) ? $label : 'metric';
     }
 
     /**

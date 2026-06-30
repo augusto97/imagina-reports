@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Lightbulb, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import { type CSSProperties, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
@@ -707,6 +707,32 @@ function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
+/**
+ * AI advisory "site condition & recommendations" block (CLAUDE.md §10.6): the consultative
+ * diagnosis the ReportGenerator fills (data over props.text), rendered as a distinct insight
+ * callout — accent-tinted with a lightbulb — so it reads as the team's recommendation, not a
+ * plain paragraph. Hides itself when there's no text (so an unfilled block never shows empty).
+ */
+function AdvisoryBlock({ block, data }: BlockComponentProps): ReactElement | null {
+    const text = str(data, str(prop(block, 'text')));
+
+    if (text === '') {
+        return null;
+    }
+
+    return (
+        <div className="ir-flex ir-h-full ir-gap-3 ir-rounded-xl ir-border ir-border-primary/30 ir-bg-primary/[0.06] ir-p-5" style={styleCss(block.style)}>
+            <Lightbulb className="ir-mt-0.5 ir-size-5 ir-shrink-0 ir-text-primary" />
+            <div className="ir-flex ir-flex-col ir-gap-1">
+                <p className="ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.14em] ir-text-primary">
+                    {str(prop(block, 'title'), 'Diagnóstico y recomendaciones')}
+                </p>
+                <p className="ir-whitespace-pre-line ir-text-sm ir-leading-relaxed ir-text-foreground/90">{text}</p>
+            </div>
+        </div>
+    );
+}
+
 const SECURITY_STATS: { key: string; label: string }[] = [
     { key: 'threats_blocked', label: 'Amenazas bloqueadas' },
     { key: 'attacks_blocked', label: 'Ataques bloqueados' },
@@ -1059,6 +1085,7 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     funnel: FunnelBlock,
     geo_map: GeoMapBlock,
     narrative: NarrativeBlock,
+    advisory: AdvisoryBlock,
     healthscore: HealthScoreBlock,
     security_shield: SecurityShieldBlock,
     worklog_timeline: WorklogTimelineBlock,

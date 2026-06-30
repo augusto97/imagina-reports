@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**💡 BLOQUE «DIAGNÓSTICO Y RECOMENDACIONES» CON IA (condición del sitio + histórico) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.78):** nuevo bloque `advisory` (tipo propio, no variante de narrative) que la IA rellena al GENERAR con un diagnóstico consultivo:
+usa el periodo actual, el cambio vs. el anterior (change_percent de los KPIs), la **tendencia de salud de varios meses** (consulta los Reports
+previos de la definición), el **mantenimiento** (updates aplicadas + horas/tareas + elementos actualizados del work_log/updates_log) y la
+**disponibilidad/caídas** (betteruptime). Decisión del owner: recomienda SOLO cuando los datos lo justifican (caídas, picos de tráfico,
+vulnerabilidades, mantenimiento insuficiente); si el sitio está sano, solo tranquiliza («tu sitio está protegido y en buenas manos»). Backend:
+`AiReportBuilder::advisory()` (prompt consultor ES), `AdvisoryInsight` helper (present/inject como ExecutiveSummary), `ReportGenerator`:
+`compose()` ahora devuelve `bags`; `generate()` detecta el bloque y llama advisory con facts ricos (`advisoryFacts`/`healthTrend`/
+`maintenanceFacts`/`uptimeFacts`/`bagNum`/`blockLabel`); resiliente (null si falla, no rompe GENERATE). Front: `AdvisoryBlock` (callout con
+bombilla, lee `data` sobre props.text, se oculta si vacío) + tipo TS + palette/factory/sample + helper `advisory()` en la galería y en el Reporte
+360 (página Resumen). Reusa la Claude API existente (services.anthropic). 363 tests PHP (+advisory) + 15 vitest + stan/pint/ts/lint/build limpios.
+**SIGUIENTE: desplegar v1.13.78.** (El bloque sale vacío/oculto si no hay clave Anthropic configurada en la agencia o el .env.)
+
+
 **🕓 HISTORIAL DE ACTUALIZACIONES LOCAL EN EL AGENTE (pre-instalar = acumular historial) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.75 + Agente plugin 1.9.0):** pregunta del owner: si instala el plugin agente AHORA y conecta el sitio a la app a mitad del mes que
 viene, ¿ya tendrá historial de actualizaciones? Antes NO: «updates aplicadas» se calculaba diffeando snapshots de MainWP en la app (requiere

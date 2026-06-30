@@ -96,6 +96,30 @@ final readonly class AiReportBuilder
     }
 
     /**
+     * Advisory "site condition" insight (the §10.6 added-value block): a short, consultative
+     * diagnosis that reasons over the CURRENT period, the change vs. the previous one, the
+     * multi-month health trend, the maintenance done and the uptime/incidents — and ends with
+     * an actionable recommendation ONLY when the data justifies it (downtime, traffic spikes,
+     * vulnerabilities, stale maintenance). When the site is healthy it just reassures, never
+     * inventing problems. Plain language, the client's locale, no markdown.
+     *
+     * @param  array<string, mixed>  $facts
+     */
+    public function advisory(array $facts, string $locale = 'es'): string
+    {
+        $system = 'Eres un consultor de una agencia web que cuida el sitio de un cliente. A partir de los datos del informe '
+            .'(periodo actual, comparación con el periodo anterior, tendencia de salud de varios meses, mantenimiento realizado y '
+            ."disponibilidad/caídas), escribe un diagnóstico breve y claro para un cliente NO técnico, en el idioma '{$locale}'. "
+            .'3 a 5 frases. Menciona cifras concretas (subidas/bajadas en %, caídas del servidor, actualizaciones aplicadas). '
+            .'Termina con UNA recomendación accionable SOLO si los datos la justifican (caídas del servidor, picos de tráfico, '
+            .'vulnerabilidades, o mantenimiento insuficiente). Si el sitio está sano y estable, NO inventes problemas ni '
+            .'recomiendes nada: cierra con una frase de tranquilidad (su sitio está protegido y en buenas manos con nosotros). '
+            .'Sin jerga, sin markdown, sin listas.';
+
+        return trim($this->ai->complete($system, 'Datos del informe (JSON): '.$this->encode($facts)));
+    }
+
+    /**
      * AI insights (competitor parity): 3-5 short, plain-language takeaways derived
      * from a report's resolved metrics, in the report's locale. Returns a list of
      * one-sentence strings (the AI is constrained to a JSON array, never free prose).

@@ -12,6 +12,7 @@ export type BlockType =
     | 'funnel'
     | 'geo_map'
     | 'narrative'
+    | 'advisory'
     | 'healthscore'
     | 'security_shield'
     | 'worklog_timeline'
