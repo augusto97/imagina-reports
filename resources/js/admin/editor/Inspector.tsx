@@ -97,6 +97,18 @@ const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak', '
 /** Text-bearing blocks where {{merge-fields}} are useful. */
 const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom', 'cover', 'back_cover']);
 
+/**
+ * Which style controls each block actually honors — so the inspector only shows settings that
+ * DO something. Blocks rendered via the shared `Section` wrapper support the full box
+ * (border / pad / radius / align / hide-title); the custom-layout blocks (header, cover,
+ * back-cover, advisory, cta, image, divider) only honor what their renderer reads.
+ */
+const SECTION_TYPES = ['kpi', 'sales_summary', 'goal', 'healthscore', 'security_shield', 'worklog_timeline', 'comments', 'control', 'custom', 'narrative', 'chart', 'table', 'funnel', 'geo_map'];
+const supportsColor = (type: string): boolean => SECTION_TYPES.includes(type) || ['header', 'cover', 'back_cover', 'advisory', 'cta'].includes(type);
+const supportsAlign = (type: string): boolean => SECTION_TYPES.includes(type) || ['cta', 'cover'].includes(type);
+const supportsBox = (type: string): boolean => SECTION_TYPES.includes(type) || type === 'cta'; // border + pad + radius
+const supportsHideTitle = (type: string): boolean => SECTION_TYPES.includes(type);
+
 const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
 /**
@@ -586,20 +598,24 @@ export function Inspector({
 
             {tab === 'style' && (
                 <div className="-ir-mx-3 ir-border-t ir-border-border/60">
-                    <Section title="Apariencia">
-                        <div className="ir-flex ir-flex-col ir-gap-3">
-                            <Toggle checked={block.style?.border !== false} onChange={(on) => setStyle('border', on ? undefined : false)} label="Mostrar borde" />
-                            {block.type !== 'divider' && block.type !== 'header' && (
-                                <Toggle checked={block.style?.hideTitle === true} onChange={(on) => setStyle('hideTitle', on ? true : undefined)} label="Ocultar título" />
-                            )}
-                            {block.type === 'chart' && (
-                                <Toggle checked={block.style?.legend === true} onChange={(on) => setStyle('legend', on ? true : undefined)} label="Mostrar leyenda" />
-                            )}
-                            {block.type === 'table' && (
-                                <Toggle checked={block.style?.bars === true} onChange={(on) => setStyle('bars', on ? true : undefined)} label="Barras en la columna de valor" />
-                            )}
-                        </div>
-                    </Section>
+                    {(supportsBox(block.type) || supportsHideTitle(block.type) || block.type === 'chart' || block.type === 'table') && (
+                        <Section title="Apariencia">
+                            <div className="ir-flex ir-flex-col ir-gap-3">
+                                {supportsBox(block.type) && (
+                                    <Toggle checked={block.style?.border !== false} onChange={(on) => setStyle('border', on ? undefined : false)} label="Mostrar borde" />
+                                )}
+                                {supportsHideTitle(block.type) && (
+                                    <Toggle checked={block.style?.hideTitle === true} onChange={(on) => setStyle('hideTitle', on ? true : undefined)} label="Ocultar título" />
+                                )}
+                                {block.type === 'chart' && (
+                                    <Toggle checked={block.style?.legend === true} onChange={(on) => setStyle('legend', on ? true : undefined)} label="Mostrar leyenda" />
+                                )}
+                                {block.type === 'table' && (
+                                    <Toggle checked={block.style?.bars === true} onChange={(on) => setStyle('bars', on ? true : undefined)} label="Barras en la columna de valor" />
+                                )}
+                            </div>
+                        </Section>
+                    )}
 
                     {block.type === 'table' && (
                         <Section title="Tabla">
@@ -647,55 +663,71 @@ export function Inspector({
                         </Section>
                     )}
 
-                    <Section title="Color">
-                        <div className="ir-flex ir-flex-col ir-gap-3">
-                            <Field label="Fondo">
-                                <ColorSwatch value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
-                            </Field>
-                            <Field label="Texto">
-                                <ColorSwatch value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
-                            </Field>
-                        </div>
-                    </Section>
+                    {supportsColor(block.type) && (
+                        <Section title="Color">
+                            <div className="ir-flex ir-flex-col ir-gap-3">
+                                <Field label="Fondo">
+                                    <ColorSwatch value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
+                                </Field>
+                                <Field label="Texto">
+                                    <ColorSwatch value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
+                                </Field>
+                            </div>
+                        </Section>
+                    )}
 
-                    <Section title="Disposición">
-                        <div className="ir-flex ir-flex-col ir-gap-3">
-                            <Field label="Alineación">
-                                <SegmentedControl
-                                    value={str(block.style?.align) || 'left'}
-                                    onChange={(value) => setStyle('align', value)}
-                                    options={[
-                                        { value: 'left', icon: <AlignLeft className="ir-size-4" />, title: 'Izquierda' },
-                                        { value: 'center', icon: <AlignCenter className="ir-size-4" />, title: 'Centro' },
-                                        { value: 'right', icon: <AlignRight className="ir-size-4" />, title: 'Derecha' },
-                                    ]}
-                                />
-                            </Field>
-                            <Field label="Relleno">
-                                <SegmentedControl
-                                    value={str(block.style?.pad) || 'md'}
-                                    onChange={(value) => setStyle('pad', value)}
-                                    options={[
-                                        { value: 'sm', label: 'Compacto' },
-                                        { value: 'md', label: 'Normal' },
-                                        { value: 'lg', label: 'Amplio' },
-                                    ]}
-                                />
-                            </Field>
-                            <Field label="Esquinas">
-                                <SegmentedControl
-                                    value={str(block.style?.radius) || 'md'}
-                                    onChange={(value) => setStyle('radius', value)}
-                                    options={[
-                                        { value: 'none', label: 'Rectas' },
-                                        { value: 'sm', label: 'Suaves' },
-                                        { value: 'md', label: 'Media' },
-                                        { value: 'lg', label: 'Máx' },
-                                    ]}
-                                />
-                            </Field>
+                    {(supportsAlign(block.type) || supportsBox(block.type)) && (
+                        <Section title="Disposición">
+                            <div className="ir-flex ir-flex-col ir-gap-3">
+                                {supportsAlign(block.type) && (
+                                    <Field label="Alineación">
+                                        <SegmentedControl
+                                            value={str(block.style?.align) || 'left'}
+                                            onChange={(value) => setStyle('align', value)}
+                                            options={[
+                                                { value: 'left', icon: <AlignLeft className="ir-size-4" />, title: 'Izquierda' },
+                                                { value: 'center', icon: <AlignCenter className="ir-size-4" />, title: 'Centro' },
+                                                { value: 'right', icon: <AlignRight className="ir-size-4" />, title: 'Derecha' },
+                                            ]}
+                                        />
+                                    </Field>
+                                )}
+                                {supportsBox(block.type) && (
+                                    <>
+                                        <Field label="Relleno">
+                                            <SegmentedControl
+                                                value={str(block.style?.pad) || 'md'}
+                                                onChange={(value) => setStyle('pad', value)}
+                                                options={[
+                                                    { value: 'sm', label: 'Compacto' },
+                                                    { value: 'md', label: 'Normal' },
+                                                    { value: 'lg', label: 'Amplio' },
+                                                ]}
+                                            />
+                                        </Field>
+                                        <Field label="Esquinas">
+                                            <SegmentedControl
+                                                value={str(block.style?.radius) || 'md'}
+                                                onChange={(value) => setStyle('radius', value)}
+                                                options={[
+                                                    { value: 'none', label: 'Rectas' },
+                                                    { value: 'sm', label: 'Suaves' },
+                                                    { value: 'md', label: 'Media' },
+                                                    { value: 'lg', label: 'Máx' },
+                                                ]}
+                                            />
+                                        </Field>
+                                    </>
+                                )}
+                            </div>
+                        </Section>
+                    )}
+
+                    {!supportsColor(block.type) && !supportsAlign(block.type) && !supportsBox(block.type) && !supportsHideTitle(block.type) && !isData && (
+                        <div className="ir-px-3 ir-py-4">
+                            <p className="ir-text-xs ir-text-muted-foreground">Este bloque no tiene ajustes de estilo.</p>
                         </div>
-                    </Section>
+                    )}
 
                     {isData && (
                         <Section title="Formato de número">

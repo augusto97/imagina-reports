@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🧹 AUDITORÍA DE AJUSTES POR BLOQUE EN EL INSPECTOR — solo se muestran los que aplican (2026-06-30, rama
+`claude/github-app-analysis-a7b2bd`, release v1.13.85):** el owner reportó que varios bloques (cover/back_cover) mostraban
+opciones que no hacían nada (alineación, relleno, esquinas) y que «Ocultar título» no oculta ningún título en bloques sin
+título. CAUSA: la pestaña Estilo mostraba todas las secciones (Color/Apariencia/Disposición) para cualquier bloque, pero los
+bloques de layout propio (header, cover, back_cover, advisory, cta, image, divider, pagebreak) solo leen un subconjunto en su
+renderer. FIX en `Inspector.tsx`: helpers de capacidad `SECTION_TYPES` + `supportsColor/supportsAlign/supportsBox/supportsHideTitle`.
+Ahora: «Ocultar título» solo en bloques con `Section` real; borde/relleno/esquinas solo donde el renderer los honra (Section + cta);
+alineación solo en Section/cta/cover; color en Section + header/cover/back_cover/advisory/cta. Los bloques sin ningún ajuste de
+estilo (divider, pagebreak, image) muestran una nota «Este bloque no tiene ajustes de estilo». 380 tests PHP + 15 vitest +
+stan/pint/ts/build limpios. **SIGUIENTE: desplegar v1.13.85.**
+
+
 **🎨 DESCARGA DEL AGENTE EN SISTEMA + PORTADA/CONTRAPORTADA PERSONALIZABLES (logo, colores, textos) (2026-06-26, rama
 `claude/github-app-analysis-a7b2bd`, releases v1.13.83 quitar aviso Child Reports, v1.13.84 estas dos cosas):**
 **(1) DESCARGA DEL AGENTE:** nueva tarjeta «Agente Imagina (plugin del sitio)» en la pantalla **Sistema** con descarga a un clic + versión
