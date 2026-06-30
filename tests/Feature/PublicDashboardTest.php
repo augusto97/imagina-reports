@@ -67,6 +67,49 @@ class PublicDashboardTest extends TestCase
             ->assertJsonPath('range.start', fn (string $value): bool => str_starts_with($value, '2026-05-01'));
     }
 
+    public function test_it_lists_only_periods_with_data_most_recent_first(): void
+    {
+        [$definition, $site] = $this->publishedDashboard(); // a May snapshot
+
+        // A second, later snapshot (June) → two selectable periods.
+        $source = DataSource::query()->where('site_id', $site->id)->firstOrFail();
+        MetricSnapshot::factory()->create([
+            'agency_id' => $definition->agency_id,
+            'data_source_id' => $source->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'payload' => ['status' => 'ok', 'error' => null, 'metrics' => ['fake.visits' => 200]],
+        ]);
+
+        $response = $this->getJson("/api/v1/public/dashboards/{$definition->dashboard_token}")->assertOk();
+
+        // Two periods, June first (most recent) — and the dashboard opens on June, not on the
+        // full May→June span (which would silently show only one snapshot).
+        $this->assertCount(2, $response->json('periods'));
+        $response->assertJsonPath('periods.0.label', fn (string $label): bool => str_contains($label, '01/06/2026'))
+            ->assertJsonPath('periods.1.label', fn (string $label): bool => str_contains($label, '01/05/2026'))
+            ->assertJsonPath('period_start', fn (string $value): bool => str_starts_with($value, '2026-06-01'));
+    }
+
+    public function test_selecting_an_explicit_period_resolves_that_window(): void
+    {
+        [$definition, $site] = $this->publishedDashboard();
+        $source = DataSource::query()->where('site_id', $site->id)->firstOrFail();
+        MetricSnapshot::factory()->create([
+            'agency_id' => $definition->agency_id,
+            'data_source_id' => $source->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'payload' => ['status' => 'ok', 'error' => null, 'metrics' => ['fake.visits' => 200]],
+        ]);
+
+        // Asking for the May window resolves to May (not the latest).
+        $this->getJson("/api/v1/public/dashboards/{$definition->dashboard_token}?from=2026-05-01&to=2026-05-31")
+            ->assertOk()
+            ->assertJsonPath('period_start', fn (string $value): bool => str_starts_with($value, '2026-05-01'))
+            ->assertJsonPath('period_end', fn (string $value): bool => str_starts_with($value, '2026-05-31'));
+    }
+
     public function test_a_disabled_dashboard_is_not_found(): void
     {
         [$definition] = $this->publishedDashboard(['dashboard_enabled' => false]);

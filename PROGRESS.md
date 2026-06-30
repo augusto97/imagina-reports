@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**📅 FIX PANEL EN VIVO: SELECTOR DE PERIODOS REALES (no rango de días libre) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
+v1.13.81):** el owner reportó que los filtros de fecha del dashboard «no filtran» y que las fechas sin datos deberían no ser seleccionables.
+CAUSA RAÍZ: los snapshots son **agregados por periodo de sync** (un total por mes); `MetricBagLoader` hace exact-match del rango o cae al «último
+snapshot que solapa», así que cualquier sub-rango dentro de un mes devuelve el total del mes entero (parece que no filtra) y un rango multi-mes
+muestra solo el último. Un date-picker libre a nivel día es el control EQUIVOCADO para este modelo (un total agregado no se puede re-cortar a un
+sub-rango, §3.1/§3.3). FIX: el dashboard ahora ofrece un **selector de los periodos que realmente tienen datos** (una entrada por ventana de
+snapshot). Backend `PublicDashboardController`: `availablePeriods()` (ventanas distintas de snapshots del sitio, recientes primero, con label
+`d/m/Y – d/m/Y`) en la respuesta como `periods[]`; `resolvePeriod` por defecto = periodo más reciente (antes era el span min→max de TODO, que
+tampoco casaba). Front `DashboardApp`: quitados los `<input type=date>` + presets; ahora un `<select>` de `data.periods` (clave `startIso|endIso`),
+se siembra al periodo activo; cambiar de periodo refetchea con from/to exactos → exact-match del snapshot. Así sólo se pueden elegir periodos con
+datos y cada cambio sí filtra. 375 tests PHP (+2 dashboard) + 15 vitest + stan/pint/ts/build limpios. **SIGUIENTE: desplegar v1.13.81.** (Mejora
+futura opcional: «rango combinado» que sume varios snapshots consecutivos para métricas aditivas; hoy es 1 periodo a la vez.)
+
+
 **🔑 NUEVO CONECTOR: TRUERANKER (keyword tracking) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.80):** conector nuevo
 `type='trueranker'` contra la API real (captura del owner): base `https://app.trueranker.com/data`, auth por query param `key` (API Key), errores
 vía `{ok, error}`. Config: API Key (secret) + ID de proyecto. `testConnection` pega `/projects/list`. `fetch` pega `/project/keywords?key&project&start=YYYYMMDD&end=YYYYMMDD`

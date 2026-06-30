@@ -2,31 +2,33 @@ import { type ReactElement, useEffect, useState } from 'react';
 
 import { BlockList } from '@shared/blocks/BlockRenderer';
 import { PasswordPrompt } from '@shared/components/PasswordPrompt';
-import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { applyBrandAccent, isPasswordRequired, isPrivate, usePublicDashboard } from '@shared/lib/publicReport';
-
-const dayInput = (iso: string): string => iso.slice(0, 10);
 
 /**
  * Live client dashboard (CLAUDE.md §11.2/Etapa D): a permanent, always-current view of a
- * published definition. The client changes the date range and the blocks re-resolve from
- * the latest stored snapshots (still §3.1 — never a live API). Same shared BlockList as
- * the report/portal, so it looks identical.
+ * published definition. The client picks one of the periods that actually have data and the
+ * blocks re-resolve from that period's stored snapshot (still §3.1 — never a live API). Same
+ * shared BlockList as the report/portal, so it looks identical.
+ *
+ * A snapshot is a pre-aggregated total for a whole sync period, so the client selects WHOLE
+ * periods (not arbitrary day ranges): there's nothing between snapshots, and a total can't be
+ * re-sliced to a sub-range. The dropdown therefore lists only windows with data.
  */
 export function DashboardApp({ token }: { token: string }): ReactElement {
     const [password, setPassword] = useState<string | undefined>(undefined);
-    const [from, setFrom] = useState<string>('');
-    const [to, setTo] = useState<string>('');
+    // The selected period as `${startIso}|${endIso}`. Empty until the first response, then
+    // seeded to the active (latest) period.
+    const [periodKey, setPeriodKey] = useState<string>('');
+    const [from, to] = periodKey !== '' ? periodKey.split('|') : ['', ''];
 
     const { data, isLoading, isError, error } = usePublicDashboard(token, { from, to, password });
 
-    // Seed the pickers from the available range the first time data arrives.
+    // Once data arrives, lock the selector onto the active period.
     useEffect(() => {
-        if (data !== undefined && from === '' && to === '') {
-            setFrom(dayInput(data.period_start));
-            setTo(dayInput(data.period_end));
+        if (data !== undefined && periodKey === '') {
+            setPeriodKey(`${data.period_start}|${data.period_end}`);
         }
-    }, [data, from, to]);
+    }, [data, periodKey]);
 
     useEffect(() => {
         applyBrandAccent(data?.theme?.accent ?? data?.agency?.brand_color);
@@ -48,8 +50,7 @@ export function DashboardApp({ token }: { token: string }): ReactElement {
         return <div className="ir-p-8 ir-text-sm ir-text-muted-foreground">Panel no disponible.</div>;
     }
 
-    const min = data.range !== null ? dayInput(data.range.start) : undefined;
-    const max = data.range !== null ? dayInput(data.range.end) : undefined;
+    const activeKey = `${data.period_start}|${data.period_end}`;
 
     return (
         <div className="ir-mx-auto ir-max-w-5xl ir-bg-muted/30 ir-p-4 ir-text-foreground sm:ir-p-8">
@@ -63,45 +64,22 @@ export function DashboardApp({ token }: { token: string }): ReactElement {
                     </span>
                 </div>
 
-                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-sm">
-                    <select
-                        value=""
-                        onChange={(event) => {
-                            const preset = RANGE_PRESETS.find((entry) => entry.key === event.target.value);
-                            if (preset !== undefined) {
-                                const range = preset.range();
-                                // Clamp to the data the agency actually synced.
-                                setFrom(min !== undefined && range.start < min ? min : range.start);
-                                setTo(max !== undefined && range.end > max ? max : range.end);
-                            }
-                        }}
-                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5"
-                    >
-                        <option value="">Rango rápido…</option>
-                        {RANGE_PRESETS.map((preset) => (
-                            <option key={preset.key} value={preset.key}>
-                                {preset.label}
-                            </option>
-                        ))}
-                    </select>
-                    <input
-                        type="date"
-                        value={from}
-                        min={min}
-                        max={to !== '' ? to : max}
-                        onChange={(event) => setFrom(event.target.value)}
-                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5"
-                    />
-                    <span className="ir-text-muted-foreground">→</span>
-                    <input
-                        type="date"
-                        value={to}
-                        min={from !== '' ? from : min}
-                        max={max}
-                        onChange={(event) => setTo(event.target.value)}
-                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5"
-                    />
-                </div>
+                {data.periods.length > 0 && (
+                    <div className="ir-flex ir-items-center ir-gap-2 ir-text-sm">
+                        <span className="ir-text-xs ir-text-muted-foreground">Periodo</span>
+                        <select
+                            value={periodKey !== '' ? periodKey : activeKey}
+                            onChange={(event) => setPeriodKey(event.target.value)}
+                            className="ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-1.5"
+                        >
+                            {data.periods.map((period) => (
+                                <option key={`${period.start}|${period.end}`} value={`${period.start}|${period.end}`}>
+                                    {period.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </header>
 
             <BlockList blocks={data.blocks} data={data.data} context={data.context} currency={data.currency} locale={data.agency?.locale} theme={data.theme} pages={data.pages} agency={data.agency} mode="paged" />

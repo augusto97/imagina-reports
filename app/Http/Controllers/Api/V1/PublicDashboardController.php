@@ -38,7 +38,13 @@ final class PublicDashboardController extends Controller
             return $denied;
         }
 
-        $period = $this->resolvePeriod($request, $definition);
+        // The windows that actually have data (one per stored snapshot period). The client
+        // picks one of these — there is nothing to show BETWEEN them, and a snapshot is a
+        // pre-aggregated total that can't be re-sliced to an arbitrary sub-range (§3.1/§3.3),
+        // so a free day-range picker would silently show the wrong (overlapping) snapshot.
+        $periods = $this->availablePeriods($definition);
+
+        $period = $this->resolvePeriod($request, $periods);
         $resolved = $this->generator->resolveLive($definition, $period);
 
         $agency = $definition->agency;
@@ -70,16 +76,72 @@ final class PublicDashboardController extends Controller
                 'brand_color' => $agency->brand_color,
                 'locale' => $agency->default_locale,
             ],
-            // The selectable bounds, so the client's date picker can't wander past data.
+            // The selectable bounds (kept for back-compat).
             'range' => $this->availableRange($definition),
+            // The exact windows that have data — the client's period selector lists only these.
+            'periods' => $periods,
         ]);
     }
 
     /**
-     * The requested window (validated `from`/`to` query dates), clamped to a sane shape;
-     * with neither, defaults to the latest snapshot's period so the dashboard opens on data.
+     * The distinct snapshot windows for the site (one entry per period that has data), most
+     * recent first. The dashboard offers exactly these so the client can never pick a date
+     * range with no data — and each selection maps to a real snapshot.
+     *
+     * @return list<array{start: string, end: string, label: string}>
      */
-    private function resolvePeriod(Request $request, ReportDefinition $definition): Period
+    private function availablePeriods(ReportDefinition $definition): array
+    {
+        $sourceIds = DataSource::query()
+            ->withoutGlobalScopes()
+            ->where('site_id', $definition->site_id)
+            ->pluck('id');
+
+        if ($sourceIds->isEmpty()) {
+            return [];
+        }
+
+        $snapshots = MetricSnapshot::query()
+            ->withoutGlobalScopes()
+            ->whereIn('data_source_id', $sourceIds)
+            ->orderByDesc('period_end')
+            ->get(['period_start', 'period_end']);
+
+        $seen = [];
+        $periods = [];
+
+        foreach ($snapshots as $snapshot) {
+            $start = $snapshot->period_start;
+            $end = $snapshot->period_end;
+            $key = $start->toDateString().'|'.$end->toDateString();
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $periods[] = [
+                'start' => $start->toIso8601String(),
+                'end' => $end->toIso8601String(),
+                'label' => $start->format('d/m/Y').' – '.$end->format('d/m/Y'),
+            ];
+
+            if (count($periods) >= 36) {
+                break;
+            }
+        }
+
+        return $periods;
+    }
+
+    /**
+     * The requested window (validated `from`/`to` query dates); with neither, defaults to the
+     * LATEST available snapshot window (not the full span across all months) so the dashboard
+     * opens on a single real period's data.
+     *
+     * @param  list<array{start: string, end: string, label: string}>  $periods
+     */
+    private function resolvePeriod(Request $request, array $periods): Period
     {
         $from = $this->parseDate($request->query('from'));
         $to = $this->parseDate($request->query('to'));
@@ -89,10 +151,8 @@ final class PublicDashboardController extends Controller
             return $to->lessThan($from) ? new Period($to, $from) : new Period($from, $to);
         }
 
-        $range = $this->availableRange($definition);
-
-        if ($range !== null) {
-            return new Period($range['start'], $range['end']);
+        if ($periods !== []) {
+            return new Period(CarbonImmutable::parse($periods[0]['start']), CarbonImmutable::parse($periods[0]['end']));
         }
 
         // No snapshots yet — fall back to the last 30 days so the page still renders.

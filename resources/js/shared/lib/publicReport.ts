@@ -57,6 +57,9 @@ export interface ReportPeriod {
 export interface PublicDashboard extends PublicReport {
     // The full span of available snapshots, so the date picker can't wander past data.
     range: { start: string; end: string } | null;
+    // The exact windows that have data — the client picks one of these (a snapshot can't be
+    // re-sliced to an arbitrary sub-range, so only whole periods are selectable).
+    periods: { start: string; end: string; label: string }[];
 }
 
 export function usePublicDashboard(token: string, options?: { from?: string; to?: string; password?: string }) {
