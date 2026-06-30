@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🕓 HISTORIAL DE ACTUALIZACIONES LOCAL EN EL AGENTE (pre-instalar = acumular historial) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.75 + Agente plugin 1.9.0):** pregunta del owner: si instala el plugin agente AHORA y conecta el sitio a la app a mitad del mes que
+viene, ¿ya tendrá historial de actualizaciones? Antes NO: «updates aplicadas» se calculaba diffeando snapshots de MainWP en la app (requiere
+estar conectado en el tiempo) y el agente solo reportaba updates PENDIENTES. **Solución (implementada):** el plugin agente
+(`wp-plugin/imagina-reports-agent`, v1.9.0) ahora **registra cada actualización aplicada localmente** vía el hook `upgrader_process_complete`
+(plugin/tema/núcleo, con fecha + «de→a»), guardado en una opción anillo (`imagina_reports_agent_activity_log`, tope 1000) + un mapa de versiones
+conocidas (`..._versions`) sembrado al activar y auto-sembrado en la primera petición de métricas. Nuevo bloque `activity` en el payload
+(applied_in_period, core/plugins/themes, logging_since, entries[]) filtrado por from/to. **Conector** (`SiteAgentConnector`): nuevas métricas
+`site_agent.updates_applied` (scalar, null si el agente es viejo → no muestra 0 falso) y `site_agent.updates_log` (tabla Fecha/Tipo/Elemento/
+Versión, «9.0.1 → 9.1.0» / «Instalado 1.0»). Añadidas al catálogo y a la plantilla `site-agent`. Como el agente es nuestro y loguea desde la
+instalación, basta tenerlo instalado para acumular historial aunque se conecte después. 362 tests PHP (+2 SiteAgent) + 15 vitest + stan/pint/ts/
+build limpios. Plugin separado: el conector lee `activity` si está; si el agente instalado es <1.9.0, las métricas se ocultan (compat). **SIGUIENTE:
+desplegar v1.13.75; el cliente debe instalar el Agente 1.9.0 en los sitios cuanto antes para empezar a acumular historial.**
+
+
 **🎨 PLANTILLAS PREDISEÑADAS RECONSTRUIDAS + REPORTE 360 UNIFICADO PAGINADO (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.73):** se reconstruyó toda la galería (`templateGallery.ts`) con bloques nuevos (geo_map, goal, comments, healthscore, security_shield) y
 métricas verificadas contra los catálogos reales de TODOS los conectores (ga4, gsc, cloudflare, crowdsec, mainwp, betteruptime, woocommerce,

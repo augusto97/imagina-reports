@@ -86,6 +86,9 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.updates_core', 'Actualizaciones de núcleo', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.updates_plugins', 'Actualizaciones de plugins', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.updates_themes', 'Actualizaciones de temas', MetricType::Scalar, 'count'),
+            // Historial de actualizaciones APLICADAS (registro local del agente, desde su instalación).
+            new MetricDefinition('site_agent.updates_applied', 'Actualizaciones aplicadas (periodo)', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.updates_log', 'Actualizaciones aplicadas (detalle)', MetricType::Table),
             new MetricDefinition('site_agent.abandoned_count', 'Plugins abandonados', MetricType::Scalar, 'count'),
             new MetricDefinition('site_agent.abandoned_plugins', 'Detalle de plugins abandonados', MetricType::Table),
             new MetricDefinition('site_agent.db_size_mb', 'Tamaño de la base de datos', MetricType::Scalar, 'MB'),
@@ -213,6 +216,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
     {
         $plugins = $this->arrayOf(Arr::get($data, 'plugins'));
         $updates = $this->arrayOf(Arr::get($data, 'updates'));
+        $activity = $this->arrayOf(Arr::get($data, 'activity'));
         $storage = $this->arrayOf(Arr::get($data, 'storage'));
         $backups = $this->arrayOf(Arr::get($data, 'backups'));
         $ssl = $this->arrayOf(Arr::get($data, 'ssl'));
@@ -256,6 +260,10 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.updates_core' => $this->toInt(Arr::get($updates, 'core')),
             'site_agent.updates_plugins' => $this->toInt(Arr::get($updates, 'plugins')),
             'site_agent.updates_themes' => $this->toInt(Arr::get($updates, 'themes')),
+            // Updates applied (from the agent's local history). Null when the installed agent
+            // predates the history feature, so the block hides instead of showing a false 0.
+            'site_agent.updates_applied' => $activity === [] ? null : $this->toInt(Arr::get($activity, 'applied_in_period')),
+            'site_agent.updates_log' => $this->updatesLog($activity),
             'site_agent.abandoned_count' => $wantsAbandoned ? count($abandoned) : null,
             'site_agent.abandoned_plugins' => ($wantsAbandoned && $abandoned !== []) ? $this->abandonedTable($abandoned) : null,
             'site_agent.db_size_mb' => $this->numOrNull(Arr::get($storage, 'db_size_mb')),
@@ -343,6 +351,50 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
                 'Tamaño' => $size !== null ? $size.' MB' : '—',
                 'Proveedor' => $provider !== '' ? $provider : '—',
                 'Destino' => $location !== '' ? $location : '—',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The applied-updates history table (CLAUDE.md §9 — replaces snapshot-diffing for sites
+     * running the agent): each plugin/theme/core update with its date and from→to version,
+     * drawn from the agent's own local log. Returns null when there's nothing logged yet, so
+     * the bound block hides gracefully.
+     *
+     * @param  array<array-key, mixed>  $activity
+     * @return list<array<string, string>>|null
+     */
+    private function updatesLog(array $activity): ?array
+    {
+        $entries = $this->listOf(Arr::get($activity, 'entries'));
+
+        if ($entries === []) {
+            return null;
+        }
+
+        $typeLabels = ['plugin' => 'Plugin', 'theme' => 'Tema', 'core' => 'WordPress'];
+        $rows = [];
+
+        foreach ($entries as $entry) {
+            $type = $this->toStr(Arr::get($entry, 'type'));
+            $name = $this->toStr(Arr::get($entry, 'name'));
+            $from = $this->toStr(Arr::get($entry, 'from'));
+            $to = $this->toStr(Arr::get($entry, 'to'));
+            $date = $this->toStr(Arr::get($entry, 'date'));
+
+            if ($this->toStr(Arr::get($entry, 'action')) === 'install') {
+                $version = $to !== '' ? 'Instalado '.$to : 'Instalado';
+            } else {
+                $version = $from !== '' && $to !== '' ? $from.' → '.$to : ($to !== '' ? $to : '—');
+            }
+
+            $rows[] = [
+                'Fecha' => $date !== '' ? $this->humanDate($date) : '—',
+                'Tipo' => $typeLabels[$type] ?? ($type !== '' ? ucfirst($type) : '—'),
+                'Elemento' => $name !== '' ? $name : '—',
+                'Versión' => $version,
             ];
         }
 

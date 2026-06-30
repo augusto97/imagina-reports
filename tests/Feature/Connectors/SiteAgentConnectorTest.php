@@ -51,6 +51,18 @@ class SiteAgentConnectorTest extends TestCase
             ],
             'plugins' => ['active' => 12, 'inactive' => 3, 'total' => 15],
             'updates' => ['core' => 0, 'plugins' => 2, 'themes' => 1, 'total' => 3],
+            'activity' => [
+                'applied_in_period' => 3,
+                'core' => 1,
+                'plugins' => 1,
+                'themes' => 1,
+                'logging_since' => '2026-05-01 00:00:00',
+                'entries' => [
+                    ['date' => '2026-06-12 14:33:01', 'type' => 'plugin', 'action' => 'update', 'name' => 'WooCommerce', 'from' => '9.0.1', 'to' => '9.1.0'],
+                    ['date' => '2026-06-10 02:00:00', 'type' => 'core', 'action' => 'update', 'name' => 'WordPress', 'from' => '6.5.2', 'to' => '6.5.3'],
+                    ['date' => '2026-06-05 09:10:00', 'type' => 'theme', 'action' => 'install', 'name' => 'Astra Child', 'from' => '', 'to' => '1.0'],
+                ],
+            ],
             'storage' => ['db_size_mb' => 42.5, 'uploads_size_mb' => 880.2],
             'ssl' => [
                 'checked' => true,
@@ -141,6 +153,8 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertTrue($catalog->has('site_agent.backup_status'));
         $this->assertTrue($catalog->has('site_agent.site_health'));
         $this->assertTrue($catalog->has('site_agent.plugins_active'));
+        $this->assertTrue($catalog->has('site_agent.updates_applied'));
+        $this->assertTrue($catalog->has('site_agent.updates_log'));
         $this->assertFalse($catalog->has('mainwp.sites'));
     }
 
@@ -215,6 +229,35 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertSame(5, $set->get('site_agent.logins_blocked'));
         $this->assertSame(1848, $set->get('site_agent.images_optimized'));
         $this->assertSame(512.4, $set->get('site_agent.images_saved_mb'));
+    }
+
+    public function test_fetch_maps_the_applied_updates_history(): void
+    {
+        Http::fake(['a.test/wp-json/imagina-reports/v1/metrics*' => Http::response($this->payload())]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertSame(3, $set->get('site_agent.updates_applied'));
+
+        $log = $set->get('site_agent.updates_log');
+        $this->assertCount(3, $log);
+        $this->assertSame(['Fecha' => '12/06/2026 14:33', 'Tipo' => 'Plugin', 'Elemento' => 'WooCommerce', 'Versión' => '9.0.1 → 9.1.0'], $log[0]);
+        $this->assertSame('WordPress', $log[1]['Tipo']);
+        $this->assertSame('Instalado 1.0', $log[2]['Versión']);
+    }
+
+    public function test_updates_history_hides_when_the_agent_predates_it(): void
+    {
+        $payload = $this->payload();
+        unset($payload['activity']);
+
+        Http::fake(['*' => Http::response($payload)]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        // No false "0": an older agent that never sent history hides the block entirely.
+        $this->assertNull($set->get('site_agent.updates_applied'));
+        $this->assertNull($set->get('site_agent.updates_log'));
     }
 
     public function test_leads_and_ecommerce_hide_when_absent(): void

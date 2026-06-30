@@ -14,9 +14,15 @@
  * Diseño (espejo de App\Connectors\SiteAgent\SiteAgentConnector):
  *   GET /wp-json/imagina-reports/v1/metrics?from=YYYY-MM-DD&to=YYYY-MM-DD
  *   Cabecera: X-Imagina-Key: <clave>   (o ?key=<clave>)
- *   Respuesta: { success, generated_at, agent_version, site, plugins, updates, storage,
- *               ssl, backups, security, performance, content, leads, ecommerce,
+ *   Respuesta: { success, generated_at, agent_version, site, plugins, updates, activity,
+ *               storage, ssl, backups, security, performance, content, leads, ecommerce,
  *               logins, images }
+ *
+ * `activity` es el historial LOCAL de actualizaciones aplicadas: el plugin registra cada
+ * actualización de plugin/tema/núcleo en el momento en que ocurre (vía el hook
+ * upgrader_process_complete) y la guarda en el propio sitio. Por eso, basta tener el plugin
+ * instalado para acumular historial — aunque el sitio se conecte a Imagina Reports meses
+ * después y a mitad de mes.
  *
  * Regla de oro (§3.3): agrega EN EL ORIGEN. Los respaldos se miden escaneando las
  * carpetas de backup en disco (mtime + tamaño), no leyendo el esquema interno de cada
@@ -28,8 +34,14 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.8.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.9.0');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
+// Registro local de actualizaciones aplicadas (historial propio del sitio) + el mapa de
+// versiones conocidas con el que se calcula el "de→a" de cada actualización.
+define('IMAGINA_REPORTS_AGENT_LOG_OPTION', 'imagina_reports_agent_activity_log');
+define('IMAGINA_REPORTS_AGENT_VERSIONS_OPTION', 'imagina_reports_agent_versions');
+// Tope del anillo de eventos guardados (suficiente para años de historial; acota el option).
+define('IMAGINA_REPORTS_AGENT_LOG_MAX', 1000);
 
 /**
  * Genera una clave si no existe (al activar o al primer arranque).
@@ -45,7 +57,165 @@ function imagina_reports_agent_ensure_key() {
     return $key;
 }
 
-register_activation_hook(__FILE__, 'imagina_reports_agent_ensure_key');
+/**
+ * Al activar: genera la clave Y siembra el mapa de versiones actuales. Así, la PRIMERA
+ * actualización que ocurra tras instalar el plugin ya puede registrar un "de→a" correcto,
+ * y el historial empieza a acumularse desde el momento de la instalación — aunque el sitio
+ * se conecte a Imagina Reports semanas o meses después.
+ */
+function imagina_reports_agent_activate() {
+    imagina_reports_agent_ensure_key();
+
+    if (get_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION) === false) {
+        update_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION, imagina_reports_agent_current_versions(), false);
+    }
+}
+
+register_activation_hook(__FILE__, 'imagina_reports_agent_activate');
+
+/* -------------------------------------------------------------------------- */
+/*  Historial local de actualizaciones (se registra desde la instalación)     */
+/* -------------------------------------------------------------------------- */
+
+// Captura cada actualización/instalación de plugin, tema o núcleo en el momento en que
+// ocurre — vía WordPress, auto-updates o WP-CLI (todos disparan este hook). El historial
+// vive en el propio sitio, así que tener el plugin instalado basta para acumularlo.
+add_action('upgrader_process_complete', 'imagina_reports_agent_record_upgrade', 10, 2);
+
+/**
+ * Mapa de versiones instaladas ahora mismo: 'core' + 'plugin:<file>' + 'theme:<slug>'.
+ * Cada entrada guarda nombre y versión, para poder calcular el "de→a" al actualizar.
+ *
+ * @return array<string,array{name:string,version:string}>
+ */
+function imagina_reports_agent_current_versions() {
+    $map = array();
+
+    global $wp_version;
+    $map['core'] = array('name' => 'WordPress', 'version' => (string) $wp_version);
+
+    if (! function_exists('get_plugins')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+
+    foreach ((array) get_plugins() as $file => $data) {
+        $map['plugin:' . $file] = array(
+            'name'    => isset($data['Name']) ? (string) $data['Name'] : $file,
+            'version' => isset($data['Version']) ? (string) $data['Version'] : '',
+        );
+    }
+
+    if (function_exists('wp_get_themes')) {
+        foreach (wp_get_themes() as $slug => $theme) {
+            $map['theme:' . $slug] = array(
+                'name'    => (string) $theme->get('Name'),
+                'version' => (string) $theme->get('Version'),
+            );
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * Registra las actualizaciones recién aplicadas comparando contra el mapa de versiones
+ * conocido, y luego refresca ese mapa. Defensivo: nunca lanza ni interrumpe la actualización.
+ *
+ * @param mixed $upgrader
+ * @param array $hook_extra
+ */
+function imagina_reports_agent_record_upgrade($upgrader, $hook_extra) {
+    if (! is_array($hook_extra)) {
+        return;
+    }
+
+    $type   = isset($hook_extra['type']) ? (string) $hook_extra['type'] : '';
+    $action = isset($hook_extra['action']) ? (string) $hook_extra['action'] : 'update';
+
+    if (! in_array($type, array('plugin', 'theme', 'core'), true)) {
+        return;
+    }
+
+    $known   = get_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION);
+    $known   = is_array($known) ? $known : array();
+    $current = imagina_reports_agent_current_versions();
+    $now     = gmdate('Y-m-d H:i:s');
+    $entries = array();
+
+    // Claves afectadas: las que WordPress declara en $hook_extra, o todo el tipo si no las da.
+    $keys = array();
+    if ($type === 'plugin') {
+        $plugins = array();
+        if (! empty($hook_extra['plugins']) && is_array($hook_extra['plugins'])) {
+            $plugins = $hook_extra['plugins'];
+        } elseif (! empty($hook_extra['plugin'])) {
+            $plugins = array($hook_extra['plugin']);
+        }
+        foreach ($plugins as $file) {
+            $keys[] = 'plugin:' . $file;
+        }
+    } elseif ($type === 'theme') {
+        $themes = array();
+        if (! empty($hook_extra['themes']) && is_array($hook_extra['themes'])) {
+            $themes = $hook_extra['themes'];
+        } elseif (! empty($hook_extra['theme'])) {
+            $themes = array($hook_extra['theme']);
+        }
+        foreach ($themes as $slug) {
+            $keys[] = 'theme:' . $slug;
+        }
+    } else {
+        $keys[] = 'core';
+    }
+
+    foreach ($keys as $key) {
+        $to   = isset($current[$key]['version']) ? (string) $current[$key]['version'] : '';
+        $from = isset($known[$key]['version']) ? (string) $known[$key]['version'] : '';
+        $name = isset($current[$key]['name']) ? (string) $current[$key]['name'] : (isset($known[$key]['name']) ? (string) $known[$key]['name'] : $key);
+
+        // Sin cambio real de versión en una "update" → no es trabajo que mostrar.
+        if ($action === 'update' && $from !== '' && $to !== '' && $from === $to) {
+            continue;
+        }
+
+        $entries[] = array(
+            'at_gmt' => $now,
+            'type'   => $type,
+            'action' => $action,
+            'name'   => $name,
+            'slug'   => $key,
+            'from'   => $from,
+            'to'     => $to,
+        );
+    }
+
+    if ($entries !== array()) {
+        imagina_reports_agent_append_log($entries);
+    }
+
+    // Refresca el mapa para el próximo "de→a".
+    update_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION, $current, false);
+}
+
+/**
+ * Añade eventos al registro (anillo acotado, más recientes al final).
+ *
+ * @param array<int,array<string,mixed>> $entries
+ */
+function imagina_reports_agent_append_log($entries) {
+    $log = get_option(IMAGINA_REPORTS_AGENT_LOG_OPTION);
+    $log = is_array($log) ? $log : array();
+
+    foreach ($entries as $entry) {
+        $log[] = $entry;
+    }
+
+    if (count($log) > IMAGINA_REPORTS_AGENT_LOG_MAX) {
+        $log = array_slice($log, -IMAGINA_REPORTS_AGENT_LOG_MAX);
+    }
+
+    update_option(IMAGINA_REPORTS_AGENT_LOG_OPTION, $log, false);
+}
 
 /* -------------------------------------------------------------------------- */
 /*  REST API                                                                  */
@@ -117,6 +287,12 @@ function imagina_reports_agent_metrics($request) {
     $from_local = function_exists('get_date_from_gmt') ? get_date_from_gmt($from_gmt) : $from_gmt;
     $to_local   = function_exists('get_date_from_gmt') ? get_date_from_gmt($to_gmt) : $to_gmt;
 
+    // Auto-siembra del mapa de versiones si falta (p. ej. el plugin se actualizó a 1.9.0 sin
+    // re-activarse): a partir de aquí, las siguientes actualizaciones ya registran el "de→a".
+    if (get_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION) === false) {
+        update_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION, imagina_reports_agent_current_versions(), false);
+    }
+
     $payload = array(
         'success'       => true,
         'generated_at'  => gmdate('c'),
@@ -124,6 +300,7 @@ function imagina_reports_agent_metrics($request) {
         'site'          => imagina_reports_agent_site(),
         'plugins'       => imagina_reports_agent_plugins(),
         'updates'       => imagina_reports_agent_updates(),
+        'activity'      => imagina_reports_agent_activity($from_gmt, $to_gmt),
         'storage'       => imagina_reports_agent_storage(),
         'ssl'           => imagina_reports_agent_ssl(),
         'backups'       => imagina_reports_agent_backups($from, $to),
@@ -442,6 +619,69 @@ function imagina_reports_agent_updates() {
         'plugins' => $plugins,
         'themes'  => $themes,
         'total'   => $core + $plugins + $themes,
+    );
+}
+
+/**
+ * Historial de actualizaciones APLICADAS en el periodo, desde el registro local que el
+ * plugin acumula desde su instalación (independiente de cuándo se conecte a Imagina
+ * Reports). Devuelve los totales por tipo y la lista de cada actualización con su fecha y
+ * el cambio de versión "de→a".
+ *
+ * @param string $from_gmt
+ * @param string $to_gmt
+ * @return array<string,mixed>
+ */
+function imagina_reports_agent_activity($from_gmt, $to_gmt) {
+    $log = get_option(IMAGINA_REPORTS_AGENT_LOG_OPTION);
+    $log = is_array($log) ? $log : array();
+
+    $entries = array();
+    $counts  = array('core' => 0, 'plugin' => 0, 'theme' => 0);
+    $since   = null;
+
+    foreach ($log as $row) {
+        if (! is_array($row) || empty($row['at_gmt'])) {
+            continue;
+        }
+        $at = (string) $row['at_gmt'];
+
+        if ($since === null || $at < $since) {
+            $since = $at;
+        }
+
+        if ($at < $from_gmt || $at > $to_gmt) {
+            continue;
+        }
+
+        $type = isset($row['type']) ? (string) $row['type'] : '';
+        if (isset($counts[$type])) {
+            $counts[$type]++;
+        }
+
+        $entries[] = array(
+            'date'   => $at,
+            'type'   => $type,
+            'action' => isset($row['action']) ? (string) $row['action'] : 'update',
+            'name'   => isset($row['name']) ? (string) $row['name'] : '',
+            'from'   => isset($row['from']) ? (string) $row['from'] : '',
+            'to'     => isset($row['to']) ? (string) $row['to'] : '',
+        );
+    }
+
+    // Más recientes primero, acotado para no inflar la respuesta.
+    $entries = array_reverse($entries);
+    if (count($entries) > 200) {
+        $entries = array_slice($entries, 0, 200);
+    }
+
+    return array(
+        'applied_in_period' => $counts['core'] + $counts['plugin'] + $counts['theme'],
+        'core'              => $counts['core'],
+        'plugins'           => $counts['plugin'],
+        'themes'            => $counts['theme'],
+        'logging_since'     => $since,
+        'entries'           => $entries,
     );
 }
 
