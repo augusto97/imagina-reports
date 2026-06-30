@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.8.0
+ * Version:           1.9.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
