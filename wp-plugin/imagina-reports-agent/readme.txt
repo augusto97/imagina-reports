@@ -4,7 +4,7 @@ Tags: reporting, backups, monitoring, maintenance
 Requires at least: 5.6
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.9.0
+Stable tag: 1.9.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ dejan archivo local que medir; configura tu plugin de backup para conservar una 
 local si quieres verlos en el informe.
 
 == Changelog ==
+
+= 1.9.1 =
+* Robustez: la activación ya NO escanea plugins/temas (operación trivial: solo genera la clave). El mapa de versiones se siembra de forma perezosa y defensiva en la primera sincronización. El registro de historial (`upgrader_process_complete`) y la auto-siembra van envueltos en try/catch, así que NUNCA pueden interrumpir una actualización ni tumbar el sitio. Todas las llamadas a `get_plugins()` se guardan por disponibilidad.
 
 = 1.9.0 =
 * **Historial de actualizaciones local**: el agente registra cada actualización de plugin, tema o núcleo en el momento en que ocurre (hook `upgrader_process_complete`), con fecha y cambio de versión «de→a», y lo guarda en el propio sitio. Así, basta tener el plugin instalado para acumular historial — aunque el sitio se conecte a Imagina Reports meses después y a mitad de mes. Nuevo bloque `activity` en el payload (applied_in_period + entries). Al activar se siembra el mapa de versiones para que la primera actualización ya tenga «de→a».

@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.9.0
+ * Version:           1.9.1
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -34,7 +34,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.9.0');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.9.1');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 // Registro local de actualizaciones aplicadas (historial propio del sitio) + el mapa de
 // versiones conocidas con el que se calcula el "de→a" de cada actualización.
@@ -58,17 +58,12 @@ function imagina_reports_agent_ensure_key() {
 }
 
 /**
- * Al activar: genera la clave Y siembra el mapa de versiones actuales. Así, la PRIMERA
- * actualización que ocurra tras instalar el plugin ya puede registrar un "de→a" correcto,
- * y el historial empieza a acumularse desde el momento de la instalación — aunque el sitio
- * se conecte a Imagina Reports semanas o meses después.
+ * Al activar: SOLO genera la clave (operación trivial, sin tocar plugins/temas). El mapa de
+ * versiones se siembra de forma perezosa y defensiva en la primera petición de métricas, no
+ * en la activación — para que la activación nunca pueda fallar por el entorno del sitio.
  */
 function imagina_reports_agent_activate() {
     imagina_reports_agent_ensure_key();
-
-    if (get_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION) === false) {
-        update_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION, imagina_reports_agent_current_versions(), false);
-    }
 }
 
 register_activation_hook(__FILE__, 'imagina_reports_agent_activate');
@@ -94,15 +89,17 @@ function imagina_reports_agent_current_versions() {
     global $wp_version;
     $map['core'] = array('name' => 'WordPress', 'version' => (string) $wp_version);
 
-    if (! function_exists('get_plugins')) {
+    if (! function_exists('get_plugins') && defined('ABSPATH') && file_exists(ABSPATH . 'wp-admin/includes/plugin.php')) {
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
     }
 
-    foreach ((array) get_plugins() as $file => $data) {
-        $map['plugin:' . $file] = array(
-            'name'    => isset($data['Name']) ? (string) $data['Name'] : $file,
-            'version' => isset($data['Version']) ? (string) $data['Version'] : '',
-        );
+    if (function_exists('get_plugins')) {
+        foreach ((array) get_plugins() as $file => $data) {
+            $map['plugin:' . $file] = array(
+                'name'    => isset($data['Name']) ? (string) $data['Name'] : $file,
+                'version' => isset($data['Version']) ? (string) $data['Version'] : '',
+            );
+        }
     }
 
     if (function_exists('wp_get_themes')) {
@@ -125,6 +122,19 @@ function imagina_reports_agent_current_versions() {
  * @param array $hook_extra
  */
 function imagina_reports_agent_record_upgrade($upgrader, $hook_extra) {
+    // Blindaje total: registrar el historial JAMÁS debe interrumpir una actualización ni
+    // tumbar el admin. Cualquier error se traga silenciosamente.
+    try {
+        imagina_reports_agent_do_record_upgrade($hook_extra);
+    } catch (\Throwable $e) {
+        // no-op
+    }
+}
+
+/**
+ * @param mixed $hook_extra
+ */
+function imagina_reports_agent_do_record_upgrade($hook_extra) {
     if (! is_array($hook_extra)) {
         return;
     }
@@ -287,10 +297,15 @@ function imagina_reports_agent_metrics($request) {
     $from_local = function_exists('get_date_from_gmt') ? get_date_from_gmt($from_gmt) : $from_gmt;
     $to_local   = function_exists('get_date_from_gmt') ? get_date_from_gmt($to_gmt) : $to_gmt;
 
-    // Auto-siembra del mapa de versiones si falta (p. ej. el plugin se actualizó a 1.9.0 sin
+    // Auto-siembra del mapa de versiones si falta (p. ej. el plugin se actualizó sin
     // re-activarse): a partir de aquí, las siguientes actualizaciones ya registran el "de→a".
-    if (get_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION) === false) {
-        update_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION, imagina_reports_agent_current_versions(), false);
+    // Defensivo: nunca debe romper la sincronización.
+    try {
+        if (get_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION) === false) {
+            update_option(IMAGINA_REPORTS_AGENT_VERSIONS_OPTION, imagina_reports_agent_current_versions(), false);
+        }
+    } catch (\Throwable $e) {
+        // no-op
     }
 
     $payload = array(
