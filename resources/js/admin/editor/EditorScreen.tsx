@@ -43,7 +43,10 @@ import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { ReportPageNav, ReportSettingsProvider } from "@shared/blocks/BlockRenderer";
+import {
+    ReportPageNav,
+    ReportSettingsProvider,
+} from "@shared/blocks/BlockRenderer";
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from "@shared/blocks/types";
 import type { Block, BlockType } from "@shared/blocks/types";
 
@@ -186,7 +189,8 @@ export function EditorScreen(): ReactElement {
     const [renamingPage, setRenamingPage] = useState<number | null>(null);
     // Collapsible side panels — let the canvas take (almost) the whole workspace.
     // Panels start open on desktop, closed on phones (they overlay the canvas there).
-    const wideViewport = typeof window !== "undefined" && window.innerWidth >= 1024;
+    const wideViewport =
+        typeof window !== "undefined" && window.innerWidth >= 1024;
     const [leftOpen, setLeftOpen] = useState(wideViewport);
     const [rightOpen, setRightOpen] = useState(wideViewport);
     // The block type being dragged from the palette onto the canvas (null = none).
@@ -256,7 +260,9 @@ export function EditorScreen(): ReactElement {
             resetBlocks(loaded.length > 0 ? loaded : [makeBlock("header")]);
             setTheme(editingTemplate.theme ?? {});
             setPageFilters(editingTemplate.filters ?? {});
-            setPageNames((editingTemplate.pages ?? []).map((page) => page.name ?? ""));
+            setPageNames(
+                (editingTemplate.pages ?? []).map((page) => page.name ?? ""),
+            );
             setSelectedId(null);
             setErrors([]);
         }
@@ -348,9 +354,17 @@ export function EditorScreen(): ReactElement {
 
     // A gallery template the user picked while the canvas already has content — we ask
     // whether to append it below or replace everything (for building unified reports).
-    const [pendingTpl, setPendingTpl] = useState<{ build: () => Block[]; name: string; pages?: string[] } | null>(null);
+    const [pendingTpl, setPendingTpl] = useState<{
+        build: () => Block[];
+        name: string;
+        pages?: string[];
+    } | null>(null);
 
-    const chooseTemplate = (template: { build: () => Block[]; name: string; pages?: string[] }): void => {
+    const chooseTemplate = (template: {
+        build: () => Block[];
+        name: string;
+        pages?: string[];
+    }): void => {
         // An essentially empty canvas (just the starter header) just loads the template.
         if (blocks.length <= 1) {
             replaceWithTemplate(template);
@@ -359,7 +373,10 @@ export function EditorScreen(): ReactElement {
         setPendingTpl(template);
     };
 
-    function replaceWithTemplate(template: { build: () => Block[]; pages?: string[] }): void {
+    function replaceWithTemplate(template: {
+        build: () => Block[];
+        pages?: string[];
+    }): void {
         const next = template.build();
         resetBlocks(next);
         // Carry the template's named pages (multi-page templates), or clear them.
@@ -375,9 +392,12 @@ export function EditorScreen(): ReactElement {
             return;
         }
         // Stack the template below whatever is already on the current page.
-        const onPage = blocks.filter((block) => (block.page ?? 0) === currentPage);
+        const onPage = blocks.filter(
+            (block) => (block.page ?? 0) === currentPage,
+        );
         const offsetY = onPage.reduce(
-            (max, block) => Math.max(max, (block.layout?.y ?? 0) + (block.layout?.h ?? 4)),
+            (max, block) =>
+                Math.max(max, (block.layout?.y ?? 0) + (block.layout?.h ?? 4)),
             0,
         );
         const shifted = incoming.map((block) => ({
@@ -424,7 +444,13 @@ export function EditorScreen(): ReactElement {
     /** One-click "Portada": a NEW first page with a cover block, shifting everything down. */
     const addCoverPage = (): void => {
         const cover = { ...makeBlock("cover"), page: 0 };
-        commit([cover, ...blocks.map((block) => ({ ...block, page: (block.page ?? 0) + 1 }))]);
+        commit([
+            cover,
+            ...blocks.map((block) => ({
+                ...block,
+                page: (block.page ?? 0) + 1,
+            })),
+        ]);
         setPageCount((count) => count + 1);
         setPageNames((names) => ["Portada", ...names]);
         setCurrentPage(0);
@@ -559,9 +585,12 @@ export function EditorScreen(): ReactElement {
 
         // Only send a theme when something is set, so an unstyled template stays null.
         const themePayload =
-            theme.accent != null || theme.density != null || theme.nav != null ? theme : null;
+            theme.accent != null || theme.density != null || theme.nav != null
+                ? theme
+                : null;
         // Only persist filters when some scope actually has rules.
-        const filtersPayload = Object.keys(pageFilters).length > 0 ? pageFilters : null;
+        const filtersPayload =
+            Object.keys(pageFilters).length > 0 ? pageFilters : null;
         // Named pages for the nav menu — one entry per page, in order.
         const pagesPayload = Array.from({ length: pageCount }, (_, index) => ({
             name: pageNames[index] ?? "",
@@ -640,7 +669,9 @@ export function EditorScreen(): ReactElement {
     const navPos = theme.nav?.position ?? "tabs";
     const navStyle = theme.nav?.style ?? "pill";
     const navLabels = Array.from({ length: pageCount }, (_, index) =>
-        pageNames[index]?.trim() ? (pageNames[index] as string) : `Página ${index + 1}`,
+        pageNames[index]?.trim()
+            ? (pageNames[index] as string)
+            : `Página ${index + 1}`,
     );
     const selectPage = (index: number): void => {
         setCurrentPage(index);
@@ -653,7 +684,13 @@ export function EditorScreen(): ReactElement {
             {/* ---- Top toolbar (full width) ---- */}
             <header className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2">
                 <ToolbarButton
-                    icon={leftOpen ? <PanelLeftClose className="ir-size-4" /> : <PanelLeftOpen className="ir-size-4" />}
+                    icon={
+                        leftOpen ? (
+                            <PanelLeftClose className="ir-size-4" />
+                        ) : (
+                            <PanelLeftOpen className="ir-size-4" />
+                        )
+                    }
                     title={leftOpen ? "Ocultar panel" : "Mostrar panel"}
                     onClick={() => setLeftOpen((open) => !open)}
                     active={leftOpen}
@@ -679,12 +716,22 @@ export function EditorScreen(): ReactElement {
                     </button>
                 )}
 
-                <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(true)} title="Elegir una plantilla prediseñada">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setGalleryOpen(true)}
+                    title="Elegir una plantilla prediseñada"
+                >
                     <LayoutTemplate className="ir-size-4" />
                     Plantillas
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => setCalcModalOpen(true)} title="Crear métricas calculadas (fórmulas) reutilizables">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCalcModalOpen(true)}
+                    title="Crear métricas calculadas (fórmulas) reutilizables"
+                >
                     <FunctionSquare className="ir-size-4" />
                     Métricas calculadas
                 </Button>
@@ -697,7 +744,11 @@ export function EditorScreen(): ReactElement {
                         <select
                             value={siteId ?? ""}
                             onChange={(event) =>
-                                setSiteId(event.target.value === "" ? null : Number(event.target.value))
+                                setSiteId(
+                                    event.target.value === ""
+                                        ? null
+                                        : Number(event.target.value),
+                                )
                             }
                             title="Sitio para la vista previa (los datos reales)"
                             className="ir-min-w-0 ir-max-w-[7.5rem] sm:ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
@@ -722,25 +773,55 @@ export function EditorScreen(): ReactElement {
 
                     <ToolbarDivider />
 
-                    <ToolbarButton icon={<Undo2 className="ir-size-4" />} title="Deshacer (Ctrl+Z)" onClick={undo} disabled={past.length === 0} />
-                    <ToolbarButton icon={<Redo2 className="ir-size-4" />} title="Rehacer (Ctrl+Shift+Z)" onClick={redo} disabled={future.length === 0} />
+                    <ToolbarButton
+                        icon={<Undo2 className="ir-size-4" />}
+                        title="Deshacer (Ctrl+Z)"
+                        onClick={undo}
+                        disabled={past.length === 0}
+                    />
+                    <ToolbarButton
+                        icon={<Redo2 className="ir-size-4" />}
+                        title="Rehacer (Ctrl+Shift+Z)"
+                        onClick={redo}
+                        disabled={future.length === 0}
+                    />
 
                     <ToolbarDivider />
 
                     <SyncStatus
                         siteId={siteId}
                         period={monthPeriod(month)}
-                        monthLabel={new Date(`${month}-01T00:00:00`).toLocaleDateString("es", { month: "long", year: "numeric" })}
+                        monthLabel={new Date(
+                            `${month}-01T00:00:00`,
+                        ).toLocaleDateString("es", {
+                            month: "long",
+                            year: "numeric",
+                        })}
                         onSynced={refreshPreview}
                     />
-                    <Button onClick={save} disabled={create.isPending || update.isPending || name === ""}>
+                    <Button
+                        onClick={save}
+                        disabled={
+                            create.isPending || update.isPending || name === ""
+                        }
+                    >
                         <Save className="ir-size-4" />
                         {editingTemplateId !== null ? "Actualizar" : "Guardar"}
                     </Button>
 
                     <ToolbarButton
-                        icon={rightOpen ? <PanelRightClose className="ir-size-4" /> : <PanelRightOpen className="ir-size-4" />}
-                        title={rightOpen ? "Ocultar inspector" : "Mostrar inspector"}
+                        icon={
+                            rightOpen ? (
+                                <PanelRightClose className="ir-size-4" />
+                            ) : (
+                                <PanelRightOpen className="ir-size-4" />
+                            )
+                        }
+                        title={
+                            rightOpen
+                                ? "Ocultar inspector"
+                                : "Mostrar inspector"
+                        }
                         onClick={() => setRightOpen((open) => !open)}
                         active={rightOpen}
                     />
@@ -765,8 +846,14 @@ export function EditorScreen(): ReactElement {
                 {/* ---- Left panel (collapsible): config + blocks ---- */}
                 {leftOpen && (
                     <aside className="ir-absolute ir-inset-y-0 ir-left-0 ir-z-20 ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
-                        <Section title="Insertar bloque" icon={<Shapes className="ir-size-4" />}>
-                            <BlockPalette onAdd={addBlock} onDragType={setDraggingType} />
+                        <Section
+                            title="Insertar bloque"
+                            icon={<Shapes className="ir-size-4" />}
+                        >
+                            <BlockPalette
+                                onAdd={addBlock}
+                                onDragType={setDraggingType}
+                            />
                         </Section>
 
                         <Section
@@ -775,34 +862,52 @@ export function EditorScreen(): ReactElement {
                             defaultOpen={false}
                         >
                             {pageBlocks.length === 0 ? (
-                                <p className="ir-text-[11px] ir-text-muted-foreground">Sin bloques en esta página.</p>
+                                <p className="ir-text-[11px] ir-text-muted-foreground">
+                                    Sin bloques en esta página.
+                                </p>
                             ) : (
                                 <div className="ir-flex ir-flex-col ir-gap-0.5">
                                     {pageBlocks.map((block) => {
                                         const meta = BLOCK_META[block.type];
                                         const LayerIcon = meta.icon;
-                                        const isSelected = block.id === selectedId;
+                                        const isSelected =
+                                            block.id === selectedId;
 
                                         return (
                                             <div
                                                 key={block.id}
-                                                onClick={() => setSelectedId(block.id)}
+                                                onClick={() =>
+                                                    setSelectedId(block.id)
+                                                }
                                                 className={cn(
                                                     "ir-group ir-flex ir-cursor-pointer ir-items-center ir-gap-2 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-xs ir-transition",
-                                                    isSelected ? "ir-bg-primary/10 ir-text-foreground" : "ir-text-muted-foreground hover:ir-bg-muted",
+                                                    isSelected
+                                                        ? "ir-bg-primary/10 ir-text-foreground"
+                                                        : "ir-text-muted-foreground hover:ir-bg-muted",
                                                 )}
                                             >
                                                 <LayerIcon className="ir-size-3.5 ir-shrink-0" />
                                                 <span className="ir-flex-1 ir-truncate">
                                                     {meta.label}
-                                                    {block.binding != null && <span className="ir-text-muted-foreground/70"> · {block.binding.metric}</span>}
+                                                    {block.binding != null && (
+                                                        <span className="ir-text-muted-foreground/70">
+                                                            {" "}
+                                                            ·{" "}
+                                                            {
+                                                                block.binding
+                                                                    .metric
+                                                            }
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 <button
                                                     type="button"
                                                     title="Duplicar"
                                                     onClick={(event) => {
                                                         event.stopPropagation();
-                                                        duplicateBlock(block.id);
+                                                        duplicateBlock(
+                                                            block.id,
+                                                        );
                                                     }}
                                                     className="ir-hidden ir-text-muted-foreground hover:ir-text-foreground group-hover:ir-block"
                                                 >
@@ -826,51 +931,100 @@ export function EditorScreen(): ReactElement {
                             )}
                         </Section>
 
-                        <Section title="Generar con IA" icon={<Sparkles className="ir-size-4" />}>
+                        <Section
+                            title="Generar con IA"
+                            icon={<Sparkles className="ir-size-4" />}
+                        >
                             <div className="ir-flex ir-flex-col ir-gap-2.5">
                                 <div className="ir-flex ir-gap-2">
                                     <Input
                                         placeholder="Enfoque para la IA…"
                                         value={aiPrompt}
-                                        onChange={(event) => setAiPrompt(event.target.value)}
+                                        onChange={(event) =>
+                                            setAiPrompt(event.target.value)
+                                        }
                                     />
-                                    <Button variant="ghost" onClick={generateWithAi} disabled={siteId === null || ai.isPending}>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={generateWithAi}
+                                        disabled={
+                                            siteId === null || ai.isPending
+                                        }
+                                    >
                                         <Sparkles className="ir-size-4" />
                                         IA
                                     </Button>
                                 </div>
                                 {siteId === null && (
-                                    <p className="ir-text-[11px] ir-text-muted-foreground">Elige un sitio en la barra superior para generar con IA.</p>
+                                    <p className="ir-text-[11px] ir-text-muted-foreground">
+                                        Elige un sitio en la barra superior para
+                                        generar con IA.
+                                    </p>
                                 )}
                                 <p className="ir-text-[11px] ir-text-muted-foreground">
-                                    ¿Prefieres partir de una plantilla? Pulsa <strong>«Plantillas»</strong> en la barra superior.
+                                    ¿Prefieres partir de una plantilla? Pulsa{" "}
+                                    <strong>«Plantillas»</strong> en la barra
+                                    superior.
                                 </p>
                                 {(create.isSuccess || update.isSuccess) && (
-                                    <p className="ir-text-xs ir-text-emerald-600">Guardada.</p>
+                                    <p className="ir-text-xs ir-text-emerald-600">
+                                        Guardada.
+                                    </p>
                                 )}
                             </div>
                         </Section>
 
-                        <Section title="Filtros de página" icon={<Filter className="ir-size-4" />} defaultOpen={false}>
-                            <PageFiltersPanel catalog={catalog} currentPage={currentPage} filters={pageFilters} onChange={setPageFilters} />
+                        <Section
+                            title="Filtros de página"
+                            icon={<Filter className="ir-size-4" />}
+                            defaultOpen={false}
+                        >
+                            <PageFiltersPanel
+                                catalog={catalog}
+                                currentPage={currentPage}
+                                filters={pageFilters}
+                                onChange={setPageFilters}
+                            />
                         </Section>
 
-                        <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />} defaultOpen={false}>
+                        <Section
+                            title="Tema del reporte"
+                            icon={<Palette className="ir-size-4" />}
+                            defaultOpen={false}
+                        >
                             <div className="ir-flex ir-flex-col ir-gap-3">
                                 <Field label="Color de acento">
                                     <ColorSwatch
                                         value={theme.accent ?? ""}
-                                        onChange={(value) => setTheme((current) => ({ ...current, accent: value ?? null }))}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                accent: value ?? null,
+                                            }))
+                                        }
                                     />
-                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">Sin color = usa la marca de la agencia.</p>
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
+                                        Sin color = usa la marca de la agencia.
+                                    </p>
                                 </Field>
                                 <Field label="Densidad">
                                     <SegmentedControl
                                         value={theme.density ?? "normal"}
-                                        onChange={(value) => setTheme((current) => ({ ...current, density: value }))}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                density: value,
+                                            }))
+                                        }
                                         options={[
-                                            { value: "normal", label: "Normal" },
-                                            { value: "compact", label: "Compacta" },
+                                            {
+                                                value: "normal",
+                                                label: "Normal",
+                                            },
+                                            {
+                                                value: "compact",
+                                                label: "Compacta",
+                                            },
                                         ]}
                                     />
                                 </Field>
@@ -878,37 +1032,70 @@ export function EditorScreen(): ReactElement {
                                     <SegmentedControl
                                         value={theme.nav?.position ?? "tabs"}
                                         onChange={(value) =>
-                                            setTheme((current) => ({ ...current, nav: { ...current.nav, position: value } }))
+                                            setTheme((current) => ({
+                                                ...current,
+                                                nav: {
+                                                    ...current.nav,
+                                                    position: value,
+                                                },
+                                            }))
                                         }
                                         options={[
-                                            { value: "tabs", label: "Pestañas" },
+                                            {
+                                                value: "tabs",
+                                                label: "Pestañas",
+                                            },
                                             { value: "top", label: "Barra" },
-                                            { value: "sidebar", label: "Lateral" },
-                                            { value: "hidden", label: "Ninguna" },
+                                            {
+                                                value: "sidebar",
+                                                label: "Lateral",
+                                            },
+                                            {
+                                                value: "hidden",
+                                                label: "Ninguna",
+                                            },
                                         ]}
                                     />
                                     <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
-                                        Cómo cambia de página el cliente (estilo Looker/Power BI).
+                                        Cómo cambia de página el cliente (estilo
+                                        Looker/Power BI).
                                     </p>
                                 </Field>
                                 <Field label="Estilo del menú">
                                     <SegmentedControl
                                         value={theme.nav?.style ?? "pill"}
                                         onChange={(value) =>
-                                            setTheme((current) => ({ ...current, nav: { ...current.nav, style: value } }))
+                                            setTheme((current) => ({
+                                                ...current,
+                                                nav: {
+                                                    ...current.nav,
+                                                    style: value,
+                                                },
+                                            }))
                                         }
                                         options={[
                                             { value: "pill", label: "Píldora" },
-                                            { value: "underline", label: "Subrayado" },
+                                            {
+                                                value: "underline",
+                                                label: "Subrayado",
+                                            },
                                             { value: "solid", label: "Sólido" },
                                         ]}
                                     />
                                 </Field>
                                 {theme.nav?.position === "sidebar" && (
                                     <Toggle
-                                        checked={theme.nav?.collapsible ?? false}
+                                        checked={
+                                            theme.nav?.collapsible ?? false
+                                        }
                                         onChange={(checked) =>
-                                            setTheme((current) => ({ ...current, nav: { ...current.nav, collapsible: checked } }))
+                                            setTheme((current) => ({
+                                                ...current,
+                                                nav: {
+                                                    ...current.nav,
+                                                    collapsible: checked,
+                                                },
+                                            }))
                                         }
                                         label="Menú lateral colapsable"
                                     />
@@ -933,10 +1120,18 @@ export function EditorScreen(): ReactElement {
                                             autoFocus
                                             value={pageNames[index] ?? ""}
                                             placeholder={`Página ${index + 1}`}
-                                            onChange={(event) => renamePage(index, event.target.value)}
+                                            onChange={(event) =>
+                                                renamePage(
+                                                    index,
+                                                    event.target.value,
+                                                )
+                                            }
                                             onBlur={() => setRenamingPage(null)}
                                             onKeyDown={(event) => {
-                                                if (event.key === "Enter" || event.key === "Escape") {
+                                                if (
+                                                    event.key === "Enter" ||
+                                                    event.key === "Escape"
+                                                ) {
                                                     setRenamingPage(null);
                                                 }
                                             }}
@@ -949,7 +1144,9 @@ export function EditorScreen(): ReactElement {
                                                 setCurrentPage(index);
                                                 setSelectedId(null);
                                             }}
-                                            onDoubleClick={() => setRenamingPage(index)}
+                                            onDoubleClick={() =>
+                                                setRenamingPage(index)
+                                            }
                                             title="Doble clic para renombrar"
                                             className={
                                                 index === currentPage
@@ -957,19 +1154,24 @@ export function EditorScreen(): ReactElement {
                                                     : "ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-border-primary/60"
                                             }
                                         >
-                                            {pageNames[index]?.trim() ? pageNames[index] : `Página ${index + 1}`}
+                                            {pageNames[index]?.trim()
+                                                ? pageNames[index]
+                                                : `Página ${index + 1}`}
                                         </button>
                                     )}
-                                    {pageCount > 1 && renamingPage !== index && (
-                                        <button
-                                            type="button"
-                                            title="Eliminar página"
-                                            onClick={() => removePage(index)}
-                                            className="ir-absolute -ir-right-1 -ir-top-1 ir-hidden ir-size-4 ir-items-center ir-justify-center ir-rounded-full ir-bg-muted ir-text-xs ir-text-muted-foreground group-hover:ir-flex hover:ir-text-red-500"
-                                        >
-                                            ×
-                                        </button>
-                                    )}
+                                    {pageCount > 1 &&
+                                        renamingPage !== index && (
+                                            <button
+                                                type="button"
+                                                title="Eliminar página"
+                                                onClick={() =>
+                                                    removePage(index)
+                                                }
+                                                className="ir-absolute -ir-right-1 -ir-top-1 ir-hidden ir-size-4 ir-items-center ir-justify-center ir-rounded-full ir-bg-muted ir-text-xs ir-text-muted-foreground group-hover:ir-flex hover:ir-text-red-500"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
                                 </div>
                             ))}
                             <Button
@@ -1044,7 +1246,9 @@ export function EditorScreen(): ReactElement {
 
                     {aiNotice !== null && (
                         <div className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-border-amber-200 ir-bg-amber-50 ir-px-4 ir-py-2">
-                            <p className="ir-text-xs ir-text-amber-700">{aiNotice}</p>
+                            <p className="ir-text-xs ir-text-amber-700">
+                                {aiNotice}
+                            </p>
                             <button
                                 type="button"
                                 className="ir-shrink-0 ir-text-xs ir-text-amber-700 hover:ir-underline"
@@ -1056,105 +1260,141 @@ export function EditorScreen(): ReactElement {
                     )}
 
                     {/* Scrollable workspace with the centered artboard + live nav chrome.
-                        The sidebar preview floats in the left gutter (absolute) so it mirrors
-                        the viewer's fixed left column WITHOUT shrinking the artboard. */}
-                    <div className="ir-relative ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
-                        {showNavPreview && navPos === "sidebar" && (
-                            <aside
-                                className="ir-absolute ir-left-3 ir-top-3 ir-z-10 ir-w-44 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-md"
+                        The sidebar preview is a real column to the LEFT of the artboard (it
+                        mirrors the viewer's fixed left rail) — laid out in flow so it never
+                        overlaps the report. It stays put on scroll (sticky). */}
+                    <div className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
+                        <div className="ir-flex ir-w-full ir-items-start ir-justify-center ir-gap-5">
+                            {showNavPreview && navPos === "sidebar" && (
+                                <aside
+                                    className="ir-sticky ir-top-0 ir-w-44 ir-shrink-0 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-sm"
+                                    style={canvasThemeStyle}
+                                >
+                                    <p className="ir-mb-2 ir-px-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                        Páginas
+                                    </p>
+                                    <ReportPageNav
+                                        labels={navLabels}
+                                        active={currentPage}
+                                        onSelect={selectPage}
+                                        navStyle={navStyle}
+                                        orientation="v"
+                                    />
+                                </aside>
+                            )}
+                            <div
+                                className="ir-flex ir-w-full ir-max-w-5xl ir-min-w-0 ir-flex-col ir-gap-3"
                                 style={canvasThemeStyle}
                             >
-                                <p className="ir-mb-2 ir-px-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">Páginas</p>
-                                <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="v" />
-                            </aside>
-                        )}
-                        <div
-                            className="ir-mx-auto ir-flex ir-w-full ir-max-w-5xl ir-flex-col ir-gap-3"
-                            style={canvasThemeStyle}
-                        >
-                            {showNavPreview && navPos !== "sidebar" && (
-                                <div className={navPos === "top" ? "ir-rounded-xl ir-border ir-bg-card ir-px-3 ir-py-2 ir-shadow-sm" : undefined}>
-                                    <ReportPageNav labels={navLabels} active={currentPage} onSelect={selectPage} navStyle={navStyle} orientation="h" />
-                                </div>
-                            )}
-                            <div className="ir-border ir-bg-card ir-p-6 ir-shadow-sm">
-                            <ReportSettingsProvider
-                                currency={siteCurrency}
-                                density={
-                                    theme.density === "compact"
-                                        ? "compact"
-                                        : "normal"
-                                }
-                            >
-                                <Grid
-                                    key={currentPage}
-                                    cols={GRID_COLS}
-                                    rowHeight={GRID_ROW_HEIGHT}
-                                    margin={[GRID_MARGIN, GRID_MARGIN]}
-                                    containerPadding={[0, 0]}
-                                    layout={pageBlocks.map((block) => ({
-                                        i: block.id,
-                                        x: block.layout?.x ?? 0,
-                                        y: block.layout?.y ?? 0,
-                                        w: block.layout?.w ?? 6,
-                                        h: block.layout?.h ?? 4,
-                                        minW: 2,
-                                        minH: 1,
-                                    }))}
-                                    draggableHandle=".ir-drag-handle"
-                                    resizeHandles={["se"]}
-                                    compactType="vertical"
-                                    onLayoutChange={syncLayouts}
-                                    isDroppable={draggingType !== null}
-                                    onDrop={dropBlock}
-                                    onDropDragOver={() =>
-                                        draggingType !== null
-                                            ? defaultSize(draggingType)
-                                            : false
-                                    }
-                                >
-                                    {pageBlocks.map((block) => (
-                                        <div
-                                            key={block.id}
-                                            className="ir-h-full"
-                                        >
-                                            <CanvasBlock
-                                                block={block}
-                                                data={renderData[block.id]}
-                                                selected={
-                                                    block.id === selectedId
-                                                }
-                                                onSelect={() =>
-                                                    setSelectedId(block.id)
-                                                }
-                                                onRemove={() =>
-                                                    removeBlock(block.id)
-                                                }
-                                                onDuplicate={() =>
-                                                    duplicateBlock(block.id)
-                                                }
-                                            />
-                                        </div>
-                                    ))}
-                                </Grid>
-                            </ReportSettingsProvider>
-                            {pageBlocks.length === 0 && (
-                                <div className="ir-flex ir-flex-col ir-items-center ir-justify-center ir-gap-3 ir-py-16 ir-text-center">
-                                    <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
-                                        <Shapes className="ir-size-6" />
-                                    </span>
-                                    <div>
-                                        <p className="ir-text-sm ir-font-medium ir-text-foreground">Página en blanco</p>
-                                        <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
-                                            Arrastra un bloque desde «Insertar» o haz clic para añadirlo.
-                                        </p>
+                                {showNavPreview && navPos !== "sidebar" && (
+                                    <div
+                                        className={
+                                            navPos === "top"
+                                                ? "ir-rounded-xl ir-border ir-bg-card ir-px-3 ir-py-2 ir-shadow-sm"
+                                                : undefined
+                                        }
+                                    >
+                                        <ReportPageNav
+                                            labels={navLabels}
+                                            active={currentPage}
+                                            onSelect={selectPage}
+                                            navStyle={navStyle}
+                                            orientation="h"
+                                        />
                                     </div>
-                                </div>
-                            )}
+                                )}
+                                <div className="ir-border ir-bg-card ir-p-6 ir-shadow-sm">
+                                    <ReportSettingsProvider
+                                        currency={siteCurrency}
+                                        density={
+                                            theme.density === "compact"
+                                                ? "compact"
+                                                : "normal"
+                                        }
+                                    >
+                                        <Grid
+                                            key={currentPage}
+                                            cols={GRID_COLS}
+                                            rowHeight={GRID_ROW_HEIGHT}
+                                            margin={[GRID_MARGIN, GRID_MARGIN]}
+                                            containerPadding={[0, 0]}
+                                            layout={pageBlocks.map((block) => ({
+                                                i: block.id,
+                                                x: block.layout?.x ?? 0,
+                                                y: block.layout?.y ?? 0,
+                                                w: block.layout?.w ?? 6,
+                                                h: block.layout?.h ?? 4,
+                                                minW: 2,
+                                                minH: 1,
+                                            }))}
+                                            draggableHandle=".ir-drag-handle"
+                                            resizeHandles={["se"]}
+                                            compactType="vertical"
+                                            onLayoutChange={syncLayouts}
+                                            isDroppable={draggingType !== null}
+                                            onDrop={dropBlock}
+                                            onDropDragOver={() =>
+                                                draggingType !== null
+                                                    ? defaultSize(draggingType)
+                                                    : false
+                                            }
+                                        >
+                                            {pageBlocks.map((block) => (
+                                                <div
+                                                    key={block.id}
+                                                    className="ir-h-full"
+                                                >
+                                                    <CanvasBlock
+                                                        block={block}
+                                                        data={
+                                                            renderData[block.id]
+                                                        }
+                                                        selected={
+                                                            block.id ===
+                                                            selectedId
+                                                        }
+                                                        onSelect={() =>
+                                                            setSelectedId(
+                                                                block.id,
+                                                            )
+                                                        }
+                                                        onRemove={() =>
+                                                            removeBlock(
+                                                                block.id,
+                                                            )
+                                                        }
+                                                        onDuplicate={() =>
+                                                            duplicateBlock(
+                                                                block.id,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                            ))}
+                                        </Grid>
+                                    </ReportSettingsProvider>
+                                    {pageBlocks.length === 0 && (
+                                        <div className="ir-flex ir-flex-col ir-items-center ir-justify-center ir-gap-3 ir-py-16 ir-text-center">
+                                            <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
+                                                <Shapes className="ir-size-6" />
+                                            </span>
+                                            <div>
+                                                <p className="ir-text-sm ir-font-medium ir-text-foreground">
+                                                    Página en blanco
+                                                </p>
+                                                <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                                                    Arrastra un bloque desde
+                                                    «Insertar» o haz clic para
+                                                    añadirlo.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
                 {/* ---- Right panel (collapsible): inspector for the selected block ---- */}
                 {rightOpen && (
@@ -1171,12 +1411,19 @@ export function EditorScreen(): ReactElement {
             </div>
 
             {galleryOpen && (
-                <Modal onClose={() => setGalleryOpen(false)} className="ir-max-w-6xl xl:ir-max-w-7xl">
+                <Modal
+                    onClose={() => setGalleryOpen(false)}
+                    className="ir-max-w-6xl xl:ir-max-w-7xl"
+                >
                     <Card
                         title="Plantillas prediseñadas"
                         description="Elige un punto de partida. Si ya tienes contenido, te preguntaremos si añadirla debajo o reemplazar."
                         actions={
-                            <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(false)}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setGalleryOpen(false)}
+                            >
                                 Cerrar
                             </Button>
                         }
@@ -1195,13 +1442,20 @@ export function EditorScreen(): ReactElement {
                                     <LayoutTemplate className="ir-size-4" />
                                 </span>
                                 <span className="ir-min-w-0">
-                                    <span className="ir-block ir-text-sm ir-font-medium">Plantilla por defecto</span>
-                                    <span className="ir-block ir-text-xs ir-text-muted-foreground">El informe narrativo estándar de Imagina (§11.5).</span>
+                                    <span className="ir-block ir-text-sm ir-font-medium">
+                                        Plantilla por defecto
+                                    </span>
+                                    <span className="ir-block ir-text-xs ir-text-muted-foreground">
+                                        El informe narrativo estándar de Imagina
+                                        (§11.5).
+                                    </span>
                                 </span>
                             </button>
 
                             {GALLERY.map((template) => {
-                                const GalleryIcon = GALLERY_ICONS[template.key] ?? LayoutTemplate;
+                                const GalleryIcon =
+                                    GALLERY_ICONS[template.key] ??
+                                    LayoutTemplate;
 
                                 return (
                                     <button
@@ -1217,8 +1471,12 @@ export function EditorScreen(): ReactElement {
                                             <GalleryIcon className="ir-size-4" />
                                         </span>
                                         <span className="ir-min-w-0">
-                                            <span className="ir-block ir-text-sm ir-font-medium">{template.name}</span>
-                                            <span className="ir-block ir-text-xs ir-text-muted-foreground">{template.description}</span>
+                                            <span className="ir-block ir-text-sm ir-font-medium">
+                                                {template.name}
+                                            </span>
+                                            <span className="ir-block ir-text-xs ir-text-muted-foreground">
+                                                {template.description}
+                                            </span>
                                         </span>
                                     </button>
                                 );
@@ -1235,7 +1493,10 @@ export function EditorScreen(): ReactElement {
                     periodStart={monthPeriod(month).period_start}
                     periodEnd={monthPeriod(month).period_end}
                     agencyMetrics={agency?.calculated_metrics ?? []}
-                    siteMetrics={sites.find((site) => site.id === siteId)?.calculated_metrics ?? []}
+                    siteMetrics={
+                        sites.find((site) => site.id === siteId)
+                            ?.calculated_metrics ?? []
+                    }
                     onClose={() => setCalcModalOpen(false)}
                 />
             )}
@@ -1253,19 +1514,29 @@ export function EditorScreen(): ReactElement {
                             Añadir «{pendingTpl.name}»
                         </h3>
                         <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
-                            Ya tienes contenido en el lienzo. ¿Añadir esta plantilla debajo de lo
-                            actual, o reemplazar todo el informe?
+                            Ya tienes contenido en el lienzo. ¿Añadir esta
+                            plantilla debajo de lo actual, o reemplazar todo el
+                            informe?
                         </p>
                         <div className="ir-mt-4 ir-flex ir-flex-col ir-gap-2">
-                            <Button onClick={() => appendTemplate(pendingTpl.build)} title="Añade los bloques debajo (las páginas se aplanan en la actual)">
+                            <Button
+                                onClick={() => appendTemplate(pendingTpl.build)}
+                                title="Añade los bloques debajo (las páginas se aplanan en la actual)"
+                            >
                                 <Plus className="ir-size-4" />
                                 Añadir debajo
                             </Button>
-                            <Button variant="ghost" onClick={() => replaceWithTemplate(pendingTpl)}>
+                            <Button
+                                variant="ghost"
+                                onClick={() => replaceWithTemplate(pendingTpl)}
+                            >
                                 <LayoutTemplate className="ir-size-4" />
                                 Reemplazar todo
                             </Button>
-                            <Button variant="ghost" onClick={() => setPendingTpl(null)}>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setPendingTpl(null)}
+                            >
                                 Cancelar
                             </Button>
                         </div>
