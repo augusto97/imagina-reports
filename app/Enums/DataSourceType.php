@@ -19,6 +19,7 @@ enum DataSourceType: string
     case Virusdie = 'virusdie';
     case BetterUptime = 'betteruptime';
     case WooCommerce = 'woocommerce';
+    case TrueRanker = 'trueranker';
     case Database = 'database';
     case Endpoint = 'endpoint';
     case SiteAgent = 'site_agent';
@@ -34,6 +35,7 @@ enum DataSourceType: string
             self::Virusdie => 'Virusdie',
             self::BetterUptime => 'Better Stack (Uptime)',
             self::WooCommerce => 'WooCommerce',
+            self::TrueRanker => 'TrueRanker',
             self::Database => 'Database',
             self::Endpoint => 'Endpoint / CSV',
             self::SiteAgent => 'Agente Imagina (sitio)',

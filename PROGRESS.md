@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🔑 NUEVO CONECTOR: TRUERANKER (keyword tracking) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.80):** conector nuevo
+`type='trueranker'` contra la API real (captura del owner): base `https://app.trueranker.com/data`, auth por query param `key` (API Key), errores
+vía `{ok, error}`. Config: API Key (secret) + ID de proyecto. `testConnection` pega `/projects/list`. `fetch` pega `/project/keywords?key&project&start=YYYYMMDD&end=YYYYMMDD`
+y **agrega en app** (no hay endpoint agregado en su API; el set está acotado por las keywords del proyecto → respeta §3.3) calculando:
+`trueranker.avg_position`, `keywords_tracked`, `top3/top10/top100`, `improved/declined`, `total_volume`, `avg_position_by_date` (serie),
+`rank_distribution` (tabla/donut), `top_keywords` (tabla por volumen). La «posición actual» = último rank del mapa `rank{fecha:{rank,url}}`; el
+«inicial» = primero → improved/declined. Registrado en `ConnectorServiceProvider` + enum `DataSourceType::TrueRanker` (columna `type` es string,
+sin migración). Aparece solo en el admin (lista de conectores es API-driven). Plantilla de galería «Keywords y posiciones (TrueRanker)» + icono.
+NOTA: validé los nombres de campo contra la captura (keyword/volume/country/location/rank...); el endpoint de competidores (3) lo dejé fuera por
+ahora (campos menos claros) — se puede añadir luego. 373 tests PHP (+7 TrueRanker) + 15 vitest + stan/pint/ts/build limpios. **SIGUIENTE: desplegar v1.13.80.**
+
+
 **✍️ EDITAR/REGENERAR EL DIAGNÓSTICO IA EN EL EDITOR DE INFORMES (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.79):**
 botón «Diagnóstico» en cada fila de la lista de informes (solo si el informe tiene bloque advisory) que abre un panel para editar a mano o
 **regenerar con IA** el diagnóstico, igual que el «Resumen». Backend: `ReportNarrativeController::updateAdvisory` (`PUT /reports/{r}/advisory`) +

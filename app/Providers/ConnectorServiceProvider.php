@@ -16,6 +16,7 @@ use App\Connectors\Google\ServiceAccountTokenProvider;
 use App\Connectors\Gsc\GscConnector;
 use App\Connectors\MainWp\MainWpConnector;
 use App\Connectors\SiteAgent\SiteAgentConnector;
+use App\Connectors\TrueRanker\TrueRankerConnector;
 use App\Connectors\Virusdie\VirusdieConnector;
 use App\Connectors\WooCommerce\WooCommerceConnector;
 use Illuminate\Contracts\Foundation\Application;
@@ -47,6 +48,7 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             $registry->register(new BetterUptimeConnector);
             $registry->register(new VirusdieConnector);
             $registry->register(new WooCommerceConnector);
+            $registry->register(new TrueRankerConnector);
             $registry->register(new DatabaseConnector);
             $registry->register(new EndpointConnector);
             $registry->register(new SiteAgentConnector);
