@@ -113,6 +113,8 @@ export interface ReportSummary {
     health_score: number | null;
     status: string;
     executive_summary: string | null;
+    has_advisory?: boolean;
+    advisory?: string | null;
     public_token: string;
     pdf_path: string | null;
     hidden_metrics: string[];

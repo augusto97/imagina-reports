@@ -160,6 +160,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');
     Route::put('reports/{report}/narrative', [ReportNarrativeController::class, 'update'])->name('api.reports.narrative.update');
     Route::post('reports/{report}/narrative/regenerate', [ReportNarrativeController::class, 'regenerate'])->name('api.reports.narrative.regenerate');
+    Route::put('reports/{report}/advisory', [ReportNarrativeController::class, 'updateAdvisory'])->name('api.reports.advisory.update');
+    Route::post('reports/{report}/advisory/regenerate', [ReportNarrativeController::class, 'regenerateAdvisory'])->name('api.reports.advisory.regenerate');
     Route::get('reports/{report}/comments', [ReportCommentController::class, 'index'])->name('api.reports.comments.index');
     Route::post('reports/{report}/comments', [ReportCommentController::class, 'store'])->name('api.reports.comments.store');
     Route::delete('comments/{comment}', [ReportCommentController::class, 'destroy'])->name('api.comments.destroy');

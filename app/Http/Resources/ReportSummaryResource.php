@@ -42,6 +42,26 @@ final class ReportSummaryResource extends JsonResource
             }
         }
 
+        // The AI advisory block (if the report has one) + its current text, so the admin can
+        // edit/regenerate it like the executive summary. The text lives in resolved_blocks.data.
+        $blocks = $report->resolved_blocks['blocks'] ?? [];
+        $data = $report->resolved_blocks['data'] ?? [];
+        $hasAdvisory = false;
+        $advisory = null;
+
+        if (is_array($blocks)) {
+            foreach ($blocks as $block) {
+                if (is_array($block) && ($block['type'] ?? null) === 'advisory') {
+                    $hasAdvisory = true;
+                    $id = $block['id'] ?? null;
+                    $value = is_string($id) && is_array($data) ? ($data[$id] ?? null) : null;
+                    if (is_string($value)) {
+                        $advisory = $value;
+                    }
+                }
+            }
+        }
+
         return [
             'id' => $report->id,
             'report_definition_id' => $report->report_definition_id,
@@ -50,6 +70,8 @@ final class ReportSummaryResource extends JsonResource
             'health_score' => $report->health_score,
             'status' => $report->status->value,
             'executive_summary' => $report->executive_summary,
+            'has_advisory' => $hasAdvisory,
+            'advisory' => $advisory,
             'public_token' => $report->public_token,
             'pdf_path' => $report->pdf_path,
             'hidden_metrics' => $hiddenMetrics,

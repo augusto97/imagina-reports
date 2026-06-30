@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**✍️ EDITAR/REGENERAR EL DIAGNÓSTICO IA EN EL EDITOR DE INFORMES (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release v1.13.79):**
+botón «Diagnóstico» en cada fila de la lista de informes (solo si el informe tiene bloque advisory) que abre un panel para editar a mano o
+**regenerar con IA** el diagnóstico, igual que el «Resumen». Backend: `ReportNarrativeController::updateAdvisory` (`PUT /reports/{r}/advisory`) +
+`regenerateAdvisory` (`POST /reports/{r}/advisory/regenerate`, 422 si no hay bloque advisory, 502 si falla la IA); `ReportGenerator::advisoryFactsFor(Report)`
+re-resuelve el periodo (snapshots, §3.1) para reconstruir los facts ricos (cambio/tendencia/mantenimiento/uptime) y los pasa a `AiReportBuilder::advisory`;
+el texto se inyecta en `resolved_blocks.data[advisoryBlockId]` (no hay columna dedicada). `ReportSummaryResource` ahora expone `has_advisory` + `advisory`.
+Front: hooks `useUpdateReportAdvisory`/`useRegenerateReportAdvisory`, panel `ReportAdvisoryPanel` + botón con icono de bombilla en ReportsScreen.
+366 tests PHP (+3 advisory API) + 15 vitest + stan/pint/ts/lint/build limpios. **SIGUIENTE: desplegar v1.13.79.**
+
+
 **💡 BLOQUE «DIAGNÓSTICO Y RECOMENDACIONES» CON IA (condición del sitio + histórico) (2026-06-26, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.78):** nuevo bloque `advisory` (tipo propio, no variante de narrative) que la IA rellena al GENERAR con un diagnóstico consultivo:
 usa el periodo actual, el cambio vs. el anterior (change_percent de los KPIs), la **tendencia de salud de varios meses** (consulta los Reports

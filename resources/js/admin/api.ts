@@ -536,6 +536,28 @@ export function useRegenerateReportNarrative() {
     });
 }
 
+/** Save an operator-edited advisory ("Diagnóstico y recomendaciones"). */
+export function useUpdateReportAdvisory() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ reportId, text }: { reportId: number; text: string }) =>
+            api.put<{ advisory: string | null }>(`/reports/${reportId}/advisory`, { text }).then((r) => r.data.advisory),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
+/** Re-write the advisory with the AI from the report's figures + history. */
+export function useRegenerateReportAdvisory() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (reportId: number) =>
+            api.post<{ advisory: string | null }>(`/reports/${reportId}/advisory/regenerate`).then((r) => r.data.advisory),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    });
+}
+
 /* -------------------------------- comments --------------------------------- */
 
 export function useReportComments(reportId: number | null) {

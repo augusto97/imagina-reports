@@ -132,6 +132,28 @@ final readonly class ReportGenerator
     }
 
     /**
+     * Build the advisory fact set for a PERSISTED report (the regenerate endpoint) — by
+     * re-resolving the report's period from stored snapshots (§3.1, never a live API) so the
+     * facts include the up-to-date figures, change vs. previous, health trend, maintenance and
+     * uptime. Returns [] when there's nothing to advise on.
+     *
+     * @return array<string, mixed>
+     */
+    public function advisoryFactsFor(Report $report): array
+    {
+        $definition = $report->definition;
+
+        if ($definition === null) {
+            return [];
+        }
+
+        $period = Period::make($report->period_start->toDateString(), $report->period_end->toDateString());
+        $composed = $this->compose($definition, $period);
+
+        return $this->advisoryFacts($definition, $composed['blocks'], $composed['data'], $composed['health_score'], $composed['bags'], $period);
+    }
+
+    /**
      * Generate the AI advisory text (CLAUDE.md §10.6) from a rich fact set — current figures,
      * change vs. the previous period, the multi-month health trend, the maintenance done and
      * uptime/incidents. Returns null (no advisory) on any failure or empty result, never

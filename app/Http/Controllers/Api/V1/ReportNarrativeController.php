@@ -7,9 +7,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateReportNarrativeRequest;
 use App\Models\Report;
+use App\Reports\AdvisoryInsight;
 use App\Reports\AiReportBuilder;
 use App\Reports\ExecutiveSummary;
 use App\Reports\ReportFacts;
+use App\Reports\ReportGenerator;
 use Illuminate\Http\JsonResponse;
 use Throwable;
 
@@ -59,6 +61,83 @@ final class ReportNarrativeController extends Controller
         }
 
         return response()->json(['executive_summary' => $report->executive_summary]);
+    }
+
+    /**
+     * Save an operator-edited advisory ("Diagnóstico y recomendaciones").
+     */
+    public function updateAdvisory(UpdateReportNarrativeRequest $request, Report $report): JsonResponse
+    {
+        $text = trim((string) $request->string('text'));
+
+        $this->applyAdvisory($report, $text);
+
+        return response()->json(['advisory' => $text]);
+    }
+
+    /**
+     * Re-write the advisory with the AI from the report's figures + history. Unlike the
+     * summary it re-resolves the period (so it can read trend/maintenance/uptime), still from
+     * stored snapshots only (§3.1).
+     */
+    public function regenerateAdvisory(Report $report, ReportGenerator $generator, AiReportBuilder $builder): JsonResponse
+    {
+        $resolved = $report->resolved_blocks;
+        $blocks = is_array($resolved['blocks'] ?? null) ? $resolved['blocks'] : [];
+
+        if (! AdvisoryInsight::present($blocks)) {
+            return response()->json(['message' => 'Este informe no tiene un bloque de diagnóstico.'], 422);
+        }
+
+        $facts = $generator->advisoryFactsFor($report);
+
+        if ($facts === []) {
+            return response()->json(['advisory' => $this->currentAdvisory($report)]);
+        }
+
+        try {
+            $text = trim($builder->advisory($facts, $this->locale($report)));
+        } catch (Throwable) {
+            return response()->json(['message' => 'No se pudo regenerar el diagnóstico con la IA. Revisa la API key de la agencia.'], 502);
+        }
+
+        if ($text !== '') {
+            $this->applyAdvisory($report, $text);
+        }
+
+        return response()->json(['advisory' => $text !== '' ? $text : $this->currentAdvisory($report)]);
+    }
+
+    /**
+     * Inject advisory text into every advisory block's data slot (no dedicated column).
+     */
+    private function applyAdvisory(Report $report, string $text): void
+    {
+        $resolved = $report->resolved_blocks;
+        $blocks = is_array($resolved['blocks'] ?? null) ? $resolved['blocks'] : [];
+        $data = is_array($resolved['data'] ?? null) ? $resolved['data'] : [];
+
+        $resolved['data'] = AdvisoryInsight::inject($blocks, $data, $text);
+        $report->resolved_blocks = $resolved;
+        $report->save();
+    }
+
+    private function currentAdvisory(Report $report): ?string
+    {
+        $resolved = $report->resolved_blocks;
+        $blocks = is_array($resolved['blocks'] ?? null) ? $resolved['blocks'] : [];
+        $data = is_array($resolved['data'] ?? null) ? $resolved['data'] : [];
+
+        foreach ($blocks as $block) {
+            if (is_array($block) && AdvisoryInsight::isAdvisoryBlock($block) && is_string($block['id'] ?? null)) {
+                $value = $data[$block['id']] ?? null;
+                if (is_string($value)) {
+                    return $value;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

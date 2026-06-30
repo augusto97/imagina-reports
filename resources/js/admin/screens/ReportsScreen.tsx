@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
-import { FileDown, Lock, MessageSquare, PenLine, RotateCw, Share2, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
+import { FileDown, Lightbulb, Lock, MessageSquare, PenLine, RotateCw, Share2, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
 
 import {
     useApproveReport,
@@ -9,6 +9,7 @@ import {
     useCreateReportDefinition,
     useDeleteComment,
     useGenerateReport,
+    useRegenerateReportAdvisory,
     useRegenerateReportNarrative,
     useReportComments,
     useReportDefinitions,
@@ -22,6 +23,7 @@ import {
     useSites,
     useSnapshotPeriods,
     useSyncSiteById,
+    useUpdateReportAdvisory,
     useUpdateReportNarrative,
     useUpdateReportDefinition,
 } from '../api';
@@ -149,6 +151,42 @@ function ReportNarrativePanel({ report }: { report: ReportSummary }): ReactEleme
     );
 }
 
+function ReportAdvisoryPanel({ report }: { report: ReportSummary }): ReactElement {
+    const update = useUpdateReportAdvisory();
+    const regenerate = useRegenerateReportAdvisory();
+    const [text, setText] = useState(report.advisory ?? '');
+
+    const onRegenerate = (): void => {
+        regenerate.mutate(report.id, { onSuccess: (next) => setText(next ?? '') });
+    };
+
+    return (
+        <Card title="Diagnóstico y recomendaciones (IA)">
+            <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
+                Lectura consultiva de la condición del sitio (usa el histórico, el mantenimiento y las caídas). Recomienda solo cuando los datos lo justifican. Edítalo o regenéralo antes de enviar.
+            </p>
+            <textarea
+                className={inputClass}
+                rows={4}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="El diagnóstico se escribe solo al generar el reporte con IA. También puedes redactarlo a mano aquí."
+            />
+            <div className="ir-mt-3 ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                <Button onClick={() => update.mutate({ reportId: report.id, text })} disabled={update.isPending}>
+                    {update.isPending ? 'Guardando…' : 'Guardar'}
+                </Button>
+                <Button variant="ghost" onClick={onRegenerate} disabled={regenerate.isPending}>
+                    <Lightbulb className="ir-size-3.5" />
+                    {regenerate.isPending ? 'Regenerando…' : 'Regenerar con IA'}
+                </Button>
+                {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Guardado.</span>}
+                {regenerate.isError && <span className="ir-text-xs ir-text-red-500">No se pudo regenerar (revisa la API key de la agencia).</span>}
+            </div>
+        </Card>
+    );
+}
+
 /** Inline view/edit of a definition's email recipients (saved on blur). */
 function DefinitionRecipientsEditor({ definition }: { definition: ReportDefinitionDto }): ReactElement {
     const update = useUpdateReportDefinition();
@@ -241,6 +279,7 @@ export function ReportsScreen(): ReactElement {
     const [insightsFor, setInsightsFor] = useState<number | null>(null);
     const [commentsFor, setCommentsFor] = useState<number | null>(null);
     const [narrativeFor, setNarrativeFor] = useState<number | null>(null);
+    const [advisoryFor, setAdvisoryFor] = useState<number | null>(null);
     const showInsights = (reportId: number): void => {
         setInsightsFor(reportId);
         insights.mutate(reportId);
@@ -250,10 +289,10 @@ export function ReportsScreen(): ReactElement {
     // into view when opened so a click visibly does something instead of seeming to do nothing.
     const panelsRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        if (narrativeFor !== null || commentsFor !== null || insightsFor !== null) {
+        if (narrativeFor !== null || advisoryFor !== null || commentsFor !== null || insightsFor !== null) {
             panelsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-    }, [narrativeFor, commentsFor, insightsFor]);
+    }, [narrativeFor, advisoryFor, commentsFor, insightsFor]);
 
     const [defSite, setDefSite] = useState('');
     const [defName, setDefName] = useState('');
@@ -374,6 +413,12 @@ export function ReportsScreen(): ReactElement {
                             <PenLine className="ir-size-3.5" />
                             Resumen
                         </Button>
+                        {report.has_advisory === true && (
+                            <Button variant="ghost" size="sm" title="Editar o regenerar el diagnóstico con recomendaciones" onClick={() => setAdvisoryFor((current) => (current === report.id ? null : report.id))}>
+                                <Lightbulb className="ir-size-3.5" />
+                                Diagnóstico
+                            </Button>
+                        )}
                         <Button
                             variant="ghost"
                             size="sm"
@@ -682,6 +727,13 @@ export function ReportsScreen(): ReactElement {
                         const report = reports.find((item) => item.id === narrativeFor);
 
                         return report !== undefined ? <ReportNarrativePanel key={report.id} report={report} /> : null;
+                    })()}
+
+                {advisoryFor !== null &&
+                    (() => {
+                        const report = reports.find((item) => item.id === advisoryFor);
+
+                        return report !== undefined ? <ReportAdvisoryPanel key={`adv-${report.id}`} report={report} /> : null;
                     })()}
 
                 {commentsFor !== null && <ReportCommentsPanel key={commentsFor} reportId={commentsFor} />}
