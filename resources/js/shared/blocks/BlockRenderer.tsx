@@ -889,6 +889,7 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
     const ctx = brand.context;
     const record = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
 
+    const s = block.style;
     const title = str(prop(block, 'title'), 'Informe de soporte y rendimiento');
     const subtitle = str(prop(block, 'subtitle'));
     const client = ctx.client ?? '';
@@ -896,37 +897,40 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
     const period = ctx.period ?? str(record?.period);
     const showScore = prop(block, 'showScore') !== false;
     const score = ctx.score !== undefined && ctx.score !== '' ? ctx.score : str(record?.score);
-    const logo = brand.logoUrl;
+    // A per-cover logo (the agency's or the client's, uploaded/pasted) overrides the agency one.
+    const logoOverride = str(prop(block, 'logoUrl'));
+    const logo = logoOverride !== '' ? logoOverride : brand.logoUrl;
     const subline = [client, site].filter((part) => part !== '').join(' · ');
+
+    const hasBg = typeof s?.bg === 'string' && s.bg !== '';
+    const hasColor = typeof s?.color === 'string' && s.color !== '';
+    const align = ALIGN[str(s?.align)] ?? '';
 
     return (
         <div
-            className={cn(
-                'ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-gap-8 ir-rounded-2xl ir-p-10',
-                typeof block.style?.bg === 'string' && block.style.bg !== '' ? '' : 'ir-bg-primary/[0.06]',
-            )}
-            style={styleCss(block.style)}
+            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-gap-8 ir-rounded-2xl ir-p-10', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            style={styleCss(s)}
         >
             <div className="ir-flex ir-items-center ir-justify-between">
                 {logo !== null ? (
-                    <img src={logo} alt={brand.agencyName} className="ir-h-10" />
+                    <img src={logo} alt={brand.agencyName} className="ir-h-10 ir-max-w-[40%] ir-object-contain" />
                 ) : (
-                    <span className="ir-text-sm ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{brand.agencyName || 'Tu Agencia'}</span>
+                    <span className={cn('ir-text-sm ir-font-semibold ir-uppercase ir-tracking-[0.18em]', hasColor ? '' : 'ir-text-primary')}>{brand.agencyName || 'Tu Agencia'}</span>
                 )}
-                {period !== '' && <span className="ir-text-xs ir-text-muted-foreground">{period}</span>}
+                {period !== '' && <span className={cn('ir-text-xs', hasColor ? 'ir-opacity-70' : 'ir-text-muted-foreground')}>{period}</span>}
             </div>
 
-            <div className="ir-flex ir-flex-col ir-gap-3">
+            <div className={cn('ir-flex ir-flex-col ir-gap-3', align)}>
                 <h1 className="ir-text-4xl ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
-                {subtitle !== '' && <p className="ir-max-w-xl ir-text-base ir-text-muted-foreground">{subtitle}</p>}
-                {subline !== '' && <p className="ir-text-lg ir-font-medium ir-text-foreground/80">{subline}</p>}
+                {subtitle !== '' && <p className={cn('ir-max-w-xl ir-text-base', hasColor ? 'ir-opacity-80' : 'ir-text-muted-foreground')}>{subtitle}</p>}
+                {subline !== '' && <p className={cn('ir-text-lg ir-font-medium', hasColor ? 'ir-opacity-90' : 'ir-text-foreground/80')}>{subline}</p>}
             </div>
 
             {showScore && score !== '' && (
                 <div className="ir-flex ir-items-end ir-justify-between">
                     <div className="ir-w-44">
                         <Gauge score={Number(score) || 0} />
-                        <p className="ir-mt-1 ir-text-center ir-text-xs ir-uppercase ir-tracking-wide ir-text-muted-foreground">Estado general</p>
+                        <p className={cn('ir-mt-1 ir-text-center ir-text-xs ir-uppercase ir-tracking-wide', hasColor ? 'ir-opacity-70' : 'ir-text-muted-foreground')}>Estado general</p>
                     </div>
                 </div>
             )}
@@ -941,24 +945,26 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
  */
 function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
     const brand = useContext(ReportBrandContext);
+    const s = block.style;
     const headline = str(prop(block, 'headline'), 'Tu plan de soporte está activo y protegiendo tu sitio.');
     const text = str(prop(block, 'text'));
     const contact = str(prop(block, 'contact'));
-    const logo = brand.logoUrl;
+    const logoOverride = str(prop(block, 'logoUrl'));
+    const logo = logoOverride !== '' ? logoOverride : brand.logoUrl;
+
+    const hasBg = typeof s?.bg === 'string' && s.bg !== '';
+    const hasColor = typeof s?.color === 'string' && s.color !== '';
 
     return (
         <div
-            className={cn(
-                'ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-gap-6 ir-rounded-2xl ir-p-10 ir-text-center',
-                typeof block.style?.bg === 'string' && block.style.bg !== '' ? '' : 'ir-bg-primary/[0.06]',
-            )}
-            style={styleCss(block.style)}
+            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-gap-6 ir-rounded-2xl ir-p-10 ir-text-center', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            style={styleCss(s)}
         >
-            {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-h-10" />}
-            <p className="ir-max-w-2xl ir-text-2xl ir-font-bold ir-leading-snug ir-text-primary">{headline}</p>
-            {text !== '' && <p className="ir-max-w-xl ir-text-sm ir-text-muted-foreground">{text}</p>}
+            {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-h-10 ir-max-w-[60%] ir-object-contain" />}
+            <p className={cn('ir-max-w-2xl ir-text-2xl ir-font-bold ir-leading-snug', hasColor ? '' : 'ir-text-primary')}>{headline}</p>
+            {text !== '' && <p className={cn('ir-max-w-xl ir-text-sm', hasColor ? 'ir-opacity-80' : 'ir-text-muted-foreground')}>{text}</p>}
             {(contact !== '' || brand.agencyName !== '') && (
-                <p className="ir-mt-2 ir-text-sm ir-font-medium ir-text-foreground/70">{contact !== '' ? contact : brand.agencyName}</p>
+                <p className={cn('ir-mt-2 ir-text-sm ir-font-medium', hasColor ? 'ir-opacity-90' : 'ir-text-foreground/70')}>{contact !== '' ? contact : brand.agencyName}</p>
             )}
         </div>
     );

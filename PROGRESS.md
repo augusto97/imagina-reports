@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 DESCARGA DEL AGENTE EN SISTEMA + PORTADA/CONTRAPORTADA PERSONALIZABLES (logo, colores, textos) (2026-06-26, rama
+`claude/github-app-analysis-a7b2bd`, releases v1.13.83 quitar aviso Child Reports, v1.13.84 estas dos cosas):**
+**(1) DESCARGA DEL AGENTE:** nueva tarjeta «Agente Imagina (plugin del sitio)» en la pantalla **Sistema** con descarga a un clic + versión
+incluida (`GET /system/site-agent/version` lee el header del plugin). Ya no hay que entrar a Fuentes y simular añadir una fuente para bajar el
+ZIP. **(2) COVER/BACK_COVER PERSONALIZABLES:** el Inspector ahora tiene ramas para `cover` (subtítulo, **logo** con subida/URL, toggle health
+score) y `back_cover` (titular, texto, contacto, logo); añadidos a TYPE_LABELS/TEXT_BLOCKS/NO_TITLE. Subida de imagen genérica: `UploadController`
+(`POST /uploads/image` → guarda en disco public, devuelve url) + hook `useUploadImage` + componente `ImageField` (input URL + botón Subir +
+preview), usado también en el bloque imagen. Los renderers `CoverBlock`/`BackCoverBlock` ahora respetan: **logo propio** (`props.logoUrl`, vacío =
+logo de agencia), **color de texto** (`style.color` vía patrón hasColor, antes lo pisaban las clases) y alineación; el color de fondo ya
+funcionaba. 380 tests PHP (+upload, +agent version) + 15 vitest + stan/pint/ts/build limpios. **SIGUIENTE: desplegar v1.13.84.**
+
+
 **🗓️ ETIQUETAS DE PERIODO LEGIBLES + SINCRONIZAR RANGO CUSTOM DESDE EL ADMIN (2026-06-26, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.82):** continuación del fix del panel en vivo. **(1) ETIQUETAS:** `PublicDashboardController::periodLabel()` ahora nombra los periodos:
 mes natural → «Junio 2026», trimestre → «Q2 2026», año → «Año 2026», y si no, el rango literal «d/m/Y – d/m/Y». **(2) SYNC DE RANGO CUSTOM:** el

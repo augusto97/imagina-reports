@@ -140,6 +140,18 @@ export function useUploadLogo() {
     });
 }
 
+/** Upload a content image (cover/back-cover logo, image block…) → returns its public URL. */
+export function useUploadImage() {
+    return useMutation({
+        mutationFn: (file: File) => {
+            const form = new FormData();
+            form.append('image', file);
+
+            return api.post<{ url: string | null }>('/uploads/image', form).then((r) => r.data.url);
+        },
+    });
+}
+
 /* --------------------------------- clients --------------------------------- */
 
 export function useClients() {

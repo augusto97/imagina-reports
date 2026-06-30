@@ -9,17 +9,50 @@ import {
     type LucideIcon,
     PieChart,
 } from 'lucide-react';
-import { type ReactElement, useEffect, useState } from 'react';
+import { type ReactElement, useEffect, useRef, useState } from 'react';
 
 import type { Block, BlockBinding, DatasetFilter } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
 
-import { Field, Input } from '../components/ui';
+import { useUploadImage } from '../api';
+import { Button, Field, Input } from '../components/ui';
 import type { CatalogEntry } from '../types';
 import { BLOCK_META } from './BlockPalette';
 import { DATA_BLOCKS } from './blockFactory';
 import { ColorSwatch, Section, SegmentedControl, Toggle } from './controls';
 import { NarrativeEditor } from './NarrativeEditor';
+
+/** A URL field with an inline image upload + preview — for logos and the image block. */
+function ImageField({ value, onChange, placeholder }: { value: string; onChange: (url: string) => void; placeholder?: string }): ReactElement {
+    const upload = useUploadImage();
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const pick = (file: File | undefined): void => {
+        if (file !== undefined) {
+            upload.mutate(file, {
+                onSuccess: (url) => {
+                    if (typeof url === 'string' && url !== '') {
+                        onChange(url);
+                    }
+                },
+            });
+        }
+    };
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-1.5">
+            <div className="ir-flex ir-items-center ir-gap-2">
+                <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder ?? 'https://…'} />
+                <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="ir-hidden" onChange={(event) => pick(event.target.files?.[0])} />
+                <Button type="button" variant="ghost" size="sm" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+                    {upload.isPending ? 'Subiendo…' : 'Subir'}
+                </Button>
+            </div>
+            {value !== '' && <img src={value} alt="" className="ir-h-10 ir-w-auto ir-self-start ir-rounded ir-border ir-bg-card ir-object-contain ir-p-1" />}
+            {upload.isError && <span className="ir-text-xs ir-text-red-500">No se pudo subir la imagen.</span>}
+        </div>
+    );
+}
 
 function str(value: unknown): string {
     return typeof value === 'string' ? value : '';
@@ -53,13 +86,16 @@ const TYPE_LABELS: Record<string, string> = {
     divider: 'Separador',
     pagebreak: 'Salto de página',
     custom: 'Personalizado',
+    cover: 'Portada',
+    back_cover: 'Contraportada',
+    advisory: 'Diagnóstico IA',
 };
 
 /** Block types that manage their own content fields (no generic title field). */
-const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak', 'control']);
+const NO_TITLE = new Set(['divider', 'narrative', 'cta', 'image', 'pagebreak', 'control', 'back_cover']);
 
 /** Text-bearing blocks where {{merge-fields}} are useful. */
-const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom']);
+const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom', 'cover', 'back_cover']);
 
 const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
@@ -141,6 +177,7 @@ export function Inspector({
     );
 
     const setProp = (key: string, value: string): void => onChange({ ...block, props: { ...block.props, [key]: value } });
+    const setPropRaw = (key: string, value: unknown): void => onChange({ ...block, props: { ...block.props, [key]: value } });
     const setCompare = (on: boolean): void => {
         if (block.binding !== undefined && block.binding !== null) {
             onChange({ ...block, binding: { ...block.binding, compare: on ? 'prev_period' : undefined } });
@@ -242,11 +279,40 @@ export function Inspector({
 
                     {block.type === 'image' && (
                         <>
-                            <Field label="URL de la imagen">
-                                <Input value={str(block.props?.url)} onChange={(event) => setProp('url', event.target.value)} placeholder="https://…" />
+                            <Field label="Imagen">
+                                <ImageField value={str(block.props?.url)} onChange={(url) => setProp('url', url)} />
                             </Field>
                             <Field label="Texto alternativo">
                                 <Input value={str(block.props?.alt)} onChange={(event) => setProp('alt', event.target.value)} />
+                            </Field>
+                        </>
+                    )}
+
+                    {block.type === 'cover' && (
+                        <>
+                            <Field label="Subtítulo">
+                                <Input value={str(block.props?.subtitle)} onChange={(event) => setProp('subtitle', event.target.value)} placeholder="Resumen del trabajo de este periodo…" />
+                            </Field>
+                            <Field label="Logo (tu empresa o el del cliente)" hint="Vacío = usa el logo de tu agencia. Sube uno o pega una URL.">
+                                <ImageField value={str(block.props?.logoUrl)} onChange={(url) => setProp('logoUrl', url)} />
+                            </Field>
+                            <Toggle checked={block.props?.showScore !== false} onChange={(checked) => setPropRaw('showScore', checked)} label="Mostrar health score" />
+                        </>
+                    )}
+
+                    {block.type === 'back_cover' && (
+                        <>
+                            <Field label="Titular">
+                                <Input value={str(block.props?.headline)} onChange={(event) => setProp('headline', event.target.value)} placeholder="Tu plan de soporte está activo…" />
+                            </Field>
+                            <Field label="Texto (opcional)">
+                                <Input value={str(block.props?.text)} onChange={(event) => setProp('text', event.target.value)} />
+                            </Field>
+                            <Field label="Contacto (opcional)">
+                                <Input value={str(block.props?.contact)} onChange={(event) => setProp('contact', event.target.value)} placeholder="soporte@tuagencia.com · +34 …" />
+                            </Field>
+                            <Field label="Logo" hint="Vacío = usa el logo de tu agencia.">
+                                <ImageField value={str(block.props?.logoUrl)} onChange={(url) => setProp('logoUrl', url)} />
                             </Field>
                         </>
                     )}

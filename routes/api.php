@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\SiteWorkLogController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\TrendsController;
+use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UpsellController;
 use App\Http\Controllers\Api\V1\WorkLogController;
 use Illuminate\Http\JsonResponse;
@@ -86,6 +87,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');
     Route::put('agency', [AgencyController::class, 'update'])->name('api.agency.update');
     Route::post('agency/logo', [AgencyController::class, 'uploadLogo'])->name('api.agency.logo');
+    Route::post('uploads/image', [UploadController::class, 'image'])->name('api.uploads.image');
     Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
     Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
     // Agency-level reusable calculated metrics (§10.1).
