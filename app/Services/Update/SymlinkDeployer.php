@@ -72,6 +72,9 @@ final class SymlinkDeployer implements Deployer
         $current = $this->path('current_link');
 
         // Horizon needs terminate (not just queue:restart) to reload code — see deploy.sh.
+        // Best-effort and non-fatal: on a server WITHOUT Horizon installed this command
+        // doesn't exist, so it exits non-zero — Process::run() (unlike ->throw()) swallows
+        // that, and queue:restart below covers the plain worker. Never let it break the deploy.
         Process::timeout(120)->run([PHP_BINARY, $current.'/artisan', 'horizon:terminate']);
         Process::timeout(120)->run([PHP_BINARY, $current.'/artisan', 'queue:restart']);
     }

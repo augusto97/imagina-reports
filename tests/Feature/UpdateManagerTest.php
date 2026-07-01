@@ -127,4 +127,35 @@ class UpdateManagerTest extends TestCase
         $this->assertFalse($manager->update());
         $this->assertFalse($fake->deployed);
     }
+
+    public function test_a_duplicate_update_for_an_installed_version_does_not_redeploy(): void
+    {
+        // The queue's retry_after can re-run the update job for the same release. The first
+        // run deploys; a second must short-circuit to success WITHOUT deploying again
+        // (re-running migrations / re-flipping the symlink). This is what stopped the UI
+        // hanging on "Instalando…".
+        AppRelease::factory()->create(['version' => '2.0.0']);
+        [$manager, $fake] = $this->manager(true);
+
+        $this->assertTrue($manager->update());
+        $this->assertTrue($fake->deployed);
+
+        $fake->deployed = false;
+        $this->assertTrue($manager->update());
+        $this->assertFalse($fake->deployed, 'A duplicate attempt must not deploy again.');
+        $this->assertSame('success', $manager->lastRun()['status']);
+    }
+
+    public function test_mark_failed_unsticks_the_running_state(): void
+    {
+        AppRelease::factory()->create(['version' => '2.0.0']);
+        [$manager] = $this->manager();
+
+        $manager->markQueued();
+        $manager->markFailed('worker timed out');
+
+        $run = $manager->lastRun();
+        $this->assertSame('failed', $run['status']);
+        $this->assertStringContainsString('worker timed out', $run['message']);
+    }
 }

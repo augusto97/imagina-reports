@@ -24,6 +24,10 @@ final readonly class UpdateManager
 
     private const WORKER_KEY = 'ir:update:worker_version';
 
+    private const LOCK_KEY = 'ir:update:lock:';
+
+    private const DONE_KEY = 'ir:update:done:';
+
     public function __construct(private Deployer $deployer) {}
 
     /**
@@ -160,6 +164,13 @@ final readonly class UpdateManager
 
     /**
      * Install the latest available release, auto-rolling back on a failed health check.
+     *
+     * Re-entrancy matters here: the queue's `retry_after` re-reserves a long-running job,
+     * so this method can be invoked twice for the same release. An atomic lock serializes
+     * the real deploy, and a per-version "done" marker makes a duplicate attempt a no-op
+     * (it reports success instead of re-running migrations / re-flipping the symlink).
+     * Without this the duplicate kept re-stamping the "running" state, which is why the UI
+     * never self-healed and hung on "Instalando…".
      */
     public function update(): bool
     {
@@ -171,22 +182,56 @@ final readonly class UpdateManager
             return false;
         }
 
-        $this->setState('running', $release->version, "Instalando la versión {$release->version}…");
-
-        if ($this->deployer->deploy($release)) {
-            // Record success BEFORE restarting workers — restartWorkers() terminates this
-            // very worker (horizon:terminate), so doing it first would lose the result and
-            // hang the UI on "Installing…".
+        // A duplicate attempt for an already-installed version just confirms success.
+        if (Cache::get(self::DONE_KEY.$release->version) === true) {
             $this->setState('success', $release->version, "Actualizado a la versión {$release->version}.");
-            $this->deployer->restartWorkers();
 
             return true;
         }
 
-        $this->deployer->rollback();
-        $this->setState('failed', $release->version, 'La actualización falló el health check; se revirtió a la versión anterior.');
+        $lock = Cache::lock(self::LOCK_KEY.$release->version, 1800);
 
-        return false;
+        // Another attempt already holds the deploy — don't touch state or double-deploy.
+        if (! $lock->get()) {
+            return false;
+        }
+
+        try {
+            $this->setState('running', $release->version, "Instalando la versión {$release->version}…");
+
+            if ($this->deployer->deploy($release)) {
+                // Mark done BEFORE anything that could kill this worker, so a re-reserved
+                // duplicate short-circuits to success. Record success BEFORE restarting
+                // workers — restartWorkers() terminates this very worker (horizon:terminate),
+                // so doing it first would lose the result and hang the UI on "Installing…".
+                Cache::forever(self::DONE_KEY.$release->version, true);
+                $this->setState('success', $release->version, "Actualizado a la versión {$release->version}.");
+                $this->deployer->restartWorkers();
+
+                return true;
+            }
+
+            $this->deployer->rollback();
+            $this->setState('failed', $release->version, 'La actualización falló el health check; se revirtió a la versión anterior.');
+
+            return false;
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Flag the in-flight run as failed (called from RunUpdateJob::failed() when the worker
+     * times out or the job throws), so the UI leaves "Instalando…" instead of hanging.
+     */
+    public function markFailed(?string $reason = null): void
+    {
+        $release = $this->availableRelease();
+        $message = $reason !== null && $reason !== ''
+            ? 'La actualización no finalizó: '.$reason
+            : 'La actualización no finalizó. Reintenta o usa Rollback.';
+
+        $this->setState('failed', $release?->version, $message);
     }
 
     private function setState(string $status, ?string $version, string $message): void
