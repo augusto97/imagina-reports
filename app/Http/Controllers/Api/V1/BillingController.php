@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Agency;
+use App\Models\Plan;
 use App\Models\Subscription;
 use App\Services\Billing\BillingException;
 use App\Services\Billing\BillingService;
@@ -28,14 +29,27 @@ final class BillingController extends Controller
 
         return response()->json([
             'status' => $agency->status,
+            'current_plan_id' => $agency->plan_id,
             'plan' => $agency->plan !== null
                 ? ['name' => $agency->plan->name, 'monthly_price' => $agency->plan->monthly_price !== null ? (float) $agency->plan->monthly_price : null, 'currency' => $agency->plan->currency]
                 : null,
             'subscription' => $subscription !== null ? [
                 'provider' => $subscription->provider,
+                'plan_id' => $subscription->plan_id,
                 'status' => $subscription->status->value,
                 'current_period_end' => $subscription->current_period_end?->toIso8601String(),
             ] : null,
+            // The plans the agency can subscribe to (self-service).
+            'plans' => Plan::query()->where('is_active', true)->orderBy('sort')->orderBy('id')->get()->map(static fn (Plan $plan): array => [
+                'id' => $plan->id,
+                'name' => $plan->name,
+                'monthly_price' => $plan->monthly_price !== null ? (float) $plan->monthly_price : null,
+                'currency' => $plan->currency,
+                'max_sites' => $plan->max_sites,
+                'max_clients' => $plan->max_clients,
+                'max_users' => $plan->max_users,
+                'features' => $plan->features ?? [],
+            ])->all(),
             'providers' => array_map(
                 static fn ($p): array => ['key' => $p->key(), 'label' => $p->label()],
                 $this->billing->availableProviders(),
@@ -45,15 +59,23 @@ final class BillingController extends Controller
 
     public function subscribe(Request $request): JsonResponse
     {
-        $request->validate(['provider' => ['required', 'string']]);
+        $request->validate([
+            'provider' => ['required', 'string'],
+            'plan_id' => ['required', 'integer'],
+        ]);
 
-        $agency = Agency::query()->with('plan')->findOrFail($this->tenant->id());
-        if ($agency->plan === null) {
-            return response()->json(['message' => 'Tu cuenta aún no tiene un plan asignado. Contacta con soporte.'], 422);
+        $agency = Agency::query()->findOrFail($this->tenant->id());
+        $plan = Plan::query()->where('is_active', true)->find($request->integer('plan_id'));
+
+        if ($plan === null) {
+            return response()->json(['message' => 'El plan elegido no está disponible.'], 422);
+        }
+        if ($plan->monthly_price === null || (float) $plan->monthly_price <= 0) {
+            return response()->json(['message' => 'Este plan no es de pago; contacta con soporte para activarlo.'], 422);
         }
 
         try {
-            $url = $this->billing->subscribe($agency, $agency->plan, $request->string('provider')->toString());
+            $url = $this->billing->subscribe($agency, $plan, $request->string('provider')->toString());
         } catch (BillingException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

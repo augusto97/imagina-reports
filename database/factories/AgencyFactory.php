@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\Agency;
+use App\Models\Plan;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -30,6 +31,9 @@ class AgencyFactory extends Factory
             'default_locale' => 'es',
             'domain' => null,
             'settings' => null,
+            // A test agency is "usable" by default: an unlimited plan. Real agencies with
+            // no plan are restricted (0) by Entitlements — tests opt into limits explicitly.
+            'plan_id' => Plan::factory()->unlimited(),
         ];
     }
 }

@@ -37,9 +37,14 @@ final class Entitlements
             if (array_key_exists($key, $overrides)) {
                 return is_numeric($overrides[$key]) ? (int) $overrides[$key] : null;
             }
-            $value = $plan?->getAttribute($key);
+            // No plan assigned → nothing is allowed (0). Never "unlimited" by default; a
+            // plan-less agency must be given a plan before it can create anything.
+            if ($plan === null) {
+                return 0;
+            }
+            $value = $plan->getAttribute($key);
 
-            return is_int($value) ? $value : null;
+            return is_int($value) ? $value : null; // a plan's null = unlimited
         };
 
         $allowedRaw = $overrides['allowed_connectors'] ?? ($plan !== null ? $plan->allowed_connectors : null);
@@ -141,11 +146,7 @@ final class Entitlements
 
     public function hasFeature(Agency $agency, string $feature): bool
     {
-        // No plan assigned yet → permissive (nothing blocks the owner's first steps).
-        if ($agency->plan === null && ($agency->plan_overrides['features'] ?? null) === null) {
-            return true;
-        }
-
+        // Off by default: a feature is granted only by the plan (or an override).
         return (bool) ($this->limits($agency)['features'][$feature] ?? false);
     }
 

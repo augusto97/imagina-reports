@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Models\Plan;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Plan>
@@ -19,11 +20,11 @@ class PlanFactory extends Factory
      */
     public function definition(): array
     {
-        $name = fake()->unique()->word();
+        $name = fake()->word();
 
         return [
             'name' => ucfirst($name),
-            'slug' => $name,
+            'slug' => Str::slug($name).'-'.fake()->unique()->numberBetween(1, 999999),
             'is_active' => true,
             'sort' => 0,
             'max_sites' => 10,

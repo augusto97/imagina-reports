@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🐞 FIX GRAVE: SIN PLAN = ILIMITADO + LA AGENCIA NO PODÍA ELEGIR PLAN (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, release
+v1.13.99):** dos fallos que reportó el owner. **(1) SIN PLAN = ILIMITADO:** `Entitlements::limits()` devolvía `null` (=ilimitado) cuando
+la agencia no tenía plan → barra libre. CORREGIDO: sin plan (y sin override) → **límite 0** (nada permitido) y `hasFeature`→false. Un
+plan con valor null SÍ es ilimitado (distinción). Para no romper la suite, `AgencyFactory` ahora asigna un plan **ilimitado** por defecto
+(las pruebas que testean límites pasan su propio plan); `DatabaseSeeder` pone a la agencia fundadora el plan «agency»; `PlanFactory` con
+slug único. **(2) LA AGENCIA NO PODÍA ELEGIR/SUSCRIBIRSE A UN PLAN:** antes el botón de pago solo salía si el súper-admin ya había
+asignado plan (mal para autoservicio). AHORA: `GET /billing` devuelve la lista de **planes activos**; `POST /billing/subscribe` acepta
+`plan_id` (valida activo y de pago) y crea el checkout de ESE plan; el plan se aplica a la agencia **al activarse el pago** (webhook →
+`applyStatus` set agency.plan_id + active). UI `BillingCard` rediseñada: **tarjetas de planes** (precio/límites/IA) con botones
+«Suscribirme · MercadoPago/PayPal» y marca «Actual». **(3) MONEDA EN EL EDITOR DE PLANES:** faltaba el selector (el plan guardaba
+`currency` pero no se editaba); añadido dropdown (USD/ARS/MXN/COP/CLP/PEN/BRL/UYU/EUR) junto al precio. **434 tests PHP (Entitlements
+no-plan bloquea, billing lista planes, subscribe con plan_id) + 15 vitest + stan/pint/ts/lint/build limpios.** **SIGUIENTE: desplegar
+v1.13.99.** (Sigue pendiente: hardening de webhooks + validar en sandbox MP/PayPal.)
+
+
 **💳 BILLING (FASE 2) — MERCADOPAGO + PAYPAL, SUSCRIPCIÓN AUTOMÁTICA + AUTOSERVICIO + SUSPENSIÓN (2026-07-03, rama
 `claude/github-app-analysis-a7b2bd`, release v1.13.97):** decisiones del owner: suscripción recurrente automática, moneda local por
 plan, suspensión automática por impago, autoservicio de la agencia. Construido END-TO-END con Http::fake tests (¡falta validar en

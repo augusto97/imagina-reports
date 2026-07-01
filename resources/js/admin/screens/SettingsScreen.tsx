@@ -13,7 +13,7 @@ const SUB_STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 
     cancelled: { label: 'Cancelada', tone: 'neutral' },
 };
 
-/** Agency self-service billing: current plan/subscription + subscribe with MP or PayPal. */
+/** Agency self-service billing: current subscription + choose a plan and pay with MP/PayPal. */
 function BillingCard(): ReactElement | null {
     const { data: billing } = useBilling();
     const subscribe = useSubscribe();
@@ -22,18 +22,23 @@ function BillingCard(): ReactElement | null {
         return null;
     }
 
-    const start = (provider: string): void => {
-        subscribe.mutate(provider, { onSuccess: (data) => { window.location.href = data.approval_url; } });
+    const start = (planId: number, provider: string): void => {
+        subscribe.mutate({ planId, provider }, { onSuccess: (data) => { window.location.href = data.approval_url; } });
     };
 
     const sub = billing.subscription;
     const subMeta = sub !== null ? (SUB_STATUS[sub.status] ?? { label: sub.status, tone: 'neutral' as const }) : null;
-    const price = billing.plan?.monthly_price;
+    const isActive = sub?.status === 'active';
+    const noProviders = billing.providers.length === 0;
 
     return (
         <Card
             title="Plan y facturación"
-            description={billing.plan !== null ? `Plan ${billing.plan.name}${price != null ? ` · ${price} ${billing.plan.currency}/mes` : ''}.` : 'Sin plan asignado. Contacta con soporte.'}
+            description={
+                billing.plan !== null && isActive
+                    ? `Estás suscrito al plan ${billing.plan.name}.`
+                    : 'Elige un plan y suscríbete para activar tu cuenta.'
+            }
         >
             <div className="ir-flex ir-flex-col ir-gap-4">
                 {sub !== null && subMeta !== null && (
@@ -46,24 +51,51 @@ function BillingCard(): ReactElement | null {
 
                 {billing.status === 'suspended' && (
                     <p className="ir-rounded-md ir-bg-danger/5 ir-px-3 ir-py-2 ir-text-sm ir-text-danger">
-                        Tu cuenta está suspendida por falta de pago. Suscríbete para reactivarla.
+                        Tu cuenta está suspendida. Suscríbete a un plan para reactivarla.
                     </p>
                 )}
 
-                {billing.plan !== null && (
-                    billing.providers.length === 0 ? (
-                        <p className="ir-text-xs ir-text-muted-foreground">No hay métodos de pago disponibles todavía. Contacta con soporte.</p>
-                    ) : (
-                        <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
-                            <span className="ir-text-sm ir-text-muted-foreground">{sub?.status === 'active' ? 'Cambiar método de pago:' : 'Suscribirme con:'}</span>
-                            {billing.providers.map((provider) => (
-                                <Button key={provider.key} variant="outline" size="sm" onClick={() => start(provider.key)} disabled={subscribe.isPending}>
-                                    <CreditCard className="ir-size-3.5" />
-                                    {provider.label}
-                                </Button>
-                            ))}
-                        </div>
-                    )
+                {noProviders && (
+                    <p className="ir-rounded-md ir-bg-muted/50 ir-px-3 ir-py-2 ir-text-xs ir-text-muted-foreground">
+                        Aún no hay métodos de pago habilitados. Contacta con soporte.
+                    </p>
+                )}
+
+                {billing.plans.length === 0 ? (
+                    <p className="ir-text-sm ir-text-muted-foreground">No hay planes disponibles todavía.</p>
+                ) : (
+                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-3">
+                        {billing.plans.map((plan) => {
+                            const current = plan.id === billing.current_plan_id && isActive;
+
+                            return (
+                                <div key={plan.id} className={`ir-flex ir-flex-col ir-gap-2 ir-rounded-lg ir-border ir-p-3 ${current ? 'ir-border-accent ir-bg-accent/5' : 'ir-bg-card'}`}>
+                                    <div className="ir-flex ir-items-center ir-justify-between">
+                                        <p className="ir-text-sm ir-font-semibold">{plan.name}</p>
+                                        {current && <Badge tone="accent">Actual</Badge>}
+                                    </div>
+                                    <p className="ir-text-lg ir-font-semibold">
+                                        {plan.monthly_price != null ? `${plan.monthly_price} ${plan.currency}` : '—'}
+                                        <span className="ir-text-xs ir-font-normal ir-text-muted-foreground">/mes</span>
+                                    </p>
+                                    <ul className="ir-flex ir-flex-col ir-gap-0.5 ir-text-xs ir-text-muted-foreground">
+                                        <li>{plan.max_sites ?? '∞'} sitios · {plan.max_clients ?? '∞'} clientes</li>
+                                        <li>{plan.max_users ?? '∞'} usuarios{plan.features?.ai_builder ? ' · IA incluida' : ''}</li>
+                                    </ul>
+                                    {!noProviders && plan.monthly_price != null && (
+                                        <div className="ir-mt-1 ir-flex ir-flex-col ir-gap-1.5">
+                                            {billing.providers.map((provider) => (
+                                                <Button key={provider.key} variant={current ? 'ghost' : 'outline'} size="sm" onClick={() => start(plan.id, provider.key)} disabled={subscribe.isPending}>
+                                                    <CreditCard className="ir-size-3.5" />
+                                                    {current ? `Renovar con ${provider.label}` : `Suscribirme · ${provider.label}`}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
                 {subscribe.isError && <p className="ir-text-xs ir-text-danger">No se pudo iniciar el pago. Inténtalo de nuevo.</p>}
             </div>

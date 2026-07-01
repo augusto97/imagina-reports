@@ -341,7 +341,8 @@ export function useBilling() {
 
 export function useSubscribe() {
     return useMutation({
-        mutationFn: (provider: string) => api.post<{ approval_url: string }>('/billing/subscribe', { provider }).then((r) => r.data),
+        mutationFn: ({ planId, provider }: { planId: number; provider: string }) =>
+            api.post<{ approval_url: string }>('/billing/subscribe', { plan_id: planId, provider }).then((r) => r.data),
     });
 }
 

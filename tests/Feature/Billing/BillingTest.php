@@ -46,11 +46,20 @@ class BillingTest extends TestCase
         $agency = $this->agencyWithPlan();
         Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
 
-        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago'])
+        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => $agency->plan_id])
             ->assertOk()
             ->assertJsonPath('approval_url', 'https://mp.test/authorize/MP-123');
 
         $this->assertDatabaseHas('ir_subscriptions', ['agency_id' => $agency->id, 'provider' => 'mercadopago', 'external_id' => 'MP-123', 'status' => 'pending']);
+    }
+
+    public function test_billing_lists_the_plans_the_agency_can_choose(): void
+    {
+        $agency = $this->agencyWithPlan();
+        Plan::factory()->create(['name' => 'Otro', 'is_active' => true, 'monthly_price' => 99]);
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->getJson('/api/v1/billing')->assertOk()->assertJsonCount(2, 'plans');
     }
 
     public function test_subscribe_shows_only_configured_providers(): void

@@ -122,6 +122,11 @@ final class BillingService
         $agency = $subscription->agency;
         if ($agency !== null) {
             $agency->status = $status->grantsAccess() ? 'active' : 'suspended';
+            // On activation, apply the subscribed plan (self-service: the agency's plan
+            // is only granted once the payment is authorized).
+            if ($status === SubscriptionStatus::Active && $subscription->plan_id !== null) {
+                $agency->plan_id = $subscription->plan_id;
+            }
             $agency->save();
         }
     }

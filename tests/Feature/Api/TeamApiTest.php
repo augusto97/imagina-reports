@@ -20,7 +20,8 @@ class TeamApiTest extends TestCase
 
     private function boot(UserRole $role = UserRole::Owner, ?Plan $plan = null): User
     {
-        $this->agency = Agency::factory()->create(['plan_id' => $plan?->id]);
+        $plan ??= Plan::factory()->create(['max_users' => 10]);
+        $this->agency = Agency::factory()->create(['plan_id' => $plan->id]);
         $user = User::factory()->create(['agency_id' => $this->agency->id, 'role' => $role]);
         Sanctum::actingAs($user);
 

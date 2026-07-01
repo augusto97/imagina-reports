@@ -80,10 +80,17 @@ class EntitlementsTest extends TestCase
         $this->assertFalse($this->entitlements()->hasFeature($agency, 'ai_builder'));
     }
 
-    public function test_feature_is_permissive_without_a_plan(): void
+    public function test_no_plan_grants_nothing(): void
     {
+        // The core fix: a plan-less agency is restricted (0), never unlimited.
         $agency = Agency::factory()->create(['plan_id' => null]);
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
 
-        $this->assertTrue($this->entitlements()->hasFeature($agency, 'ai_builder'));
+        $this->assertFalse($this->entitlements()->hasFeature($agency, 'ai_builder'));
+        $this->assertFalse($this->entitlements()->canAddSite($agency));
+        $this->assertFalse($this->entitlements()->canAddClient($agency));
+        $this->assertSame(0, $this->entitlements()->limits($agency)['max_sites']);
+        // $client exists only to prove counting still works with a real row.
+        $this->assertSame(1, $this->entitlements()->usage($agency)['clients']);
     }
 }

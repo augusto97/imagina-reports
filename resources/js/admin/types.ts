@@ -47,10 +47,23 @@ export interface WorkLog {
     screenshot_url: string | null;
 }
 
+export interface BillingPlanOption {
+    id: number;
+    name: string;
+    monthly_price: number | null;
+    currency: string;
+    max_sites: number | null;
+    max_clients: number | null;
+    max_users: number | null;
+    features: Record<string, boolean>;
+}
+
 export interface BillingInfo {
     status: string;
+    current_plan_id: number | null;
     plan: { name: string; monthly_price: number | null; currency: string } | null;
-    subscription: { provider: string; status: string; current_period_end: string | null } | null;
+    subscription: { provider: string; plan_id: number | null; status: string; current_period_end: string | null } | null;
+    plans: BillingPlanOption[];
     providers: { key: string; label: string }[];
 }
 
