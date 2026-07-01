@@ -182,7 +182,10 @@ export function useCreateClient() {
     return useMutation({
         mutationFn: (payload: { name: string; contact_email?: string }) =>
             api.post<Client>('/clients', payload).then((r) => r.data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['clients'] });
+            void queryClient.invalidateQueries({ queryKey: ['agency'] });
+        },
     });
 }
 
@@ -201,7 +204,10 @@ export function useDeleteClient() {
 
     return useMutation({
         mutationFn: (clientId: number) => api.delete(`/clients/${clientId}`).then((r) => r.data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['clients'] });
+            void queryClient.invalidateQueries({ queryKey: ['agency'] });
+        },
     });
 }
 
@@ -217,7 +223,11 @@ export function useCreateSite() {
     return useMutation({
         mutationFn: (payload: { client_id: number; name: string; url: string; currency?: string }) =>
             api.post<Site>('/sites', payload).then((r) => r.data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['sites'] });
+            // Usage counts live on the agency entitlements — refresh them too.
+            void queryClient.invalidateQueries({ queryKey: ['agency'] });
+        },
     });
 }
 
@@ -228,6 +238,18 @@ export function useUpdateSite(id: number) {
         mutationFn: (payload: { client_id?: number; name?: string; url?: string; currency?: string; plan_hours?: number | null }) =>
             api.put<Site>(`/sites/${id}`, payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+    });
+}
+
+export function useDeleteSite() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (siteId: number) => api.delete(`/sites/${siteId}`).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['sites'] });
+            void queryClient.invalidateQueries({ queryKey: ['agency'] });
+        },
     });
 }
 

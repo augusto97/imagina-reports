@@ -1,11 +1,13 @@
-import { Building2, ChevronDown, ChevronRight, ExternalLink, Globe, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Building2, ChevronDown, ChevronRight, ExternalLink, Globe, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useMemo, useState } from 'react';
 
 import {
+    useAgency,
     useClients,
     useCreateClient,
     useCreateSite,
     useDeleteClient,
+    useDeleteSite,
     useSites,
     useUpdateClient,
     useUpdateSite,
@@ -15,7 +17,7 @@ import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/
 import { CURRENCIES } from '../currencies';
 import { useAdminUi } from '../store';
 import { TIMEZONES } from '../timezones';
-import type { Client, Site } from '../types';
+import type { AgencySettings, Client, Site } from '../types';
 
 type ModalState =
     | { kind: 'new-client' }
@@ -285,14 +287,113 @@ function EditSiteModal({ site, onClose }: { site: Site; onClose: () => void }): 
     );
 }
 
+/* ------------------------------ entitlements ------------------------------ */
+
+interface Entitlement {
+    /** true = this resource is capped and already full (or there is no plan). */
+    reached: boolean;
+    used: number;
+    /** null = unlimited. */
+    limit: number | null;
+    /** short "3 / 5" (or "3" when unlimited) for the usage chip. */
+    label: string;
+}
+
+function gauge(used: number, limit: number | null): Entitlement {
+    return {
+        used,
+        limit,
+        reached: limit !== null && used >= limit,
+        label: limit === null ? String(used) : `${used} / ${limit}`,
+    };
+}
+
+/**
+ * Derives what the current agency may create from its plan entitlements (mirrors the
+ * backend Entitlements service). A missing plan means every limit is 0 → nothing can be
+ * created until a plan is active, which is exactly what the banner explains.
+ */
+function useEntitlements(agency: AgencySettings | undefined): {
+    ready: boolean;
+    hasPlan: boolean;
+    suspended: boolean;
+    clients: Entitlement;
+    sites: Entitlement;
+} {
+    return useMemo(() => {
+        if (agency === undefined) {
+            return { ready: false, hasPlan: true, suspended: false, clients: gauge(0, null), sites: gauge(0, null) };
+        }
+
+        return {
+            ready: true,
+            hasPlan: agency.plan !== null,
+            suspended: agency.status !== 'active',
+            clients: gauge(agency.usage.clients, agency.limits.max_clients),
+            sites: gauge(agency.usage.sites, agency.limits.max_sites),
+        };
+    }, [agency]);
+}
+
+/** Small "3 / 5" pill; turns amber when the cap is reached so the limit is visible at a glance. */
+function UsageChip({ label, entitlement, reached }: { label: string; entitlement: Entitlement; reached: boolean }): ReactElement {
+    return (
+        <span
+            className={
+                'ir-inline-flex ir-items-center ir-gap-1 ir-rounded-full ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ' +
+                (reached ? 'ir-bg-amber-500/15 ir-text-amber-600' : 'ir-bg-muted ir-text-muted-foreground')
+            }
+            title={entitlement.limit === null ? `${label}: sin límite en tu plan` : `${label}: ${entitlement.used} de ${entitlement.limit} usados`}
+        >
+            {label} {entitlement.label}
+        </span>
+    );
+}
+
+/**
+ * Explains why creation is blocked and links to the plan. Shown when the agency has no
+ * active plan, is suspended, or has hit a limit — so nothing ever silently fails and the
+ * user knows the app is enforcing the plan, not broken.
+ */
+function PlanLimitNotice({ tone, title, body }: { tone: 'danger' | 'warning'; title: string; body: string }): ReactElement {
+    const setView = useAdminUi((state) => state.setView);
+    const danger = tone === 'danger';
+
+    return (
+        <div
+            className={
+                'ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3 ir-rounded-xl ir-border ir-px-4 ir-py-3 ' +
+                (danger ? 'ir-border-danger/30 ir-bg-danger/5' : 'ir-border-amber-500/30 ir-bg-amber-500/5')
+            }
+        >
+            <div className="ir-flex ir-min-w-0 ir-items-start ir-gap-2.5">
+                <span className={'ir-mt-0.5 ir-shrink-0 ' + (danger ? 'ir-text-danger' : 'ir-text-amber-600')}>
+                    <Lock className="ir-size-4" />
+                </span>
+                <div className="ir-min-w-0">
+                    <p className="ir-text-sm ir-font-semibold ir-text-foreground">{title}</p>
+                    <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{body}</p>
+                </div>
+            </div>
+            <Button size="sm" variant={danger ? 'primary' : 'ghost'} onClick={() => setView('settings')}>
+                Ver planes
+                <ArrowUpRight className="ir-size-3.5" />
+            </Button>
+        </div>
+    );
+}
+
 /* ------------------------------- main screen ------------------------------ */
 
 export function WorkspaceScreen(): ReactElement {
     const { data: clients = [] } = useClients();
     const { data: sites = [] } = useSites();
+    const { data: agency } = useAgency();
+    const ent = useEntitlements(agency);
     const selectedSiteId = useAdminUi((state) => state.selectedSiteId);
     const selectSite = useAdminUi((state) => state.selectSite);
     const deleteClient = useDeleteClient();
+    const deleteSite = useDeleteSite();
 
     const [query, setQuery] = useState('');
     const [modal, setModal] = useState<ModalState>(null);
@@ -353,17 +454,60 @@ export function WorkspaceScreen(): ReactElement {
         }
     };
 
+    const removeSite = (site: Site): void => {
+        if (
+            window.confirm(
+                `¿Eliminar el sitio «${site.name}»?\n\nSe borrarán también sus fuentes de datos, métricas sincronizadas, informes y registros de trabajo. Esta acción no se puede deshacer.`,
+            )
+        ) {
+            // After the refetch the deleted site drops out of the list, so the detail
+            // panel clears itself — no need to touch the selection here.
+            deleteSite.mutate(site.id, {
+                onError: () => window.alert('No se pudo eliminar el sitio. Inténtalo de nuevo.'),
+            });
+        }
+    };
+
+    // Why creation is (or isn't) allowed — drives the banner and the disabled buttons.
+    const blocked = ent.ready && (!ent.hasPlan || ent.suspended);
+    const notice = !ent.ready
+        ? null
+        : ent.suspended
+          ? { tone: 'danger' as const, title: 'Tu agencia está suspendida', body: 'Regulariza el pago de tu plan para volver a crear clientes, sitios e informes.' }
+          : !ent.hasPlan
+            ? { tone: 'danger' as const, title: 'Aún no tienes un plan activo', body: 'Suscríbete a un plan para empezar a crear clientes y sitios. Mientras tanto, la creación está bloqueada.' }
+            : ent.clients.reached && ent.sites.reached
+              ? { tone: 'warning' as const, title: 'Has alcanzado los límites de tu plan', body: 'Llegaste al máximo de clientes y sitios. Mejora tu plan para añadir más.' }
+              : null;
+
+    const clientsBlocked = blocked || ent.clients.reached;
+
     return (
-        <div className="ir-grid ir-gap-5 lg:ir-grid-cols-[300px_1fr]">
+        <div className="ir-flex ir-flex-col ir-gap-5">
+            {notice !== null && <PlanLimitNotice tone={notice.tone} title={notice.title} body={notice.body} />}
+
+            <div className="ir-grid ir-gap-5 lg:ir-grid-cols-[300px_1fr]">
             {/* Left: clients → sites tree */}
             <aside className="ir-self-start ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-sm lg:ir-sticky lg:ir-top-4">
                 <div className="ir-flex ir-items-center ir-justify-between ir-gap-2 ir-border-b ir-px-4 ir-py-3">
                     <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">Clientes</h2>
-                    <Button size="sm" onClick={() => setModal({ kind: 'new-client' })}>
+                    <Button
+                        size="sm"
+                        disabled={clientsBlocked}
+                        title={clientsBlocked ? (ent.hasPlan ? 'Has alcanzado el límite de clientes de tu plan.' : 'Suscríbete a un plan para crear clientes.') : undefined}
+                        onClick={() => setModal({ kind: 'new-client' })}
+                    >
                         <Plus className="ir-size-3.5" />
                         Nuevo
                     </Button>
                 </div>
+
+                {ent.ready && (
+                    <div className="ir-flex ir-items-center ir-gap-1.5 ir-border-b ir-px-4 ir-py-2">
+                        <UsageChip label="Clientes" entitlement={ent.clients} reached={clientsBlocked} />
+                        <UsageChip label="Sitios" entitlement={ent.sites} reached={blocked || ent.sites.reached} />
+                    </div>
+                )}
 
                 <div className="ir-p-3">
                     <div className="ir-relative ir-mb-2">
@@ -420,8 +564,10 @@ export function WorkspaceScreen(): ReactElement {
                                             })}
                                             <button
                                                 type="button"
+                                                disabled={blocked || ent.sites.reached}
+                                                title={blocked || ent.sites.reached ? (ent.hasPlan ? 'Has alcanzado el límite de sitios de tu plan.' : 'Suscríbete a un plan para crear sitios.') : undefined}
                                                 onClick={() => setModal({ kind: 'add-site', clientId: client.id })}
-                                                className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-font-medium ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted/60 hover:ir-text-foreground"
+                                                className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-font-medium ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted/60 hover:ir-text-foreground disabled:ir-cursor-not-allowed disabled:ir-opacity-50 disabled:hover:ir-bg-transparent"
                                             >
                                                 <Plus className="ir-size-3.5" />
                                                 Añadir sitio
@@ -454,10 +600,22 @@ export function WorkspaceScreen(): ReactElement {
                                 {selectedClient !== null && <p className="ir-text-xs ir-text-muted-foreground">{selectedClient.name}</p>}
                             </div>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => setModal({ kind: 'edit-site', site: selectedSite })}>
-                            <Pencil className="ir-size-3.5" />
-                            Editar sitio
-                        </Button>
+                        <div className="ir-flex ir-items-center ir-gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => setModal({ kind: 'edit-site', site: selectedSite })}>
+                                <Pencil className="ir-size-3.5" />
+                                Editar sitio
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={deleteSite.isPending}
+                                onClick={() => removeSite(selectedSite)}
+                                className="ir-text-danger hover:ir-bg-danger/10"
+                            >
+                                <Trash2 className="ir-size-3.5" />
+                                Eliminar
+                            </Button>
+                        </div>
                     </header>
 
                     <div className="ir-flex ir-flex-col ir-gap-5 ir-px-5 ir-py-4">
@@ -500,6 +658,7 @@ export function WorkspaceScreen(): ReactElement {
                     </div>
                 </section>
             )}
+            </div>
 
             {/* Modals */}
             {modal?.kind === 'new-client' && (

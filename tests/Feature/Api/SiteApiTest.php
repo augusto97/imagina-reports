@@ -6,6 +6,8 @@ namespace Tests\Feature\Api;
 
 use App\Models\Agency;
 use App\Models\Client;
+use App\Models\DataSource;
+use App\Models\MetricSnapshot;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,5 +73,30 @@ class SiteApiTest extends TestCase
         $site = Site::factory()->create(['agency_id' => $other->id, 'client_id' => $client->id]);
 
         $this->putJson("/api/v1/sites/{$site->id}", ['currency' => 'CLP'])->assertNotFound();
+    }
+
+    public function test_it_deletes_a_site_and_cascades_its_data(): void
+    {
+        $client = Client::factory()->create(['agency_id' => $this->agency->id]);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id, 'client_id' => $client->id]);
+        $source = DataSource::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id]);
+        $snapshot = MetricSnapshot::factory()->create(['agency_id' => $this->agency->id, 'data_source_id' => $source->id]);
+
+        $this->deleteJson("/api/v1/sites/{$site->id}")->assertNoContent();
+
+        $this->assertDatabaseMissing('ir_sites', ['id' => $site->id]);
+        // The site's data source (no DB FK on site_id) and its snapshots are cleaned up too.
+        $this->assertDatabaseMissing('ir_data_sources', ['id' => $source->id]);
+        $this->assertDatabaseMissing('ir_metric_snapshots', ['id' => $snapshot->id]);
+    }
+
+    public function test_it_cannot_delete_another_agencys_site(): void
+    {
+        $other = Agency::factory()->create();
+        $client = Client::factory()->create(['agency_id' => $other->id]);
+        $site = Site::factory()->create(['agency_id' => $other->id, 'client_id' => $client->id]);
+
+        $this->deleteJson("/api/v1/sites/{$site->id}")->assertNotFound();
+        $this->assertDatabaseHas('ir_sites', ['id' => $site->id]);
     }
 }

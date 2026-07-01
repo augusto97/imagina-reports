@@ -34,6 +34,19 @@ class Site extends Model
     protected $table = 'ir_sites';
 
     /**
+     * Deleting a site cascades its report definitions/reports/work logs via DB foreign
+     * keys, but `ir_data_sources.site_id` has no FK (nullable column), so its data sources
+     * — and their snapshots — would be orphaned. Remove them explicitly; the bulk delete
+     * still fires the DB cascade that drops each source's snapshots.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (Site $site): void {
+            $site->dataSources()->delete();
+        });
+    }
+
+    /**
      * Supported reporting currencies (ISO 4217 → label). No FX conversion — each
      * site's amounts render in its own currency (CLAUDE.md §5). LATAM-first.
      *

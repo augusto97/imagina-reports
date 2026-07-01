@@ -44,6 +44,19 @@ final class SiteController extends Controller
         return new SiteResource($site);
     }
 
+    /**
+     * Delete a site. Route-model binding scopes it to the agency (404 otherwise). This
+     * cascades everything belonging to the site — its data sources, snapshots, report
+     * definitions, reports and work logs (see the Site model's deleting hook + DB FKs) —
+     * so it is deliberately destructive; the UI confirms before calling it.
+     */
+    public function destroy(Site $site): JsonResponse
+    {
+        $site->delete();
+
+        return response()->json(null, 204);
+    }
+
     public function update(UpdateSiteRequest $request, Site $site): SiteResource
     {
         $data = $request->validated();
