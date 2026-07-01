@@ -266,6 +266,14 @@ class PublicReportEndpointTest extends TestCase
             'performed_at' => '2026-05-15',
             'description' => 'Mes anterior',
         ]);
+        // A planned (not-done) task inside the period must NOT reach the client report.
+        WorkLog::factory()->create([
+            'agency_id' => $agency->id,
+            'site_id' => $site->id,
+            'performed_at' => '2026-06-20',
+            'description' => 'Tarea planificada',
+            'status' => 'planned',
+        ]);
 
         $this->getJson("/api/v1/public/reports/{$report->public_token}")
             ->assertOk()

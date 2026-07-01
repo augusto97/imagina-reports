@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\WorkLogStatus;
 use App\Models\Concerns\BelongsToAgency;
 use Database\Factories\WorkLogFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int $site_id
  * @property Carbon $performed_at
  * @property string $description
+ * @property WorkLogStatus $status
  * @property int|null $minutes
  * @property string|null $category
  * @property string|null $screenshot_path
@@ -33,6 +35,16 @@ class WorkLog extends Model
     protected $table = 'ir_report_work_logs';
 
     /**
+     * Default so a freshly-created (not-yet-reloaded) model always has a status,
+     * mirroring the DB default — the resource reads `status->value` right after create.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'done',
+    ];
+
+    /**
      * @var list<string>
      */
     protected $fillable = [
@@ -41,6 +53,7 @@ class WorkLog extends Model
         'site_id',
         'performed_at',
         'description',
+        'status',
         'minutes',
         'category',
         'screenshot_path',
@@ -53,6 +66,7 @@ class WorkLog extends Model
     {
         return [
             'performed_at' => 'datetime',
+            'status' => WorkLogStatus::class,
             'minutes' => 'integer',
         ];
     }

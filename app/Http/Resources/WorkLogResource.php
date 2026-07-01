@@ -28,6 +28,7 @@ final class WorkLogResource extends JsonResource
             'site_id' => $log->site_id,
             'performed_at' => $log->performed_at->toIso8601String(),
             'description' => $log->description,
+            'status' => $log->status->value,
             'minutes' => $log->minutes,
             'category' => $log->category,
             'screenshot_path' => $log->screenshot_path,

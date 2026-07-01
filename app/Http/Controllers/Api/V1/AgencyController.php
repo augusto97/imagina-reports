@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateAgencyRequest;
 use App\Models\Agency;
 use App\Services\SnapshotRetentionService;
+use App\Services\Webhooks\WebhookDispatcher;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,6 +51,27 @@ final class AgencyController extends Controller
             $agency->snapshot_retention_months = is_numeric($months) && (int) $months > 0 ? (int) $months : null;
         }
 
+        // Webhook endpoints/secret live in the settings JSON (read by the dispatcher, §8).
+        // Absent → leave as-is; present → replace. Empty secret clears it.
+        $settings = $agency->settings ?? [];
+
+        if (array_key_exists('webhook_urls', $validated) && is_array($validated['webhook_urls'])) {
+            $settings['webhook_urls'] = array_values(array_filter(
+                array_map(static fn ($url): string => is_string($url) ? trim($url) : '', $validated['webhook_urls']),
+                static fn (string $url): bool => $url !== '',
+            ));
+        }
+
+        if (array_key_exists('webhook_secret', $validated)) {
+            $secret = $validated['webhook_secret'];
+            if (is_string($secret) && $secret !== '') {
+                $settings['webhook_secret'] = $secret;
+            } else {
+                unset($settings['webhook_secret']);
+            }
+        }
+
+        $agency->settings = $settings;
         $agency->save();
 
         return response()->json($this->present($agency));
@@ -70,6 +92,27 @@ final class AgencyController extends Controller
         $deleted = $retention->pruneAgency($this->current($tenant));
 
         return response()->json(['deleted' => $deleted]);
+    }
+
+    /**
+     * Send a `ping` test event to the configured webhook endpoints (§8) so the operator
+     * can confirm the integration is wired up before relying on the real events.
+     */
+    public function testWebhooks(TenantContext $tenant, WebhookDispatcher $webhooks): JsonResponse
+    {
+        $agency = $this->current($tenant);
+        $count = count($this->webhookUrls($agency));
+
+        if ($count === 0) {
+            return response()->json(['message' => 'No hay endpoints configurados.', 'sent' => 0], 422);
+        }
+
+        $webhooks->dispatch($agency->id, 'ping', [
+            'message' => 'Webhook de prueba de Imagina Reports.',
+            'agency_id' => $agency->id,
+        ]);
+
+        return response()->json(['sent' => $count]);
     }
 
     /**
@@ -114,6 +157,25 @@ final class AgencyController extends Controller
             'ai_key_set' => $agency->anthropicKey() !== null,
             'snapshot_retention_months' => $agency->snapshot_retention_months,
             'calculated_metrics' => $agency->calculated_metrics ?? [],
+            'webhook_urls' => $this->webhookUrls($agency),
+            'webhook_secret_set' => is_string($agency->settings['webhook_secret'] ?? null) && $agency->settings['webhook_secret'] !== '',
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function webhookUrls(Agency $agency): array
+    {
+        $urls = $agency->settings['webhook_urls'] ?? [];
+
+        if (! is_array($urls)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn ($url): string => is_string($url) ? $url : '', $urls),
+            static fn (string $url): bool => $url !== '',
+        ));
     }
 }

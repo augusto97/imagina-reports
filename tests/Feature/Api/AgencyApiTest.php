@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Ai\AnthropicAiClient;
+use App\Jobs\SendWebhookJob;
 use App\Models\Agency;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -12,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -69,6 +71,53 @@ class AgencyApiTest extends TestCase
         $path = $agency->fresh()?->logo_path;
         $this->assertIsString($path);
         Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_update_stores_webhook_urls_and_secret(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $this->putJson('/api/v1/agency', [
+            'name' => 'Imagina WP',
+            'webhook_urls' => ['https://hook.test/a', '', 'https://hook.test/b'],
+            'webhook_secret' => 'shh',
+        ])
+            ->assertOk()
+            ->assertJsonPath('webhook_urls', ['https://hook.test/a', 'https://hook.test/b'])
+            ->assertJsonPath('webhook_secret_set', true)
+            ->assertJsonMissing(['webhook_secret' => 'shh']);
+
+        $this->assertSame('shh', $agency->fresh()?->settings['webhook_secret'] ?? null);
+    }
+
+    public function test_update_rejects_an_invalid_webhook_url(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $this->putJson('/api/v1/agency', ['name' => 'X', 'webhook_urls' => ['not-a-url']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('webhook_urls.0');
+    }
+
+    public function test_test_webhooks_endpoint_reports_no_endpoints(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $this->postJson('/api/v1/agency/webhooks/test')->assertStatus(422)->assertJsonPath('sent', 0);
+    }
+
+    public function test_test_webhooks_endpoint_dispatches_to_configured_endpoints(): void
+    {
+        Queue::fake();
+        $agency = Agency::factory()->create(['settings' => ['webhook_urls' => ['https://hook.test/a']]]);
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $this->postJson('/api/v1/agency/webhooks/test')->assertOk()->assertJsonPath('sent', 1);
+
+        Queue::assertPushed(SendWebhookJob::class, fn (SendWebhookJob $job): bool => $job->event === 'ping' && $job->url === 'https://hook.test/a');
     }
 
     public function test_logo_upload_rejects_a_non_image(): void

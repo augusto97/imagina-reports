@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Enums\WorkLogStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class StoreWorkLogRequest extends FormRequest
 {
@@ -22,6 +24,8 @@ final class StoreWorkLogRequest extends FormRequest
             // Optional — the quick-add UI defaults it to today.
             'performed_at' => ['nullable', 'date'],
             'description' => ['required', 'string'],
+            // Optional — defaults to `done` (a completed task); other states stay internal.
+            'status' => ['nullable', Rule::enum(WorkLogStatus::class)],
             // Time is OPTIONAL: some tasks just describe what was done.
             'minutes' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'category' => ['nullable', 'string', 'max:255'],

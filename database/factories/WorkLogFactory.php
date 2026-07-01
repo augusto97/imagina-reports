@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\WorkLogStatus;
 use App\Models\Agency;
 use App\Models\Site;
 use App\Models\WorkLog;
@@ -27,6 +28,7 @@ class WorkLogFactory extends Factory
             'site_id' => Site::factory(),
             'performed_at' => now()->subDays(3),
             'description' => fake()->sentence(),
+            'status' => WorkLogStatus::Done->value,
             'screenshot_path' => null,
         ];
     }

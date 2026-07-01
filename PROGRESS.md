@@ -7,6 +7,25 @@
 ---
 
 ## Where I left off (read me first)
+**🧩 3 FUNCIONES QUE FALTABAN POR INTERFAZ: WEBHOOKS + ALERTAS DE ANOMALÍAS + REDISEÑO «REGISTRAR TRABAJO» (2026-07-01, rama
+`claude/github-app-analysis-a7b2bd`, release v1.13.91):** el owner pidió exponer lo que estaba en backend sin UI, y rehacer la
+sección de trabajo. **(A) WEBHOOKS:** `UpdateAgencyRequest` acepta `webhook_urls[]` + `webhook_secret` (con `prepareForValidation`
+que limpia filas vacías); `AgencyController` los guarda en `settings`, los expone (`webhook_urls`, `webhook_secret_set`) y añade
+`POST agency/webhooks/test` (evento `ping`). UI: tarjeta «Webhooks e integraciones» en Ajustes (endpoints add/remove, secreto,
+botón Probar). **(B) ALERTAS DE ANOMALÍAS:** nueva tabla `ir_anomalies` + modelo `AnomalyAlert`; el listener `DetectReportAnomalies`
+ahora PERSISTE cada anomalía (updateOrCreate por report+type+metric) además del webhook; `AnomalyController` (index/acknowledge/
+destroy) + rutas; nueva pantalla `AlertsScreen` + ítem de menú «Alertas» (TriangleAlert) + vista `alerts` en el store. **(C)
+REGISTRAR TRABAJO (rediseño premium):** columna `status` (done/in_progress/planned) en work logs (solo `done` llega al reporte del
+cliente — filtrado en `ReportResource`, `WorkLogMetrics`; default 'done' backfilled + `$attributes`), endpoint de edición
+`POST work-logs/{id}` (`update`), `UpdateWorkLogRequest`. UI nueva `WorkLogsScreen`: composer con plantillas de tareas frecuentes
+(1 clic), categorías con icono/color, estado, tiempo, captura; stats (horas vs plan, hechas, en progreso, por categoría); timeline
+agrupado por día con editar/eliminar. Hooks: `useUpdateWorkLog`, `useTestWebhooks`, `useAnomalies/useAcknowledgeAnomaly/
+useDeleteAnomaly`; tipos `WorkLogStatus`, `AnomalyAlert`, webhooks en `AgencySettings`. **396 tests PHP (+anomaly, +webhooks,
++worklog edit/status/filter) + 15 vitest + stan/pint/ts/lint/build limpios.** Quedan como huecos menores (no hechos): UI de gestión
+masiva de `ir_report_deliveries` y work-logs por-reporte (endpoints existen); futuro/opcional: Etapa E (live explore GA4), datasets
+Woo. **SIGUIENTE: desplegar v1.13.91.**
+
+
 **📐 FIX ALTURA/TAMAÑO DE BLOQUES EN EL REPORTE FINAL + AUTOMATIZACIÓN DE REPORTES PERIÓDICOS (2026-07-01, rama
 `claude/github-app-analysis-a7b2bd`, release v1.13.90):** dos cosas que reportó el owner. **(1) LAYOUT:** en la vista final los
 bloques no respetaban el tamaño/altura del editor. CAUSA: `BlockList` calculaba `useGrid` de forma GLOBAL

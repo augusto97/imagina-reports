@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWorkLogRequest;
+use App\Http\Requests\UpdateWorkLogRequest;
 use App\Http\Resources\WorkLogResource;
 use App\Models\Site;
 use App\Models\WorkLog;
@@ -54,6 +55,24 @@ final class SiteWorkLogController extends Controller
         $log = $site->workLogs()->create($data);
 
         return WorkLogResource::make($log)->response()->setStatusCode(201);
+    }
+
+    public function update(UpdateWorkLogRequest $request, WorkLog $workLog): WorkLogResource
+    {
+        $data = $request->validated();
+        unset($data['screenshot']); // the uploaded file is handled below, not mass-assigned
+
+        if ($request->hasFile('screenshot')) {
+            $path = $request->file('screenshot')?->store('worklogs', 'public');
+
+            if (is_string($path)) {
+                $data['screenshot_path'] = $path;
+            }
+        }
+
+        $workLog->update($data);
+
+        return WorkLogResource::make($workLog);
     }
 
     public function destroy(WorkLog $workLog): JsonResponse

@@ -32,16 +32,33 @@ export interface ReportComment {
     created_at: string;
 }
 
+export type WorkLogStatus = 'done' | 'in_progress' | 'planned';
+
 export interface WorkLog {
     id: number;
     report_id: number | null;
     site_id: number;
     performed_at: string;
     description: string;
+    status: WorkLogStatus;
     minutes: number | null;
     category: string | null;
     screenshot_path: string | null;
     screenshot_url: string | null;
+}
+
+export interface AnomalyAlert {
+    id: number;
+    site_id: number;
+    site_name: string | null;
+    report_id: number | null;
+    type: 'traffic_drop' | 'attack_spike';
+    metric: string;
+    current: number;
+    previous: number;
+    change_percent: number;
+    acknowledged_at: string | null;
+    detected_at: string | null;
 }
 
 export interface ConfigFieldDef {
@@ -249,6 +266,8 @@ export interface AgencySettings {
     ai_key_set: boolean;
     snapshot_retention_months: number | null;
     calculated_metrics: { key: string; label: string; formula: string }[];
+    webhook_urls: string[];
+    webhook_secret_set: boolean;
 }
 
 export interface UpdateStatus {

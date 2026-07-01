@@ -1,7 +1,9 @@
+import { Plus, Send, Trash2, Webhook } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useChangePassword, usePruneSnapshots, useRetentionPreview, useUpdateAgency, useUploadLogo } from '../api';
-import { Button, Card, Field, Input } from '../components/ui';
+import { type AgencyUpdate, useAgency, useChangePassword, usePruneSnapshots, useRetentionPreview, useTestWebhooks, useUpdateAgency, useUploadLogo } from '../api';
+import { Badge, Button, Card, Field, Input } from '../components/ui';
+import type { AgencySettings } from '../types';
 
 /** Humanize a byte count: 0 B / 12 KB / 3.4 MB. */
 function humanBytes(bytes: number): string {
@@ -98,6 +100,98 @@ const LOCALES: { value: string; label: string }[] = [
     { value: 'en', label: 'English' },
     { value: 'pt_BR', label: 'Português (BR)' },
 ];
+
+const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected'];
+
+/**
+ * Outbound webhooks / integrations (CLAUDE.md §8). Self-contained so saving here never
+ * clobbers unsaved edits in the main form: it re-sends the agency's SAVED branding
+ * alongside the webhook fields (the update endpoint expects them).
+ */
+function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const update = useUpdateAgency();
+    const test = useTestWebhooks();
+    const [urls, setUrls] = useState<string[]>(agency.webhook_urls.length > 0 ? agency.webhook_urls : ['']);
+    const [secret, setSecret] = useState('');
+
+    const setUrl = (index: number, value: string): void => setUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
+    const addUrl = (): void => setUrls((prev) => [...prev, '']);
+    const removeUrl = (index: number): void => setUrls((prev) => prev.filter((_, i) => i !== index));
+
+    const save = (): void => {
+        const payload: AgencyUpdate = {
+            name: agency.name,
+            brand_color: agency.brand_color,
+            default_locale: agency.default_locale,
+            webhook_urls: urls.map((url) => url.trim()).filter((url) => url !== ''),
+        };
+        if (secret !== '') {
+            payload.webhook_secret = secret;
+        }
+        update.mutate(payload, { onSuccess: () => setSecret('') });
+    };
+
+    return (
+        <Card
+            title="Webhooks e integraciones"
+            description="Envía eventos a Zapier, Make, un CRM, Slack… en cuanto ocurren. Cada endpoint recibe un POST con el evento y sus datos."
+        >
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <div className="ir-flex ir-flex-wrap ir-gap-1.5">
+                    {WEBHOOK_EVENTS.map((event) => (
+                        <Badge key={event} tone="neutral">
+                            <code>{event}</code>
+                        </Badge>
+                    ))}
+                </div>
+
+                <Field label="Endpoints (URLs)">
+                    <div className="ir-flex ir-flex-col ir-gap-2">
+                        {urls.map((url, index) => (
+                            <div key={index} className="ir-flex ir-items-center ir-gap-2">
+                                <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
+                                    <Webhook className="ir-size-4" />
+                                </span>
+                                <Input value={url} onChange={(event) => setUrl(index, event.target.value)} placeholder="https://tu-servicio.com/webhook" />
+                                <button type="button" title="Quitar" onClick={() => removeUrl(index)} className="ir-shrink-0 ir-rounded-md ir-p-1.5 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger">
+                                    <Trash2 className="ir-size-4" />
+                                </button>
+                            </div>
+                        ))}
+                        <Button type="button" variant="ghost" size="sm" className="ir-self-start" onClick={addUrl}>
+                            <Plus className="ir-size-3.5" />
+                            Añadir endpoint
+                        </Button>
+                    </div>
+                </Field>
+
+                <Field label="Secreto de firma (opcional)" hint={agency.webhook_secret_set ? 'Ya hay un secreto guardado. Escribe uno nuevo para reemplazarlo.' : 'Se envía como cabecera de firma HMAC para que tu servicio verifique el origen.'}>
+                    <Input
+                        type="password"
+                        autoComplete="off"
+                        value={secret}
+                        onChange={(event) => setSecret(event.target.value)}
+                        placeholder={agency.webhook_secret_set ? '•••••••• (deja en blanco para conservar)' : 'Un secreto compartido'}
+                    />
+                </Field>
+
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">
+                    <Button onClick={save} disabled={update.isPending}>
+                        {update.isPending ? 'Guardando…' : 'Guardar webhooks'}
+                    </Button>
+                    <Button variant="outline" onClick={() => test.mutate()} disabled={test.isPending || agency.webhook_urls.length === 0} title={agency.webhook_urls.length === 0 ? 'Guarda al menos un endpoint primero' : 'Envía un evento de prueba a los endpoints guardados'}>
+                        <Send className="ir-size-3.5" />
+                        {test.isPending ? 'Enviando…' : 'Probar'}
+                    </Button>
+                    {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Webhooks guardados.</span>}
+                    {test.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Evento de prueba enviado a {test.data?.sent ?? 0} endpoint(s).</span>}
+                    {test.isError && <span className="ir-text-xs ir-text-red-500">No se pudo enviar la prueba.</span>}
+                </div>
+                <p className="ir-text-xs ir-text-muted-foreground">La prueba usa los endpoints ya guardados: guarda antes de probar cambios.</p>
+            </div>
+        </Card>
+    );
+}
 
 export function SettingsScreen(): ReactElement {
     const { data: agency, isLoading } = useAgency();
@@ -243,6 +337,8 @@ export function SettingsScreen(): ReactElement {
                 {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Ajustes guardados.</span>}
                 {update.isError && <span className="ir-text-xs ir-text-red-500">No se pudieron guardar.</span>}
             </div>
+
+            <WebhooksCard agency={agency} />
 
             <PasswordCard />
         </div>

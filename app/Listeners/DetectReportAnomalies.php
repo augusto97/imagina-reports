@@ -6,6 +6,7 @@ namespace App\Listeners;
 
 use App\Connectors\Period;
 use App\Events\ReportGenerated;
+use App\Models\AnomalyAlert;
 use App\Reports\AnomalyDetector;
 use App\Reports\MetricBagLoader;
 use App\Services\Webhooks\WebhookDispatcher;
@@ -13,8 +14,9 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * On report generation (CLAUDE.md §13): compares the report's period against the
- * previous one, and for each detected anomaly raises an internal alert (log) and an
- * `anomaly.detected` webhook (§8). Reads only stored snapshots — no live APIs.
+ * previous one, and for each detected anomaly persists an in-app alert, raises an
+ * internal alert (log) and an `anomaly.detected` webhook (§8). Reads only stored
+ * snapshots — no live APIs.
  */
 final readonly class DetectReportAnomalies
 {
@@ -46,6 +48,19 @@ final readonly class DetectReportAnomalies
             ];
 
             Log::warning('Anomaly detected: '.$anomaly->type->label(), $context);
+
+            // Persist the in-app alert (one per report+type+metric, refreshed on regeneration).
+            AnomalyAlert::query()->updateOrCreate(
+                ['report_id' => $report->id, 'type' => $anomaly->type, 'metric' => $anomaly->metric],
+                [
+                    'agency_id' => $report->agency_id,
+                    'site_id' => $definition->site_id,
+                    'current_value' => $anomaly->current,
+                    'previous_value' => $anomaly->previous,
+                    'change_percent' => round($anomaly->changePercent, 2),
+                    'acknowledged_at' => null,
+                ],
+            );
 
             $this->webhooks->dispatch($report->agency_id, 'anomaly.detected', [
                 'report_id' => $report->id,

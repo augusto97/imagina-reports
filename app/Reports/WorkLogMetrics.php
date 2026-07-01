@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Reports;
 
 use App\Connectors\Period;
+use App\Enums\WorkLogStatus;
 use App\Models\Site;
 use App\Models\WorkLog;
 use Illuminate\Support\Collection;
@@ -28,6 +29,7 @@ final class WorkLogMetrics
         /** @var Collection<int, WorkLog> $logs */
         $logs = WorkLog::query()
             ->where('site_id', $site->id)
+            ->where('status', WorkLogStatus::Done->value)
             ->whereBetween('performed_at', [$period->start, $period->end])
             ->get();
 

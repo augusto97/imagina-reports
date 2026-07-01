@@ -7,6 +7,7 @@ import {
     Lightbulb,
     LogOut,
     Menu,
+    TriangleAlert,
     PanelLeftClose,
     PanelLeftOpen,
     PencilRuler,
@@ -21,6 +22,7 @@ import { cn } from "@shared/lib/utils";
 
 import { useAuthUser, useLogout } from "./api";
 import { EditorScreen } from "./editor/EditorScreen";
+import { AlertsScreen } from "./screens/AlertsScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { ReportsScreen } from "./screens/ReportsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
@@ -40,6 +42,7 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: "reports", label: "Reportes", icon: FileBarChart },
     { view: "trends", label: "Tendencias", icon: TrendingUp },
     { view: "upsell", label: "Oportunidades", icon: Lightbulb },
+    { view: "alerts", label: "Alertas", icon: TriangleAlert },
     { view: "system", label: "Sistema", icon: DownloadCloud },
     { view: "settings", label: "Ajustes", icon: Settings },
 ];
@@ -64,6 +67,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <TrendsScreen />;
         case "upsell":
             return <UpsellScreen />;
+        case "alerts":
+            return <AlertsScreen />;
         case "system":
             return <SystemScreen />;
         case "settings":

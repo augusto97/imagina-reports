@@ -108,6 +108,41 @@ class SiteWorkLogApiTest extends TestCase
         $this->assertDatabaseMissing('ir_report_work_logs', ['id' => $log->id]);
     }
 
+    public function test_it_defaults_status_to_done_and_accepts_a_planned_task(): void
+    {
+        $site = $this->site();
+
+        $this->postJson("/api/v1/sites/{$site->id}/work-logs", ['description' => 'Tarea hecha'])
+            ->assertCreated()
+            ->assertJsonPath('status', 'done');
+
+        $this->postJson("/api/v1/sites/{$site->id}/work-logs", ['description' => 'Migrar hosting', 'status' => 'planned'])
+            ->assertCreated()
+            ->assertJsonPath('status', 'planned');
+    }
+
+    public function test_it_edits_a_work_log(): void
+    {
+        $site = $this->site();
+        $log = WorkLog::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'minutes' => 30]);
+
+        $this->postJson("/api/v1/work-logs/{$log->id}", ['description' => 'Descripción editada', 'status' => 'in_progress', 'minutes' => 90])
+            ->assertOk()
+            ->assertJsonPath('description', 'Descripción editada')
+            ->assertJsonPath('status', 'in_progress')
+            ->assertJsonPath('minutes', 90);
+    }
+
+    public function test_it_cannot_edit_another_agencys_work_log(): void
+    {
+        $other = Agency::factory()->create();
+        $client = Client::factory()->create(['agency_id' => $other->id]);
+        $site = Site::factory()->create(['agency_id' => $other->id, 'client_id' => $client->id]);
+        $log = WorkLog::factory()->create(['agency_id' => $other->id, 'site_id' => $site->id]);
+
+        $this->postJson("/api/v1/work-logs/{$log->id}", ['description' => 'hack'])->assertNotFound();
+    }
+
     public function test_it_cannot_add_to_another_agencys_site(): void
     {
         $other = Agency::factory()->create();

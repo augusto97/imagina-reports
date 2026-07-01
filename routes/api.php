@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
+use App\Http\Controllers\Api\V1\AnomalyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CalculatedMetricController;
 use App\Http\Controllers\Api\V1\ClientController;
@@ -90,6 +91,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::post('uploads/image', [UploadController::class, 'image'])->name('api.uploads.image');
     Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
     Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
+    Route::post('agency/webhooks/test', [AgencyController::class, 'testWebhooks'])->name('api.agency.webhooks.test');
     // Agency-level reusable calculated metrics (§10.1).
     Route::put('agency/calculated-metrics', [CalculatedMetricController::class, 'update'])->name('api.agency.calculated-metrics.update');
 
@@ -108,6 +110,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     // Fast day-to-day work logging per site (hours invested) — CLAUDE.md §11.5.
     Route::get('sites/{site}/work-logs', [SiteWorkLogController::class, 'index'])->name('api.sites.work-logs.index');
     Route::post('sites/{site}/work-logs', [SiteWorkLogController::class, 'store'])->name('api.sites.work-logs.store');
+    Route::post('work-logs/{workLog}', [SiteWorkLogController::class, 'update'])->name('api.work-logs.update');
     Route::delete('work-logs/{workLog}', [SiteWorkLogController::class, 'destroy'])->name('api.work-logs.destroy');
 
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
@@ -152,6 +155,11 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     // Agency-wide upsell opportunities (CLAUDE.md §13) — internal-only commercial signals.
     Route::get('upsell', [UpsellController::class, 'index'])->name('api.upsell.index');
+
+    // In-app anomaly alerts feed (CLAUDE.md §13).
+    Route::get('anomalies', [AnomalyController::class, 'index'])->name('api.anomalies.index');
+    Route::post('anomalies/{anomaly}/acknowledge', [AnomalyController::class, 'acknowledge'])->name('api.anomalies.acknowledge');
+    Route::delete('anomalies/{anomaly}', [AnomalyController::class, 'destroy'])->name('api.anomalies.destroy');
 
     Route::get('reports', [ReportController::class, 'index'])->name('api.reports.index');
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');

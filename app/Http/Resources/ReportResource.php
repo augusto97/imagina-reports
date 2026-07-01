@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Enums\CommentVisibility;
+use App\Enums\WorkLogStatus;
 use App\Models\Report;
 use App\Models\ReportComment;
 use App\Models\WorkLog;
@@ -96,6 +97,7 @@ final class ReportResource extends JsonResource
         $entries = WorkLog::query()
             ->withoutGlobalScopes()
             ->where('site_id', $site->id)
+            ->where('status', WorkLogStatus::Done->value)
             ->whereBetween('performed_at', [$report->period_start, $report->period_end])
             ->orderByDesc('performed_at')
             ->get()

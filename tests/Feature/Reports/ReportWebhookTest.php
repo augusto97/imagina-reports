@@ -85,6 +85,22 @@ class ReportWebhookTest extends TestCase
         Queue::assertPushed(SendWebhookJob::class, fn (SendWebhookJob $job): bool => $job->event === 'anomaly.detected');
     }
 
+    public function test_generation_persists_an_in_app_anomaly_alert(): void
+    {
+        Queue::fake();
+        $this->bootAgency([]);
+
+        $this->generateWithTrafficDrop();
+
+        // Persisted regardless of whether any webhook endpoint is configured.
+        $this->assertDatabaseHas('ir_anomalies', [
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'type' => 'traffic_drop',
+            'acknowledged_at' => null,
+        ]);
+    }
+
     public function test_no_webhooks_are_queued_when_the_agency_has_no_endpoints(): void
     {
         Queue::fake();

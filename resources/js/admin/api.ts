@@ -8,6 +8,7 @@ import type {
     AgencySettings,
     AgencyTrends,
     AgencyUpsell,
+    AnomalyAlert,
     AuthUser,
     CatalogEntry,
     Client,
@@ -25,6 +26,7 @@ import type {
     Site,
     UpdateStatus,
     WorkLog,
+    WorkLogStatus,
 } from './types';
 
 async function get<T>(url: string): Promise<T> {
@@ -91,6 +93,15 @@ export interface AgencyUpdate {
     default_locale: string;
     anthropic_key?: string;
     snapshot_retention_months?: number | null;
+    webhook_urls?: string[];
+    webhook_secret?: string;
+}
+
+/** Send a `ping` test event to the configured webhook endpoints (§8). */
+export function useTestWebhooks() {
+    return useMutation({
+        mutationFn: () => api.post<{ sent: number }>('/agency/webhooks/test').then((r) => r.data),
+    });
 }
 
 export function useUpdateAgency() {
@@ -219,10 +230,24 @@ export function useUpdateSite(id: number) {
 
 export interface WorkLogInput {
     description: string;
+    status?: WorkLogStatus;
     minutes?: number | null;
     category?: string | null;
     performed_at?: string;
     screenshot?: File | null;
+}
+
+/** Build the multipart body for a work-log create/update (screenshot needs FormData). */
+function workLogForm(fields: Omit<WorkLogInput, 'screenshot'>, screenshot: File): FormData {
+    const form = new FormData();
+    form.append('description', fields.description);
+    if (fields.status != null) form.append('status', fields.status);
+    if (fields.minutes != null) form.append('minutes', String(fields.minutes));
+    if (fields.category != null && fields.category !== '') form.append('category', fields.category);
+    if (fields.performed_at != null) form.append('performed_at', fields.performed_at);
+    form.append('screenshot', screenshot);
+
+    return form;
 }
 
 /** Work logs for a site within a period (CLAUDE.md §11.5). */
@@ -244,21 +269,24 @@ export function useCreateSiteWorkLog(siteId: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ screenshot, ...fields }: WorkLogInput) => {
+        mutationFn: ({ screenshot, ...fields }: WorkLogInput) =>
             // Multipart only when a proof-of-work screenshot is attached; otherwise JSON.
-            if (screenshot instanceof File) {
-                const form = new FormData();
-                form.append('description', fields.description);
-                if (fields.minutes != null) form.append('minutes', String(fields.minutes));
-                if (fields.category != null && fields.category !== '') form.append('category', fields.category);
-                if (fields.performed_at != null) form.append('performed_at', fields.performed_at);
-                form.append('screenshot', screenshot);
+            screenshot instanceof File
+                ? api.post<WorkLog>(`/sites/${siteId}/work-logs`, workLogForm(fields, screenshot)).then((r) => r.data)
+                : api.post<WorkLog>(`/sites/${siteId}/work-logs`, fields).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
+    });
+}
 
-                return api.post<WorkLog>(`/sites/${siteId}/work-logs`, form).then((r) => r.data);
-            }
+/** Edit an existing work-log entry (every field optional). */
+export function useUpdateWorkLog() {
+    const queryClient = useQueryClient();
 
-            return api.post<WorkLog>(`/sites/${siteId}/work-logs`, fields).then((r) => r.data);
-        },
+    return useMutation({
+        mutationFn: ({ id, screenshot, ...fields }: Partial<WorkLogInput> & { id: number }) =>
+            screenshot instanceof File
+                ? api.post<WorkLog>(`/work-logs/${id}`, workLogForm({ description: fields.description ?? '', ...fields }, screenshot)).then((r) => r.data)
+                : api.post<WorkLog>(`/work-logs/${id}`, fields).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
     });
 }
@@ -269,6 +297,30 @@ export function useDeleteWorkLog() {
     return useMutation({
         mutationFn: (id: number) => api.delete(`/work-logs/${id}`),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
+    });
+}
+
+/* -------------------------------- anomalies -------------------------------- */
+
+export function useAnomalies() {
+    return useQuery({ queryKey: ['anomalies'], queryFn: () => get<AnomalyAlert[]>('/anomalies') });
+}
+
+export function useAcknowledgeAnomaly() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.post<AnomalyAlert>(`/anomalies/${id}/acknowledge`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['anomalies'] }),
+    });
+}
+
+export function useDeleteAnomaly() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/anomalies/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['anomalies'] }),
     });
 }
 
