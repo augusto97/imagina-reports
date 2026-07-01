@@ -18,6 +18,9 @@ import {
 import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
 import type { Plan, PlatformAgency } from '../types';
 
+// Currencies MercadoPago (local) + PayPal (USD) commonly support in the region.
+const CURRENCIES = ['USD', 'ARS', 'MXN', 'COP', 'CLP', 'PEN', 'BRL', 'UYU', 'EUR'];
+
 const FEATURES: { key: string; label: string }[] = [
     { key: 'ai_builder', label: 'Generador con IA' },
     { key: 'white_label', label: 'Marca blanca' },
@@ -194,6 +197,7 @@ function PlanModal({ plan, onClose }: { plan: Plan | null; onClose: () => void }
     const update = useUpdatePlan();
     const [name, setName] = useState(plan?.name ?? '');
     const [price, setPrice] = useState(plan?.monthly_price != null ? String(plan.monthly_price) : '');
+    const [currency, setCurrency] = useState(plan?.currency ?? 'USD');
     const [limits, setLimits] = useState<Record<string, string>>(
         Object.fromEntries(NUM_FIELDS.map((f) => [f.key, plan?.[f.key] != null ? String(plan[f.key]) : ''])),
     );
@@ -205,7 +209,7 @@ function PlanModal({ plan, onClose }: { plan: Plan | null; onClose: () => void }
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
-        const payload: PlanInput = { name: name.trim(), monthly_price: numOrNull(price), features };
+        const payload: PlanInput = { name: name.trim(), monthly_price: numOrNull(price), currency, features };
         for (const field of NUM_FIELDS) {
             payload[field.key] = numOrNull(limits[field.key] ?? '');
         }
@@ -224,9 +228,20 @@ function PlanModal({ plan, onClose }: { plan: Plan | null; onClose: () => void }
                         <Field label="Nombre">
                             <Input value={name} onChange={(e) => setName(e.target.value)} />
                         </Field>
-                        <Field label="Precio mensual">
-                            <Input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="49" />
-                        </Field>
+                        <div className="ir-grid ir-grid-cols-2 ir-gap-3">
+                            <Field label="Precio mensual">
+                                <Input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="49" />
+                            </Field>
+                            <Field label="Moneda">
+                                <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                                    {CURRENCIES.map((code) => (
+                                        <option key={code} value={code}>
+                                            {code}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </Field>
+                        </div>
                     </div>
                     <div className="ir-grid ir-gap-3 sm:ir-grid-cols-3">
                         {NUM_FIELDS.map((f) => (
