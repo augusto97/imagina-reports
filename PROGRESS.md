@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**📅 REPORTES AUTOMÁTICOS: DÍA DE ENVÍO DESIGNABLE (2026-07-01, rama `claude/github-app-analysis-a7b2bd`, release v1.13.93):** el
+motor de programación (genera + envía por email por cron `reports:run-schedules` horario → `ScheduleRunner` → `RunScheduledReportJob`
+→ `DeliverReportJob`) YA existía (v1.13.90), pero disparaba SIEMPRE el día 1. El owner quería «la fecha designada». Añadido: columna
+`send_day` (1–28) en `ir_schedules`; `Schedule::nextRunAfter(now)` que para mensual respeta el día elegido (default 1, cap 28);
+`StoreScheduleRequest` acepta `send_day`; `ScheduleController@store` lo persiste y calcula el primer `next_run_at` con una instancia
+throwaway; `ScheduleRunner` avanza con `nextRunAfter`; `ScheduleResource` expone `send_day`. UI: en «Automatización» (Ajustes de cada
+reporte) al elegir «Cada mes» aparece un selector «el día [1–28]»; el hint muestra «Próximo envío: <fecha>». Hooks/tipos:
+`ScheduleDto.send_day`, `useCreateSchedule` acepta `send_day`. **402 tests PHP (+día designado) + 15 vitest + stan/pint/ts/lint/build
+limpios.** NOTA operativa: el cron corre `reports:run-schedules` **horario**; para que el envío salga a primera hora del día
+elegido está bien, pero si se quisiera puntualidad por hora habría que subir la frecuencia del scheduler. **SIGUIENTE: desplegar
+v1.13.93.**
+
+
 **📬 GESTIÓN DE ENVÍOS (ir_report_deliveries) + DATASET DE CLIENTES WOO (2026-07-01, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.92):** el owner pidió los 2 pendientes «reales». **(1) ENVÍOS:** el log de entregas de email existía en BD pero sin
 interfaz. Añadido: relación `Report::deliveries()`, `DeliveryService::sendOne()` (reenvío individual que registra un intento nuevo),

@@ -42,6 +42,24 @@ class ScheduleApiTest extends TestCase
         ]);
     }
 
+    public function test_monthly_schedule_fires_on_the_designated_day(): void
+    {
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id]);
+
+        $this->postJson('/api/v1/schedules', [
+            'report_definition_id' => $definition->id,
+            'cadence' => 'monthly',
+            'send_day' => 5,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('send_day', 5)
+            ->assertJsonPath('next_run_at', fn (string $value): bool => str_contains($value, '-05T') || str_contains($value, '-05T00'));
+
+        $schedule = Schedule::query()->firstOrFail();
+        $this->assertSame(5, $schedule->send_day);
+        $this->assertSame(5, $schedule->next_run_at->day);
+    }
+
     public function test_it_cannot_schedule_another_agencys_definition(): void
     {
         $other = ReportDefinition::factory()->create();

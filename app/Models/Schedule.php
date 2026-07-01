@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ScheduleCadence;
 use App\Models\Concerns\BelongsToAgency;
+use Carbon\CarbonImmutable;
 use Database\Factories\ScheduleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int $agency_id
  * @property int $report_definition_id
  * @property ScheduleCadence $cadence
+ * @property int|null $send_day
  * @property Carbon $next_run_at
  */
 class Schedule extends Model
@@ -35,6 +37,7 @@ class Schedule extends Model
         'agency_id',
         'report_definition_id',
         'cadence',
+        'send_day',
         'next_run_at',
     ];
 
@@ -45,8 +48,28 @@ class Schedule extends Model
     {
         return [
             'cadence' => ScheduleCadence::class,
+            'send_day' => 'integer',
             'next_run_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The next time this schedule should fire, strictly after `$now`. Monthly honors the
+     * designated `send_day` (1–28, default 1) so the agency picks WHICH day the report
+     * goes out; weekly uses the connector default (start of next week).
+     */
+    public function nextRunAfter(CarbonImmutable $now): CarbonImmutable
+    {
+        if ($this->cadence !== ScheduleCadence::Monthly) {
+            return $this->cadence->nextRun($now);
+        }
+
+        $day = min(28, max(1, $this->send_day ?? 1));
+        $thisMonth = $now->startOfMonth()->addDays($day - 1)->startOfDay();
+
+        return $thisMonth->greaterThan($now)
+            ? $thisMonth
+            : $now->addMonthNoOverflow()->startOfMonth()->addDays($day - 1)->startOfDay();
     }
 
     /**

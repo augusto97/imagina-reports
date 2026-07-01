@@ -28,7 +28,7 @@ final readonly class ScheduleRunner
             RunScheduledReportJob::dispatch($schedule->id);
 
             $schedule->forceFill([
-                'next_run_at' => $schedule->cadence->nextRun(CarbonImmutable::now()),
+                'next_run_at' => $schedule->nextRunAfter(CarbonImmutable::now()),
             ])->save();
         }
 

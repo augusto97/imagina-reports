@@ -27,15 +27,20 @@ final class ScheduleController extends Controller
         $definition = ReportDefinition::query()->findOrFail($request->integer('report_definition_id'));
 
         $cadence = ScheduleCadence::from($request->string('cadence')->toString());
+        $sendDay = $cadence === ScheduleCadence::Monthly && $request->filled('send_day') ? $request->integer('send_day') : null;
 
         // One active schedule per definition: replace any existing one so switching
         // cadence (or re-enabling) never leaves a stale schedule behind.
         Schedule::query()->where('report_definition_id', $definition->id)->delete();
 
+        // A throwaway instance computes the first run from the cadence + designated day.
+        $nextRun = (new Schedule(['cadence' => $cadence, 'send_day' => $sendDay]))->nextRunAfter(CarbonImmutable::now());
+
         $schedule = Schedule::query()->create([
             'report_definition_id' => $definition->id,
             'cadence' => $cadence,
-            'next_run_at' => $cadence->nextRun(CarbonImmutable::now()),
+            'send_day' => $sendDay,
+            'next_run_at' => $nextRun,
         ]);
 
         return ScheduleResource::make($schedule)->response()->setStatusCode(201);

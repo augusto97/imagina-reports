@@ -132,6 +132,7 @@ export interface ScheduleDto {
     id: number;
     report_definition_id: number;
     cadence: ScheduleCadence;
+    send_day: number | null;
     next_run_at: string;
 }
 

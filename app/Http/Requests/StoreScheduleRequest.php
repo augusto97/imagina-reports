@@ -23,6 +23,8 @@ final class StoreScheduleRequest extends FormRequest
         return [
             'report_definition_id' => ['required', 'integer'],
             'cadence' => ['required', Rule::enum(ScheduleCadence::class)],
+            // Day of month a monthly report goes out (1–28). Ignored for weekly.
+            'send_day' => ['nullable', 'integer', 'min:1', 'max:28'],
         ];
     }
 }

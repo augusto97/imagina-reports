@@ -26,6 +26,7 @@ final class ScheduleResource extends JsonResource
             'id' => $schedule->id,
             'report_definition_id' => $schedule->report_definition_id,
             'cadence' => $schedule->cadence->value,
+            'send_day' => $schedule->send_day,
             'next_run_at' => $schedule->next_run_at->toIso8601String(),
         ];
     }

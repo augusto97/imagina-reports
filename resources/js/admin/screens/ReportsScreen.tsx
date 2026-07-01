@@ -664,8 +664,13 @@ function ReportConfigCard({
                 deleteSchedule.mutate(schedule.id);
             }
         } else {
-            createSchedule.mutate({ report_definition_id: definition.id, cadence: value as ScheduleCadence });
+            // Preserve the chosen day when re-selecting monthly; default to day 1.
+            const send_day = value === 'monthly' ? (schedule?.send_day ?? 1) : undefined;
+            createSchedule.mutate({ report_definition_id: definition.id, cadence: value as ScheduleCadence, send_day });
         }
+    };
+    const changeSendDay = (day: number): void => {
+        createSchedule.mutate({ report_definition_id: definition.id, cadence: 'monthly', send_day: day });
     };
     const noRecipients = (definition.recipients ?? []).length === 0;
 
@@ -744,11 +749,25 @@ function ReportConfigCard({
                                     : 'Genera y envía el reporte por email automáticamente cada periodo, sin que hagas nada.'
                             }
                         >
-                            <Select value={schedule?.cadence ?? ''} onChange={(event) => changeCadence(event.target.value)} disabled={createSchedule.isPending || deleteSchedule.isPending}>
-                                <option value="">Manual (sin automatización)</option>
-                                <option value="monthly">Cada mes (el mes que acaba de terminar)</option>
-                                <option value="weekly">Cada semana (la semana que acaba de terminar)</option>
-                            </Select>
+                            <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                                <Select className="ir-flex-1" value={schedule?.cadence ?? ''} onChange={(event) => changeCadence(event.target.value)} disabled={createSchedule.isPending || deleteSchedule.isPending}>
+                                    <option value="">Manual (sin automatización)</option>
+                                    <option value="monthly">Cada mes (el mes que acaba de terminar)</option>
+                                    <option value="weekly">Cada semana (la semana que acaba de terminar)</option>
+                                </Select>
+                                {schedule?.cadence === 'monthly' && (
+                                    <label className="ir-flex ir-shrink-0 ir-items-center ir-gap-1.5 ir-text-xs ir-text-muted-foreground">
+                                        el día
+                                        <Select className="ir-w-16" value={schedule.send_day ?? 1} onChange={(event) => changeSendDay(Number(event.target.value))} disabled={createSchedule.isPending}>
+                                            {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+                                                <option key={day} value={day}>
+                                                    {day}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                    </label>
+                                )}
+                            </div>
                         </Field>
                         {schedule !== null && noRecipients && (
                             <p className="ir-mt-1.5 ir-text-xs ir-text-amber-600">⚠ No hay destinatarios. Añade al menos un email arriba para que el envío automático llegue a alguien.</p>

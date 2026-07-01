@@ -593,7 +593,7 @@ export function useCreateSchedule() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { report_definition_id: number; cadence: ScheduleCadence }) =>
+        mutationFn: (payload: { report_definition_id: number; cadence: ScheduleCadence; send_day?: number }) =>
             api.post<ScheduleDto>('/schedules', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedules'] }),
     });
