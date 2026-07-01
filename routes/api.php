@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
+use App\Http\Controllers\Api\V1\ReportDeliveryController;
 use App\Http\Controllers\Api\V1\ReportInsightsController;
 use App\Http\Controllers\Api\V1\ReportNarrativeController;
 use App\Http\Controllers\Api\V1\ReportSharingController;
@@ -178,6 +179,11 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::delete('comments/{comment}', [ReportCommentController::class, 'destroy'])->name('api.comments.destroy');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
+
+    // Email delivery log + retry (CLAUDE.md §5).
+    Route::get('reports/{report}/deliveries', [ReportDeliveryController::class, 'index'])->name('api.reports.deliveries.index');
+    Route::post('reports/{report}/deliveries/retry-failed', [ReportDeliveryController::class, 'retryFailed'])->name('api.reports.deliveries.retry-failed');
+    Route::post('report-deliveries/{reportDelivery}/retry', [ReportDeliveryController::class, 'retry'])->name('api.report-deliveries.retry');
 
     // Self-updater (CLAUDE.md §8/§12); privileged users only (checked in the controller).
     Route::get('system/update/status', [SystemUpdateController::class, 'status'])->name('api.system.update.status');

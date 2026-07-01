@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**📬 GESTIÓN DE ENVÍOS (ir_report_deliveries) + DATASET DE CLIENTES WOO (2026-07-01, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.92):** el owner pidió los 2 pendientes «reales». **(1) ENVÍOS:** el log de entregas de email existía en BD pero sin
+interfaz. Añadido: relación `Report::deliveries()`, `DeliveryService::sendOne()` (reenvío individual que registra un intento nuevo),
+`ReportDeliveryController` (index / retry / retryFailed) + rutas (`GET reports/{r}/deliveries`, `POST report-deliveries/{d}/retry`,
+`POST reports/{r}/deliveries/retry-failed`) + `ReportDeliveryResource`; hooks `useReportDeliveries/useRetryDelivery/
+useRetryFailedDeliveries`; nueva pestaña **«Envíos»** en el modal de herramientas del reporte (destinatario, estado, error, fecha,
+reenviar individual + «reenviar los fallidos»). **(2) WOO DATASETS:** DESCUBRIMIENTO — los datasets de WooCommerce (products/
+categories/coupons vía WC Analytics) YA estaban implementados y testeados; la nota de «pendiente» en PROGRESS estaba desactualizada.
+Los enriquecí con un dataset nuevo **`woocommerce.customers`** (gasto total / pedidos / ticket medio, dimensiones cliente+país) vía
+`/reports/customers`. **(3) GA4 LIVE EXPLORE (Etapa E):** NO se hace — es grande y va contra la arquitectura desacoplada (§3.1: no
+llamar APIs al generar); solo aporta cross-filtering arbitrario para power users, GA4-only. Se deja como opcional/futuro. **401
+tests PHP (+delivery api, +woo customers) + 15 vitest + stan/pint/ts/lint/build limpios.** **SIGUIENTE: desplegar v1.13.92.**
+
+
 **🧩 3 FUNCIONES QUE FALTABAN POR INTERFAZ: WEBHOOKS + ALERTAS DE ANOMALÍAS + REDISEÑO «REGISTRAR TRABAJO» (2026-07-01, rama
 `claude/github-app-analysis-a7b2bd`, release v1.13.91):** el owner pidió exponer lo que estaba en backend sin UI, y rehacer la
 sección de trabajo. **(A) WEBHOOKS:** `UpdateAgencyRequest` acepta `webhook_urls[]` + `webhook_secret` (con `prepareForValidation`

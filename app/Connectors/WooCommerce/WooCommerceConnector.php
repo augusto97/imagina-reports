@@ -164,6 +164,21 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
                 ],
                 'limit' => 100,
             ],
+            'woocommerce.customers' => [
+                'label' => 'Clientes (gasto)',
+                'endpoint' => '/reports/customers',
+                'order_by' => 'total_spend',
+                'dimensions' => [
+                    'customer' => ['label' => 'Cliente', 'path' => 'name'],
+                    'country' => ['label' => 'País', 'path' => 'country'],
+                ],
+                'measures' => [
+                    'total_spend' => ['label' => 'Gasto total', 'path' => 'total_spend', 'unit' => 'currency', 'cast' => 'float'],
+                    'orders_count' => ['label' => 'Pedidos', 'path' => 'orders_count', 'unit' => 'count', 'cast' => 'int'],
+                    'avg_order_value' => ['label' => 'Ticket medio', 'path' => 'avg_order_value', 'unit' => 'currency', 'cast' => 'float'],
+                ],
+                'limit' => 100,
+            ],
         ];
     }
 

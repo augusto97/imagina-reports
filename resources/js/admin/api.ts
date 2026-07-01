@@ -17,6 +17,7 @@ import type {
     PageFilters,
     ReportDefinitionDto,
     ReportSharingPayload,
+    ReportDelivery,
     ReportSummary,
     ReportComment,
     ReportTemplateDto,
@@ -297,6 +298,34 @@ export function useDeleteWorkLog() {
     return useMutation({
         mutationFn: (id: number) => api.delete(`/work-logs/${id}`),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-work-logs'] }),
+    });
+}
+
+/* ------------------------------- deliveries -------------------------------- */
+
+export function useReportDeliveries(reportId: number | null) {
+    return useQuery({
+        queryKey: ['report-deliveries', reportId],
+        enabled: reportId !== null,
+        queryFn: () => get<ReportDelivery[]>(`/reports/${reportId}/deliveries`),
+    });
+}
+
+export function useRetryDelivery() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (deliveryId: number) => api.post<ReportDelivery>(`/report-deliveries/${deliveryId}/retry`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-deliveries'] }),
+    });
+}
+
+export function useRetryFailedDeliveries(reportId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<ReportDelivery[]>(`/reports/${reportId}/deliveries/retry-failed`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-deliveries'] }),
     });
 }
 

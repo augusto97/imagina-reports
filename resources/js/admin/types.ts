@@ -47,6 +47,17 @@ export interface WorkLog {
     screenshot_url: string | null;
 }
 
+export interface ReportDelivery {
+    id: number;
+    report_id: number;
+    channel: string;
+    recipient: string;
+    status: 'pending' | 'sent' | 'failed';
+    sent_at: string | null;
+    error: string | null;
+    created_at: string | null;
+}
+
 export interface AnomalyAlert {
     id: number;
     site_id: number;

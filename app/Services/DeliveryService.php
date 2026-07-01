@@ -41,6 +41,20 @@ final readonly class DeliveryService
     }
 
     /**
+     * Re-send a single report to one recipient and record a fresh attempt — powers the
+     * "retry" action in the deliveries UI. Ensures the PDF exists first.
+     */
+    public function sendOne(Report $report, string $recipient): ReportDelivery
+    {
+        if ($report->pdf_path === null) {
+            $this->pdf->generate($report);
+            $report->refresh();
+        }
+
+        return $this->sendTo($report, $recipient);
+    }
+
+    /**
      * @return list<string>
      */
     private function recipients(Report $report): array
@@ -48,7 +62,7 @@ final readonly class DeliveryService
         return array_values($report->definition->recipients ?? []);
     }
 
-    private function sendTo(Report $report, string $recipient): void
+    private function sendTo(Report $report, string $recipient): ReportDelivery
     {
         $delivery = new ReportDelivery;
         $delivery->agency_id = $report->agency_id;
@@ -66,5 +80,7 @@ final readonly class DeliveryService
         }
 
         $delivery->save();
+
+        return $delivery;
     }
 }

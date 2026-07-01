@@ -92,6 +92,14 @@ class Report extends Model
     }
 
     /**
+     * @return HasMany<ReportDelivery, $this>
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(ReportDelivery::class);
+    }
+
+    /**
      * Server-only token that lets the PDF renderer bypass the portal's visibility/password
      * gate (CLAUDE.md §10.7/Etapa D). Derived from the public token + the app key, so it
      * can't be forged without the server secret; only the PDF service ever produces it.

@@ -6,6 +6,7 @@ import {
     FileDown,
     Lightbulb,
     Lock,
+    Mail,
     MessageSquare,
     Plus,
     Repeat,
@@ -25,6 +26,9 @@ import {
     useCreateSchedule,
     useDeleteComment,
     useDeleteSchedule,
+    useReportDeliveries,
+    useRetryDelivery,
+    useRetryFailedDeliveries,
     useSchedules,
     useDeleteReport,
     useDeleteReportDefinition,
@@ -303,7 +307,60 @@ function ReportInsightsPanel({ reportId }: { reportId: number }): ReactElement {
     );
 }
 
-type ToolTab = 'summary' | 'advisory' | 'comments' | 'insights';
+const DELIVERY_STATUS: Record<string, { label: string; tone: 'success' | 'danger' | 'neutral' }> = {
+    sent: { label: 'Enviado', tone: 'success' },
+    failed: { label: 'Falló', tone: 'danger' },
+    pending: { label: 'Pendiente', tone: 'neutral' },
+};
+
+/** The email delivery log of a report: who received it, when, failures + retry. */
+function ReportDeliveriesPanel({ reportId }: { reportId: number }): ReactElement {
+    const { data: deliveries = [], isLoading } = useReportDeliveries(reportId);
+    const retry = useRetryDelivery();
+    const retryFailed = useRetryFailedDeliveries(reportId);
+    const failedCount = deliveries.filter((delivery) => delivery.status === 'failed').length;
+
+    if (isLoading) {
+        return <p className="ir-text-sm ir-text-muted-foreground">Cargando envíos…</p>;
+    }
+    if (deliveries.length === 0) {
+        return <p className="ir-text-sm ir-text-muted-foreground">Este reporte aún no se ha enviado. Usa «Enviar» en la lista para mandarlo a los destinatarios.</p>;
+    }
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-3">
+            {failedCount > 0 && (
+                <div className="ir-flex ir-items-center ir-justify-between ir-gap-3 ir-rounded-md ir-bg-danger/5 ir-px-3 ir-py-2">
+                    <span className="ir-text-xs ir-text-danger">{failedCount} envío(s) fallaron.</span>
+                    <Button variant="outline" size="sm" onClick={() => retryFailed.mutate()} disabled={retryFailed.isPending}>
+                        {retryFailed.isPending ? 'Reenviando…' : 'Reenviar los fallidos'}
+                    </Button>
+                </div>
+            )}
+            <ul className="ir-flex ir-flex-col ir-divide-y">
+                {deliveries.map((delivery) => {
+                    const status = DELIVERY_STATUS[delivery.status] ?? { label: delivery.status, tone: 'neutral' as const };
+
+                    return (
+                        <li key={delivery.id} className="ir-flex ir-items-center ir-gap-3 ir-py-2 ir-text-sm">
+                            <span className="ir-min-w-0 ir-flex-1 ir-truncate">
+                                {delivery.recipient}
+                                {delivery.error != null && <span className="ir-ml-2 ir-text-xs ir-text-danger" title={delivery.error}>({delivery.error.slice(0, 40)})</span>}
+                            </span>
+                            <span className="ir-shrink-0 ir-text-xs ir-text-muted-foreground">{formatGeneratedAt(delivery.sent_at ?? delivery.created_at)}</span>
+                            <Badge tone={status.tone}>{status.label}</Badge>
+                            <Button variant="ghost" size="sm" title="Reenviar a este destinatario" onClick={() => retry.mutate(delivery.id)} disabled={retry.isPending}>
+                                <RotateCw className="ir-size-3.5" />
+                            </Button>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+type ToolTab = 'summary' | 'advisory' | 'comments' | 'insights' | 'deliveries';
 
 /** One focused modal for a report's editing tools, one tab at a time. */
 function ReportToolsModal({ report, initialTab, onClose }: { report: ReportSummary; initialTab: ToolTab; onClose: () => void }): ReactElement {
@@ -313,6 +370,7 @@ function ReportToolsModal({ report, initialTab, onClose }: { report: ReportSumma
         ...(hasAdvisory ? [{ key: 'advisory' as const, label: 'Diagnóstico', icon: Lightbulb }] : []),
         { key: 'comments', label: 'Comentarios', icon: MessageSquare },
         { key: 'insights', label: 'Insights', icon: Sparkles },
+        { key: 'deliveries', label: 'Envíos', icon: Mail },
     ];
     const [tab, setTab] = useState<ToolTab>(initialTab === 'advisory' && !hasAdvisory ? 'summary' : initialTab);
 
@@ -347,6 +405,7 @@ function ReportToolsModal({ report, initialTab, onClose }: { report: ReportSumma
                 {tab === 'advisory' && hasAdvisory && <ReportAdvisoryPanel report={report} />}
                 {tab === 'comments' && <ReportCommentsPanel reportId={report.id} />}
                 {tab === 'insights' && <ReportInsightsPanel reportId={report.id} />}
+                {tab === 'deliveries' && <ReportDeliveriesPanel reportId={report.id} />}
             </Card>
         </Modal>
     );

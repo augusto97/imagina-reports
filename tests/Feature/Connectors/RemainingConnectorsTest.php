@@ -96,6 +96,29 @@ class RemainingConnectorsTest extends TestCase
         ], $set->get('woocommerce.products'));
     }
 
+    public function test_woocommerce_builds_the_customers_dataset_from_analytics(): void
+    {
+        Http::fake([
+            '*/wc-analytics/reports/customers*' => Http::response([
+                ['name' => 'Ana', 'country' => 'ES', 'total_spend' => '540.00', 'orders_count' => 6, 'avg_order_value' => '90.00'],
+                ['name' => 'Beto', 'country' => 'MX', 'total_spend' => '120.00', 'orders_count' => 2, 'avg_order_value' => '60.00'],
+            ]),
+            '*/reports/sales*' => Http::response([[]]),
+            '*/reports/top_sellers*' => Http::response([]),
+        ]);
+
+        $set = (new WooCommerceConnector)->fetch(
+            $this->source(DataSourceType::WooCommerce, ['store_url' => 'https://shop.test'], ['consumer_key' => 'ck', 'consumer_secret' => 'cs']),
+            $this->period(),
+            ['woocommerce.customers'],
+        );
+
+        $this->assertSame([
+            ['customer' => 'Ana', 'country' => 'ES', 'total_spend' => 540.0, 'orders_count' => 6, 'avg_order_value' => 90.0],
+            ['customer' => 'Beto', 'country' => 'MX', 'total_spend' => 120.0, 'orders_count' => 2, 'avg_order_value' => 60.0],
+        ], $set->get('woocommerce.customers'));
+    }
+
     public function test_cloudflare_sums_graphql_groups(): void
     {
         Http::fake(['*' => Http::response([
