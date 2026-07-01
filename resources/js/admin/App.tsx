@@ -253,14 +253,13 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
                         {!iconOnly && "Cerrar sesión"}
                     </button>
 
-                    {/* Collapse toggle (desktop only) — moved to the bottom, in a distinct
-                        outlined box so it doesn't look like another menu/logout entry. */}
+                    {/* Collapse toggle (desktop only) — at the bottom of the footer. */}
                     <button
                         type="button"
                         onClick={toggleCollapsed}
                         title={collapsed ? "Expandir menú" : "Colapsar menú"}
                         className={cn(
-                            "ir-mt-1 ir-hidden ir-items-center ir-gap-2 ir-rounded-md ir-border ir-border-dashed ir-border-border ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-flex",
+                            "ir-mt-1 ir-hidden ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-flex",
                             iconOnly && "lg:ir-justify-center lg:ir-px-0",
                         )}
                     >
