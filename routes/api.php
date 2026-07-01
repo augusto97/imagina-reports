@@ -145,6 +145,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     Route::get('schedules', [ScheduleController::class, 'index'])->name('api.schedules.index');
     Route::post('schedules', [ScheduleController::class, 'store'])->name('api.schedules.store');
+    Route::delete('schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('api.schedules.destroy');
 
     // Agency-wide trends + multi-client comparisons (CLAUDE.md §13).
     Route::get('trends', [TrendsController::class, 'index'])->name('api.trends.index');

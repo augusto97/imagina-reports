@@ -28,6 +28,10 @@ final class ScheduleController extends Controller
 
         $cadence = ScheduleCadence::from($request->string('cadence')->toString());
 
+        // One active schedule per definition: replace any existing one so switching
+        // cadence (or re-enabling) never leaves a stale schedule behind.
+        Schedule::query()->where('report_definition_id', $definition->id)->delete();
+
         $schedule = Schedule::query()->create([
             'report_definition_id' => $definition->id,
             'cadence' => $cadence,
@@ -35,5 +39,13 @@ final class ScheduleController extends Controller
         ]);
 
         return ScheduleResource::make($schedule)->response()->setStatusCode(201);
+    }
+
+    public function destroy(Schedule $schedule): JsonResponse
+    {
+        // Tenant-scoped by the global AgencyScope on the model binding.
+        $schedule->delete();
+
+        return response()->json(['message' => 'Schedule deleted.']);
     }
 }

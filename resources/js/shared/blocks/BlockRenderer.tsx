@@ -1244,11 +1244,6 @@ export function BlockList({
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
     const periodLabel = context?.period ?? '';
 
-    // Dashboard grid mode: when every block carries grid coordinates, place them on a
-    // 12-column CSS grid identical to the editor canvas (CLAUDE.md §11.3/§11.4). Older
-    // templates without coordinates keep the legacy width-flow so they still render.
-    const useGrid = resolved.length > 0 && resolved.every((block) => block.layout != null);
-
     // Multi-page: group blocks by their page index.
     const pages = groupByPage(resolved);
 
@@ -1273,8 +1268,16 @@ export function BlockList({
         context: context ?? {},
     };
 
-    const renderPage = (pageBlocks: Block[]): ReactElement =>
-        useGrid ? (
+    // Dashboard grid mode is decided PER PAGE (CLAUDE.md §11.3/§11.4): a page that carries
+    // grid coordinates renders on the exact 12-column grid designed in the editor, honoring
+    // each block's x/y/w/h. Deciding per page — not globally — means one layout-less block
+    // (like a full-bleed cover on the Portada page) can't force every OTHER page back to the
+    // legacy flow. And within a grid page, a stray block without coordinates just gets a
+    // full-width auto cell instead of collapsing the whole page to flow.
+    const renderPage = (pageBlocks: Block[]): ReactElement => {
+        const pageUsesGrid = pageBlocks.some((block) => block.layout != null);
+
+        return pageUsesGrid ? (
             <div
                 className="ir-grid ir-report-grid"
                 style={{
@@ -1284,7 +1287,11 @@ export function BlockList({
                 }}
             >
                 {pageBlocks.map((block) => (
-                    <div key={block.id} style={gridCellStyle(block.layout as BlockLayout)} className="ir-report-cell ir-overflow-hidden">
+                    <div
+                        key={block.id}
+                        style={block.layout != null ? gridCellStyle(block.layout) : { gridColumn: '1 / -1' }}
+                        className="ir-report-cell ir-overflow-hidden"
+                    >
                         <BlockRenderer block={block} data={data[block.id]} />
                     </div>
                 ))}
@@ -1298,6 +1305,7 @@ export function BlockList({
                 ))}
             </div>
         );
+    };
 
     let body: ReactNode;
     if (mode === 'print') {

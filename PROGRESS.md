@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**📐 FIX ALTURA/TAMAÑO DE BLOQUES EN EL REPORTE FINAL + AUTOMATIZACIÓN DE REPORTES PERIÓDICOS (2026-07-01, rama
+`claude/github-app-analysis-a7b2bd`, release v1.13.90):** dos cosas que reportó el owner. **(1) LAYOUT:** en la vista final los
+bloques no respetaban el tamaño/altura del editor. CAUSA: `BlockList` calculaba `useGrid` de forma GLOBAL
+(`resolved.every(b => b.layout)`), así que UN bloque sin `layout` (p. ej. la portada full-bleed en la página Portada) tiraba
+TODO el reporte al flujo antiguo `grid-cols-6` que ignora x/y/w/h. FIX en `BlockRenderer.tsx`: la decisión grid-vs-flujo es ahora
+**por página** (`pageBlocks.some(b => b.layout)`); dentro de una página en grid, un bloque suelto sin coords recibe una celda a
+ancho completo (`gridColumn: 1 / -1`) en vez de colapsar la página. Los reportes ya generados con layout en sus páginas de datos
+ahora se ven exactos sin regenerar; si un reporte se generó ANTES de diseñar la cuadrícula, hay que regenerarlo. **(2)
+AUTOMATIZACIÓN:** faltaba la UI para reportes periódicos (el backend ya existía: `Schedule`, `ScheduleController@index/store`,
+`ScheduleRunner`, `RunScheduledReportJob` que genera + entrega por email, `RunSchedulesCommand`). Añadido: endpoint+ruta
+`DELETE schedules/{schedule}` (destroy) y `store` ahora **reemplaza** el schedule existente (uno por definición); hooks
+`useSchedules/useCreateSchedule/useDeleteSchedule` + tipo `ScheduleDto`; UI en la tarjeta de cada reporte (Ajustes →
+«Automatización»: Manual / Cada mes / Cada semana, con «Próximo envío» y aviso si no hay destinatarios) + badge «Automático ·
+Mensual» en la cabecera. 383 tests PHP (+destroy, +replace) + 15 vitest + stan/pint/ts/build limpios. **SIGUIENTE: desplegar
+v1.13.90.**
+
+
 **🧭 REDISEÑO DE /admin#/reports — flujo claro por pasos (2026-07-01, rama `claude/github-app-analysis-a7b2bd`, release v1.13.89):**
 el owner reportó que la sección era confusa: 4 tarjetas apiladas de formularios («Nueva definición», «Definiciones existentes»,
 «Generar reporte», «Reportes») con jerga («definiciones») que un usuario normal no entiende. REDISEÑO completo de `ReportsScreen.tsx`

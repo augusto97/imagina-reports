@@ -6,6 +6,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Agency;
 use App\Models\ReportDefinition;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -49,5 +50,34 @@ class ScheduleApiTest extends TestCase
             'report_definition_id' => $other->id,
             'cadence' => 'weekly',
         ])->assertNotFound();
+    }
+
+    public function test_store_replaces_an_existing_schedule_for_the_definition(): void
+    {
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id]);
+
+        $this->postJson('/api/v1/schedules', ['report_definition_id' => $definition->id, 'cadence' => 'monthly'])->assertCreated();
+        $this->postJson('/api/v1/schedules', ['report_definition_id' => $definition->id, 'cadence' => 'weekly'])->assertCreated();
+
+        // Only one schedule remains, with the latest cadence — no stale duplicate.
+        $this->assertSame(1, Schedule::query()->where('report_definition_id', $definition->id)->count());
+        $this->assertDatabaseHas('ir_schedules', ['report_definition_id' => $definition->id, 'cadence' => 'weekly']);
+    }
+
+    public function test_destroy_removes_a_schedule(): void
+    {
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id]);
+        $schedule = Schedule::factory()->create(['agency_id' => $this->agency->id, 'report_definition_id' => $definition->id]);
+
+        $this->deleteJson("/api/v1/schedules/{$schedule->id}")->assertOk();
+
+        $this->assertDatabaseMissing('ir_schedules', ['id' => $schedule->id]);
+    }
+
+    public function test_it_cannot_delete_another_agencys_schedule(): void
+    {
+        $schedule = Schedule::factory()->create();
+
+        $this->deleteJson("/api/v1/schedules/{$schedule->id}")->assertNotFound();
     }
 }

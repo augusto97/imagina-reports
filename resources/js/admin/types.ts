@@ -98,6 +98,15 @@ export interface ReportDefinitionDto {
     dashboard_token: string | null;
 }
 
+export type ScheduleCadence = 'monthly' | 'weekly';
+
+export interface ScheduleDto {
+    id: number;
+    report_definition_id: number;
+    cadence: ScheduleCadence;
+    next_run_at: string;
+}
+
 export interface ReportSharingPayload {
     visibility: ReportVisibility;
     password?: string | null;

@@ -8,6 +8,7 @@ import {
     Lock,
     MessageSquare,
     Plus,
+    Repeat,
     RotateCw,
     Send,
     Settings2,
@@ -21,7 +22,10 @@ import {
     useApproveReport,
     useCreateReportComment,
     useCreateReportDefinition,
+    useCreateSchedule,
     useDeleteComment,
+    useDeleteSchedule,
+    useSchedules,
     useDeleteReport,
     useDeleteReportDefinition,
     useDownloadReportPdf,
@@ -45,7 +49,7 @@ import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
 import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
-import type { ReportDefinitionDto, ReportSummary } from '../types';
+import type { ReportDefinitionDto, ReportSummary, ScheduleCadence, ScheduleDto } from '../types';
 
 const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
@@ -106,6 +110,15 @@ function formatGeneratedAt(value: string | null): string {
 
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
 }
+
+/** Short date for the next scheduled run (or «—»). */
+function formatDate(value: string): string {
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+const CADENCE_LABEL: Record<ScheduleCadence, string> = { monthly: 'Mensual', weekly: 'Semanal' };
 
 /** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
 function parseRecipients(raw: string): string[] {
@@ -549,6 +562,7 @@ function GenerateModal({ definition, onClose }: { definition: ReportDefinitionDt
 function ReportConfigCard({
     definition,
     reports,
+    schedule,
     siteName,
     templateName,
     templates,
@@ -558,6 +572,7 @@ function ReportConfigCard({
 }: {
     definition: ReportDefinitionDto;
     reports: ReportSummary[];
+    schedule: ScheduleDto | null;
     siteName: string;
     templateName: string;
     templates: { id: number; name: string }[];
@@ -572,6 +587,8 @@ function ReportConfigCard({
     const send = useSendReport();
     const downloadPdf = useDownloadReportPdf();
     const deleteReport = useDeleteReport();
+    const createSchedule = useCreateSchedule();
+    const deleteSchedule = useDeleteSchedule();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [recipients, setRecipients] = useState((definition.recipients ?? []).join(', '));
 
@@ -582,14 +599,31 @@ function ReportConfigCard({
         }
     };
 
+    const changeCadence = (value: string): void => {
+        if (value === '') {
+            if (schedule !== null) {
+                deleteSchedule.mutate(schedule.id);
+            }
+        } else {
+            createSchedule.mutate({ report_definition_id: definition.id, cadence: value as ScheduleCadence });
+        }
+    };
+    const noRecipients = (definition.recipients ?? []).length === 0;
+
     return (
         <section className="ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm">
             {/* Header: what this report is + primary actions. */}
             <header className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
                 <div className="ir-min-w-0">
-                    <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
+                    <h3 className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
                         {definition.name}
                         <VisibilityTag definition={definition} />
+                        {schedule !== null && (
+                            <Badge tone="info" className="ir-font-medium">
+                                <Repeat className="ir-size-3" />
+                                Automático · {CADENCE_LABEL[schedule.cadence]}
+                            </Badge>
+                        )}
                     </h3>
                     <p className="ir-mt-0.5 ir-truncate ir-text-xs ir-text-muted-foreground">
                         {siteName} · Plantilla: {templateName}
@@ -642,6 +676,25 @@ function ReportConfigCard({
                     <Field label="Destinatarios (email)">
                         <Input value={recipients} onChange={(event) => setRecipients(event.target.value)} onBlur={saveRecipients} placeholder="cliente@empresa.com, pm@agencia.com" />
                     </Field>
+                    <div className="sm:ir-col-span-2">
+                        <Field
+                            label="Automatización"
+                            hint={
+                                schedule !== null
+                                    ? `Se genera y envía por email solo. Próximo envío: ${formatDate(schedule.next_run_at)}.`
+                                    : 'Genera y envía el reporte por email automáticamente cada periodo, sin que hagas nada.'
+                            }
+                        >
+                            <Select value={schedule?.cadence ?? ''} onChange={(event) => changeCadence(event.target.value)} disabled={createSchedule.isPending || deleteSchedule.isPending}>
+                                <option value="">Manual (sin automatización)</option>
+                                <option value="monthly">Cada mes (el mes que acaba de terminar)</option>
+                                <option value="weekly">Cada semana (la semana que acaba de terminar)</option>
+                            </Select>
+                        </Field>
+                        {schedule !== null && noRecipients && (
+                            <p className="ir-mt-1.5 ir-text-xs ir-text-amber-600">⚠ No hay destinatarios. Añade al menos un email arriba para que el envío automático llegue a alguien.</p>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -751,6 +804,7 @@ export function ReportsScreen(): ReactElement {
     const { data: templates = [] } = useReportTemplates();
     const { data: definitions = [] } = useReportDefinitions();
     const { data: reports = [] } = useReports();
+    const { data: schedules = [] } = useSchedules();
 
     const [createOpen, setCreateOpen] = useState(false);
     const [generateFor, setGenerateFor] = useState<ReportDefinitionDto | null>(null);
@@ -793,7 +847,7 @@ export function ReportsScreen(): ReactElement {
                 {[
                     { n: 1, title: 'Configura', text: 'Crea un reporte para el cliente: nombre, plantilla y destinatarios.' },
                     { n: 2, title: 'Genera', text: 'Elige el periodo y genera. Se crea el PDF y el portal del cliente.' },
-                    { n: 3, title: 'Revisa y envía', text: 'Ajusta el resumen IA, apruébalo y envíalo por email.' },
+                    { n: 3, title: 'Revisa y envía', text: 'Ajusta el resumen IA, apruébalo y envíalo. O automatízalo para que salga solo cada mes.' },
                 ].map((step) => (
                     <div key={step.n} className="ir-flex ir-items-start ir-gap-3 ir-rounded-lg ir-border ir-bg-card ir-p-3">
                         <span className="ir-flex ir-size-6 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-bg-accent/10 ir-text-xs ir-font-semibold ir-text-accent">{step.n}</span>
@@ -829,6 +883,7 @@ export function ReportsScreen(): ReactElement {
                             key={definition.id}
                             definition={definition}
                             reports={reportsFor(definition.id)}
+                            schedule={schedules.find((entry) => entry.report_definition_id === definition.id) ?? null}
                             siteName={siteName(definition.site_id)}
                             templateName={templateName(definition.template_id)}
                             templates={templates}

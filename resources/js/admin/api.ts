@@ -20,6 +20,8 @@ import type {
     ReportComment,
     ReportTemplateDto,
     ReportTheme,
+    ScheduleCadence,
+    ScheduleDto,
     Site,
     UpdateStatus,
     WorkLog,
@@ -497,6 +499,31 @@ export function useDeleteReportDefinition() {
     return useMutation({
         mutationFn: (definitionId: number) => api.delete(`/report-definitions/${definitionId}`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-definitions'] }),
+    });
+}
+
+/* ---- Automated recurring generation + delivery (CLAUDE.md §5) ---- */
+
+export function useSchedules() {
+    return useQuery({ queryKey: ['schedules'], queryFn: () => get<ScheduleDto[]>('/schedules') });
+}
+
+export function useCreateSchedule() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { report_definition_id: number; cadence: ScheduleCadence }) =>
+            api.post<ScheduleDto>('/schedules', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedules'] }),
+    });
+}
+
+export function useDeleteSchedule() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (scheduleId: number) => api.delete(`/schedules/${scheduleId}`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedules'] }),
     });
 }
 
