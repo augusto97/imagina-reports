@@ -43,8 +43,6 @@ final class UpdateAgencyRequest extends FormRequest
             'default_locale' => ['nullable', 'string', 'in:es,en,pt_BR'],
             // Sent only when (re)setting the key; empty string clears it. Never returned.
             'anthropic_key' => ['nullable', 'string', 'max:255'],
-            // Data retention in months; null/absent = keep forever. Sent → set/clear.
-            'snapshot_retention_months' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:120'],
             // Outbound webhook endpoints (integrations, §8). Sent → replace the list.
             'webhook_urls' => ['sometimes', 'array', 'max:20'],
             'webhook_urls.*' => ['string', 'url', 'max:2048'],

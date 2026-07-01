@@ -22,9 +22,33 @@ final class SnapshotRetentionService
     /** The age cutoff for an agency, or null when retention is off. */
     public function cutoffFor(Agency $agency): ?CarbonImmutable
     {
-        $months = $agency->snapshot_retention_months;
+        $months = $this->effectiveMonths($agency);
 
         return $months !== null && $months > 0 ? CarbonImmutable::now()->subMonths($months) : null;
+    }
+
+    /**
+     * The effective retention (months) for an agency — a PLATFORM setting: the plan's
+     * value, overridable per-agency via `plan_overrides['retention_months']`, falling
+     * back to the legacy `agencies.snapshot_retention_months` column. Null = keep forever.
+     */
+    public function effectiveMonths(Agency $agency): ?int
+    {
+        $overrides = $agency->plan_overrides ?? [];
+        if (array_key_exists('retention_months', $overrides)) {
+            $value = $overrides['retention_months'];
+
+            return is_numeric($value) && (int) $value > 0 ? (int) $value : null;
+        }
+
+        $planMonths = $agency->plan?->retention_months;
+        if ($planMonths !== null) {
+            return $planMonths > 0 ? $planMonths : null;
+        }
+
+        $legacy = $agency->snapshot_retention_months;
+
+        return $legacy !== null && $legacy > 0 ? $legacy : null;
     }
 
     /**
@@ -97,17 +121,16 @@ final class SnapshotRetentionService
         return is_numeric($deleted) ? (int) $deleted : 0;
     }
 
-    /** Prune every agency that has retention configured; returns the total deleted. */
+    /** Prune every agency whose effective retention is set; returns the total deleted. */
     public function pruneAll(): int
     {
         $deleted = 0;
 
-        Agency::query()
-            ->whereNotNull('snapshot_retention_months')
-            ->where('snapshot_retention_months', '>', 0)
-            ->each(function (Agency $agency) use (&$deleted): void {
+        Agency::query()->with('plan')->each(function (Agency $agency) use (&$deleted): void {
+            if ($this->effectiveMonths($agency) !== null) {
                 $deleted += $this->pruneAgency($agency);
-            });
+            }
+        });
 
         return $deleted;
     }

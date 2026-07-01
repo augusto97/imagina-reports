@@ -33,6 +33,7 @@ final class PlanResource extends JsonResource
             'max_clients' => $plan->max_clients,
             'max_users' => $plan->max_users,
             'max_reports_per_month' => $plan->max_reports_per_month,
+            'retention_months' => $plan->retention_months,
             'allowed_connectors' => $plan->allowed_connectors,
             'features' => $plan->features ?? [],
             'monthly_price' => $plan->monthly_price !== null ? (float) $plan->monthly_price : null,

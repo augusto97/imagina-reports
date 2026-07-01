@@ -1,48 +1,9 @@
 import { Plus, Send, Trash2, Webhook } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useChangePassword, usePruneSnapshots, useRetentionPreview, useTestWebhooks, useUpdateAgency, useUploadLogo } from '../api';
+import { type AgencyUpdate, useAgency, useChangePassword, useTestWebhooks, useUpdateAgency, useUploadLogo } from '../api';
 import { Badge, Button, Card, Field, Input } from '../components/ui';
 import type { AgencySettings } from '../types';
-
-/** Humanize a byte count: 0 B / 12 KB / 3.4 MB. */
-function humanBytes(bytes: number): string {
-    if (bytes <= 0) {
-        return '0 B';
-    }
-    if (bytes < 1024) {
-        return `${bytes} B`;
-    }
-    const kb = bytes / 1024;
-
-    return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`;
-}
-
-/** Shows what the saved retention setting would free, with a manual "free now" action. */
-function RetentionUsage(): ReactElement {
-    const { data: preview } = useRetentionPreview();
-    const prune = usePruneSnapshots();
-
-    if (preview === undefined || preview.snapshots === 0) {
-        return (
-            <p className="ir-text-xs ir-text-muted-foreground">
-                Con el límite guardado, ahora mismo no hay datos antiguos por liberar.
-            </p>
-        );
-    }
-
-    return (
-        <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3 ir-rounded-md ir-bg-muted/50 ir-p-3">
-            <span className="ir-text-xs ir-text-muted-foreground">
-                Liberable ahora: <strong>{preview.snapshots}</strong> {preview.snapshots === 1 ? 'periodo' : 'periodos'} · {humanBytes(preview.bytes)}
-            </span>
-            <Button variant="outline" size="sm" onClick={() => prune.mutate()} disabled={prune.isPending}>
-                {prune.isPending ? 'Liberando…' : 'Liberar ahora'}
-            </Button>
-            {prune.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Liberados {prune.data?.deleted ?? 0} periodos.</span>}
-        </div>
-    );
-}
 
 function PasswordCard(): ReactElement {
     const change = useChangePassword();
@@ -237,14 +198,12 @@ export function SettingsScreen(): ReactElement {
     const [color, setColor] = useState('#6d28d9');
     const [locale, setLocale] = useState('es');
     const [apiKey, setApiKey] = useState('');
-    const [retention, setRetention] = useState('');
 
     useEffect(() => {
         if (agency !== undefined) {
             setName(agency.name);
             setColor(agency.brand_color ?? '#6d28d9');
             setLocale(agency.default_locale);
-            setRetention(agency.snapshot_retention_months === null ? '' : String(agency.snapshot_retention_months));
         }
     }, [agency]);
 
@@ -257,7 +216,6 @@ export function SettingsScreen(): ReactElement {
             name,
             brand_color: color,
             default_locale: locale,
-            snapshot_retention_months: retention === '' ? null : Number(retention),
         };
         if (apiKey !== '') {
             payload.anthropic_key = apiKey;
@@ -340,30 +298,6 @@ export function SettingsScreen(): ReactElement {
                             onChange={(event) => setApiKey(event.target.value)}
                         />
                     </Field>
-                </div>
-            </Card>
-
-            <Card title="Retención de datos">
-                <div className="ir-flex ir-flex-col ir-gap-4">
-                    <p className="ir-text-sm ir-text-muted-foreground">
-                        Limita cuánto tiempo se guardan los datos sincronizados (snapshots) para que no llenen el servidor. Los reportes ya
-                        generados no se ven afectados (guardan su propia copia), y siempre se conserva el último dato de cada fuente.
-                    </p>
-                    <Field label="Conservar datos de">
-                        <select
-                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
-                            value={retention}
-                            onChange={(event) => setRetention(event.target.value)}
-                        >
-                            <option value="">Sin límite (conservar todo)</option>
-                            <option value="3">Últimos 3 meses</option>
-                            <option value="6">Últimos 6 meses</option>
-                            <option value="12">Último año</option>
-                            <option value="24">Últimos 2 años</option>
-                            <option value="36">Últimos 3 años</option>
-                        </select>
-                    </Field>
-                    <RetentionUsage />
                 </div>
             </Card>
 

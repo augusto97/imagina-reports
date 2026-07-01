@@ -46,12 +46,6 @@ final class AgencyController extends Controller
             $agency->setAnthropicKey(is_string($key) ? $key : null);
         }
 
-        // Retention absent → leave as-is; present → set the cap or null (keep forever).
-        if (array_key_exists('snapshot_retention_months', $validated)) {
-            $months = $validated['snapshot_retention_months'];
-            $agency->snapshot_retention_months = is_numeric($months) && (int) $months > 0 ? (int) $months : null;
-        }
-
         // Webhook endpoints/secret live in the settings JSON (read by the dispatcher, §8).
         // Absent → leave as-is; present → replace. Empty secret clears it.
         $settings = $agency->settings ?? [];

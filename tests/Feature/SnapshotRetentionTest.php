@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Agency;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
+use App\Models\Plan;
 use App\Models\Site;
 use App\Models\User;
 use App\Services\SnapshotRetentionService;
@@ -93,24 +94,30 @@ class SnapshotRetentionTest extends TestCase
         $this->assertGreaterThan(0, $preview['bytes']);
     }
 
-    public function test_the_settings_endpoint_persists_retention(): void
+    public function test_retention_comes_from_the_plan_not_the_agency(): void
     {
-        $agency = Agency::factory()->create();
+        // Retention is a PLATFORM setting now: it derives from the plan (a per-agency
+        // override wins), and the agency can no longer set it via its own settings.
+        $service = app(SnapshotRetentionService::class);
+
+        $plan = Plan::factory()->create(['retention_months' => 12]);
+        $agency = Agency::factory()->create(['plan_id' => $plan->id, 'snapshot_retention_months' => null]);
+        $this->assertSame(12, $service->effectiveMonths($agency->fresh(['plan'])));
+
+        $agency->update(['plan_overrides' => ['retention_months' => 3]]);
+        $this->assertSame(3, $service->effectiveMonths($agency->fresh(['plan'])));
+    }
+
+    public function test_the_agency_endpoint_ignores_a_retention_field(): void
+    {
+        $agency = Agency::factory()->create(['snapshot_retention_months' => null]);
         $user = User::factory()->create(['agency_id' => $agency->id]);
 
         $this->actingAs($user)
             ->putJson('/api/v1/agency', ['name' => 'Imagina', 'snapshot_retention_months' => 18])
-            ->assertOk()
-            ->assertJsonPath('snapshot_retention_months', 18);
+            ->assertOk();
 
-        $this->assertSame(18, $agency->refresh()->snapshot_retention_months);
-
-        // Clearing it (null) returns to keep-forever.
-        $this->actingAs($user)
-            ->putJson('/api/v1/agency', ['name' => 'Imagina', 'snapshot_retention_months' => null])
-            ->assertOk()
-            ->assertJsonPath('snapshot_retention_months', null);
-
+        // The agency can't set retention anymore — the value stays untouched.
         $this->assertNull($agency->refresh()->snapshot_retention_months);
     }
 }

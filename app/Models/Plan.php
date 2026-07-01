@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $max_clients
  * @property int|null $max_users
  * @property int|null $max_reports_per_month
+ * @property int|null $retention_months
  * @property list<string>|null $allowed_connectors
  * @property array<string, bool>|null $features
  * @property float|null $monthly_price
@@ -48,6 +49,7 @@ class Plan extends Model
         'max_clients',
         'max_users',
         'max_reports_per_month',
+        'retention_months',
         'allowed_connectors',
         'features',
         'monthly_price',
@@ -67,6 +69,7 @@ class Plan extends Model
             'max_clients' => 'integer',
             'max_users' => 'integer',
             'max_reports_per_month' => 'integer',
+            'retention_months' => 'integer',
             'allowed_connectors' => 'array',
             'features' => 'array',
             'monthly_price' => 'decimal:2',

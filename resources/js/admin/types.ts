@@ -299,6 +299,7 @@ export interface Plan {
     max_clients: number | null;
     max_users: number | null;
     max_reports_per_month: number | null;
+    retention_months: number | null;
     allowed_connectors: string[] | null;
     features: Record<string, boolean>;
     monthly_price: number | null;

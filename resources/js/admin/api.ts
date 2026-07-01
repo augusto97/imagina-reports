@@ -96,7 +96,6 @@ export interface AgencyUpdate {
     brand_color: string | null;
     default_locale: string;
     anthropic_key?: string;
-    snapshot_retention_months?: number | null;
     webhook_urls?: string[];
     webhook_secret?: string;
 }

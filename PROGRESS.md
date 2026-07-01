@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 RETENCIÓN → PLATAFORMA/PLAN + LOGO DE APP WHITE-LABEL (2026-07-02, rama `claude/github-app-analysis-a7b2bd`, release v1.13.96):**
+**(1) RETENCIÓN:** la retención de datos dejó de ser algo de la agencia y pasó a ser del PLAN (plataforma). Nueva columna
+`ir_plans.retention_months` (null=para siempre); `SnapshotRetentionService::effectiveMonths()` resuelve override
+(`plan_overrides['retention_months']`) → plan → columna legacy `agencies.snapshot_retention_months`; `cutoffFor` y `pruneAll` la usan.
+Quitada la tarjeta «Retención de datos» de Ajustes de la agencia + regla de `UpdateAgencyRequest` + bloque en `AgencyController@update`.
+Añadida al editor de planes del panel de plataforma (campo «Retención (meses)» + `PlanResource`/`StorePlanRequest`). **(2) LOGO DE APP
+WHITE-LABEL:** `AuthenticatedApp` ahora usa `useAgency()` y muestra el **logo + nombre de la agencia** en la cabecera del sidebar y la
+barra móvil (fallback al icono/«Imagina Reports» por defecto). El logo ya se sube en Ajustes → Marca; ahora también marca la app, no solo
+los reportes. Tests: SnapshotRetentionTest actualizado (retención viene del plan; el endpoint de agencia ignora el campo). **426 tests PHP
++ 15 vitest + stan/pint/ts/lint/build limpios.** PENDIENTE/SIGUIENTE: **BILLING (MercadoPago + PayPal)** — Fase 2, es grande; pendiente
+decidir enfoque (suscripción recurrente vs link, credenciales de plataforma, moneda por plan) antes de construir. **SIGUIENTE: desplegar
+v1.13.96.**
+
+
 **👥 GESTIÓN DE EQUIPO + ACTUALIZACIONES SOLO PLATAFORMA (2026-07-02, rama `claude/github-app-analysis-a7b2bd`, release v1.13.95):**
 dos cosas tras la Fase 1. **(1) EQUIPO:** cada agencia ya puede gestionar su equipo → `TeamController` (index/store/update/destroy,
 scoping manual porque User NO usa AgencyScope; guards: no auto-borrarte, no quitar el último owner), `StoreTeamUserRequest`/

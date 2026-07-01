@@ -34,6 +34,7 @@ final class StorePlanRequest extends FormRequest
             'max_clients' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'max_users' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'max_reports_per_month' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'retention_months' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:120'],
             'allowed_connectors' => ['sometimes', 'nullable', 'array'],
             'allowed_connectors.*' => ['string'],
             'features' => ['sometimes', 'nullable', 'array'],

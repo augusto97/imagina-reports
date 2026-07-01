@@ -177,7 +177,7 @@ function AgenciesTab(): ReactElement {
 
 /* ----------------------------------- Plans --------------------------------- */
 
-type NumericPlanKey = 'max_sites' | 'max_data_sources' | 'max_clients' | 'max_users' | 'max_reports_per_month';
+type NumericPlanKey = 'max_sites' | 'max_data_sources' | 'max_clients' | 'max_users' | 'max_reports_per_month' | 'retention_months';
 
 const NUM_FIELDS: { key: NumericPlanKey; label: string }[] = [
     { key: 'max_sites', label: 'Sitios' },
@@ -185,6 +185,7 @@ const NUM_FIELDS: { key: NumericPlanKey; label: string }[] = [
     { key: 'max_clients', label: 'Clientes' },
     { key: 'max_users', label: 'Usuarios' },
     { key: 'max_reports_per_month', label: 'Reportes/mes' },
+    { key: 'retention_months', label: 'Retención (meses)' },
 ];
 
 function PlanModal({ plan, onClose }: { plan: Plan | null; onClose: () => void }): ReactElement {
@@ -203,16 +204,10 @@ function PlanModal({ plan, onClose }: { plan: Plan | null; onClose: () => void }
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
-        const payload: PlanInput = {
-            name: name.trim(),
-            monthly_price: numOrNull(price),
-            max_sites: numOrNull(limits.max_sites ?? ''),
-            max_data_sources: numOrNull(limits.max_data_sources ?? ''),
-            max_clients: numOrNull(limits.max_clients ?? ''),
-            max_users: numOrNull(limits.max_users ?? ''),
-            max_reports_per_month: numOrNull(limits.max_reports_per_month ?? ''),
-            features,
-        };
+        const payload: PlanInput = { name: name.trim(), monthly_price: numOrNull(price), features };
+        for (const field of NUM_FIELDS) {
+            payload[field.key] = numOrNull(limits[field.key] ?? '');
+        }
         if (plan !== null) {
             update.mutate({ id: plan.id, ...payload }, { onSuccess: onClose });
         } else {

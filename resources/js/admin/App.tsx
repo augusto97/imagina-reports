@@ -21,7 +21,7 @@ import { type ReactElement, useEffect, useState } from "react";
 
 import { cn } from "@shared/lib/utils";
 
-import { useAuthUser, useLogout, useStopImpersonating } from "./api";
+import { useAgency, useAuthUser, useLogout, useStopImpersonating } from "./api";
 import { EditorScreen } from "./editor/EditorScreen";
 import { AlertsScreen } from "./screens/AlertsScreen";
 import { LoginScreen } from "./screens/LoginScreen";
@@ -159,6 +159,12 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
     const privileged = role === "owner" || role === "admin";
     const nav = NAV.filter((item) => item.privileged !== true || privileged);
 
+    // White-label: show the agency's own logo + name in the app chrome (falls back to the
+    // product default when the agency hasn't uploaded a logo).
+    const { data: agency } = useAgency();
+    const brandName = agency?.name ?? "Imagina Reports";
+    const brandLogo = agency?.logo_url ?? null;
+
     // Desktop (lg+) shows a static, collapsible sidebar; below that it becomes an
     // off-canvas drawer toggled from the mobile top bar.
     const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -243,10 +249,14 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                 )}
             >
                 <div className={cn("ir-mb-5 ir-flex ir-items-center ir-px-1", iconOnly ? "lg:ir-justify-center" : "ir-gap-2.5 ir-px-2")}>
-                    <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground ir-shadow-ir-sm">
-                        <LayoutDashboard className="ir-size-4" />
-                    </span>
-                    {!iconOnly && <span className="ir-text-sm ir-font-semibold ir-tracking-tight">Imagina Reports</span>}
+                    {brandLogo !== null ? (
+                        <img src={brandLogo} alt={brandName} className="ir-size-8 ir-shrink-0 ir-rounded-md ir-bg-white ir-object-contain ir-p-0.5 ir-shadow-ir-sm" />
+                    ) : (
+                        <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground ir-shadow-ir-sm">
+                            <LayoutDashboard className="ir-size-4" />
+                        </span>
+                    )}
+                    {!iconOnly && <span className="ir-truncate ir-text-sm ir-font-semibold ir-tracking-tight">{brandName}</span>}
                     {/* Drawer close (mobile only). */}
                     <button
                         type="button"
@@ -345,10 +355,14 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                     >
                         <Menu className="ir-size-5" />
                     </button>
-                    <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground">
-                        <LayoutDashboard className="ir-size-3.5" />
-                    </span>
-                    <span className="ir-text-sm ir-font-semibold ir-tracking-tight">Imagina Reports</span>
+                    {brandLogo !== null ? (
+                        <img src={brandLogo} alt={brandName} className="ir-size-7 ir-shrink-0 ir-rounded-md ir-bg-white ir-object-contain ir-p-0.5" />
+                    ) : (
+                        <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground">
+                            <LayoutDashboard className="ir-size-3.5" />
+                        </span>
+                    )}
+                    <span className="ir-truncate ir-text-sm ir-font-semibold ir-tracking-tight">{brandName}</span>
                 </header>
 
                 <main className="ir-min-w-0 ir-flex-1 ir-overflow-hidden">
