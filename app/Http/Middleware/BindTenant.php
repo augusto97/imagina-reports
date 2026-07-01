@@ -29,7 +29,17 @@ final class BindTenant
         $user = $request->user();
 
         if ($user instanceof User) {
-            $this->tenant->set($user->agency_id);
+            $agencyId = $user->agency_id;
+
+            // A platform admin has no home agency; while "entering" an agency for support
+            // (impersonation) the tenant becomes that agency, so they see what it sees.
+            if ($user->is_platform_admin && $user->impersonating_agency_id !== null) {
+                $agencyId = $user->impersonating_agency_id;
+            }
+
+            if ($agencyId !== null) {
+                $this->tenant->set($agencyId);
+            }
         }
 
         return $next($request);

@@ -8,9 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSiteRequest;
 use App\Http\Requests\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
+use App\Models\Agency;
 use App\Models\Client;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
+use App\Services\Platform\Entitlements;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -21,9 +24,12 @@ final class SiteController extends Controller
         return SiteResource::collection(Site::query()->latest()->get());
     }
 
-    public function store(StoreSiteRequest $request): JsonResponse
+    public function store(StoreSiteRequest $request, Entitlements $entitlements, TenantContext $tenant): JsonResponse
     {
         $data = $request->validated();
+
+        $agency = Agency::query()->findOrFail($tenant->id());
+        abort_unless($entitlements->canAddSite($agency), 403, 'Has alcanzado el límite de sitios de tu plan. Mejora el plan para añadir más.');
 
         // Enforce that the client belongs to this agency (scoped 404 otherwise).
         Client::query()->findOrFail($data['client_id']);

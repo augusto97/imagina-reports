@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateAgencyRequest;
 use App\Models\Agency;
+use App\Services\Platform\Entitlements;
 use App\Services\SnapshotRetentionService;
 use App\Services\Webhooks\WebhookDispatcher;
 use App\Support\Tenancy\TenantContext;
@@ -159,6 +160,10 @@ final class AgencyController extends Controller
             'calculated_metrics' => $agency->calculated_metrics ?? [],
             'webhook_urls' => $this->webhookUrls($agency),
             'webhook_secret_set' => is_string($agency->settings['webhook_secret'] ?? null) && $agency->settings['webhook_secret'] !== '',
+            'plan' => $agency->plan !== null ? ['name' => $agency->plan->name, 'slug' => $agency->plan->slug] : null,
+            'status' => $agency->status,
+            'limits' => app(Entitlements::class)->limits($agency),
+            'usage' => app(Entitlements::class)->usage($agency),
         ];
     }
 

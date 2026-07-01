@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
+use App\Http\Controllers\Api\V1\Platform\PlanController;
+use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
@@ -161,6 +163,20 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('anomalies', [AnomalyController::class, 'index'])->name('api.anomalies.index');
     Route::post('anomalies/{anomaly}/acknowledge', [AnomalyController::class, 'acknowledge'])->name('api.anomalies.acknowledge');
     Route::delete('anomalies/{anomaly}', [AnomalyController::class, 'destroy'])->name('api.anomalies.destroy');
+
+    // Platform panel (SaaS Fase 1) — super-admin only: manage every agency + plans.
+    Route::middleware('platform')->prefix('platform')->group(function (): void {
+        Route::get('agencies', [PlatformAgencyController::class, 'index'])->name('api.platform.agencies.index');
+        Route::post('agencies', [PlatformAgencyController::class, 'store'])->name('api.platform.agencies.store');
+        Route::put('agencies/{agency}', [PlatformAgencyController::class, 'update'])->name('api.platform.agencies.update');
+        Route::post('agencies/{agency}/impersonate', [PlatformAgencyController::class, 'impersonate'])->name('api.platform.agencies.impersonate');
+        Route::post('stop-impersonate', [PlatformAgencyController::class, 'stopImpersonate'])->name('api.platform.stop-impersonate');
+
+        Route::get('plans', [PlanController::class, 'index'])->name('api.platform.plans.index');
+        Route::post('plans', [PlanController::class, 'store'])->name('api.platform.plans.store');
+        Route::put('plans/{plan}', [PlanController::class, 'update'])->name('api.platform.plans.update');
+        Route::delete('plans/{plan}', [PlanController::class, 'destroy'])->name('api.platform.plans.destroy');
+    });
 
     Route::get('reports', [ReportController::class, 'index'])->name('api.reports.index');
     Route::post('reports/generate', [ReportController::class, 'generate'])->name('api.reports.generate');

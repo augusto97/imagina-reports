@@ -7,6 +7,32 @@
 ---
 
 ## Where I left off (read me first)
+**🏢 SAAS MULTI-AGENCIA — FASE 1 (plataforma + planes + límites) + PANEL (2026-07-02, rama `claude/github-app-analysis-a7b2bd`,
+release v1.13.94):** transformación a SaaS. Decisiones del owner: cobros MANUALES por ahora (billing luego), altas SOLO por invitación,
+marca blanca SOLO branding por ahora, límites de TODO. Construido:
+- **Modelo:** tabla `ir_plans` (límites null=ilimitado: max_sites/data_sources/clients/users/reports_per_month, allowed_connectors,
+  features{ai_builder,white_label,remove_branding,custom_domain}, monthly_price/currency para billing futuro). `ir_agencies` +=
+  `plan_id`/`status`(active/suspended)/`plan_overrides`(json). `ir_users` += `is_platform_admin` + `agency_id` AHORA NULLABLE +
+  `impersonating_agency_id`. Modelo `Plan` (global, no scoped). Seeder `PlanSeeder` (Starter/Pro/Agency) llamado desde DatabaseSeeder.
+- **Entitlements** (`app/Services/Platform/Entitlements.php`): resuelve límites (plan+overrides), cuenta uso (withoutGlobalScopes),
+  y `canAddSite/Client/User/DataSource(+connector)/GenerateReport`, `allowsConnector`, `hasFeature` (permisivo si no hay plan).
+  APLICADO en SiteController/ClientController/DataSourceController@store, ReportController@generate (tope mensual), AiTemplateController
+  (feature ai_builder) → 403 con mensaje ES.
+- **Plataforma (súper-admin):** admin sin agencia (`is_platform_admin`, agency_id null). Middleware `EnsurePlatformAdmin` (alias
+  `platform`). `BindTenant` respeta impersonación vía `users.impersonating_agency_id` (NO sesión — testeable). `AuthController` expone
+  `is_platform_admin`+`impersonating`. API `/platform/*`: agencies (index con uso+plan / store crea agencia+owner / update plan|status|
+  overrides / impersonate / stop-impersonate) + plans CRUD. Comando `php artisan platform:create-admin "Nombre" email [pass]`.
+- **Frontend:** tipos (Plan, PlatformAgency, PlanLimits/Usage, AuthUser.is_platform_admin/impersonating, AgencySettings.plan/limits/usage)
+  + hooks platform. `PlatformScreen` (tabs Agencias con barras de uso + cambiar plan + suspender + «Entrar»/impersonar + crear agencia;
+  Planes CRUD con features). `App.tsx`: si platform admin y NO impersonando → `PlatformShell`; si impersonando → app normal con banner
+  ámbar «Salir de la agencia». `SettingsScreen` muestra tarjeta «Plan y uso» con barras.
+- **Tests:** EntitlementsTest (unit) + PlatformApiTest + PlanLimitEnforcementTest. **419 tests PHP + 15 vitest + stan/pint/ts/lint/build
+  limpios.**
+DIFERIDO (Fases 2-4): billing Stripe/Cashier, dominios/subdominios white-label profundo, auto-registro+onboarding. NOTA: crear el
+primer admin con `platform:create-admin`; los reportes/agencias existentes sin plan = ilimitado (permisivo). **SIGUIENTE: desplegar
+v1.13.94.**
+
+
 **📅 REPORTES AUTOMÁTICOS: DÍA DE ENVÍO DESIGNABLE (2026-07-01, rama `claude/github-app-analysis-a7b2bd`, release v1.13.93):** el
 motor de programación (genera + envía por email por cron `reports:run-schedules` horario → `ScheduleRunner` → `RunScheduledReportJob`
 → `DeliverReportJob`) YA existía (v1.13.90), pero disparaba SIEMPRE el día 1. El owner quería «la fecha designada». Añadido: columna

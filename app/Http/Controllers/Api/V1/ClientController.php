@@ -8,8 +8,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
+use App\Models\Agency;
 use App\Models\Client;
 use App\Models\Site;
+use App\Services\Platform\Entitlements;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -24,8 +27,11 @@ final class ClientController extends Controller
         return ClientResource::collection(Client::query()->latest()->get());
     }
 
-    public function store(StoreClientRequest $request): JsonResponse
+    public function store(StoreClientRequest $request, Entitlements $entitlements, TenantContext $tenant): JsonResponse
     {
+        $agency = Agency::query()->findOrFail($tenant->id());
+        abort_unless($entitlements->canAddClient($agency), 403, 'Has alcanzado el límite de clientes de tu plan. Mejora el plan para añadir más.');
+
         $client = Client::query()->create($request->validated());
 
         return ClientResource::make($client)->response()->setStatusCode(201);

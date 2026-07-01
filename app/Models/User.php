@@ -14,10 +14,12 @@ use Laravel\Sanctum\HasApiTokens;
 
 /**
  * @property int $id
- * @property int $agency_id
+ * @property int|null $agency_id
  * @property string $name
  * @property string $email
  * @property UserRole $role
+ * @property bool $is_platform_admin
+ * @property int|null $impersonating_agency_id
  */
 class User extends Authenticatable
 {
@@ -37,6 +39,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'is_platform_admin',
+        'impersonating_agency_id',
     ];
 
     /**
@@ -60,6 +64,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'is_platform_admin' => 'boolean',
+            'impersonating_agency_id' => 'integer',
         ];
     }
 

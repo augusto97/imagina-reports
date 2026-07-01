@@ -7,6 +7,7 @@ namespace App\Models;
 use Database\Factories\AgencyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +27,9 @@ use Throwable;
  * @property array<string, mixed>|null $settings
  * @property int|null $snapshot_retention_months
  * @property array<int, mixed>|null $calculated_metrics
+ * @property int|null $plan_id
+ * @property string $status
+ * @property array<string, mixed>|null $plan_overrides
  */
 class Agency extends Model
 {
@@ -47,6 +51,9 @@ class Agency extends Model
         'settings',
         'snapshot_retention_months',
         'calculated_metrics',
+        'plan_id',
+        'status',
+        'plan_overrides',
     ];
 
     /**
@@ -58,7 +65,21 @@ class Agency extends Model
             'settings' => 'array',
             'snapshot_retention_months' => 'integer',
             'calculated_metrics' => 'array',
+            'plan_overrides' => 'array',
         ];
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
+
+    /**
+     * @return BelongsTo<Plan, $this>
+     */
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class);
     }
 
     /**

@@ -20,10 +20,11 @@ import { type ReactElement, useEffect, useState } from "react";
 
 import { cn } from "@shared/lib/utils";
 
-import { useAuthUser, useLogout } from "./api";
+import { useAuthUser, useLogout, useStopImpersonating } from "./api";
 import { EditorScreen } from "./editor/EditorScreen";
 import { AlertsScreen } from "./screens/AlertsScreen";
 import { LoginScreen } from "./screens/LoginScreen";
+import { PlatformScreen } from "./screens/PlatformScreen";
 import { ReportsScreen } from "./screens/ReportsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SystemScreen } from "./screens/SystemScreen";
@@ -91,7 +92,40 @@ export function App(): ReactElement {
         return <LoginScreen />;
     }
 
-    return <AuthenticatedApp email={user.email} version={user.app_version} />;
+    // Platform super-admin (not currently impersonating an agency) → the platform panel.
+    if (user.is_platform_admin === true && (user.impersonating === null || user.impersonating === undefined)) {
+        return <PlatformShell email={user.email} />;
+    }
+
+    return <AuthenticatedApp email={user.email} version={user.app_version} impersonating={user.impersonating ?? null} />;
+}
+
+/** Minimal shell for the platform super-admin panel (no agency nav). */
+function PlatformShell({ email }: { email: string }): ReactElement {
+    const logout = useLogout();
+
+    return (
+        <div className="ir-flex ir-min-h-screen ir-flex-col ir-bg-background ir-text-foreground">
+            <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-bg-card ir-px-5 ir-py-3">
+                <span className="ir-flex ir-items-center ir-gap-2.5">
+                    <span className="ir-flex ir-size-7 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground">
+                        <LayoutDashboard className="ir-size-4" />
+                    </span>
+                    <span className="ir-text-sm ir-font-semibold">Imagina Reports · Plataforma</span>
+                </span>
+                <div className="ir-flex ir-items-center ir-gap-3 ir-text-xs ir-text-muted-foreground">
+                    <span className="ir-hidden sm:ir-inline">{email}</span>
+                    <button type="button" onClick={() => logout.mutate()} className="ir-inline-flex ir-items-center ir-gap-1.5 hover:ir-text-danger">
+                        <LogOut className="ir-size-4" />
+                        Cerrar sesión
+                    </button>
+                </div>
+            </header>
+            <main className="ir-mx-auto ir-w-full ir-max-w-6xl ir-flex-1 ir-p-4 sm:ir-p-6 lg:ir-p-8">
+                <PlatformScreen />
+            </main>
+        </div>
+    );
 }
 
 /** Reactive viewport match (no extra deps) — true while the media query holds. */
@@ -112,10 +146,11 @@ function useMediaQuery(query: string): boolean {
     return matches;
 }
 
-function AuthenticatedApp({ email, version }: { email: string; version?: string }): ReactElement {
+function AuthenticatedApp({ email, version, impersonating }: { email: string; version?: string; impersonating?: number | null }): ReactElement {
     const view = useAdminUi((state) => state.view);
     const setView = useAdminUi((state) => state.setView);
     const logout = useLogout();
+    const stopImpersonating = useStopImpersonating();
 
     // Desktop (lg+) shows a static, collapsible sidebar; below that it becomes an
     // off-canvas drawer toggled from the mobile top bar.
@@ -168,7 +203,17 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
     const fullBleed = view === "editor";
 
     return (
-        <div className="ir-flex ir-h-screen ir-overflow-hidden ir-bg-background ir-text-foreground">
+        <div className="ir-flex ir-h-screen ir-flex-col ir-overflow-hidden ir-bg-background ir-text-foreground">
+            {/* Impersonation banner (platform admin viewing an agency). */}
+            {typeof impersonating === "number" && (
+                <div className="ir-flex ir-shrink-0 ir-items-center ir-justify-center ir-gap-3 ir-bg-amber-500 ir-px-4 ir-py-1.5 ir-text-xs ir-font-medium ir-text-white">
+                    <span>Estás viendo esta cuenta como administrador de plataforma.</span>
+                    <button type="button" onClick={() => stopImpersonating.mutate()} className="ir-rounded ir-bg-white/20 ir-px-2 ir-py-0.5 hover:ir-bg-white/30" disabled={stopImpersonating.isPending}>
+                        Salir de la agencia
+                    </button>
+                </div>
+            )}
+            <div className="ir-flex ir-min-h-0 ir-flex-1 ir-overflow-hidden">
             {/* Mobile drawer backdrop. */}
             {mobileOpen && (
                 <button
@@ -310,6 +355,7 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
                         </div>
                     )}
                 </main>
+            </div>
             </div>
         </div>
     );

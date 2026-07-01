@@ -12,9 +12,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDataSourceRequest;
 use App\Http\Requests\UpdateDataSourceRequest;
 use App\Http\Resources\DataSourceResource;
+use App\Models\Agency;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
+use App\Services\Platform\Entitlements;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Carbon;
@@ -194,9 +197,16 @@ final class DataSourceController extends Controller
         return (bool) $metrics['mainwp.child_reports_active'];
     }
 
-    public function store(StoreDataSourceRequest $request, Site $site): JsonResponse
+    public function store(StoreDataSourceRequest $request, Site $site, Entitlements $entitlements, TenantContext $tenant): JsonResponse
     {
-        $source = $site->dataSources()->create($request->validated());
+        $data = $request->validated();
+        $connector = is_string($data['type'] ?? null) ? $data['type'] : null;
+
+        $agency = Agency::query()->findOrFail($tenant->id());
+        abort_unless($entitlements->canAddDataSource($agency, null), 403, 'Has alcanzado el límite de fuentes de datos de tu plan. Mejora el plan para conectar más.');
+        abort_if($connector !== null && ! $entitlements->allowsConnector($agency, $connector), 403, 'Tu plan no incluye este conector. Mejora el plan para usarlo.');
+
+        $source = $site->dataSources()->create($data);
 
         // Mint the push token immediately so the install snippet is available right away.
         $this->decoratePush($source);

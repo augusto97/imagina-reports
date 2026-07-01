@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\BindTenant;
+use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -36,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Resolve the tenant from the authenticated user; apply after auth:sanctum.
         $middleware->alias([
             'tenant' => BindTenant::class,
+            'platform' => EnsurePlatformAdmin::class,
         ]);
 
         // Negotiate the request locale for the API (CLAUDE.md §6).

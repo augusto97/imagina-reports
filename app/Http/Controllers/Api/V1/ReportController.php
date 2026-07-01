@@ -10,9 +10,12 @@ use App\Http\Requests\GenerateReportRequest;
 use App\Http\Resources\ReportSummaryResource;
 use App\Jobs\DeliverReportJob;
 use App\Jobs\GenerateReportJob;
+use App\Models\Agency;
 use App\Models\Report;
 use App\Models\ReportDefinition;
+use App\Services\Platform\Entitlements;
 use App\Services\ReportPdfService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
@@ -31,10 +34,13 @@ final class ReportController extends Controller
         return new ReportSummaryResource($report);
     }
 
-    public function generate(GenerateReportRequest $request): JsonResponse
+    public function generate(GenerateReportRequest $request, Entitlements $entitlements, TenantContext $tenant): JsonResponse
     {
         // Enforce that the definition belongs to this agency (scoped 404 otherwise).
         $definition = ReportDefinition::query()->findOrFail($request->integer('report_definition_id'));
+
+        $agency = Agency::query()->findOrFail($tenant->id());
+        abort_unless($entitlements->canGenerateReport($agency), 403, 'Has alcanzado el límite de reportes de este mes de tu plan. Mejora el plan para generar más.');
 
         GenerateReportJob::dispatch(
             $definition->id,

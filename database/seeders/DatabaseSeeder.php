@@ -16,6 +16,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(PlanSeeder::class);
+
         $agency = Agency::factory()->create([
             'name' => 'Imagina WP',
             'slug' => 'imagina-wp',

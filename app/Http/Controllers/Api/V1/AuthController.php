@@ -54,7 +54,7 @@ final class AuthController extends Controller
     }
 
     /**
-     * @return array{id: int, name: string, email: string, role: string}
+     * @return array{id: int, name: string, email: string, role: string, is_platform_admin: bool, impersonating: int|null}
      */
     private function user(Request $request): array
     {
@@ -64,11 +64,15 @@ final class AuthController extends Controller
             throw ValidationException::withMessages(['email' => [__('auth.failed')]]);
         }
 
+        $impersonating = $user->is_platform_admin ? $user->impersonating_agency_id : null;
+
         return [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'role' => $user->role->value,
+            'is_platform_admin' => $user->is_platform_admin,
+            'impersonating' => $impersonating,
         ];
     }
 }

@@ -15,6 +15,8 @@ import type {
     Connector,
     DataSourceDto,
     PageFilters,
+    Plan,
+    PlatformAgency,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportDelivery,
@@ -326,6 +328,83 @@ export function useRetryFailedDeliveries(reportId: number) {
     return useMutation({
         mutationFn: () => api.post<ReportDelivery[]>(`/reports/${reportId}/deliveries/retry-failed`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-deliveries'] }),
+    });
+}
+
+/* --------------------------------- platform -------------------------------- */
+
+export function usePlatformAgencies() {
+    return useQuery({ queryKey: ['platform-agencies'], queryFn: () => get<PlatformAgency[]>('/platform/agencies') });
+}
+
+export function useCreatePlatformAgency() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; plan_id?: number | null; owner_name: string; owner_email: string; owner_password: string }) =>
+            api.post<PlatformAgency>('/platform/agencies', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-agencies'] }),
+    });
+}
+
+export function useUpdatePlatformAgency() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: number; name?: string; plan_id?: number | null; status?: string; plan_overrides?: Record<string, unknown> | null }) =>
+            api.put<PlatformAgency>(`/platform/agencies/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-agencies'] }),
+    });
+}
+
+export function useImpersonateAgency() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (agencyId: number) => api.post<{ impersonating: number }>(`/platform/agencies/${agencyId}/impersonate`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+export function useStopImpersonating() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<{ impersonating: null }>('/platform/stop-impersonate').then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+export function usePlatformPlans() {
+    return useQuery({ queryKey: ['platform-plans'], queryFn: () => get<Plan[]>('/platform/plans') });
+}
+
+export type PlanInput = Partial<Omit<Plan, 'id'>> & { name: string };
+
+export function useCreatePlan() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: PlanInput) => api.post<Plan>('/platform/plans', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-plans'] }),
+    });
+}
+
+export function useUpdatePlan() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: Partial<Plan> & { id: number }) => api.put<Plan>(`/platform/plans/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-plans'] }),
+    });
+}
+
+export function useDeletePlan() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/platform/plans/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-plans'] }),
     });
 }
 

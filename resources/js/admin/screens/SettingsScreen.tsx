@@ -193,6 +193,41 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
     );
 }
 
+/** The agency's plan + live usage against its limits (SaaS Fase 1). */
+function PlanUsageCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const rows: { label: string; used: number; limit: number | null }[] = [
+        { label: 'Sitios', used: agency.usage.sites, limit: agency.limits.max_sites },
+        { label: 'Fuentes de datos', used: agency.usage.data_sources, limit: agency.limits.max_data_sources },
+        { label: 'Clientes', used: agency.usage.clients, limit: agency.limits.max_clients },
+        { label: 'Reportes este mes', used: agency.usage.reports_this_month, limit: agency.limits.max_reports_per_month },
+    ];
+
+    return (
+        <Card title="Plan y uso" description={agency.plan !== null ? `Estás en el plan ${agency.plan.name}.` : 'Sin plan asignado (sin límites).'}>
+            <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                {rows.map((row) => {
+                    const pct = row.limit === null || row.limit === 0 ? 0 : Math.min(100, (row.used / row.limit) * 100);
+                    const over = row.limit !== null && row.used >= row.limit;
+
+                    return (
+                        <div key={row.label}>
+                            <div className="ir-flex ir-justify-between ir-text-xs ir-text-muted-foreground">
+                                <span>{row.label}</span>
+                                <span className={over ? 'ir-font-medium ir-text-danger' : ''}>
+                                    {row.used}/{row.limit ?? '∞'}
+                                </span>
+                            </div>
+                            <div className="ir-mt-1 ir-h-1.5 ir-overflow-hidden ir-rounded ir-bg-muted">
+                                <div className={`ir-h-full ir-rounded ${over ? 'ir-bg-danger' : 'ir-bg-primary'}`} style={{ width: `${row.limit === null ? 6 : pct}%` }} />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </Card>
+    );
+}
+
 export function SettingsScreen(): ReactElement {
     const { data: agency, isLoading } = useAgency();
     const update = useUpdateAgency();
@@ -232,6 +267,8 @@ export function SettingsScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
+            <PlanUsageCard agency={agency} />
+
             <Card title="Marca (white-label)">
                 <div className="ir-flex ir-flex-col ir-gap-4">
                     <Field label="Nombre de la agencia">

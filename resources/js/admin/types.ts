@@ -256,7 +256,57 @@ export interface AuthUser {
     name: string;
     email: string;
     role: string;
+    is_platform_admin?: boolean;
+    impersonating?: number | null;
     app_version?: string;
+}
+
+export interface PlanLimits {
+    max_sites: number | null;
+    max_data_sources: number | null;
+    max_clients: number | null;
+    max_users: number | null;
+    max_reports_per_month: number | null;
+    allowed_connectors: string[] | null;
+    features: Record<string, boolean>;
+}
+
+export interface PlanUsage {
+    sites: number;
+    data_sources: number;
+    clients: number;
+    users: number;
+    reports_this_month: number;
+}
+
+export interface Plan {
+    id: number;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    sort: number;
+    max_sites: number | null;
+    max_data_sources: number | null;
+    max_clients: number | null;
+    max_users: number | null;
+    max_reports_per_month: number | null;
+    allowed_connectors: string[] | null;
+    features: Record<string, boolean>;
+    monthly_price: number | null;
+    currency: string;
+}
+
+export interface PlatformAgency {
+    id: number;
+    name: string;
+    slug: string;
+    status: string;
+    plan: { id: number; name: string; slug: string } | null;
+    plan_id: number | null;
+    plan_overrides: Record<string, unknown> | null;
+    limits: PlanLimits;
+    usage: PlanUsage;
+    created_at: string | null;
 }
 
 export type UpdateRunStatus = 'idle' | 'queued' | 'running' | 'success' | 'failed';
@@ -280,6 +330,10 @@ export interface AgencySettings {
     calculated_metrics: { key: string; label: string; formula: string }[];
     webhook_urls: string[];
     webhook_secret_set: boolean;
+    plan: { name: string; slug: string } | null;
+    status: string;
+    limits: PlanLimits;
+    usage: PlanUsage;
 }
 
 export interface UpdateStatus {
