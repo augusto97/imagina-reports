@@ -1,43 +1,101 @@
-import { type ColumnDef } from '@tanstack/react-table';
-import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
-import { FileDown, Lightbulb, Lock, MessageSquare, PenLine, RotateCw, Share2, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
+import {
+    CalendarClock,
+    FileBarChart,
+    FileDown,
+    Lightbulb,
+    Lock,
+    MessageSquare,
+    Plus,
+    RotateCw,
+    Send,
+    Settings2,
+    Share2,
+    ShieldOff,
+    Sparkles,
+    Trash2,
+} from 'lucide-react';
 
 import {
     useApproveReport,
     useCreateReportComment,
     useCreateReportDefinition,
     useDeleteComment,
+    useDeleteReport,
+    useDeleteReportDefinition,
+    useDownloadReportPdf,
     useGenerateReport,
     useRegenerateReportAdvisory,
     useRegenerateReportNarrative,
     useReportComments,
     useReportDefinitions,
     useReportInsights,
-    useReportTemplates,
-    useDeleteReport,
-    useDeleteReportDefinition,
-    useDownloadReportPdf,
     useReports,
+    useReportTemplates,
     useSendReport,
     useSites,
     useSnapshotPeriods,
     useSyncSiteById,
     useUpdateReportAdvisory,
-    useUpdateReportNarrative,
     useUpdateReportDefinition,
+    useUpdateReportNarrative,
 } from '../api';
 import { RANGE_PRESETS } from '@shared/lib/dateRanges';
-import { DataTable } from '../components/DataTable';
 import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
-import { Button, Card, Field, Input } from '../components/ui';
+import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
 import type { ReportDefinitionDto, ReportSummary } from '../types';
 
 const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
-/** Human, Spanish status labels (the API stores the English enum value). */
-const STATUS_LABEL: Record<string, string> = { draft: 'Borrador', approved: 'Aprobado', sent: 'Enviado' };
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** Human, Spanish status labels + badge tones (the API stores the English enum value). */
+const STATUS: Record<string, { label: string; tone: 'neutral' | 'info' | 'success' }> = {
+    draft: { label: 'Borrador', tone: 'neutral' },
+    approved: { label: 'Aprobado', tone: 'info' },
+    sent: { label: 'Enviado', tone: 'success' },
+};
+
+const capitalize = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
+
+/**
+ * Turn a raw [start, end] range into a label a non-technical user reads instantly:
+ * a full calendar month → «Junio 2026», a quarter → «Q2 2026», a year → «Año 2026»,
+ * otherwise a short «1 jun – 30 jun 2026».
+ */
+function friendlyPeriod(startIso: string, endIso: string): string {
+    const start = new Date(`${startIso.slice(0, 10)}T00:00:00`);
+    const end = new Date(`${endIso.slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return `${startIso.slice(0, 10)} → ${endIso.slice(0, 10)}`;
+    }
+
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const startsFirst = start.getDate() === 1;
+    const lastDayOfEndMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    const endsLast = end.getDate() === lastDayOfEndMonth;
+
+    if (sameYear && startsFirst && endsLast) {
+        // Whole calendar month.
+        if (start.getMonth() === end.getMonth()) {
+            return `${capitalize(MONTHS[start.getMonth()] ?? '')} ${start.getFullYear()}`;
+        }
+        // Whole quarter.
+        if (start.getMonth() % 3 === 0 && end.getMonth() - start.getMonth() === 2) {
+            return `Q${Math.floor(start.getMonth() / 3) + 1} ${start.getFullYear()}`;
+        }
+        // Whole year.
+        if (start.getMonth() === 0 && end.getMonth() === 11) {
+            return `Año ${start.getFullYear()}`;
+        }
+    }
+
+    const fmt = (date: Date): string => date.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+
+    return `${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`;
+}
 
 /** Format the generation timestamp as a readable date + time (or «—» when absent). */
 function formatGeneratedAt(value: string | null): string {
@@ -48,6 +106,34 @@ function formatGeneratedAt(value: string | null): string {
 
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
 }
+
+/** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
+function parseRecipients(raw: string): string[] {
+    return raw
+        .split(/[,\n;]+/)
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+}
+
+/** A small inline pill showing a definition's sharing visibility (Etapa D). */
+function VisibilityTag({ definition }: { definition: ReportDefinitionDto }): ReactElement | null {
+    if (definition.visibility === 'public') {
+        return null;
+    }
+    const isPrivate = definition.visibility === 'private';
+    const Icon = isPrivate ? ShieldOff : Lock;
+
+    return (
+        <Badge tone={isPrivate ? 'danger' : 'warning'}>
+            <Icon className="ir-size-3" />
+            {isPrivate ? 'Privado' : 'Contraseña'}
+        </Badge>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-report tools (opened in a focused modal, one tab at a time).    */
+/* ------------------------------------------------------------------ */
 
 /** Internal notes + client-visible comments for a report (CLAUDE.md §11). */
 function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
@@ -66,8 +152,8 @@ function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
     };
 
     return (
-        <Card title="Comentarios y notas">
-            <form onSubmit={submit} className="ir-mb-4 ir-flex ir-max-w-xl ir-flex-col ir-gap-2">
+        <div>
+            <form onSubmit={submit} className="ir-mb-4 ir-flex ir-flex-col ir-gap-2">
                 <textarea
                     className={inputClass}
                     rows={2}
@@ -92,15 +178,7 @@ function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
                 <ul className="ir-flex ir-flex-col ir-divide-y">
                     {comments.map((comment) => (
                         <li key={comment.id} className="ir-flex ir-items-start ir-gap-3 ir-py-2 ir-text-sm">
-                            <span
-                                className={
-                                    comment.visibility === 'client'
-                                        ? 'ir-rounded ir-bg-primary ir-px-2 ir-py-0.5 ir-text-xs ir-text-primary-foreground'
-                                        : 'ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground'
-                                }
-                            >
-                                {comment.visibility === 'client' ? 'Cliente' : 'Interna'}
-                            </span>
+                            <Badge tone={comment.visibility === 'client' ? 'accent' : 'neutral'}>{comment.visibility === 'client' ? 'Cliente' : 'Interna'}</Badge>
                             <span className="ir-flex-1">{comment.body}</span>
                             <span className="ir-shrink-0 ir-text-xs ir-text-muted-foreground">{comment.created_at.slice(0, 10)}</span>
                             <button type="button" className="ir-text-muted-foreground hover:ir-text-red-500" title="Eliminar" onClick={() => remove.mutate(comment.id)}>
@@ -110,7 +188,7 @@ function ReportCommentsPanel({ reportId }: { reportId: number }): ReactElement {
                     ))}
                 </ul>
             )}
-        </Card>
+        </div>
     );
 }
 
@@ -120,18 +198,14 @@ function ReportNarrativePanel({ report }: { report: ReportSummary }): ReactEleme
     const regenerate = useRegenerateReportNarrative();
     const [text, setText] = useState(report.executive_summary ?? '');
 
-    const onRegenerate = (): void => {
-        regenerate.mutate(report.id, { onSuccess: (next) => setText(next ?? '') });
-    };
-
     return (
-        <Card title="Resumen ejecutivo (IA)">
+        <div>
             <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
                 Es el texto que el cliente lee al inicio del reporte. Edítalo o regenéralo con IA antes de enviar.
             </p>
             <textarea
                 className={inputClass}
-                rows={4}
+                rows={5}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 placeholder="El resumen se escribe solo al generar el reporte con IA. También puedes redactarlo a mano aquí."
@@ -140,34 +214,31 @@ function ReportNarrativePanel({ report }: { report: ReportSummary }): ReactEleme
                 <Button onClick={() => update.mutate({ reportId: report.id, text })} disabled={update.isPending}>
                     {update.isPending ? 'Guardando…' : 'Guardar'}
                 </Button>
-                <Button variant="ghost" onClick={onRegenerate} disabled={regenerate.isPending}>
+                <Button variant="ghost" onClick={() => regenerate.mutate(report.id, { onSuccess: (next) => setText(next ?? '') })} disabled={regenerate.isPending}>
                     <Sparkles className="ir-size-3.5" />
                     {regenerate.isPending ? 'Regenerando…' : 'Regenerar con IA'}
                 </Button>
                 {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Guardado.</span>}
                 {regenerate.isError && <span className="ir-text-xs ir-text-red-500">No se pudo regenerar (revisa la API key de la agencia).</span>}
             </div>
-        </Card>
+        </div>
     );
 }
 
+/** Edit or AI-regenerate a report's advisory ("Diagnóstico y recomendaciones"). */
 function ReportAdvisoryPanel({ report }: { report: ReportSummary }): ReactElement {
     const update = useUpdateReportAdvisory();
     const regenerate = useRegenerateReportAdvisory();
     const [text, setText] = useState(report.advisory ?? '');
 
-    const onRegenerate = (): void => {
-        regenerate.mutate(report.id, { onSuccess: (next) => setText(next ?? '') });
-    };
-
     return (
-        <Card title="Diagnóstico y recomendaciones (IA)">
+        <div>
             <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
                 Lectura consultiva de la condición del sitio (usa el histórico, el mantenimiento y las caídas). Recomienda solo cuando los datos lo justifican. Edítalo o regenéralo antes de enviar.
             </p>
             <textarea
                 className={inputClass}
-                rows={4}
+                rows={5}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 placeholder="El diagnóstico se escribe solo al generar el reporte con IA. También puedes redactarlo a mano aquí."
@@ -176,140 +247,190 @@ function ReportAdvisoryPanel({ report }: { report: ReportSummary }): ReactElemen
                 <Button onClick={() => update.mutate({ reportId: report.id, text })} disabled={update.isPending}>
                     {update.isPending ? 'Guardando…' : 'Guardar'}
                 </Button>
-                <Button variant="ghost" onClick={onRegenerate} disabled={regenerate.isPending}>
+                <Button variant="ghost" onClick={() => regenerate.mutate(report.id, { onSuccess: (next) => setText(next ?? '') })} disabled={regenerate.isPending}>
                     <Lightbulb className="ir-size-3.5" />
                     {regenerate.isPending ? 'Regenerando…' : 'Regenerar con IA'}
                 </Button>
                 {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Guardado.</span>}
                 {regenerate.isError && <span className="ir-text-xs ir-text-red-500">No se pudo regenerar (revisa la API key de la agencia).</span>}
             </div>
-        </Card>
-    );
-}
-
-/** Inline view/edit of a definition's email recipients (saved on blur). */
-function DefinitionRecipientsEditor({ definition }: { definition: ReportDefinitionDto }): ReactElement {
-    const update = useUpdateReportDefinition();
-    const [value, setValue] = useState((definition.recipients ?? []).join(', '));
-
-    const save = (): void => {
-        const next = parseRecipients(value);
-        if (next.join(',') !== (definition.recipients ?? []).join(',')) {
-            update.mutate({ id: definition.id, recipients: next });
-        }
-    };
-
-    return (
-        <div className="ir-flex ir-flex-1 ir-items-center ir-gap-2">
-            <input
-                className={`${inputClass} ir-max-w-md`}
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                onBlur={save}
-                placeholder="cliente@empresa.com, pm@agencia.com"
-            />
-            {update.isSuccess && <span className="ir-shrink-0 ir-text-xs ir-text-emerald-600">Guardado</span>}
         </div>
     );
 }
 
-/** A small inline pill showing a definition's sharing visibility (Etapa D). */
-function VisibilityTag({ definition }: { definition: ReportDefinitionDto }): ReactElement | null {
-    if (definition.visibility === 'public') {
-        return null;
+/** AI observations for the period (fetched fresh when the tab opens). */
+function ReportInsightsPanel({ reportId }: { reportId: number }): ReactElement {
+    const insights = useReportInsights();
+
+    useEffect(() => {
+        insights.mutate(reportId);
+        // Run once per report; `insights` is a stable mutation object.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reportId]);
+
+    if (insights.isPending || insights.isIdle) {
+        return <p className="ir-text-sm ir-text-muted-foreground">Analizando los datos del reporte…</p>;
+    }
+    if (insights.isError) {
+        return <p className="ir-text-sm ir-text-red-500">No se pudieron generar los insights.</p>;
+    }
+    if ((insights.data ?? []).length === 0) {
+        return <p className="ir-text-sm ir-text-muted-foreground">Sin datos suficientes para generar insights.</p>;
     }
 
-    const isPrivate = definition.visibility === 'private';
-    const Icon = isPrivate ? ShieldOff : Lock;
-
     return (
-        <span
-            className={`ir-inline-flex ir-items-center ir-gap-1 ir-rounded-full ir-px-2 ir-py-0.5 ir-text-[10px] ir-font-medium ${
-                isPrivate ? 'ir-bg-danger/10 ir-text-danger' : 'ir-bg-warning/10 ir-text-warning'
-            }`}
-            title={isPrivate ? 'Privado' : 'Protegido con contraseña'}
-        >
-            <Icon className="ir-size-3" />
-            {isPrivate ? 'Privado' : 'Contraseña'}
-        </span>
+        <ul className="ir-flex ir-flex-col ir-gap-2">
+            {(insights.data ?? []).map((insight, index) => (
+                <li key={index} className="ir-flex ir-gap-2 ir-text-sm">
+                    <Sparkles className="ir-mt-0.5 ir-size-4 ir-shrink-0 ir-text-primary" />
+                    <span>{insight}</span>
+                </li>
+            ))}
+        </ul>
     );
 }
 
-/** Split a comma/semicolon/newline-separated string into a list of trimmed emails. */
-function parseRecipients(raw: string): string[] {
-    return raw
-        .split(/[,\n;]+/)
-        .map((value) => value.trim())
-        .filter((value) => value !== '');
+type ToolTab = 'summary' | 'advisory' | 'comments' | 'insights';
+
+/** One focused modal for a report's editing tools, one tab at a time. */
+function ReportToolsModal({ report, initialTab, onClose }: { report: ReportSummary; initialTab: ToolTab; onClose: () => void }): ReactElement {
+    const hasAdvisory = report.has_advisory === true;
+    const tabs: { key: ToolTab; label: string; icon: typeof Sparkles }[] = [
+        { key: 'summary', label: 'Resumen', icon: Sparkles },
+        ...(hasAdvisory ? [{ key: 'advisory' as const, label: 'Diagnóstico', icon: Lightbulb }] : []),
+        { key: 'comments', label: 'Comentarios', icon: MessageSquare },
+        { key: 'insights', label: 'Insights', icon: Sparkles },
+    ];
+    const [tab, setTab] = useState<ToolTab>(initialTab === 'advisory' && !hasAdvisory ? 'summary' : initialTab);
+
+    return (
+        <Modal onClose={onClose} className="ir-max-w-2xl">
+            <Card
+                title="Herramientas del reporte"
+                description={`${friendlyPeriod(report.period_start, report.period_end)}`}
+                actions={
+                    <Button variant="ghost" size="sm" onClick={onClose}>
+                        Cerrar
+                    </Button>
+                }
+            >
+                <div className="ir-mb-4 ir-flex ir-flex-wrap ir-gap-1 ir-rounded-lg ir-bg-muted ir-p-1">
+                    {tabs.map((entry) => (
+                        <button
+                            key={entry.key}
+                            type="button"
+                            onClick={() => setTab(entry.key)}
+                            className={`ir-inline-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-px-3 ir-py-1.5 ir-text-xs ir-font-medium ir-transition-colors ${
+                                tab === entry.key ? 'ir-bg-card ir-text-foreground ir-shadow-ir-xs' : 'ir-text-muted-foreground hover:ir-text-foreground'
+                            }`}
+                        >
+                            <entry.icon className="ir-size-3.5" />
+                            {entry.label}
+                        </button>
+                    ))}
+                </div>
+
+                {tab === 'summary' && <ReportNarrativePanel report={report} />}
+                {tab === 'advisory' && hasAdvisory && <ReportAdvisoryPanel report={report} />}
+                {tab === 'comments' && <ReportCommentsPanel reportId={report.id} />}
+                {tab === 'insights' && <ReportInsightsPanel reportId={report.id} />}
+            </Card>
+        </Modal>
+    );
 }
 
-export function ReportsScreen(): ReactElement {
+/* ------------------------------------------------------------------ */
+/* Create + generate flows (modals).                                   */
+/* ------------------------------------------------------------------ */
+
+/** Step 1: configure a new report for a site (name, template, recipients). */
+function CreateReportModal({ onClose }: { onClose: () => void }): ReactElement {
     const { data: sites = [] } = useSites();
     const { data: templates = [] } = useReportTemplates();
-    const { data: definitions = [] } = useReportDefinitions();
-    const { data: reports = [] } = useReports();
-    const createDefinition = useCreateReportDefinition();
-    const updateDefinition = useUpdateReportDefinition();
-    const generate = useGenerateReport();
-    const downloadPdf = useDownloadReportPdf();
+    const create = useCreateReportDefinition();
+    const [site, setSite] = useState('');
+    const [name, setName] = useState('');
+    const [template, setTemplate] = useState('');
+    const [recipients, setRecipients] = useState('');
 
-    // Map a report's definition → its site, so per-row sync/regenerate know where to act.
-    const siteIdForDefinition = (definitionId: number): number | null =>
-        definitions.find((definition) => definition.id === definitionId)?.site_id ?? null;
-    const deleteReport = useDeleteReport();
-    const deleteDefinition = useDeleteReportDefinition();
-
-    // Sharing dialog (Etapa D): which definition's privacy is being edited.
-    const [sharingDefinition, setSharingDefinition] = useState<ReportDefinitionDto | null>(null);
-    // The public link points at the definition's most recent report token.
-    const latestTokenForDefinition = (definitionId: number): string | null =>
-        reports.find((report) => report.report_definition_id === definitionId)?.public_token ?? null;
-
-    // Surface which template each definition uses, so the association is verifiable.
-    const templateLabel = (templateId: number | null): string =>
-        templateId === null ? 'Plantilla por defecto' : (templates.find((template) => template.id === templateId)?.name ?? `Plantilla #${templateId}`);
-    const siteLabel = (id: number): string => sites.find((site) => site.id === id)?.name ?? `Sitio #${id}`;
-    // A report's own name comes from its definition; the site comes from that definition.
-    const definitionName = (definitionId: number): string =>
-        definitions.find((definition) => definition.id === definitionId)?.name ?? `Reporte #${definitionId}`;
-    const approve = useApproveReport();
-    const send = useSendReport();
-    const insights = useReportInsights();
-
-    const [insightsFor, setInsightsFor] = useState<number | null>(null);
-    const [commentsFor, setCommentsFor] = useState<number | null>(null);
-    const [narrativeFor, setNarrativeFor] = useState<number | null>(null);
-    const [advisoryFor, setAdvisoryFor] = useState<number | null>(null);
-    const showInsights = (reportId: number): void => {
-        setInsightsFor(reportId);
-        insights.mutate(reportId);
+    const submit = (event: FormEvent): void => {
+        event.preventDefault();
+        if (site === '' || name.trim() === '') {
+            return;
+        }
+        create.mutate(
+            {
+                site_id: Number(site),
+                name: name.trim(),
+                template_id: template === '' ? undefined : Number(template),
+                recipients: parseRecipients(recipients),
+            },
+            { onSuccess: onClose },
+        );
     };
 
-    // The detail panels (Resumen / Comentarios / Insights) render below the table; scroll them
-    // into view when opened so a click visibly does something instead of seeming to do nothing.
-    const panelsRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (narrativeFor !== null || advisoryFor !== null || commentsFor !== null || insightsFor !== null) {
-            panelsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    }, [narrativeFor, advisoryFor, commentsFor, insightsFor]);
+    return (
+        <Modal onClose={onClose}>
+            <Card
+                title="Nuevo reporte"
+                description="Configúralo una vez por cliente. Luego lo generas cada periodo con un clic."
+                actions={
+                    <Button variant="ghost" size="sm" onClick={onClose}>
+                        Cerrar
+                    </Button>
+                }
+            >
+                <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3">
+                    <Field label="Cliente / sitio">
+                        <Select value={site} onChange={(event) => setSite(event.target.value)}>
+                            <option value="">Selecciona un sitio…</option>
+                            {sites.map((entry) => (
+                                <option key={entry.id} value={entry.id}>
+                                    {entry.name}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                    <Field label="Nombre del reporte" hint="Ej. «Informe mensual», «Reporte de SEO».">
+                        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Informe mensual" />
+                    </Field>
+                    <Field label="Plantilla" hint="Define qué bloques y métricas se muestran. Puedes cambiarla luego.">
+                        <Select value={template} onChange={(event) => setTemplate(event.target.value)}>
+                            <option value="">Plantilla por defecto</option>
+                            {templates.map((entry) => (
+                                <option key={entry.id} value={entry.id}>
+                                    {entry.name}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                    <Field label="Destinatarios" hint="Emails separados por coma. Opcional; puedes añadirlos después.">
+                        <Input placeholder="cliente@empresa.com, pm@agencia.com" value={recipients} onChange={(event) => setRecipients(event.target.value)} />
+                    </Field>
+                    {create.isError && <p className="ir-text-xs ir-text-danger">No se pudo crear. Revisa los datos e inténtalo de nuevo.</p>}
+                    <div className="ir-mt-1 ir-flex ir-justify-end ir-gap-2">
+                        <Button type="button" variant="ghost" onClick={onClose}>
+                            Cancelar
+                        </Button>
+                        <Button type="submit" disabled={create.isPending || site === '' || name.trim() === ''}>
+                            {create.isPending ? 'Creando…' : 'Crear reporte'}
+                        </Button>
+                    </div>
+                </form>
+            </Card>
+        </Modal>
+    );
+}
 
-    const [defSite, setDefSite] = useState('');
-    const [defName, setDefName] = useState('');
-    const [defTemplate, setDefTemplate] = useState('');
-    const [defRecipients, setDefRecipients] = useState('');
-    const [genDefinition, setGenDefinition] = useState('');
+/** Step 2: generate an edition of a configured report for a chosen period. */
+function GenerateModal({ definition, onClose }: { definition: ReportDefinitionDto; onClose: () => void }): ReactElement {
+    const generate = useGenerateReport();
+    const syncRange = useSyncSiteById();
+    const { data: snapshotPeriods = [] } = useSnapshotPeriods(definition.site_id);
     const [start, setStart] = useState('');
     const [end, setEnd] = useState('');
 
-    // Data availability for the period being generated (so an empty report can't be
-    // produced unknowingly): the selected definition's site → its synced snapshot periods.
-    const selectedDefinition = definitions.find((definition) => String(definition.id) === genDefinition);
-    const selectedSiteId = selectedDefinition?.site_id ?? null;
-    const { data: snapshotPeriods = [] } = useSnapshotPeriods(selectedSiteId);
-    const syncRange = useSyncSiteById();
-
-    // Default the generate dates to the most recent period that actually has data.
+    // Default to the most recent period that actually has synced data.
     useEffect(() => {
         const latest = snapshotPeriods[0];
         if (latest !== undefined && start === '' && end === '') {
@@ -318,322 +439,31 @@ export function ReportsScreen(): ReactElement {
         }
     }, [snapshotPeriods, start, end]);
 
-    // Does the chosen [start, end] overlap any synced snapshot period?
     const periodHasData =
-        start !== '' &&
-        end !== '' &&
-        snapshotPeriods.some((period) => period.period_start.slice(0, 10) <= end && period.period_end.slice(0, 10) >= start);
+        start !== '' && end !== '' && snapshotPeriods.some((period) => period.period_start.slice(0, 10) <= end && period.period_end.slice(0, 10) >= start);
 
-    const columns: ColumnDef<ReportSummary>[] = [
-        {
-            id: 'report',
-            header: 'Reporte',
-            accessorFn: (row) => definitionName(row.report_definition_id),
-            cell: ({ row }) => {
-                const report = row.original;
-                const siteId = siteIdForDefinition(report.report_definition_id);
-
-                return (
-                    <div className="ir-min-w-0">
-                        <p className="ir-font-medium">{definitionName(report.report_definition_id)}</p>
-                        <p className="ir-text-xs ir-text-muted-foreground">{siteId !== null ? siteLabel(siteId) : '—'}</p>
-                    </div>
-                );
-            },
-        },
-        {
-            id: 'period',
-            header: 'Periodo',
-            accessorFn: (row) => `${row.period_start.slice(0, 10)} → ${row.period_end.slice(0, 10)}`,
-        },
-        {
-            id: 'generated',
-            header: 'Generado',
-            accessorFn: (row) => row.created_at ?? '',
-            cell: ({ row }) => <span className="ir-text-xs ir-text-muted-foreground">{formatGeneratedAt(row.original.created_at)}</span>,
-        },
-        { header: 'Salud', accessorKey: 'health_score' },
-        {
-            id: 'status',
-            header: 'Estado',
-            accessorFn: (row) => STATUS_LABEL[row.status] ?? row.status,
-        },
-        {
-            id: 'data',
-            header: 'Datos',
-            cell: ({ row }) => {
-                const report = row.original;
-                const hidden = report.hidden_metrics ?? [];
-
-                if (hidden.length === 0) {
-                    return <span className="ir-text-xs ir-text-emerald-600">OK</span>;
-                }
-
-                const siteId = siteIdForDefinition(report.report_definition_id);
-
-                return (
-                    <div className="ir-flex ir-flex-col ir-items-start ir-gap-1">
-                        <span
-                            className="ir-cursor-help ir-text-xs ir-text-amber-600"
-                            title={`Sin datos para el periodo (bloques ocultos): ${hidden.join(', ')}. Sincroniza el periodo y luego «Regenerar».`}
-                        >
-                            ⚠ {hidden.length} sin datos
-                        </span>
-                        {siteId !== null && (
-                            <PeriodSyncMenu
-                                siteId={siteId}
-                                periodStart={report.period_start.slice(0, 10)}
-                                periodEnd={report.period_end.slice(0, 10)}
-                            />
-                        )}
-                    </div>
-                );
-            },
-        },
-        {
-            id: 'actions',
-            header: '',
-            cell: ({ row }) => {
-                const report = row.original;
-
-                return (
-                    <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
-                        <Button variant="outline" size="sm" title="Abrir el reporte interactivo del cliente en una pestaña nueva" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')}>
-                            Ver
-                        </Button>
-                        <Button variant="outline" size="sm" title="Descargar el PDF del reporte" onClick={() => downloadPdf.mutate(report.id)} disabled={downloadPdf.isPending}>
-                            <FileDown className="ir-size-3.5" />
-                            {downloadPdf.isPending && downloadPdf.variables === report.id ? 'Generando…' : 'PDF'}
-                        </Button>
-                        <Button variant="ghost" size="sm" title="Análisis de IA con observaciones del periodo" onClick={() => showInsights(report.id)} disabled={insights.isPending && insightsFor === report.id}>
-                            <Sparkles className="ir-size-3.5" />
-                            Insights
-                        </Button>
-                        <Button variant="ghost" size="sm" title="Editar o regenerar el resumen ejecutivo" onClick={() => setNarrativeFor((current) => (current === report.id ? null : report.id))}>
-                            <PenLine className="ir-size-3.5" />
-                            Resumen
-                        </Button>
-                        {report.has_advisory === true && (
-                            <Button variant="ghost" size="sm" title="Editar o regenerar el diagnóstico con recomendaciones" onClick={() => setAdvisoryFor((current) => (current === report.id ? null : report.id))}>
-                                <Lightbulb className="ir-size-3.5" />
-                                Diagnóstico
-                            </Button>
-                        )}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Volver a generar este reporte para el mismo periodo (tras sincronizar o editar la plantilla)"
-                            onClick={() =>
-                                generate.mutate({
-                                    report_definition_id: report.report_definition_id,
-                                    period_start: report.period_start.slice(0, 10),
-                                    period_end: report.period_end.slice(0, 10),
-                                })
-                            }
-                            disabled={generate.isPending}
-                        >
-                            <RotateCw className="ir-size-3.5" />
-                            Regenerar
-                        </Button>
-                        <Button variant="ghost" size="sm" title="Notas internas y comentarios visibles para el cliente" onClick={() => setCommentsFor((current) => (current === report.id ? null : report.id))}>
-                            <MessageSquare className="ir-size-3.5" />
-                            Comentarios
-                        </Button>
-                        {report.status === 'draft' ? (
-                            <Button variant="accent" size="sm" title="Marcar como aprobado para poder enviarlo" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
-                                Aprobar
-                            </Button>
-                        ) : (
-                            <Button variant="accent" size="sm" title="Enviar el reporte por email a los destinatarios" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
-                                {report.status === 'sent' ? 'Reenviar' : 'Enviar'}
-                            </Button>
-                        )}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Eliminar reporte"
-                            onClick={() => {
-                                if (window.confirm('¿Eliminar este reporte? No se puede deshacer.')) {
-                                    deleteReport.mutate(report.id);
-                                }
-                            }}
-                            disabled={deleteReport.isPending}
-                        >
-                            <Trash2 className="ir-size-3.5 ir-text-danger" />
-                        </Button>
-                    </div>
-                );
-            },
-        },
-    ];
-
-    const submitDefinition = (event: FormEvent): void => {
+    const submit = (event: FormEvent): void => {
         event.preventDefault();
-        if (defSite === '' || defName === '') {
+        if (start === '' || end === '') {
             return;
         }
-        createDefinition.mutate(
-            {
-                site_id: Number(defSite),
-                name: defName,
-                template_id: defTemplate === '' ? undefined : Number(defTemplate),
-                recipients: parseRecipients(defRecipients),
-            },
-            {
-                onSuccess: () => {
-                    setDefName('');
-                    setDefRecipients('');
-                },
-            },
-        );
-    };
-
-    const submitGenerate = (event: FormEvent): void => {
-        event.preventDefault();
-        if (genDefinition === '' || start === '' || end === '') {
-            return;
-        }
-        generate.mutate({ report_definition_id: Number(genDefinition), period_start: start, period_end: end });
+        generate.mutate({ report_definition_id: definition.id, period_start: start, period_end: end });
     };
 
     return (
-        <div className="ir-flex ir-flex-col ir-gap-6">
-            <Card title="Nueva definición de reporte">
-                <form onSubmit={submitDefinition} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
-                    <Field label="Sitio">
-                        <select
-                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
-                            value={defSite}
-                            onChange={(event) => setDefSite(event.target.value)}
-                        >
-                            <option value="">Selecciona…</option>
-                            {sites.map((site) => (
-                                <option key={site.id} value={site.id}>
-                                    {site.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <Field label="Nombre">
-                        <Input value={defName} onChange={(event) => setDefName(event.target.value)} />
-                    </Field>
-                    <Field label="Plantilla (opcional)">
-                        <select
-                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
-                            value={defTemplate}
-                            onChange={(event) => setDefTemplate(event.target.value)}
-                        >
-                            <option value="">Plantilla por defecto</option>
-                            {templates.map((template) => (
-                                <option key={template.id} value={template.id}>
-                                    {template.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <Field label="Destinatarios (emails separados por coma)">
-                        <Input
-                            placeholder="cliente@empresa.com, pm@agencia.com"
-                            value={defRecipients}
-                            onChange={(event) => setDefRecipients(event.target.value)}
-                        />
-                    </Field>
-                    <Button type="submit" disabled={createDefinition.isPending}>
-                        Crear definición
+        <Modal onClose={onClose}>
+            <Card
+                title={`Generar · ${definition.name}`}
+                description="Elige el periodo. Se creará el PDF y el portal del cliente."
+                actions={
+                    <Button variant="ghost" size="sm" onClick={onClose}>
+                        Cerrar
                     </Button>
-                </form>
-            </Card>
-
-            <Card title="Definiciones existentes">
-                {definitions.length === 0 ? (
-                    <p className="ir-text-sm ir-text-muted-foreground">Aún no hay definiciones. Crea una arriba.</p>
-                ) : (
-                    <div className="ir-flex ir-flex-col ir-gap-2">
-                        <p className="ir-text-xs ir-text-muted-foreground">
-                            La <strong>plantilla</strong> de cada definición es la que usa el reporte generado. Puedes cambiarla aquí.
-                        </p>
-                        {definitions.map((definition) => (
-                            <div key={definition.id} className="ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-border ir-p-3">
-                                <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
-                                    <div className="ir-min-w-0">
-                                        <p className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-medium">
-                                            {definition.name}
-                                            <VisibilityTag definition={definition} />
-                                        </p>
-                                        <p className="ir-text-xs ir-text-muted-foreground">{siteLabel(definition.site_id)}</p>
-                                    </div>
-                                    <div className="ir-flex ir-items-center ir-gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            title="Compartir / privacidad"
-                                            onClick={() => setSharingDefinition(definition)}
-                                        >
-                                            <Share2 className="ir-size-3.5" />
-                                            <span className="ir-ml-1.5 ir-hidden sm:ir-inline">Compartir</span>
-                                        </Button>
-                                        <span className="ir-text-xs ir-text-muted-foreground">Plantilla:</span>
-                                        <select
-                                            className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-sm"
-                                            value={definition.template_id ?? ''}
-                                            onChange={(event) =>
-                                                updateDefinition.mutate({
-                                                    id: definition.id,
-                                                    template_id: event.target.value === '' ? null : Number(event.target.value),
-                                                })
-                                            }
-                                        >
-                                            <option value="">Plantilla por defecto</option>
-                                            {templates.map((template) => (
-                                                <option key={template.id} value={template.id}>
-                                                    {template.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            title="Eliminar definición"
-                                            onClick={() => {
-                                                if (window.confirm('¿Eliminar esta definición y todos sus reportes generados? No se puede deshacer.')) {
-                                                    deleteDefinition.mutate(definition.id);
-                                                }
-                                            }}
-                                            disabled={deleteDefinition.isPending}
-                                        >
-                                            <Trash2 className="ir-size-3.5 ir-text-danger" />
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
-                                    <span className="ir-shrink-0 ir-text-xs ir-text-muted-foreground">Destinatarios:</span>
-                                    <DefinitionRecipientsEditor key={definition.recipients.join(',')} definition={definition} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </Card>
-
-            <Card title="Generar reporte">
-                <form onSubmit={submitGenerate} className="ir-flex ir-max-w-md ir-flex-col ir-gap-3">
-                    <Field label="Definición">
-                        <select
-                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
-                            value={genDefinition}
-                            onChange={(event) => setGenDefinition(event.target.value)}
-                        >
-                            <option value="">Selecciona…</option>
-                            {definitions.map((definition) => (
-                                <option key={definition.id} value={definition.id}>
-                                    {definition.name} · {templateLabel(definition.template_id)}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <Field label="Periodo">
-                        <select
-                            className="ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm"
+                }
+            >
+                <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3">
+                    <Field label="Periodo rápido">
+                        <Select
                             value=""
                             onChange={(event) => {
                                 const preset = RANGE_PRESETS.find((entry) => entry.key === event.target.value);
@@ -644,13 +474,13 @@ export function ReportsScreen(): ReactElement {
                                 }
                             }}
                         >
-                            <option value="">Rango rápido… (o usa las fechas)</option>
+                            <option value="">Elige un rango… (o usa las fechas)</option>
                             {RANGE_PRESETS.map((preset) => (
                                 <option key={preset.key} value={preset.key}>
                                     {preset.label}
                                 </option>
                             ))}
-                        </select>
+                        </Select>
                     </Field>
                     <div className="ir-flex ir-gap-3">
                         <Field label="Desde">
@@ -661,111 +491,361 @@ export function ReportsScreen(): ReactElement {
                         </Field>
                     </div>
 
-                    {genDefinition !== '' && start !== '' && end !== '' && (
+                    {start !== '' && end !== '' && (
                         periodHasData ? (
-                            <p className="ir-text-xs ir-text-emerald-600">✓ Hay datos sincronizados que cubren este periodo.</p>
+                            <p className="ir-text-xs ir-text-emerald-600">✓ Hay datos sincronizados que cubren «{friendlyPeriod(start, end)}».</p>
                         ) : (
                             <div className="ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-bg-amber-50 ir-p-3">
                                 <p className="ir-text-xs ir-text-amber-700">
-                                    ⚠ No hay datos sincronizados para este rango exacto. Para un reporte correcto, las fuentes agregan los
-                                    totales del rango en origen: sincroniza este rango y luego genera.
+                                    ⚠ No hay datos sincronizados para este rango exacto. Las fuentes agregan los totales del rango en origen: sincroniza este
+                                    rango y luego genera.
                                     {snapshotPeriods.length > 0 && (
-                                        <> Datos disponibles: {snapshotPeriods.slice(0, 6).map((period) => `${period.period_start.slice(0, 10)}→${period.period_end.slice(0, 10)}`).join(', ')}.</>
+                                        <> Disponibles: {snapshotPeriods.slice(0, 6).map((period) => friendlyPeriod(period.period_start, period.period_end)).join(', ')}.</>
                                     )}
                                 </p>
-                                {selectedSiteId !== null && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="ir-self-start"
-                                        onClick={() => syncRange.mutate({ siteId: selectedSiteId, period_start: start, period_end: end })}
-                                        disabled={syncRange.isPending}
-                                    >
-                                        {syncRange.isPending ? 'Sincronizando…' : 'Sincronizar este rango'}
-                                    </Button>
-                                )}
-                                {syncRange.isSuccess && (
-                                    <p className="ir-text-xs ir-text-emerald-700">
-                                        Sincronización de este rango encolada. Espera unos segundos y vuelve a comprobar antes de generar.
-                                    </p>
-                                )}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="ir-self-start"
+                                    onClick={() => syncRange.mutate({ siteId: definition.site_id, period_start: start, period_end: end })}
+                                    disabled={syncRange.isPending}
+                                >
+                                    {syncRange.isPending ? 'Sincronizando…' : 'Sincronizar este rango'}
+                                </Button>
+                                {syncRange.isSuccess && <p className="ir-text-xs ir-text-emerald-700">Sincronización encolada. Espera unos segundos y vuelve a comprobar.</p>}
                             </div>
                         )
                     )}
 
-                    <Button type="submit" disabled={generate.isPending}>
-                        Generar
-                    </Button>
-                    {generate.isSuccess && (
-                        <p className="ir-text-xs ir-text-muted-foreground">
-                            Generación encolada. La lista se actualiza en unos segundos.
-                        </p>
+                    {generate.isSuccess ? (
+                        <div className="ir-flex ir-items-center ir-justify-between ir-gap-3 ir-rounded-md ir-bg-emerald-50 ir-p-3">
+                            <p className="ir-text-xs ir-text-emerald-700">Generación encolada. Aparecerá en el historial en unos segundos.</p>
+                            <Button type="button" size="sm" onClick={onClose}>
+                                Listo
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="ir-mt-1 ir-flex ir-justify-end ir-gap-2">
+                            <Button type="button" variant="ghost" onClick={onClose}>
+                                Cancelar
+                            </Button>
+                            <Button type="submit" disabled={generate.isPending || start === '' || end === ''}>
+                                <CalendarClock className="ir-size-3.5" />
+                                {generate.isPending ? 'Generando…' : 'Generar reporte'}
+                            </Button>
+                        </div>
                     )}
                 </form>
             </Card>
+        </Modal>
+    );
+}
 
-            <Card title="Reportes">
-                {send.isSuccess && (
-                    <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">
-                        Envío encolado: el reporte se enviará por email a los destinatarios.
+/* ------------------------------------------------------------------ */
+/* One configured report + its generation history.                     */
+/* ------------------------------------------------------------------ */
+
+function ReportConfigCard({
+    definition,
+    reports,
+    siteName,
+    templateName,
+    templates,
+    onGenerate,
+    onShare,
+    onTools,
+}: {
+    definition: ReportDefinitionDto;
+    reports: ReportSummary[];
+    siteName: string;
+    templateName: string;
+    templates: { id: number; name: string }[];
+    onGenerate: (definition: ReportDefinitionDto) => void;
+    onShare: (definition: ReportDefinitionDto) => void;
+    onTools: (report: ReportSummary, tab: ToolTab) => void;
+}): ReactElement {
+    const updateDefinition = useUpdateReportDefinition();
+    const deleteDefinition = useDeleteReportDefinition();
+    const generate = useGenerateReport();
+    const approve = useApproveReport();
+    const send = useSendReport();
+    const downloadPdf = useDownloadReportPdf();
+    const deleteReport = useDeleteReport();
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [recipients, setRecipients] = useState((definition.recipients ?? []).join(', '));
+
+    const saveRecipients = (): void => {
+        const next = parseRecipients(recipients);
+        if (next.join(',') !== (definition.recipients ?? []).join(',')) {
+            updateDefinition.mutate({ id: definition.id, recipients: next });
+        }
+    };
+
+    return (
+        <section className="ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm">
+            {/* Header: what this report is + primary actions. */}
+            <header className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
+                <div className="ir-min-w-0">
+                    <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
+                        {definition.name}
+                        <VisibilityTag definition={definition} />
+                    </h3>
+                    <p className="ir-mt-0.5 ir-truncate ir-text-xs ir-text-muted-foreground">
+                        {siteName} · Plantilla: {templateName}
                     </p>
-                )}
-                {approve.isSuccess && (
-                    <p className="ir-mb-3 ir-text-xs ir-text-emerald-600">Reporte aprobado. Ya puedes enviarlo.</p>
-                )}
-                <p className="ir-mb-3 ir-text-xs ir-text-muted-foreground">
-                    Acciones por reporte: <strong>Ver</strong> (portal del cliente) · <strong>PDF</strong> · <strong>Insights</strong> /
-                    <strong> Resumen</strong> / <strong>Comentarios</strong> (abren un panel debajo) · <strong>Aprobar</strong> → <strong>Enviar</strong>.
-                </p>
-                <DataTable columns={columns} data={reports} />
-            </Card>
+                </div>
+                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-2">
+                    <Button variant="accent" size="sm" onClick={() => onGenerate(definition)}>
+                        <Plus className="ir-size-3.5" />
+                        Generar
+                    </Button>
+                    <Button variant="outline" size="sm" title="Compartir / privacidad" onClick={() => onShare(definition)}>
+                        <Share2 className="ir-size-3.5" />
+                        <span className="ir-ml-1 ir-hidden sm:ir-inline">Compartir</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" title="Ajustes del reporte" onClick={() => setSettingsOpen((open) => !open)}>
+                        <Settings2 className="ir-size-3.5" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Eliminar este reporte y todo su historial"
+                        onClick={() => {
+                            if (window.confirm(`¿Eliminar «${definition.name}» y todos sus reportes generados? No se puede deshacer.`)) {
+                                deleteDefinition.mutate(definition.id);
+                            }
+                        }}
+                        disabled={deleteDefinition.isPending}
+                    >
+                        <Trash2 className="ir-size-3.5 ir-text-danger" />
+                    </Button>
+                </div>
+            </header>
 
-            <div ref={panelsRef} className="ir-flex ir-flex-col ir-gap-6">
-                {narrativeFor !== null &&
-                    (() => {
-                        const report = reports.find((item) => item.id === narrativeFor);
+            {/* Collapsible settings: template + recipients. Hidden by default to keep it clean. */}
+            {settingsOpen && (
+                <div className="ir-grid ir-gap-3 ir-border-b ir-bg-muted/30 ir-px-5 ir-py-4 sm:ir-grid-cols-2">
+                    <Field label="Plantilla">
+                        <Select
+                            value={definition.template_id ?? ''}
+                            onChange={(event) => updateDefinition.mutate({ id: definition.id, template_id: event.target.value === '' ? null : Number(event.target.value) })}
+                        >
+                            <option value="">Plantilla por defecto</option>
+                            {templates.map((template) => (
+                                <option key={template.id} value={template.id}>
+                                    {template.name}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                    <Field label="Destinatarios (email)">
+                        <Input value={recipients} onChange={(event) => setRecipients(event.target.value)} onBlur={saveRecipients} placeholder="cliente@empresa.com, pm@agencia.com" />
+                    </Field>
+                </div>
+            )}
 
-                        return report !== undefined ? <ReportNarrativePanel key={report.id} report={report} /> : null;
-                    })()}
+            {/* Generation history. */}
+            <div className="ir-px-5 ir-py-4">
+                {reports.length === 0 ? (
+                    <div className="ir-flex ir-flex-col ir-items-center ir-gap-2 ir-rounded-md ir-border ir-border-dashed ir-py-8 ir-text-center">
+                        <CalendarClock className="ir-size-5 ir-text-muted-foreground" />
+                        <p className="ir-text-sm ir-text-muted-foreground">Aún no has generado este reporte.</p>
+                        <Button variant="accent" size="sm" onClick={() => onGenerate(definition)}>
+                            <Plus className="ir-size-3.5" />
+                            Generar el primero
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="ir-flex ir-flex-col ir-divide-y">
+                        {reports.map((report) => {
+                            const status = STATUS[report.status] ?? { label: report.status, tone: 'neutral' as const };
+                            const hidden = report.hidden_metrics ?? [];
 
-                {advisoryFor !== null &&
-                    (() => {
-                        const report = reports.find((item) => item.id === advisoryFor);
+                            return (
+                                <div key={report.id} className="ir-flex ir-flex-wrap ir-items-center ir-gap-x-4 ir-gap-y-2 ir-py-3">
+                                    {/* Period + meta */}
+                                    <div className="ir-min-w-[10rem] ir-flex-1">
+                                        <p className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-medium">
+                                            {friendlyPeriod(report.period_start, report.period_end)}
+                                            <Badge tone={status.tone}>{status.label}</Badge>
+                                        </p>
+                                        <p className="ir-mt-0.5 ir-flex ir-flex-wrap ir-items-center ir-gap-x-2 ir-text-xs ir-text-muted-foreground">
+                                            <span>Generado {formatGeneratedAt(report.created_at)}</span>
+                                            {report.health_score !== null && <span>· Salud {report.health_score}</span>}
+                                            {hidden.length > 0 && (
+                                                <span className="ir-text-amber-600" title={`Sin datos: ${hidden.join(', ')}. Sincroniza el periodo y regenera.`}>
+                                                    · ⚠ {hidden.length} sin datos
+                                                </span>
+                                            )}
+                                        </p>
+                                        {hidden.length > 0 && (
+                                            <div className="ir-mt-1">
+                                                <PeriodSyncMenu siteId={definition.site_id} periodStart={report.period_start.slice(0, 10)} periodEnd={report.period_end.slice(0, 10)} />
+                                            </div>
+                                        )}
+                                    </div>
 
-                        return report !== undefined ? <ReportAdvisoryPanel key={`adv-${report.id}`} report={report} /> : null;
-                    })()}
-
-                {commentsFor !== null && <ReportCommentsPanel key={commentsFor} reportId={commentsFor} />}
-
-                {insightsFor !== null && (
-                    <Card title="Insights de IA">
-                        {insights.isPending ? (
-                            <p className="ir-text-sm ir-text-muted-foreground">Analizando los datos del reporte…</p>
-                        ) : insights.isError ? (
-                            <p className="ir-text-sm ir-text-red-500">No se pudieron generar los insights.</p>
-                        ) : (insights.data ?? []).length === 0 ? (
-                            <p className="ir-text-sm ir-text-muted-foreground">Sin datos suficientes para generar insights.</p>
-                        ) : (
-                            <ul className="ir-flex ir-flex-col ir-gap-2">
-                                {(insights.data ?? []).map((insight, index) => (
-                                    <li key={index} className="ir-flex ir-gap-2 ir-text-sm">
-                                        <Sparkles className="ir-mt-0.5 ir-size-4 ir-shrink-0 ir-text-primary" />
-                                        <span>{insight}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </Card>
+                                    {/* Actions */}
+                                    <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-1.5">
+                                        <Button variant="outline" size="sm" title="Abrir el portal interactivo del cliente" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')}>
+                                            Ver
+                                        </Button>
+                                        <Button variant="outline" size="sm" title="Descargar el PDF" onClick={() => downloadPdf.mutate(report.id)} disabled={downloadPdf.isPending && downloadPdf.variables === report.id}>
+                                            <FileDown className="ir-size-3.5" />
+                                            {downloadPdf.isPending && downloadPdf.variables === report.id ? '…' : 'PDF'}
+                                        </Button>
+                                        <Button variant="ghost" size="sm" title="Resumen, diagnóstico, comentarios e insights" onClick={() => onTools(report, 'summary')}>
+                                            <Sparkles className="ir-size-3.5" />
+                                            Herramientas
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            title="Volver a generar este periodo (tras sincronizar o editar la plantilla)"
+                                            onClick={() => generate.mutate({ report_definition_id: report.report_definition_id, period_start: report.period_start.slice(0, 10), period_end: report.period_end.slice(0, 10) })}
+                                            disabled={generate.isPending}
+                                        >
+                                            <RotateCw className="ir-size-3.5" />
+                                        </Button>
+                                        {report.status === 'draft' ? (
+                                            <Button variant="accent" size="sm" title="Aprobar para poder enviarlo" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
+                                                Aprobar
+                                            </Button>
+                                        ) : (
+                                            <Button variant="accent" size="sm" title="Enviar por email a los destinatarios" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
+                                                <Send className="ir-size-3.5" />
+                                                {report.status === 'sent' ? 'Reenviar' : 'Enviar'}
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            title="Eliminar este reporte generado"
+                                            onClick={() => {
+                                                if (window.confirm('¿Eliminar este reporte? No se puede deshacer.')) {
+                                                    deleteReport.mutate(report.id);
+                                                }
+                                            }}
+                                            disabled={deleteReport.isPending}
+                                        >
+                                            <Trash2 className="ir-size-3.5 ir-text-danger" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
+        </section>
+    );
+}
 
+/* ------------------------------------------------------------------ */
+/* Screen.                                                             */
+/* ------------------------------------------------------------------ */
+
+export function ReportsScreen(): ReactElement {
+    const { data: sites = [] } = useSites();
+    const { data: templates = [] } = useReportTemplates();
+    const { data: definitions = [] } = useReportDefinitions();
+    const { data: reports = [] } = useReports();
+
+    const [createOpen, setCreateOpen] = useState(false);
+    const [generateFor, setGenerateFor] = useState<ReportDefinitionDto | null>(null);
+    const [sharingDefinition, setSharingDefinition] = useState<ReportDefinitionDto | null>(null);
+    const [tools, setTools] = useState<{ report: ReportSummary; tab: ToolTab } | null>(null);
+
+    const siteName = (id: number): string => sites.find((site) => site.id === id)?.name ?? `Sitio #${id}`;
+    const templateName = (id: number | null): string =>
+        id === null ? 'Por defecto' : (templates.find((template) => template.id === id)?.name ?? `#${id}`);
+    const latestTokenForDefinition = (definitionId: number): string | null =>
+        reports.find((report) => report.report_definition_id === definitionId)?.public_token ?? null;
+
+    // Group each definition's generated reports, newest first.
+    const reportsFor = (definitionId: number): ReportSummary[] =>
+        reports
+            .filter((report) => report.report_definition_id === definitionId)
+            .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+
+    // Keep the tools modal's report in sync with fresh data (e.g. after regenerate).
+    const toolsReport = tools !== null ? (reports.find((report) => report.id === tools.report.id) ?? tools.report) : null;
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-5">
+            {/* Header + primary CTA. */}
+            <div className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3">
+                <div>
+                    <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Reportes</h1>
+                    <p className="ir-mt-1 ir-max-w-2xl ir-text-sm ir-text-muted-foreground">
+                        Configura un reporte por cliente una vez y genéralo cada periodo. Cada generación crea un PDF y un portal interactivo para el cliente.
+                    </p>
+                </div>
+                <Button onClick={() => setCreateOpen(true)}>
+                    <Plus className="ir-size-4" />
+                    Nuevo reporte
+                </Button>
+            </div>
+
+            {/* 3-step hint — makes the flow obvious at a glance. */}
+            <div className="ir-grid ir-gap-3 sm:ir-grid-cols-3">
+                {[
+                    { n: 1, title: 'Configura', text: 'Crea un reporte para el cliente: nombre, plantilla y destinatarios.' },
+                    { n: 2, title: 'Genera', text: 'Elige el periodo y genera. Se crea el PDF y el portal del cliente.' },
+                    { n: 3, title: 'Revisa y envía', text: 'Ajusta el resumen IA, apruébalo y envíalo por email.' },
+                ].map((step) => (
+                    <div key={step.n} className="ir-flex ir-items-start ir-gap-3 ir-rounded-lg ir-border ir-bg-card ir-p-3">
+                        <span className="ir-flex ir-size-6 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-bg-accent/10 ir-text-xs ir-font-semibold ir-text-accent">{step.n}</span>
+                        <div>
+                            <p className="ir-text-sm ir-font-medium">{step.title}</p>
+                            <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{step.text}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Configured reports + their history. */}
+            {definitions.length === 0 ? (
+                <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-lg ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">
+                    <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
+                        <FileBarChart className="ir-size-6" />
+                    </span>
+                    <div>
+                        <p className="ir-text-sm ir-font-medium">Aún no tienes reportes configurados</p>
+                        <p className="ir-mt-1 ir-max-w-sm ir-text-xs ir-text-muted-foreground">
+                            Crea el primero para un cliente. Después podrás generarlo cada mes en segundos.
+                        </p>
+                    </div>
+                    <Button onClick={() => setCreateOpen(true)}>
+                        <Plus className="ir-size-4" />
+                        Nuevo reporte
+                    </Button>
+                </div>
+            ) : (
+                <div className="ir-flex ir-flex-col ir-gap-4">
+                    {definitions.map((definition) => (
+                        <ReportConfigCard
+                            key={definition.id}
+                            definition={definition}
+                            reports={reportsFor(definition.id)}
+                            siteName={siteName(definition.site_id)}
+                            templateName={templateName(definition.template_id)}
+                            templates={templates}
+                            onGenerate={setGenerateFor}
+                            onShare={setSharingDefinition}
+                            onTools={(report, tab) => setTools({ report, tab })}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Modals. */}
+            {createOpen && <CreateReportModal onClose={() => setCreateOpen(false)} />}
+            {generateFor !== null && <GenerateModal definition={generateFor} onClose={() => setGenerateFor(null)} />}
+            {toolsReport !== null && tools !== null && <ReportToolsModal report={toolsReport} initialTab={tools.tab} onClose={() => setTools(null)} />}
             {sharingDefinition !== null && (
-                <ShareDialog
-                    definition={sharingDefinition}
-                    publicToken={latestTokenForDefinition(sharingDefinition.id)}
-                    onClose={() => setSharingDefinition(null)}
-                />
+                <ShareDialog definition={sharingDefinition} publicToken={latestTokenForDefinition(sharingDefinition.id)} onClose={() => setSharingDefinition(null)} />
             )}
         </div>
     );

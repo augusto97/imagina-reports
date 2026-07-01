@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 REDISEÑO DE /admin#/reports — flujo claro por pasos (2026-07-01, rama `claude/github-app-analysis-a7b2bd`, release v1.13.89):**
+el owner reportó que la sección era confusa: 4 tarjetas apiladas de formularios («Nueva definición», «Definiciones existentes»,
+«Generar reporte», «Reportes») con jerga («definiciones») que un usuario normal no entiende. REDISEÑO completo de `ReportsScreen.tsx`
+a un modelo maestro-detalle: **(1)** cabecera con título + explicación + botón «Nuevo reporte»; **(2)** franja de 3 pasos
+(Configura → Genera → Revisa y envía); **(3)** una **tarjeta por reporte configurado** (antes «definición») que muestra sitio +
+plantilla + acciones (Generar, Compartir, Ajustes colapsables con plantilla/destinatarios, Eliminar) y su **historial de generaciones**
+en línea (periodo con etiqueta amigable «Junio 2026»/«Q2 2026»/«Año 2026», estado como badge, salud, aviso de datos faltantes +
+PeriodSyncMenu). Crear y generar ahora son **modales enfocados** (`CreateReportModal`, `GenerateModal` con presets + chequeo de datos +
+sincronizar rango). Las 4 herramientas por reporte (Resumen IA, Diagnóstico, Comentarios, Insights) se consolidan en **un solo modal
+con pestañas** (`ReportToolsModal`) en vez de paneles que aparecían debajo de la tabla. Se eliminó la `DataTable`; jerga «definición»
+sustituida por «reporte configurado». typecheck+lint+build+15 vitest limpios. **SIGUIENTE: desplegar v1.13.89.**
+
+
 **🧹 AUDITORÍA DE AJUSTES POR BLOQUE EN EL INSPECTOR — solo se muestran los que aplican (2026-06-30, rama
 `claude/github-app-analysis-a7b2bd`, release v1.13.85):** el owner reportó que varios bloques (cover/back_cover) mostraban
 opciones que no hacían nada (alineación, relleno, esquinas) y que «Ocultar título» no oculta ningún título en bloques sin
