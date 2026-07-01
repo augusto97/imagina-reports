@@ -13,6 +13,13 @@ const SUB_STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 
     cancelled: { label: 'Cancelada', tone: 'neutral' },
 };
 
+/** The server explains why a checkout failed (e.g. MercadoPago's reason); surface it verbatim. */
+function subscribeError(error: unknown): string {
+    const message = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message;
+
+    return typeof message === 'string' && message !== '' ? message : 'No se pudo iniciar el pago. Inténtalo de nuevo.';
+}
+
 /** Agency self-service billing: current subscription + choose a plan and pay with MP/PayPal. */
 function BillingCard(): ReactElement | null {
     const { data: billing } = useBilling();
@@ -97,7 +104,9 @@ function BillingCard(): ReactElement | null {
                         })}
                     </div>
                 )}
-                {subscribe.isError && <p className="ir-text-xs ir-text-danger">No se pudo iniciar el pago. Inténtalo de nuevo.</p>}
+                {subscribe.isError && (
+                    <p className="ir-rounded-md ir-bg-danger/5 ir-px-3 ir-py-2 ir-text-xs ir-text-danger">{subscribeError(subscribe.error)}</p>
+                )}
             </div>
         </Card>
     );

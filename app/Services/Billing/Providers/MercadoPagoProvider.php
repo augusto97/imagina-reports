@@ -51,33 +51,28 @@ final class MercadoPagoProvider implements PaymentProvider
             throw new BillingException('El plan no tiene un precio válido.');
         }
 
-        $payload = [
-            'reason' => "Plan {$plan->name} · Imagina Reports",
-            'external_reference' => 'agency:'.$agency->id,
-            'back_url' => $this->appUrl().'/billing/return',
-            'status' => 'pending',
-            'auto_recurring' => [
-                'frequency' => 1,
-                'frequency_type' => 'months',
-                'transaction_amount' => (float) $plan->monthly_price,
-                'currency_id' => strtoupper($plan->currency),
-            ],
-        ];
-
-        // Pre-fill the payer's email in production for a smoother checkout. With a TEST
-        // token we deliberately DON'T pin it: pinning a real owner email while the seller
-        // is a sandbox account makes MercadoPago reject the checkout with "una de las
-        // partes es de prueba", so we let the test buyer authenticate freely instead.
-        if (! $this->isSandboxToken($token)) {
-            $payload['payer_email'] = $this->ownerEmail($agency);
-        }
-
+        // payer_email is REQUIRED by the Preapproval API. In sandbox this must be a MP
+        // TEST user's email (and you must authorize logged in as that same test user);
+        // pairing a real email with a TEST seller token is what triggers "una de las
+        // partes es de prueba" at checkout. In production it's the agency owner's email.
         $response = Http::withToken($token)
             ->acceptJson()
-            ->post(self::BASE.'/preapproval', $payload);
+            ->post(self::BASE.'/preapproval', [
+                'reason' => "Plan {$plan->name} · Imagina Reports",
+                'external_reference' => 'agency:'.$agency->id,
+                'payer_email' => $this->ownerEmail($agency),
+                'back_url' => $this->appUrl().'/billing/return',
+                'status' => 'pending',
+                'auto_recurring' => [
+                    'frequency' => 1,
+                    'frequency_type' => 'months',
+                    'transaction_amount' => (float) $plan->monthly_price,
+                    'currency_id' => strtoupper($plan->currency),
+                ],
+            ]);
 
         if ($response->failed()) {
-            throw new BillingException('MercadoPago rechazó la suscripción: HTTP '.$response->status());
+            throw new BillingException('MercadoPago rechazó la suscripción: '.$this->errorReason($response->json(), $response->status()));
         }
 
         $id = $response->json('id');
@@ -135,12 +130,35 @@ final class MercadoPagoProvider implements PaymentProvider
     }
 
     /**
-     * MercadoPago sandbox access tokens are prefixed `TEST-`; production tokens are
-     * `APP_USR-…`. We branch on this so test runs don't fight the real-vs-test guard.
+     * Pull MercadoPago's human-readable reason out of an error body so the agency sees
+     * *why* the checkout was refused (e.g. "collector and payer cannot be the same",
+     * "invalid currency") instead of a bare HTTP code. Falls back to the status code.
+     *
+     * @param  mixed  $body
      */
-    private function isSandboxToken(string $token): bool
+    private function errorReason($body, int $status): string
     {
-        return str_starts_with($token, 'TEST-');
+        if (is_array($body)) {
+            // MP returns `message`, sometimes with per-field detail under `cause`.
+            $message = is_string($body['message'] ?? null) ? $body['message'] : null;
+
+            $causes = [];
+            if (is_array($body['cause'] ?? null)) {
+                foreach ($body['cause'] as $cause) {
+                    $description = is_array($cause) ? ($cause['description'] ?? null) : null;
+                    if (is_string($description) && $description !== '') {
+                        $causes[] = $description;
+                    }
+                }
+            }
+
+            $parts = array_filter([$message, $causes === [] ? null : implode('; ', $causes)]);
+            if ($parts !== []) {
+                return implode(' — ', $parts);
+            }
+        }
+
+        return 'HTTP '.$status;
     }
 
     private function appUrl(): string

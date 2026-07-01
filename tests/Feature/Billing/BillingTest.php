@@ -53,27 +53,11 @@ class BillingTest extends TestCase
         $this->assertDatabaseHas('ir_subscriptions', ['agency_id' => $agency->id, 'provider' => 'mercadopago', 'external_id' => 'MP-123', 'status' => 'pending']);
     }
 
-    public function test_a_sandbox_token_does_not_pin_the_payer_email(): void
+    public function test_the_preapproval_always_includes_the_required_payer_email(): void
     {
-        // Pinning a real owner email while the seller is a TEST account makes MercadoPago
-        // reject the checkout ("una de las partes es de prueba"), so we omit it in sandbox.
+        // MercadoPago's Preapproval API requires payer_email; omitting it is a 400.
         Http::fake(['api.mercadopago.com/preapproval' => Http::response(['id' => 'MP-1', 'init_point' => 'https://mp.test/1'])]);
-        $this->configureMercadoPago(); // TEST-token
-        $agency = $this->agencyWithPlan();
-        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
-
-        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => $agency->plan_id])->assertOk();
-
-        Http::assertSent(fn ($request): bool => $request->url() === 'https://api.mercadopago.com/preapproval'
-            && ! array_key_exists('payer_email', (array) $request->data()));
-    }
-
-    public function test_a_production_token_pre_fills_the_payer_email(): void
-    {
-        Http::fake(['api.mercadopago.com/preapproval' => Http::response(['id' => 'MP-2', 'init_point' => 'https://mp.test/2'])]);
-        $settings = PlatformSetting::current();
-        $settings->putSecret('mercadopago_access_token', 'APP_USR-live-token');
-        $settings->save();
+        $this->configureMercadoPago();
         $agency = $this->agencyWithPlan();
         Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
 
@@ -84,6 +68,24 @@ class BillingTest extends TestCase
 
             return $request->url() === 'https://api.mercadopago.com/preapproval' && is_string($email) && $email !== '';
         });
+    }
+
+    public function test_a_rejected_subscription_surfaces_mercadopagos_reason(): void
+    {
+        // The agency should see WHY the checkout failed, not a bare HTTP code.
+        Http::fake([
+            'api.mercadopago.com/preapproval' => Http::response([
+                'message' => 'Invalid users involved',
+                'cause' => [['description' => 'Collector and payer cannot be the same']],
+            ], 400),
+        ]);
+        $this->configureMercadoPago();
+        $agency = $this->agencyWithPlan();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => $agency->plan_id])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'MercadoPago rechazó la suscripción: Invalid users involved — Collector and payer cannot be the same');
     }
 
     public function test_billing_lists_the_plans_the_agency_can_choose(): void
