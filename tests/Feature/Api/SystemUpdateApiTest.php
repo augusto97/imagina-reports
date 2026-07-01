@@ -26,6 +26,11 @@ class SystemUpdateApiTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => $role]));
     }
 
+    private function loginAsPlatformAdmin(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['agency_id' => null, 'is_platform_admin' => true]));
+    }
+
     public function test_status_is_available_to_any_authenticated_user(): void
     {
         $this->loginAs(UserRole::Collaborator);
@@ -35,45 +40,39 @@ class SystemUpdateApiTest extends TestCase
             ->assertJsonStructure(['current', 'available', 'update_available', 'worker_version', 'worker_checked_at']);
     }
 
-    public function test_restart_workers_is_forbidden_for_non_privileged_users(): void
+    public function test_updates_are_forbidden_even_for_an_agency_owner(): void
     {
-        $this->loginAs(UserRole::Collaborator);
+        // App updates are a PLATFORM concern now — a single agency (even its owner) can't.
+        $this->loginAs(UserRole::Owner);
 
         $this->postJson('/api/v1/system/update/restart-workers')->assertForbidden();
+        $this->postJson('/api/v1/system/update/run')->assertForbidden();
+        $this->postJson('/api/v1/system/update/rollback')->assertForbidden();
     }
 
-    public function test_a_privileged_user_can_restart_workers(): void
+    public function test_platform_admin_can_restart_workers(): void
     {
         Queue::fake();
-        $this->loginAs(UserRole::Owner);
+        $this->loginAsPlatformAdmin();
 
         $this->postJson('/api/v1/system/update/restart-workers')->assertStatus(202);
         Queue::assertPushed(RecordWorkerVersionJob::class);
     }
 
-    public function test_run_is_forbidden_for_non_privileged_users(): void
+    public function test_platform_admin_can_queue_an_update(): void
     {
         Queue::fake();
-        $this->loginAs(UserRole::Collaborator);
-
-        $this->postJson('/api/v1/system/update/run')->assertForbidden();
-        Queue::assertNothingPushed();
-    }
-
-    public function test_a_privileged_user_can_queue_an_update(): void
-    {
-        Queue::fake();
-        $this->loginAs(UserRole::Owner);
+        $this->loginAsPlatformAdmin();
 
         $this->postJson('/api/v1/system/update/run')->assertStatus(202);
         Queue::assertPushed(RunUpdateJob::class);
     }
 
-    public function test_a_privileged_user_can_roll_back(): void
+    public function test_platform_admin_can_roll_back(): void
     {
         $fake = new FakeDeployer;
         $this->app->instance(Deployer::class, $fake);
-        $this->loginAs(UserRole::Admin);
+        $this->loginAsPlatformAdmin();
 
         $this->postJson('/api/v1/system/update/rollback')->assertOk();
         $this->assertTrue($fake->rolledBack);

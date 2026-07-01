@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\System;
 
-use App\Models\Agency;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -29,7 +28,7 @@ class SystemUpdateCheckTest extends TestCase
             ]),
         ]);
 
-        Sanctum::actingAs(User::factory()->create(['agency_id' => Agency::factory()->create()->id]));
+        Sanctum::actingAs(User::factory()->create(['agency_id' => null, 'is_platform_admin' => true]));
 
         $this->postJson('/api/v1/system/update/check')
             ->assertOk()

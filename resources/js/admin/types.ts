@@ -47,6 +47,15 @@ export interface WorkLog {
     screenshot_url: string | null;
 }
 
+export interface TeamMember {
+    id: number;
+    name: string;
+    email: string;
+    role: 'owner' | 'admin' | 'collaborator';
+    is_self: boolean;
+    created_at: string | null;
+}
+
 export interface ReportDelivery {
     id: number;
     report_id: number;

@@ -1,5 +1,7 @@
-import { Building2, LayoutGrid, LogIn, Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { Building2, DownloadCloud, LayoutGrid, LogIn, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
+
+import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
     type PlanInput,
@@ -317,7 +319,7 @@ function PlansTab(): ReactElement {
 /* ---------------------------------- Screen --------------------------------- */
 
 export function PlatformScreen(): ReactElement {
-    const [tab, setTab] = useState<'agencies' | 'plans'>('agencies');
+    const [tab, setTab] = useState<'agencies' | 'plans' | 'system'>('agencies');
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
@@ -326,7 +328,7 @@ export function PlatformScreen(): ReactElement {
                 <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">Gestiona las agencias de tu plataforma, sus planes y límites.</p>
             </div>
             <div className="ir-flex ir-gap-1 ir-rounded-lg ir-bg-muted ir-p-1 ir-self-start">
-                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid]] as const).map(([key, label, Icon]) => (
+                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid], ['system', 'Sistema', DownloadCloud]] as const).map(([key, label, Icon]) => (
                     <button
                         key={key}
                         type="button"
@@ -338,7 +340,9 @@ export function PlatformScreen(): ReactElement {
                     </button>
                 ))}
             </div>
-            {tab === 'agencies' ? <AgenciesTab /> : <PlansTab />}
+            {tab === 'agencies' && <AgenciesTab />}
+            {tab === 'plans' && <PlansTab />}
+            {tab === 'system' && <SystemUpdatePanel />}
         </div>
     );
 }

@@ -29,8 +29,10 @@ final class SystemUpdateController extends Controller
      * need not wait for the hourly `system:check-updates` schedule, then return the
      * freshly-computed status. Harmless/read-only — any authenticated user may run it.
      */
-    public function check(UpdateManager $manager): JsonResponse
+    public function check(Request $request, UpdateManager $manager): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         Artisan::call('system:check-updates');
 
         // Ask the worker to report its running version (surfaces a stale worker).
@@ -87,6 +89,8 @@ final class SystemUpdateController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user instanceof User && $user->role->isPrivileged(), 403);
+        // App updates/rollback are a PLATFORM concern in the multi-agency SaaS — a single
+        // agency must never update or roll back the whole application (SaaS Fase 1).
+        abort_unless($user instanceof User && $user->is_platform_admin, 403, 'Solo el administrador de plataforma puede actualizar la aplicación.');
     }
 }

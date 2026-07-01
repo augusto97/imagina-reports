@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\SiteAgentController;
 use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\SiteWorkLogController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
+use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TrendsController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UpsellController;
@@ -86,6 +87,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
+
+    // Team management for the agency (SaaS Fase 1) — privileged users only (in requests).
+    Route::get('team', [TeamController::class, 'index'])->name('api.team.index');
+    Route::post('team', [TeamController::class, 'store'])->name('api.team.store');
+    Route::put('team/{user}', [TeamController::class, 'update'])->name('api.team.update');
+    Route::delete('team/{user}', [TeamController::class, 'destroy'])->name('api.team.destroy');
 
     // Agency settings: white-label branding + the AI builder's Anthropic key (§11.1).
     Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');

@@ -13,6 +13,7 @@ import {
     PencilRuler,
     Settings,
     TrendingUp,
+    UserCog,
     Users,
     X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { EditorScreen } from "./editor/EditorScreen";
 import { AlertsScreen } from "./screens/AlertsScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { PlatformScreen } from "./screens/PlatformScreen";
+import { TeamScreen } from "./screens/TeamScreen";
 import { ReportsScreen } from "./screens/ReportsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SystemScreen } from "./screens/SystemScreen";
@@ -35,7 +37,7 @@ import { WorkLogsScreen } from "./screens/WorkLogsScreen";
 import { WorkspaceScreen } from "./screens/WorkspaceScreen";
 import { type AdminView, useAdminUi, viewFromHash } from "./store";
 
-const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
+const NAV: { view: AdminView; label: string; icon: typeof Users; privileged?: boolean }[] = [
     { view: "clients", label: "Clientes", icon: Users },
     { view: "worklogs", label: "Trabajo", icon: Clock },
     { view: "editor", label: "Editor", icon: PencilRuler },
@@ -44,6 +46,7 @@ const NAV: { view: AdminView; label: string; icon: typeof Users }[] = [
     { view: "trends", label: "Tendencias", icon: TrendingUp },
     { view: "upsell", label: "Oportunidades", icon: Lightbulb },
     { view: "alerts", label: "Alertas", icon: TriangleAlert },
+    { view: "team", label: "Equipo", icon: UserCog, privileged: true },
     { view: "system", label: "Sistema", icon: DownloadCloud },
     { view: "settings", label: "Ajustes", icon: Settings },
 ];
@@ -70,6 +73,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <UpsellScreen />;
         case "alerts":
             return <AlertsScreen />;
+        case "team":
+            return <TeamScreen />;
         case "system":
             return <SystemScreen />;
         case "settings":
@@ -97,7 +102,7 @@ export function App(): ReactElement {
         return <PlatformShell email={user.email} />;
     }
 
-    return <AuthenticatedApp email={user.email} version={user.app_version} impersonating={user.impersonating ?? null} />;
+    return <AuthenticatedApp email={user.email} version={user.app_version} impersonating={user.impersonating ?? null} role={user.role} />;
 }
 
 /** Minimal shell for the platform super-admin panel (no agency nav). */
@@ -146,11 +151,13 @@ function useMediaQuery(query: string): boolean {
     return matches;
 }
 
-function AuthenticatedApp({ email, version, impersonating }: { email: string; version?: string; impersonating?: number | null }): ReactElement {
+function AuthenticatedApp({ email, version, impersonating, role }: { email: string; version?: string; impersonating?: number | null; role?: string }): ReactElement {
     const view = useAdminUi((state) => state.view);
     const setView = useAdminUi((state) => state.setView);
     const logout = useLogout();
     const stopImpersonating = useStopImpersonating();
+    const privileged = role === "owner" || role === "admin";
+    const nav = NAV.filter((item) => item.privileged !== true || privileged);
 
     // Desktop (lg+) shows a static, collapsible sidebar; below that it becomes an
     // off-canvas drawer toggled from the mobile top bar.
@@ -252,7 +259,7 @@ function AuthenticatedApp({ email, version, impersonating }: { email: string; ve
                 </div>
 
                 <nav className="ir-flex ir-flex-col ir-gap-0.5">
-                    {NAV.map((item) => {
+                    {nav.map((item) => {
                         const active = view === item.view;
 
                         return (

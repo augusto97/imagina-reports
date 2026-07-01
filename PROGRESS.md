@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**👥 GESTIÓN DE EQUIPO + ACTUALIZACIONES SOLO PLATAFORMA (2026-07-02, rama `claude/github-app-analysis-a7b2bd`, release v1.13.95):**
+dos cosas tras la Fase 1. **(1) EQUIPO:** cada agencia ya puede gestionar su equipo → `TeamController` (index/store/update/destroy,
+scoping manual porque User NO usa AgencyScope; guards: no auto-borrarte, no quitar el último owner), `StoreTeamUserRequest`/
+`UpdateTeamUserRequest` (authorize = rol privilegiado owner/admin), `UserResource`, rutas `/team`. **Aplica `max_users`** vía
+`Entitlements::canAddUser` (ahora el límite de usuarios SÍ bloquea). Frontend: `TeamScreen` (invitar con rol, cambiar rol, eliminar),
+ítem de menú **«Equipo»** (icono UserCog) VISIBLE SOLO para owner/admin (NAV filtra por `privileged` con el `role` del user + hooks
+`useTeam/useCreate/Update/DeleteTeamMember`). **(2) ACTUALIZACIONES = SOLO SUPERADMIN:** era un leak — cada agencia veía «Actualizaciones
+del sistema» (update/rollback de TODA la app). Ahora `SystemUpdateController::authorizePrivileged` exige `is_platform_admin` (y `check`
+también); la `SystemScreen` de la agencia quedó SOLO con la descarga del plugin agente; el UI de updates se movió a un componente
+`SystemUpdatePanel` que vive en una nueva pestaña **«Sistema»** del panel de plataforma. AUDITORÍA: el único leak plataforma→agencia era
+ese; el resto (clientes, reportes, tendencias, alertas, webhooks, retención, IA-BYO-key) es legítimamente por-agencia. Tests actualizados
+(SystemUpdateApiTest/CheckTest → platform admin) + nuevo TeamApiTest. **425 tests PHP + 15 vitest + stan/pint/ts/lint/build limpios.**
+**SIGUIENTE: desplegar v1.13.95.**
+
+
 **🏢 SAAS MULTI-AGENCIA — FASE 1 (plataforma + planes + límites) + PANEL (2026-07-02, rama `claude/github-app-analysis-a7b2bd`,
 release v1.13.94):** transformación a SaaS. Decisiones del owner: cobros MANUALES por ahora (billing luego), altas SOLO por invitación,
 marca blanca SOLO branding por ahora, límites de TODO. Construido:

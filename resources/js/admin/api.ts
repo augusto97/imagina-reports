@@ -27,6 +27,7 @@ import type {
     ScheduleCadence,
     ScheduleDto,
     Site,
+    TeamMember,
     UpdateStatus,
     WorkLog,
     WorkLogStatus,
@@ -328,6 +329,41 @@ export function useRetryFailedDeliveries(reportId: number) {
     return useMutation({
         mutationFn: () => api.post<ReportDelivery[]>(`/reports/${reportId}/deliveries/retry-failed`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-deliveries'] }),
+    });
+}
+
+/* ----------------------------------- team ---------------------------------- */
+
+export function useTeam() {
+    return useQuery({ queryKey: ['team'], queryFn: () => get<TeamMember[]>('/team') });
+}
+
+export function useCreateTeamMember() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; email: string; password: string; role: string }) =>
+            api.post<TeamMember>('/team', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team'] }),
+    });
+}
+
+export function useUpdateTeamMember() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: number; name?: string; role?: string; password?: string }) =>
+            api.put<TeamMember>(`/team/${id}`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team'] }),
+    });
+}
+
+export function useDeleteTeamMember() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/team/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team'] }),
     });
 }
 

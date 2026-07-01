@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
-export type AdminView = 'clients' | 'sites' | 'data-sources' | 'worklogs' | 'reports' | 'editor' | 'templates' | 'trends' | 'upsell' | 'alerts' | 'system' | 'settings';
+export type AdminView = 'clients' | 'sites' | 'data-sources' | 'worklogs' | 'reports' | 'editor' | 'templates' | 'trends' | 'upsell' | 'alerts' | 'team' | 'system' | 'settings';
 
-const VIEWS: AdminView[] = ['clients', 'sites', 'data-sources', 'worklogs', 'reports', 'editor', 'templates', 'trends', 'upsell', 'alerts', 'system', 'settings'];
+const VIEWS: AdminView[] = ['clients', 'sites', 'data-sources', 'worklogs', 'reports', 'editor', 'templates', 'trends', 'upsell', 'alerts', 'team', 'system', 'settings'];
 
 /** Parse the active section from the URL hash (e.g. `#/reports` → `reports`). */
 export function viewFromHash(): AdminView | null {
