@@ -51,21 +51,30 @@ final class MercadoPagoProvider implements PaymentProvider
             throw new BillingException('El plan no tiene un precio válido.');
         }
 
+        $payload = [
+            'reason' => "Plan {$plan->name} · Imagina Reports",
+            'external_reference' => 'agency:'.$agency->id,
+            'back_url' => $this->appUrl().'/billing/return',
+            'status' => 'pending',
+            'auto_recurring' => [
+                'frequency' => 1,
+                'frequency_type' => 'months',
+                'transaction_amount' => (float) $plan->monthly_price,
+                'currency_id' => strtoupper($plan->currency),
+            ],
+        ];
+
+        // Pre-fill the payer's email in production for a smoother checkout. With a TEST
+        // token we deliberately DON'T pin it: pinning a real owner email while the seller
+        // is a sandbox account makes MercadoPago reject the checkout with "una de las
+        // partes es de prueba", so we let the test buyer authenticate freely instead.
+        if (! $this->isSandboxToken($token)) {
+            $payload['payer_email'] = $this->ownerEmail($agency);
+        }
+
         $response = Http::withToken($token)
             ->acceptJson()
-            ->post(self::BASE.'/preapproval', [
-                'reason' => "Plan {$plan->name} · Imagina Reports",
-                'external_reference' => 'agency:'.$agency->id,
-                'payer_email' => $this->ownerEmail($agency),
-                'back_url' => $this->appUrl().'/billing/return',
-                'status' => 'pending',
-                'auto_recurring' => [
-                    'frequency' => 1,
-                    'frequency_type' => 'months',
-                    'transaction_amount' => (float) $plan->monthly_price,
-                    'currency_id' => strtoupper($plan->currency),
-                ],
-            ]);
+            ->post(self::BASE.'/preapproval', $payload);
 
         if ($response->failed()) {
             throw new BillingException('MercadoPago rechazó la suscripción: HTTP '.$response->status());
@@ -123,6 +132,15 @@ final class MercadoPagoProvider implements PaymentProvider
             'pending' => SubscriptionStatus::Pending,
             default => null,
         };
+    }
+
+    /**
+     * MercadoPago sandbox access tokens are prefixed `TEST-`; production tokens are
+     * `APP_USR-…`. We branch on this so test runs don't fight the real-vs-test guard.
+     */
+    private function isSandboxToken(string $token): bool
+    {
+        return str_starts_with($token, 'TEST-');
     }
 
     private function appUrl(): string

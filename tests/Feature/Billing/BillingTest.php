@@ -53,6 +53,39 @@ class BillingTest extends TestCase
         $this->assertDatabaseHas('ir_subscriptions', ['agency_id' => $agency->id, 'provider' => 'mercadopago', 'external_id' => 'MP-123', 'status' => 'pending']);
     }
 
+    public function test_a_sandbox_token_does_not_pin_the_payer_email(): void
+    {
+        // Pinning a real owner email while the seller is a TEST account makes MercadoPago
+        // reject the checkout ("una de las partes es de prueba"), so we omit it in sandbox.
+        Http::fake(['api.mercadopago.com/preapproval' => Http::response(['id' => 'MP-1', 'init_point' => 'https://mp.test/1'])]);
+        $this->configureMercadoPago(); // TEST-token
+        $agency = $this->agencyWithPlan();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => $agency->plan_id])->assertOk();
+
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://api.mercadopago.com/preapproval'
+            && ! array_key_exists('payer_email', (array) $request->data()));
+    }
+
+    public function test_a_production_token_pre_fills_the_payer_email(): void
+    {
+        Http::fake(['api.mercadopago.com/preapproval' => Http::response(['id' => 'MP-2', 'init_point' => 'https://mp.test/2'])]);
+        $settings = PlatformSetting::current();
+        $settings->putSecret('mercadopago_access_token', 'APP_USR-live-token');
+        $settings->save();
+        $agency = $this->agencyWithPlan();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => $agency->plan_id])->assertOk();
+
+        Http::assertSent(function ($request): bool {
+            $email = $request->data()['payer_email'] ?? null;
+
+            return $request->url() === 'https://api.mercadopago.com/preapproval' && is_string($email) && $email !== '';
+        });
+    }
+
     public function test_billing_lists_the_plans_the_agency_can_choose(): void
     {
         $agency = $this->agencyWithPlan();
