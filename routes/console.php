@@ -18,3 +18,6 @@ Schedule::command('system:check-updates')->hourly();
 
 // Prune snapshots past each agency's retention window (CLAUDE.md §5). Daily, off-peak.
 Schedule::command('snapshots:prune')->dailyAt('03:30');
+
+// Suspend agencies whose subscription stayed overdue past the grace window (SaaS Fase 2).
+Schedule::command('billing:enforce-overdue')->dailyAt('04:00');

@@ -7,6 +7,27 @@
 ---
 
 ## Where I left off (read me first)
+**💳 BILLING (FASE 2) — MERCADOPAGO + PAYPAL, SUSCRIPCIÓN AUTOMÁTICA + AUTOSERVICIO + SUSPENSIÓN (2026-07-03, rama
+`claude/github-app-analysis-a7b2bd`, release v1.13.97):** decisiones del owner: suscripción recurrente automática, moneda local por
+plan, suspensión automática por impago, autoservicio de la agencia. Construido END-TO-END con Http::fake tests (¡falta validar en
+sandbox real con credenciales!): **Modelo:** `ir_platform_settings` (singleton, credenciales cifradas), `ir_subscriptions`
+(agency/plan/provider/external_id/status/current_period_end/grace_until), enum `SubscriptionStatus`. **Adaptadores** (interfaz
+`PaymentProvider`): `MercadoPagoProvider` (preapproval API, moneda local del plan) + `PayPalProvider` (Subscriptions API con
+provisión de producto+plan on-demand cacheada en settings). **`BillingService`:** subscribe (crea preapproval/subscription → devuelve
+approval_url; upsert Subscription pending), handleWebhook (resuelve estado real del proveedor → aplica a subscription + sincroniza
+agency.status active/suspended), enforceOverdue (suspende tras gracia de 7d). **Endpoints:** agencia `GET /billing` + `POST
+/billing/subscribe`; plataforma `GET/PUT /platform/billing-settings` (guarda MP token / PayPal id+secret / sandbox, nunca devuelve
+secretos); webhook público `POST /webhooks/billing/{provider}` (throttled). **Middleware `EnsureAgencyActive` (alias `active`)** en el
+grupo autenticado: una agencia suspendida recibe 402 en todo salvo user/logout/agency-read/billing (para poder pagar y reactivarse);
+platform admins nunca se bloquean. Comando `billing:enforce-overdue` diario 04:00. **Frontend:** `SettingsScreen` → tarjeta «Plan y
+facturación» (estado suscripción + botones «Suscribirme con MercadoPago/PayPal» → redirige al approval_url; aviso si suspendida);
+`PlatformScreen` → pestaña «Facturación» (credenciales MP/PayPal + toggle sandbox). Tipos+hooks (`useBilling/useSubscribe/
+usePlatformBillingSettings/useUpdate...`). **433 tests PHP (+BillingTest: subscribe, webhook activa/suspende, 402 suspendida, enforce
+overdue, credenciales cifradas) + 15 vitest + stan/pint/ts/lint/build limpios.** PENDIENTE: **validar en sandbox** MP/PayPal con
+credenciales reales + verificación de firma de webhooks (hardening) + página de retorno `/billing/return`. **SIGUIENTE: desplegar
+v1.13.97 y probar en sandbox.**
+
+
 **🎨 RETENCIÓN → PLATAFORMA/PLAN + LOGO DE APP WHITE-LABEL (2026-07-02, rama `claude/github-app-analysis-a7b2bd`, release v1.13.96):**
 **(1) RETENCIÓN:** la retención de datos dejó de ser algo de la agencia y pasó a ser del PLAN (plataforma). Nueva columna
 `ir_plans.retention_months` (null=para siempre); `SnapshotRetentionService::effectiveMonths()` resuelve override

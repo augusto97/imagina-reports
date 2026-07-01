@@ -1,9 +1,75 @@
-import { Plus, Send, Trash2, Webhook } from 'lucide-react';
+import { CreditCard, Plus, Send, Trash2, Webhook } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useChangePassword, useTestWebhooks, useUpdateAgency, useUploadLogo } from '../api';
+import { type AgencyUpdate, useAgency, useBilling, useChangePassword, useSubscribe, useTestWebhooks, useUpdateAgency, useUploadLogo } from '../api';
 import { Badge, Button, Card, Field, Input } from '../components/ui';
 import type { AgencySettings } from '../types';
+
+const SUB_STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }> = {
+    active: { label: 'Activa', tone: 'success' },
+    pending: { label: 'Pendiente de pago', tone: 'warning' },
+    past_due: { label: 'Pago vencido', tone: 'warning' },
+    suspended: { label: 'Suspendida', tone: 'danger' },
+    cancelled: { label: 'Cancelada', tone: 'neutral' },
+};
+
+/** Agency self-service billing: current plan/subscription + subscribe with MP or PayPal. */
+function BillingCard(): ReactElement | null {
+    const { data: billing } = useBilling();
+    const subscribe = useSubscribe();
+
+    if (billing === undefined) {
+        return null;
+    }
+
+    const start = (provider: string): void => {
+        subscribe.mutate(provider, { onSuccess: (data) => { window.location.href = data.approval_url; } });
+    };
+
+    const sub = billing.subscription;
+    const subMeta = sub !== null ? (SUB_STATUS[sub.status] ?? { label: sub.status, tone: 'neutral' as const }) : null;
+    const price = billing.plan?.monthly_price;
+
+    return (
+        <Card
+            title="Plan y facturación"
+            description={billing.plan !== null ? `Plan ${billing.plan.name}${price != null ? ` · ${price} ${billing.plan.currency}/mes` : ''}.` : 'Sin plan asignado. Contacta con soporte.'}
+        >
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                {sub !== null && subMeta !== null && (
+                    <div className="ir-flex ir-items-center ir-gap-2 ir-text-sm">
+                        <span className="ir-text-muted-foreground">Suscripción:</span>
+                        <Badge tone={subMeta.tone}>{subMeta.label}</Badge>
+                        <span className="ir-text-xs ir-text-muted-foreground">({sub.provider})</span>
+                    </div>
+                )}
+
+                {billing.status === 'suspended' && (
+                    <p className="ir-rounded-md ir-bg-danger/5 ir-px-3 ir-py-2 ir-text-sm ir-text-danger">
+                        Tu cuenta está suspendida por falta de pago. Suscríbete para reactivarla.
+                    </p>
+                )}
+
+                {billing.plan !== null && (
+                    billing.providers.length === 0 ? (
+                        <p className="ir-text-xs ir-text-muted-foreground">No hay métodos de pago disponibles todavía. Contacta con soporte.</p>
+                    ) : (
+                        <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                            <span className="ir-text-sm ir-text-muted-foreground">{sub?.status === 'active' ? 'Cambiar método de pago:' : 'Suscribirme con:'}</span>
+                            {billing.providers.map((provider) => (
+                                <Button key={provider.key} variant="outline" size="sm" onClick={() => start(provider.key)} disabled={subscribe.isPending}>
+                                    <CreditCard className="ir-size-3.5" />
+                                    {provider.label}
+                                </Button>
+                            ))}
+                        </div>
+                    )
+                )}
+                {subscribe.isError && <p className="ir-text-xs ir-text-danger">No se pudo iniciar el pago. Inténtalo de nuevo.</p>}
+            </div>
+        </Card>
+    );
+}
 
 function PasswordCard(): ReactElement {
     const change = useChangePassword();
@@ -226,6 +292,7 @@ export function SettingsScreen(): ReactElement {
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
             <PlanUsageCard agency={agency} />
+            <BillingCard />
 
             <Card title="Marca (white-label)">
                 <div className="ir-flex ir-flex-col ir-gap-4">

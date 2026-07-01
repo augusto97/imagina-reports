@@ -47,6 +47,19 @@ export interface WorkLog {
     screenshot_url: string | null;
 }
 
+export interface BillingInfo {
+    status: string;
+    plan: { name: string; monthly_price: number | null; currency: string } | null;
+    subscription: { provider: string; status: string; current_period_end: string | null } | null;
+    providers: { key: string; label: string }[];
+}
+
+export interface PlatformBillingSettings {
+    mercadopago_configured: boolean;
+    paypal_configured: boolean;
+    billing_sandbox: boolean;
+}
+
 export interface TeamMember {
     id: number;
     name: string;

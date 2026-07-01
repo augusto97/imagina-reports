@@ -1,6 +1,7 @@
-import { Building2, DownloadCloud, LayoutGrid, LogIn, Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { Building2, CreditCard, DownloadCloud, LayoutGrid, LogIn, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
+import { usePlatformBillingSettings, useUpdatePlatformBillingSettings } from '../api';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
@@ -311,10 +312,69 @@ function PlansTab(): ReactElement {
     );
 }
 
+/* --------------------------------- Billing --------------------------------- */
+
+function BillingTab(): ReactElement {
+    const { data: settings } = usePlatformBillingSettings();
+    const update = useUpdatePlatformBillingSettings();
+    const [mp, setMp] = useState('');
+    const [ppId, setPpId] = useState('');
+    const [ppSecret, setPpSecret] = useState('');
+
+    const save = (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; billing_sandbox?: boolean }): void => {
+        update.mutate(payload, { onSuccess: () => { setMp(''); setPpId(''); setPpSecret(''); } });
+    };
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-4">
+            <Card title="MercadoPago" description="Cobros recurrentes en la moneda local de cada plan. Pega tu Access Token (se guarda cifrado).">
+                <div className="ir-flex ir-flex-col ir-gap-3">
+                    <p className="ir-text-xs ir-text-muted-foreground">
+                        Estado: {settings?.mercadopago_configured ? <span className="ir-font-medium ir-text-emerald-600">configurado ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar</span>}
+                    </p>
+                    <Field label="Access Token">
+                        <Input type="password" autoComplete="off" value={mp} onChange={(e) => setMp(e.target.value)} placeholder={settings?.mercadopago_configured ? '•••••••• (deja en blanco para conservar)' : 'APP_USR-…'} />
+                    </Field>
+                    <Button className="ir-self-start" onClick={() => save({ mercadopago_access_token: mp })} disabled={update.isPending || mp === ''}>
+                        Guardar
+                    </Button>
+                </div>
+            </Card>
+
+            <Card title="PayPal" description="Suscripciones recurrentes. Client ID + Secret de tu app REST de PayPal.">
+                <div className="ir-flex ir-flex-col ir-gap-3">
+                    <p className="ir-text-xs ir-text-muted-foreground">
+                        Estado: {settings?.paypal_configured ? <span className="ir-font-medium ir-text-emerald-600">configurado ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar</span>}
+                    </p>
+                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                        <Field label="Client ID">
+                            <Input type="password" autoComplete="off" value={ppId} onChange={(e) => setPpId(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'AY…'} />
+                        </Field>
+                        <Field label="Secret">
+                            <Input type="password" autoComplete="off" value={ppSecret} onChange={(e) => setPpSecret(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'EL…'} />
+                        </Field>
+                    </div>
+                    <Button className="ir-self-start" onClick={() => save({ paypal_client_id: ppId, paypal_secret: ppSecret })} disabled={update.isPending || ppId === '' || ppSecret === ''}>
+                        Guardar
+                    </Button>
+                </div>
+            </Card>
+
+            <Card title="Entorno">
+                <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm">
+                    <input type="checkbox" checked={settings?.billing_sandbox ?? true} onChange={(e) => save({ billing_sandbox: e.target.checked })} />
+                    Modo sandbox (pruebas). Desactívalo solo cuando uses credenciales de producción.
+                </label>
+                {update.isSuccess && <p className="ir-mt-2 ir-text-xs ir-text-emerald-600">Guardado.</p>}
+            </Card>
+        </div>
+    );
+}
+
 /* ---------------------------------- Screen --------------------------------- */
 
 export function PlatformScreen(): ReactElement {
-    const [tab, setTab] = useState<'agencies' | 'plans' | 'system'>('agencies');
+    const [tab, setTab] = useState<'agencies' | 'plans' | 'billing' | 'system'>('agencies');
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
@@ -323,7 +383,7 @@ export function PlatformScreen(): ReactElement {
                 <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">Gestiona las agencias de tu plataforma, sus planes y límites.</p>
             </div>
             <div className="ir-flex ir-gap-1 ir-rounded-lg ir-bg-muted ir-p-1 ir-self-start">
-                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid], ['system', 'Sistema', DownloadCloud]] as const).map(([key, label, Icon]) => (
+                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid], ['billing', 'Facturación', CreditCard], ['system', 'Sistema', DownloadCloud]] as const).map(([key, label, Icon]) => (
                     <button
                         key={key}
                         type="button"
@@ -337,6 +397,7 @@ export function PlatformScreen(): ReactElement {
             </div>
             {tab === 'agencies' && <AgenciesTab />}
             {tab === 'plans' && <PlansTab />}
+            {tab === 'billing' && <BillingTab />}
             {tab === 'system' && <SystemUpdatePanel />}
         </div>
     );

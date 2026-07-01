@@ -10,6 +10,7 @@ import type {
     AgencyUpsell,
     AnomalyAlert,
     AuthUser,
+    BillingInfo,
     CatalogEntry,
     Client,
     Connector,
@@ -17,6 +18,7 @@ import type {
     PageFilters,
     Plan,
     PlatformAgency,
+    PlatformBillingSettings,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportDelivery,
@@ -328,6 +330,32 @@ export function useRetryFailedDeliveries(reportId: number) {
     return useMutation({
         mutationFn: () => api.post<ReportDelivery[]>(`/reports/${reportId}/deliveries/retry-failed`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-deliveries'] }),
+    });
+}
+
+/* --------------------------------- billing --------------------------------- */
+
+export function useBilling() {
+    return useQuery({ queryKey: ['billing'], queryFn: () => get<BillingInfo>('/billing') });
+}
+
+export function useSubscribe() {
+    return useMutation({
+        mutationFn: (provider: string) => api.post<{ approval_url: string }>('/billing/subscribe', { provider }).then((r) => r.data),
+    });
+}
+
+export function usePlatformBillingSettings() {
+    return useQuery({ queryKey: ['platform-billing-settings'], queryFn: () => get<PlatformBillingSettings>('/platform/billing-settings') });
+}
+
+export function useUpdatePlatformBillingSettings() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; billing_sandbox?: boolean }) =>
+            api.put<PlatformBillingSettings>('/platform/billing-settings', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['platform-billing-settings'], data),
     });
 }
 

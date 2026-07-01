@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AnomalyController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BillingController;
+use App\Http\Controllers\Api\V1\BillingWebhookController;
 use App\Http\Controllers\Api\V1\CalculatedMetricController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectorController;
@@ -16,6 +18,7 @@ use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
+use App\Http\Controllers\Api\V1\Platform\PlatformBillingController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
@@ -75,16 +78,25 @@ Route::post('/ingest/{token}', [IngestController::class, 'store'])
     ->middleware('throttle:120,1')
     ->name('api.ingest.store');
 
+// Payment-provider webhooks (SaaS Fase 2). Public; the provider adapter verifies them.
+Route::post('/webhooks/billing/{provider}', [BillingWebhookController::class, 'handle'])
+    ->middleware('throttle:240,1')
+    ->name('api.webhooks.billing');
+
 // SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');
 
 // Authenticated, tenant-bound routes. `tenant` runs after `auth:sanctum` so the
 // AgencyScope is active for everything inside (CLAUDE.md §5). Resource endpoints
 // are added phase by phase per §8.
-Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void {
     Route::get('/user', [AuthController::class, 'me'])->name('api.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
     Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
+
+    // Agency billing (self-service subscription).
+    Route::get('billing', [BillingController::class, 'show'])->name('api.billing.show');
+    Route::post('billing/subscribe', [BillingController::class, 'subscribe'])->name('api.billing.subscribe');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
 
@@ -178,6 +190,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         Route::put('agencies/{agency}', [PlatformAgencyController::class, 'update'])->name('api.platform.agencies.update');
         Route::post('agencies/{agency}/impersonate', [PlatformAgencyController::class, 'impersonate'])->name('api.platform.agencies.impersonate');
         Route::post('stop-impersonate', [PlatformAgencyController::class, 'stopImpersonate'])->name('api.platform.stop-impersonate');
+
+        Route::get('billing-settings', [PlatformBillingController::class, 'show'])->name('api.platform.billing-settings.show');
+        Route::put('billing-settings', [PlatformBillingController::class, 'update'])->name('api.platform.billing-settings.update');
 
         Route::get('plans', [PlanController::class, 'index'])->name('api.platform.plans.index');
         Route::post('plans', [PlanController::class, 'store'])->name('api.platform.plans.store');
