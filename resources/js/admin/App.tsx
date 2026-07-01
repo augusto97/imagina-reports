@@ -201,20 +201,6 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
                     </button>
                 </div>
 
-                {/* Collapse toggle is desktop-only (the drawer doesn't collapse). */}
-                <button
-                    type="button"
-                    onClick={toggleCollapsed}
-                    title={collapsed ? "Expandir menú" : "Colapsar menú"}
-                    className={cn(
-                        "ir-mb-3 ir-hidden ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-flex",
-                        iconOnly && "lg:ir-justify-center",
-                    )}
-                >
-                    {iconOnly ? <PanelLeftOpen className="ir-size-4" /> : <PanelLeftClose className="ir-size-4" />}
-                    {!iconOnly && "Colapsar"}
-                </button>
-
                 <nav className="ir-flex ir-flex-col ir-gap-0.5">
                     {NAV.map((item) => {
                         const active = view === item.view;
@@ -245,34 +231,50 @@ function AuthenticatedApp({ email, version }: { email: string; version?: string 
                     })}
                 </nav>
 
-                <div className={cn("ir-mt-auto ir-border-t ir-pt-4 ir-text-xs ir-text-muted-foreground", iconOnly && "lg:ir-flex lg:ir-flex-col lg:ir-items-center")}>
+                <div className={cn("ir-mt-auto ir-flex ir-flex-col ir-gap-1 ir-border-t ir-pt-3 ir-text-xs ir-text-muted-foreground", iconOnly && "lg:ir-items-center")}>
                     {!iconOnly && (
-                        <p className="ir-mb-2 ir-truncate" title={email}>
+                        <p className="ir-mb-0.5 ir-truncate ir-px-1" title={email}>
                             {email}
                         </p>
                     )}
+                    {/* Log out — danger hover so it clearly reads as "exit", never confused
+                        with the collapse control. */}
                     <button
                         type="button"
                         onClick={() => logout.mutate()}
                         disabled={logout.isPending}
                         title="Cerrar sesión"
-                        className={cn("ir-mb-3 ir-flex ir-items-center ir-gap-2 ir-text-left hover:ir-text-foreground", iconOnly && "lg:ir-justify-center")}
-                    >
-                        <LogOut className="ir-size-4" />
-                        {!iconOnly && "Cerrar sesión"}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => go("system")}
-                        title="Versión instalada en este servidor — clic para ir a Sistema"
                         className={cn(
-                            "ir-flex ir-items-center ir-gap-1.5 ir-rounded ir-bg-muted ir-px-2 ir-py-1 ir-font-mono ir-text-[11px] hover:ir-text-foreground",
-                            iconOnly && "lg:ir-justify-center",
+                            "ir-flex ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-left ir-text-sm ir-text-muted-foreground ir-transition-colors hover:ir-bg-danger/10 hover:ir-text-danger",
+                            iconOnly && "lg:ir-justify-center lg:ir-px-0",
                         )}
                     >
-                        <DownloadCloud className="ir-size-3" />
-                        {!iconOnly && `v${(version ?? "—").replace(/^v/, "")}`}
+                        <LogOut className="ir-size-4 ir-shrink-0" />
+                        {!iconOnly && "Cerrar sesión"}
                     </button>
+
+                    {/* Collapse toggle (desktop only) — moved to the bottom, in a distinct
+                        outlined box so it doesn't look like another menu/logout entry. */}
+                    <button
+                        type="button"
+                        onClick={toggleCollapsed}
+                        title={collapsed ? "Expandir menú" : "Colapsar menú"}
+                        className={cn(
+                            "ir-mt-1 ir-hidden ir-items-center ir-gap-2 ir-rounded-md ir-border ir-border-dashed ir-border-border ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-flex",
+                            iconOnly && "lg:ir-justify-center lg:ir-px-0",
+                        )}
+                    >
+                        {iconOnly ? <PanelLeftOpen className="ir-size-4 ir-shrink-0" /> : <PanelLeftClose className="ir-size-4 ir-shrink-0" />}
+                        {!iconOnly && "Colapsar menú"}
+                    </button>
+
+                    {/* Installed version — plain informational tag (no action, no download
+                        icon). Updates live in the Sistema screen. */}
+                    {!iconOnly && (
+                        <p className="ir-mt-2 ir-px-1 ir-text-[11px] ir-text-muted-foreground/70" title="Versión instalada en este servidor">
+                            Versión v{(version ?? "—").replace(/^v/, "")}
+                        </p>
+                    )}
                 </div>
             </aside>
 
