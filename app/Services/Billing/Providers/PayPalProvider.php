@@ -63,8 +63,9 @@ final class PayPalProvider implements PaymentProvider
         return Http::withToken($token)->acceptJson()->baseUrl($this->base($settings));
     }
 
-    public function createSubscription(Agency $agency, Plan $plan, PlatformSetting $settings): Checkout
+    public function createSubscription(Agency $agency, Plan $plan, PlatformSetting $settings, ?string $payerEmail = null): Checkout
     {
+        // PayPal collects the payer's account at its own checkout, so $payerEmail is unused.
         if ($plan->monthly_price === null || (float) $plan->monthly_price <= 0) {
             throw new BillingException('El plan no tiene un precio válido.');
         }

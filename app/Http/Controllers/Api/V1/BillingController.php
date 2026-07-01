@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Agency;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\User;
 use App\Services\Billing\BillingException;
 use App\Services\Billing\BillingService;
 use App\Support\Tenancy\TenantContext;
@@ -27,9 +29,14 @@ final class BillingController extends Controller
         $agency = Agency::query()->with('plan')->findOrFail($this->tenant->id());
         $subscription = Subscription::query()->where('agency_id', $agency->id)->latest()->first();
 
+        $ownerEmail = User::query()->where('agency_id', $agency->id)->where('role', UserRole::Owner->value)->value('email')
+            ?? User::query()->where('agency_id', $agency->id)->value('email');
+
         return response()->json([
             'status' => $agency->status,
             'current_plan_id' => $agency->plan_id,
+            // Suggested email to pay with (MercadoPago must match it at checkout); editable.
+            'billing_email' => is_string($ownerEmail) ? $ownerEmail : null,
             'plan' => $agency->plan !== null
                 ? ['name' => $agency->plan->name, 'monthly_price' => $agency->plan->monthly_price !== null ? (float) $agency->plan->monthly_price : null, 'currency' => $agency->plan->currency]
                 : null,
@@ -62,6 +69,9 @@ final class BillingController extends Controller
         $request->validate([
             'provider' => ['required', 'string'],
             'plan_id' => ['required', 'integer'],
+            // The email of the account the agency pays with (MercadoPago requires it to
+            // match what they authenticate with at checkout). Optional; defaults to owner.
+            'payer_email' => ['nullable', 'email'],
         ]);
 
         $agency = Agency::query()->findOrFail($this->tenant->id());
@@ -74,8 +84,10 @@ final class BillingController extends Controller
             return response()->json(['message' => 'Este plan no es de pago; contacta con soporte para activarlo.'], 422);
         }
 
+        $payerEmail = $request->string('payer_email')->toString();
+
         try {
-            $url = $this->billing->subscribe($agency, $plan, $request->string('provider')->toString());
+            $url = $this->billing->subscribe($agency, $plan, $request->string('provider')->toString(), $payerEmail === '' ? null : $payerEmail);
         } catch (BillingException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

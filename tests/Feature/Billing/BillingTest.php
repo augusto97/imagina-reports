@@ -70,6 +70,24 @@ class BillingTest extends TestCase
         });
     }
 
+    public function test_the_supplied_payer_email_is_used_for_the_checkout(): void
+    {
+        // The agency pays with an account whose email must match the subscription, so the
+        // email they enter (e.g. a MP TEST buyer) must reach the Preapproval request.
+        Http::fake(['api.mercadopago.com/preapproval' => Http::response(['id' => 'MP-7', 'init_point' => 'https://mp.test/7'])]);
+        $this->configureMercadoPago();
+        $agency = $this->agencyWithPlan();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->postJson('/api/v1/billing/subscribe', [
+            'provider' => 'mercadopago',
+            'plan_id' => $agency->plan_id,
+            'payer_email' => 'testuser8732@testuser.com',
+        ])->assertOk();
+
+        Http::assertSent(fn ($request): bool => ($request->data()['payer_email'] ?? null) === 'testuser8732@testuser.com');
+    }
+
     public function test_a_rejected_subscription_surfaces_mercadopagos_reason(): void
     {
         // The agency should see WHY the checkout failed, not a bare HTTP code.

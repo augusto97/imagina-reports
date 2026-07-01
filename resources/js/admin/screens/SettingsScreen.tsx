@@ -24,13 +24,20 @@ function subscribeError(error: unknown): string {
 function BillingCard(): ReactElement | null {
     const { data: billing } = useBilling();
     const subscribe = useSubscribe();
+    // null = untouched (fall back to the suggested billing email once it loads).
+    const [payerEmail, setPayerEmail] = useState<string | null>(null);
 
     if (billing === undefined) {
         return null;
     }
 
+    const hasMercadoPago = billing.providers.some((provider) => provider.key === 'mercadopago');
+    const effectiveEmail = payerEmail !== null ? payerEmail : (billing.billing_email ?? '');
+
     const start = (planId: number, provider: string): void => {
-        subscribe.mutate({ planId, provider }, { onSuccess: (data) => { window.location.href = data.approval_url; } });
+        // MercadoPago must be paid with the account whose email matches the subscription.
+        const email = provider === 'mercadopago' && effectiveEmail !== '' ? effectiveEmail : undefined;
+        subscribe.mutate({ planId, provider, payerEmail: email }, { onSuccess: (data) => { window.location.href = data.approval_url; } });
     };
 
     const sub = billing.subscription;
@@ -66,6 +73,20 @@ function BillingCard(): ReactElement | null {
                     <p className="ir-rounded-md ir-bg-muted/50 ir-px-3 ir-py-2 ir-text-xs ir-text-muted-foreground">
                         Aún no hay métodos de pago habilitados. Contacta con soporte.
                     </p>
+                )}
+
+                {!noProviders && hasMercadoPago && (
+                    <Field label="Email de tu cuenta de MercadoPago">
+                        <Input
+                            type="email"
+                            value={effectiveEmail}
+                            onChange={(event) => setPayerEmail(event.target.value)}
+                            placeholder="tucuenta@ejemplo.com"
+                        />
+                        <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
+                            Debe ser el email de la cuenta con la que pagarás en MercadoPago; si no coincide, el pago se rechaza.
+                        </p>
+                    </Field>
                 )}
 
                 {billing.plans.length === 0 ? (

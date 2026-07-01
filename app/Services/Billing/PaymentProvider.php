@@ -24,10 +24,12 @@ interface PaymentProvider
 
     /**
      * Start a subscription for the agency on the given plan; returns the id + approval URL.
+     * $payerEmail, when given, is the email of the account the agency will pay with (e.g.
+     * their MercadoPago account) — it must match what they authenticate with at checkout.
      *
      * @throws BillingException
      */
-    public function createSubscription(Agency $agency, Plan $plan, PlatformSetting $settings): Checkout;
+    public function createSubscription(Agency $agency, Plan $plan, PlatformSetting $settings, ?string $payerEmail = null): Checkout;
 
     /**
      * Parse an inbound webhook into a normalized status change, or null when it's not a

@@ -58,7 +58,7 @@ final class BillingService
      *
      * @throws BillingException
      */
-    public function subscribe(Agency $agency, Plan $plan, string $providerKey): string
+    public function subscribe(Agency $agency, Plan $plan, string $providerKey, ?string $payerEmail = null): string
     {
         $provider = $this->provider($providerKey);
         $settings = PlatformSetting::current();
@@ -67,7 +67,7 @@ final class BillingService
             throw new BillingException('El método de pago no está disponible.');
         }
 
-        $checkout = $provider->createSubscription($agency, $plan, $settings);
+        $checkout = $provider->createSubscription($agency, $plan, $settings, $payerEmail);
 
         Subscription::query()->updateOrCreate(
             ['agency_id' => $agency->id],

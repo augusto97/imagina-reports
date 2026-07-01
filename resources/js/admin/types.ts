@@ -61,6 +61,7 @@ export interface BillingPlanOption {
 export interface BillingInfo {
     status: string;
     current_plan_id: number | null;
+    billing_email: string | null;
     plan: { name: string; monthly_price: number | null; currency: string } | null;
     subscription: { provider: string; plan_id: number | null; status: string; current_period_end: string | null } | null;
     plans: BillingPlanOption[];

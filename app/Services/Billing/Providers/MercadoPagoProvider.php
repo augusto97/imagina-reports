@@ -41,7 +41,7 @@ final class MercadoPagoProvider implements PaymentProvider
         return $settings->hasSecret('mercadopago_access_token');
     }
 
-    public function createSubscription(Agency $agency, Plan $plan, PlatformSetting $settings): Checkout
+    public function createSubscription(Agency $agency, Plan $plan, PlatformSetting $settings, ?string $payerEmail = null): Checkout
     {
         $token = $settings->secret('mercadopago_access_token');
         if ($token === null) {
@@ -51,16 +51,19 @@ final class MercadoPagoProvider implements PaymentProvider
             throw new BillingException('El plan no tiene un precio válido.');
         }
 
-        // payer_email is REQUIRED by the Preapproval API. In sandbox this must be a MP
-        // TEST user's email (and you must authorize logged in as that same test user);
-        // pairing a real email with a TEST seller token is what triggers "una de las
-        // partes es de prueba" at checkout. In production it's the agency owner's email.
+        // payer_email is REQUIRED by the Preapproval API and MUST match the account the
+        // agency authenticates with at checkout — otherwise MercadoPago fails with "tu
+        // e-mail no coincide con el de la suscripción". So we use the email the agency
+        // supplied (their MercadoPago account, or a TEST buyer in sandbox) and only fall
+        // back to the owner's app email when none was given.
+        $email = $payerEmail !== null && $payerEmail !== '' ? $payerEmail : $this->ownerEmail($agency);
+
         $response = Http::withToken($token)
             ->acceptJson()
             ->post(self::BASE.'/preapproval', [
                 'reason' => "Plan {$plan->name} · Imagina Reports",
                 'external_reference' => 'agency:'.$agency->id,
-                'payer_email' => $this->ownerEmail($agency),
+                'payer_email' => $email,
                 'back_url' => $this->appUrl().'/billing/return',
                 'status' => 'pending',
                 'auto_recurring' => [
