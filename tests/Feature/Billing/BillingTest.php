@@ -179,6 +179,12 @@ class BillingTest extends TestCase
         $this->assertSame('suspended', $agency->refresh()->status);
     }
 
+    public function test_the_checkout_return_page_is_reachable(): void
+    {
+        // Providers redirect the payer to back_url after checkout — it must not 404.
+        $this->get('/billing/return')->assertOk()->assertSee('confirmando tu pago', false);
+    }
+
     public function test_platform_admin_saves_credentials_without_leaking_them(): void
     {
         Sanctum::actingAs(User::factory()->create(['agency_id' => null, 'is_platform_admin' => true]));

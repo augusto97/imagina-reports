@@ -31,6 +31,11 @@ Route::view('/admin/{any?}', 'admin')
     ->where('any', '.*')
     ->name('admin');
 
+// Landing after a MercadoPago/PayPal checkout (the providers' back_url/return_url point
+// here). Activation itself is async via the billing webhook; this page just reassures the
+// payer and sends them back to the panel instead of a 404.
+Route::view('/billing/return', 'billing-return')->name('billing.return');
+
 // Interactive client portal SPA (CLAUDE.md §11.2), opened via a signed public token.
 Route::get('/portal/{token}', static fn (string $token): View => view('portal', ['token' => $token]))
     ->name('portal');
