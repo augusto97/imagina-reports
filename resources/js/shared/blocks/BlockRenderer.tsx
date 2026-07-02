@@ -18,6 +18,7 @@ import {
     YAxis,
 } from 'recharts';
 
+import { htmlToText, sanitizeReportHtml } from '@shared/lib/html';
 import { cn } from '@shared/lib/utils';
 
 import { hexToHslString } from '@shared/lib/color';
@@ -349,6 +350,10 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     const chartType = str(prop(block, 'chartType'), 'line');
     const legend = block.style?.legend === true;
     const accent = 'hsl(var(--ir-primary))';
+    // Recharts animates series in over ~1s via requestAnimationFrame. Headless Chromium
+    // (Browsershot) captures the page the instant window.reportReady flips, before those
+    // frames run — so animated bars/lines/pies print INVISIBLE (only axes/legend show).
+    // Disabling animation makes every series paint synchronously on first render.
     // When set, each bar is colored by a threshold (>= → green, below → red): the
     // status-page uptime bar. Values cluster near 100, so pin the axis to 0–100.
     const threshold = typeof block.style?.threshold === 'number' ? block.style.threshold : null;
@@ -364,7 +369,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <YAxis domain={threshold !== null ? [0, 100] : undefined} />
                             <Tooltip />
                             {legend && <Legend />}
-                            <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]}>
+                            <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} isAnimationActive={false}>
                                 {threshold !== null &&
                                     rows.map((row, index) => (
                                         <Cell key={index} fill={row.value >= threshold ? '#16a34a' : '#dc2626'} />
@@ -378,7 +383,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <YAxis type="category" dataKey="name" width={90} />
                             <Tooltip />
                             {legend && <Legend />}
-                            <Bar dataKey="value" fill={accent} radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="value" fill={accent} radius={[0, 4, 4, 0]} isAnimationActive={false} />
                         </BarChart>
                     ) : chartType === 'area' ? (
                         <AreaChart data={rows}>
@@ -387,7 +392,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <YAxis />
                             <Tooltip />
                             {legend && <Legend />}
-                            <Area dataKey="value" stroke={accent} fill="hsl(var(--ir-muted))" />
+                            <Area dataKey="value" stroke={accent} fill="hsl(var(--ir-muted))" isAnimationActive={false} />
                         </AreaChart>
                     ) : chartType === 'donut' || chartType === 'pie' ? (
                         <PieChart>
@@ -400,6 +405,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                                 innerRadius={chartType === 'donut' ? 55 : 0}
                                 outerRadius={92}
                                 paddingAngle={2}
+                                isAnimationActive={false}
                             >
                                 {rows.map((_, index) => (
                                     <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -413,7 +419,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             <YAxis />
                             <Tooltip />
                             {legend && <Legend />}
-                            <Line dataKey="value" stroke={accent} strokeWidth={2} dot={false} />
+                            <Line dataKey="value" stroke={accent} strokeWidth={2} dot={false} isAnimationActive={false} />
                         </LineChart>
                     )}
                 </ResponsiveContainer>
@@ -697,12 +703,23 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
     );
 }
 
-function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement {
-    const text = str(data, str(prop(block, 'text')));
+function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement | null {
+    const raw = str(data, str(prop(block, 'text')));
+    // Narrative content is Tiptap HTML: render it as sanitized rich text (not escaped, which
+    // printed literal `<p>` tags). An empty/whitespace narrative hides the block so a client
+    // never sees a stray editor placeholder.
+    const html = useMemo(() => sanitizeReportHtml(raw), [raw]);
+
+    if (htmlToText(html) === '') {
+        return null;
+    }
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
-            <p className="ir-whitespace-pre-line ir-text-sm ir-leading-relaxed">{text}</p>
+            <div
+                className="ir-report-prose ir-text-sm ir-leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: html }}
+            />
         </Section>
     );
 }
@@ -908,7 +925,7 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
 
     return (
         <div
-            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-gap-8 ir-rounded-2xl ir-p-10', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-gap-8 ir-rounded-2xl ir-p-10 print:ir-rounded-none print:ir-p-[20mm]', hasBg ? '' : 'ir-bg-primary/[0.06]')}
             style={styleCss(s)}
         >
             <div className="ir-flex ir-items-center ir-justify-between">
@@ -957,7 +974,7 @@ function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
 
     return (
         <div
-            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-gap-6 ir-rounded-2xl ir-p-10 ir-text-center', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-gap-6 ir-rounded-2xl ir-p-10 ir-text-center print:ir-rounded-none print:ir-p-[20mm]', hasBg ? '' : 'ir-bg-primary/[0.06]')}
             style={styleCss(s)}
         >
             {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-h-10 ir-max-w-[60%] ir-object-contain" />}
@@ -1242,7 +1259,6 @@ export function BlockList({
     agency?: { name?: string | null; logo_url?: string | null } | null;
 }): ReactElement {
     const resolved = context === undefined ? blocks : blocks.map((block) => applyContext(block, context));
-    const periodLabel = context?.period ?? '';
 
     // Multi-page: group blocks by their page index.
     const pages = groupByPage(resolved);
@@ -1309,20 +1325,21 @@ export function BlockList({
 
     let body: ReactNode;
     if (mode === 'print') {
-        // PDF: every page on its own physical sheet (the @page margins own the whitespace).
+        // PDF: every page on its own physical sheet. A page whose blocks are ONLY the
+        // full-bleed cover / back-cover prints edge-to-edge with no inner margin (a premium
+        // title page); every other page keeps the sheet padding. No in-content footer — page
+        // numbering, if any, belongs in the print margin, not stamped onto the design.
         body = (
             <div className="ir-sheets">
-                {pages.map((pageBlocks, pageIndex) => (
-                    <section key={pageIndex} className="ir-sheet">
-                        {renderPage(pageBlocks)}
-                        <footer className="ir-sheet-footer">
-                            <span>{periodLabel}</span>
-                            <span>
-                                {pageName(pageIndex)} · {pageIndex + 1}/{pages.length}
-                            </span>
-                        </footer>
-                    </section>
-                ))}
+                {pages.map((pageBlocks, pageIndex) => {
+                    const bleed = pageBlocks.length > 0 && pageBlocks.every((b) => b.type === 'cover' || b.type === 'back_cover');
+
+                    return (
+                        <section key={pageIndex} className={cn('ir-sheet', bleed && 'ir-sheet--bleed')}>
+                            {renderPage(pageBlocks)}
+                        </section>
+                    );
+                })}
             </div>
         );
     } else if (mode === 'flow') {

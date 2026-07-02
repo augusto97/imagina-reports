@@ -95,8 +95,12 @@
             print-color-adjust: exact;
         }
 
+        /* Margins are owned by each sheet's own padding (below), NOT the page box — so the
+           cover/back-cover can bleed edge-to-edge while content pages keep a clean margin.
+           Browsershot is set to zero PDF margins to match (BrowsershotPdfRenderer). */
         @page {
-            margin: 12mm;
+            size: A4;
+            margin: 0;
         }
 
         .ir-max-w-5xl {
@@ -135,43 +139,92 @@
     margin-bottom: 0;
 }
 
-.ir-sheet-footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-top: auto;
-    padding-top: 5mm;
-    font-size: 11px;
-    color: hsl(var(--ir-muted-foreground));
-}
-
 /* The first block of every sheet shouldn't add its own top margin (the sheet padding owns it). */
 .ir-sheet > :first-child {
     margin-top: 0;
 }
 
+/* Rendered narrative (sanitized Tiptap HTML): restore the list/heading/spacing the Tailwind
+   base reset strips, so agency rich text reads correctly in the portal and the PDF. */
+.ir-report-prose > * + * {
+    margin-top: 0.65em;
+}
+.ir-report-prose ul,
+.ir-report-prose ol {
+    padding-left: 1.25rem;
+}
+.ir-report-prose ul {
+    list-style: disc;
+}
+.ir-report-prose ol {
+    list-style: decimal;
+}
+.ir-report-prose a {
+    color: hsl(var(--ir-primary));
+    text-decoration: underline;
+}
+.ir-report-prose strong {
+    font-weight: 600;
+}
+.ir-report-prose h1,
+.ir-report-prose h2,
+.ir-report-prose h3 {
+    font-weight: 600;
+    line-height: 1.25;
+}
+
 @media print {
+    /* White pages regardless of the on-screen tinted gutter. */
+    html,
+    body {
+        background: #fff;
+    }
+
     .ir-sheets {
         background: transparent;
         border-radius: 0;
     }
 
+    /* Each sheet is exactly one A4 page. The sheet's OWN padding is the printed margin, so
+       the page box has none (@page margin:0) and cover pages can override it to bleed. */
     .ir-sheet {
+        box-sizing: border-box;
+        width: 210mm;
         border: none;
         border-radius: 0;
         box-shadow: none;
         margin: 0;
+        padding: 14mm 13mm;
+        break-after: page;
+        break-inside: auto;
+    }
+
+    .ir-sheet:last-child {
+        break-after: auto;
+    }
+
+    /* Full-bleed cover / back-cover: the accent panel fills the WHOLE page, edge to edge,
+       instead of floating as a rounded card inside a white frame. A fixed page height plus
+       overflow:hidden makes it deterministic — no sub-pixel spill can leak a blank page —
+       and the forced height chain lets the cover's `h-full` stretch to fill it. */
+    .ir-sheet--bleed {
+        height: 297mm;
         padding: 0;
-        min-height: 0;
+        overflow: hidden;
     }
 
-    /* Each sheet after the first starts a fresh physical page. */
-    .ir-sheet + .ir-sheet {
-        break-before: page;
+    .ir-sheet--bleed > div,
+    .ir-sheet--bleed > div > div {
+        height: 100%;
     }
 
-    .ir-sheet-footer {
-        padding-top: 8mm;
+    /* Keep a card/chart/table from being sliced across a page boundary when a page's
+       content runs long (the flagship "gráfico cortado entre páginas" fix). */
+    .ir-report-cell,
+    .ir-sheet section,
+    .ir-sheet figure,
+    .ir-sheet table {
+        break-inside: avoid;
     }
 }
 

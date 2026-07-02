@@ -16,10 +16,35 @@ export function ReportApp({ token, printToken }: { token: string; printToken?: s
     useEffect(() => {
         applyBrandAccent(data?.theme?.accent ?? data?.agency?.brand_color);
 
-        if (data !== undefined || isError) {
-            // Signal the PDF renderer that the page is fully painted (success or empty).
-            window.reportReady = true;
+        if (data === undefined && !isError) {
+            return;
         }
+
+        // Signal the PDF renderer only once everything a client would see has actually
+        // painted: web fonts loaded, all images (logos, screenshots) settled, then two
+        // animation frames so Recharts' SVG is on screen. Setting it immediately (as before)
+        // let Browsershot capture blank charts / unstyled text / missing logos.
+        let cancelled = false;
+        const fonts = document.fonts?.ready ?? Promise.resolve();
+        const images = Array.from(document.images)
+            .filter((img) => !img.complete)
+            .map((img) => new Promise<void>((resolve) => {
+                img.addEventListener('load', () => resolve(), { once: true });
+                img.addEventListener('error', () => resolve(), { once: true });
+            }));
+
+        void Promise.all([fonts, ...images]).then(() => {
+            if (cancelled) {
+                return;
+            }
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                window.reportReady = true;
+            }));
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [data, isError]);
 
     if (isPasswordRequired(error)) {
@@ -39,9 +64,11 @@ export function ReportApp({ token, printToken }: { token: string; printToken?: s
     }
 
     return (
-        <div className="ir-mx-auto ir-max-w-5xl ir-bg-muted/30 ir-p-4 ir-text-foreground print:ir-bg-transparent sm:ir-p-8">
+        <div className="ir-mx-auto ir-max-w-5xl ir-bg-muted/30 ir-p-4 ir-text-foreground print:ir-bg-transparent print:ir-p-0 sm:ir-p-8">
+            {/* On-screen wordmark above the report surface. Hidden in the PDF — the report's
+                own cover block already carries the logo, so printing this too duplicates it. */}
             {data.agency !== null && (
-                <div className="ir-mb-6 ir-flex ir-items-center ir-gap-3">
+                <div className="ir-mb-6 ir-flex ir-items-center ir-gap-3 print:ir-hidden">
                     {data.agency.logo_url !== null && (
                         <img src={data.agency.logo_url} alt={data.agency.name} className="ir-h-8" />
                     )}

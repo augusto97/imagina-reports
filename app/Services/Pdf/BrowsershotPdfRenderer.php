@@ -35,12 +35,15 @@ final class BrowsershotPdfRenderer implements PdfRenderer
 
     public function render(string $url): string
     {
+        // Zero PDF margins: each printed "sheet" owns its margin via CSS padding, so the
+        // cover/back-cover bleed to the page edges while content pages keep a clean inset
+        // (see app.css @page + .ir-sheet). A non-zero margin here would double up with that.
         $browsershot = Browsershot::url($url)
             ->noSandbox()
             ->waitForFunction('window.reportReady === true', timeout: self::READY_TIMEOUT_MS)
             ->showBackground()
             ->format('A4')
-            ->margins(10, 10, 10, 10)
+            ->margins(0, 0, 0, 0)
             ->timeout(120);
 
         $this->configurePaths($browsershot);
