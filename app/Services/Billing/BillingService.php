@@ -69,6 +69,22 @@ final class BillingService
 
         $checkout = $provider->createSubscription($agency, $plan, $settings, $payerEmail);
 
+        // If a live subscription is being replaced (plan change / provider change), remember
+        // it: the provider keeps charging the OLD one until someone cancels it. We cancel it
+        // when the NEW one activates (see applyStatus) — never before, so an abandoned
+        // checkout doesn't leave the agency without its current subscription.
+        $existing = Subscription::query()->where('agency_id', $agency->id)->first();
+        $replaces = null;
+
+        if (
+            $existing !== null
+            && is_string($existing->external_id) && $existing->external_id !== ''
+            && $existing->external_id !== $checkout->externalId
+            && in_array($existing->status, [SubscriptionStatus::Active, SubscriptionStatus::PastDue], true)
+        ) {
+            $replaces = ['provider' => $existing->provider, 'external_id' => $existing->external_id];
+        }
+
         Subscription::query()->updateOrCreate(
             ['agency_id' => $agency->id],
             [
@@ -77,6 +93,7 @@ final class BillingService
                 'external_id' => $checkout->externalId,
                 'status' => SubscriptionStatus::Pending,
                 'grace_until' => null,
+                'meta' => $replaces !== null ? ['replaces' => $replaces] : null,
             ],
         );
 
@@ -119,6 +136,13 @@ final class BillingService
             : null;
         $subscription->save();
 
+        // A `pending` notification just means a checkout was created/not yet authorized —
+        // it must NOT touch the agency's access. Otherwise an active agency that starts
+        // (and maybe abandons) an upgrade checkout would be suspended by its own attempt.
+        if ($status === SubscriptionStatus::Pending) {
+            return;
+        }
+
         $agency = $subscription->agency;
         if ($agency !== null) {
             $agency->status = $status->grantsAccess() ? 'active' : 'suspended';
@@ -129,6 +153,40 @@ final class BillingService
             }
             $agency->save();
         }
+
+        if ($status === SubscriptionStatus::Active) {
+            $this->cancelReplacedSubscription($subscription);
+        }
+    }
+
+    /**
+     * Once a replacement subscription activates, cancel the one it replaced at the provider
+     * so the agency isn't double-charged. Best-effort: a provider hiccup is reported (for
+     * manual follow-up) but never blocks the activation itself.
+     */
+    private function cancelReplacedSubscription(Subscription $subscription): void
+    {
+        $meta = $subscription->meta ?? [];
+        $replaces = $meta['replaces'] ?? null;
+
+        if (! is_array($replaces)) {
+            return;
+        }
+
+        $providerKey = $replaces['provider'] ?? null;
+        $externalId = $replaces['external_id'] ?? null;
+
+        if (is_string($providerKey) && is_string($externalId) && $externalId !== '' && $externalId !== $subscription->external_id) {
+            try {
+                $this->provider($providerKey)?->cancelSubscription($externalId, PlatformSetting::current());
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
+
+        unset($meta['replaces']);
+        $subscription->meta = $meta === [] ? null : $meta;
+        $subscription->save();
     }
 
     /**

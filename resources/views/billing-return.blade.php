@@ -31,13 +31,22 @@
 </head>
 <body>
     <main>
-        <div class="badge">✓</div>
-        <h1>Gracias, estamos confirmando tu pago</h1>
-        <p>
-            Tu suscripción se activará automáticamente en cuanto {{ config('app.name', 'Imagina Reports') }}
-            reciba la confirmación del proveedor de pago (normalmente unos segundos). Puedes volver al panel
-            y revisar el estado en «Plan y facturación».
-        </p>
+        @if (request('status') === 'cancelled')
+            <div class="badge" style="background:#fef2f2;color:#dc2626;">✕</div>
+            <h1>Pago cancelado</h1>
+            <p>
+                No se realizó ningún cobro. Puedes volver al panel e intentarlo de nuevo cuando quieras
+                desde «Plan y facturación».
+            </p>
+        @else
+            <div class="badge">✓</div>
+            <h1>Gracias, estamos confirmando tu pago</h1>
+            <p>
+                Tu suscripción se activará automáticamente en cuanto {{ config('app.name', 'Imagina Reports') }}
+                reciba la confirmación del proveedor de pago (normalmente unos segundos). Puedes volver al panel
+                y revisar el estado en «Plan y facturación».
+            </p>
+        @endif
         <a href="{{ route('admin') }}#/settings">Volver al panel →</a>
     </main>
 </body>

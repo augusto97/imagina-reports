@@ -142,6 +142,76 @@ class BillingTest extends TestCase
         $this->assertSame('active', $agency->refresh()->status);
     }
 
+    public function test_a_pending_webhook_does_not_suspend_an_active_agency(): void
+    {
+        // MercadoPago also notifies when a preapproval is CREATED (status pending). An
+        // active agency starting (or abandoning) an upgrade checkout must stay active.
+        Http::fake(['api.mercadopago.com/preapproval/MP-new' => Http::response(['id' => 'MP-new', 'status' => 'pending'])]);
+        $this->configureMercadoPago();
+
+        $agency = Agency::factory()->create(['status' => 'active']);
+        Subscription::query()->create(['agency_id' => $agency->id, 'provider' => 'mercadopago', 'external_id' => 'MP-new', 'status' => SubscriptionStatus::Pending]);
+
+        $this->postJson('/api/v1/webhooks/billing/mercadopago', ['type' => 'preapproval', 'data' => ['id' => 'MP-new']])->assertOk();
+
+        $this->assertSame('active', $agency->refresh()->status);
+    }
+
+    public function test_replacing_a_live_subscription_cancels_the_old_one_on_activation(): void
+    {
+        // Plan change: the old preapproval keeps charging at MercadoPago until cancelled.
+        // The replacement must remember it and cancel it once the new one activates.
+        Http::fake([
+            'api.mercadopago.com/preapproval/MP-new' => Http::response(['id' => 'MP-new', 'status' => 'authorized']),
+            'api.mercadopago.com/preapproval/MP-old' => Http::response(['id' => 'MP-old', 'status' => 'cancelled']),
+        ]);
+        $this->configureMercadoPago();
+
+        $agency = Agency::factory()->create(['status' => 'active']);
+        $subscription = Subscription::query()->create([
+            'agency_id' => $agency->id, 'provider' => 'mercadopago', 'external_id' => 'MP-new',
+            'status' => SubscriptionStatus::Pending, 'meta' => ['replaces' => ['provider' => 'mercadopago', 'external_id' => 'MP-old']],
+        ]);
+
+        $this->postJson('/api/v1/webhooks/billing/mercadopago', ['type' => 'preapproval', 'data' => ['id' => 'MP-new']])->assertOk();
+
+        Http::assertSent(fn ($request): bool => $request->method() === 'PUT'
+            && $request->url() === 'https://api.mercadopago.com/preapproval/MP-old'
+            && ($request->data()['status'] ?? null) === 'cancelled');
+        $this->assertNull($subscription->refresh()->meta);
+        $this->assertSame('active', $agency->refresh()->status);
+    }
+
+    public function test_subscribing_over_an_active_subscription_records_what_it_replaces(): void
+    {
+        Http::fake(['api.mercadopago.com/preapproval' => Http::response(['id' => 'MP-new', 'init_point' => 'https://mp.test/new'])]);
+        $this->configureMercadoPago();
+        $agency = $this->agencyWithPlan();
+        Subscription::query()->create(['agency_id' => $agency->id, 'provider' => 'mercadopago', 'external_id' => 'MP-old', 'status' => SubscriptionStatus::Active]);
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => $agency->plan_id])->assertOk();
+
+        $subscription = Subscription::query()->where('agency_id', $agency->id)->firstOrFail();
+        $this->assertSame('MP-new', $subscription->external_id);
+        $this->assertSame(['provider' => 'mercadopago', 'external_id' => 'MP-old'], $subscription->meta['replaces'] ?? null);
+    }
+
+    public function test_a_paypal_renewal_payment_matches_by_billing_agreement_id(): void
+    {
+        // PAYMENT.SALE.COMPLETED carries the SALE id in resource.id; the subscription id
+        // travels in billing_agreement_id — a renewal must reactivate a past_due row.
+        $agency = Agency::factory()->create(['status' => 'active']);
+        Subscription::query()->create(['agency_id' => $agency->id, 'provider' => 'paypal', 'external_id' => 'I-SUB1', 'status' => SubscriptionStatus::PastDue, 'grace_until' => now()->addDays(3)]);
+
+        $this->postJson('/api/v1/webhooks/billing/paypal', [
+            'event_type' => 'PAYMENT.SALE.COMPLETED',
+            'resource' => ['id' => 'SALE-99', 'billing_agreement_id' => 'I-SUB1'],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('ir_subscriptions', ['external_id' => 'I-SUB1', 'status' => 'active', 'grace_until' => null]);
+    }
+
     public function test_a_cancelled_webhook_suspends_the_agency(): void
     {
         Http::fake(['api.mercadopago.com/preapproval/MP-x' => Http::response(['id' => 'MP-x', 'status' => 'cancelled'])]);

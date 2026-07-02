@@ -79,7 +79,7 @@ final class PayPalProvider implements PaymentProvider
             'application_context' => [
                 'brand_name' => 'Imagina Reports',
                 'return_url' => $this->appUrl().'/billing/return',
-                'cancel_url' => $this->appUrl().'/billing/cancel',
+                'cancel_url' => $this->appUrl().'/billing/return?status=cancelled',
             ],
         ]);
 
@@ -152,12 +152,33 @@ final class PayPalProvider implements PaymentProvider
         return rtrim(is_string($url) ? $url : '', '/');
     }
 
+    public function cancelSubscription(string $externalId, PlatformSetting $settings): void
+    {
+        $response = $this->client($settings)->post('/v1/billing/subscriptions/'.$externalId.'/cancel', [
+            'reason' => 'Reemplazada por una nueva suscripción en Imagina Reports.',
+        ]);
+
+        if ($response->failed()) {
+            throw new BillingException('PayPal no pudo cancelar la suscripción anterior: HTTP '.$response->status());
+        }
+    }
+
     public function resolveWebhook(Request $request, PlatformSetting $settings): ?WebhookResult
     {
         $event = $request->input('event_type');
-        $id = $request->input('resource.id');
 
-        if (! is_string($event) || ! is_string($id) || $id === '') {
+        if (! is_string($event)) {
+            return null;
+        }
+
+        // On sale/payment events the resource is the PAYMENT, not the subscription — its
+        // subscription id travels in billing_agreement_id. Everywhere else resource.id IS
+        // the subscription id. Using the wrong one meant renewals never matched our row.
+        $id = $event === 'PAYMENT.SALE.COMPLETED'
+            ? $request->input('resource.billing_agreement_id')
+            : $request->input('resource.id');
+
+        if (! is_string($id) || $id === '') {
             return null;
         }
 

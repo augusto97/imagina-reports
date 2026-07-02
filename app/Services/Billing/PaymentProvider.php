@@ -36,4 +36,12 @@ interface PaymentProvider
      * subscription event we act on. Implementations verify authenticity against the settings.
      */
     public function resolveWebhook(Request $request, PlatformSetting $settings): ?WebhookResult;
+
+    /**
+     * Cancel a subscription at the provider (used to stop a replaced subscription from
+     * charging after the agency switches plans). Best-effort at the call site.
+     *
+     * @throws BillingException
+     */
+    public function cancelSubscription(string $externalId, PlatformSetting $settings): void;
 }

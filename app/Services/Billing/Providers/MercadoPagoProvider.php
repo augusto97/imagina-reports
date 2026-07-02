@@ -88,6 +88,22 @@ final class MercadoPagoProvider implements PaymentProvider
         return new Checkout($id, $initPoint);
     }
 
+    public function cancelSubscription(string $externalId, PlatformSetting $settings): void
+    {
+        $token = $settings->secret('mercadopago_access_token');
+        if ($token === null) {
+            throw new BillingException('MercadoPago no está configurado.');
+        }
+
+        $response = Http::withToken($token)
+            ->acceptJson()
+            ->put(self::BASE.'/preapproval/'.$externalId, ['status' => 'cancelled']);
+
+        if ($response->failed()) {
+            throw new BillingException('MercadoPago no pudo cancelar la suscripción anterior: '.$this->errorReason($response->json(), $response->status()));
+        }
+    }
+
     public function resolveWebhook(Request $request, PlatformSetting $settings): ?WebhookResult
     {
         $token = $settings->secret('mercadopago_access_token');
