@@ -22,9 +22,12 @@ final class EmbedController extends Controller
     {
         $report = Report::query()
             ->withoutGlobalScopes()
-            ->with('definition')
+            ->with(['definition', 'agency'])
             ->where('public_token', $token)
             ->firstOrFail();
+
+        // Suspended (unpaid) agency → no public embedding either (SaaS Fase 2).
+        abort_if($report->agency?->isSuspended() === true, 402, 'Este informe no está disponible en este momento.');
 
         $domains = $report->definition->embed_domains ?? [];
         $frameAncestors = $domains === [] ? "'none'" : implode(' ', $domains);

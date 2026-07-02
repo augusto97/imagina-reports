@@ -7,6 +7,7 @@ namespace Tests\Feature\Api;
 use App\Ai\AnthropicAiClient;
 use App\Jobs\SendWebhookJob;
 use App\Models\Agency;
+use App\Models\Plan;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,6 +72,35 @@ class AgencyApiTest extends TestCase
         $path = $agency->fresh()?->logo_path;
         $this->assertIsString($path);
         Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_without_white_label_the_logo_upload_is_refused(): void
+    {
+        Storage::fake('public');
+
+        $plan = Plan::factory()->create(['features' => ['white_label' => false]]);
+        $agency = Agency::factory()->create(['plan_id' => $plan->id]);
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $this->postJson('/api/v1/agency/logo', ['logo' => UploadedFile::fake()->image('brand.png')])
+            ->assertForbidden();
+    }
+
+    public function test_without_white_label_the_brand_color_cannot_change(): void
+    {
+        $plan = Plan::factory()->create(['features' => ['white_label' => false]]);
+        $agency = Agency::factory()->create(['plan_id' => $plan->id, 'brand_color' => '#101828']);
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        // Changing the color is a white-label perk → refused.
+        $this->putJson('/api/v1/agency', ['name' => 'Agencia', 'brand_color' => '#ff0000', 'default_locale' => 'es'])
+            ->assertForbidden();
+
+        // Keeping the current color must still work (saving name/locale is not gated).
+        $this->putJson('/api/v1/agency', ['name' => 'Agencia Nueva', 'brand_color' => '#101828', 'default_locale' => 'en'])
+            ->assertOk()
+            ->assertJsonPath('name', 'Agencia Nueva')
+            ->assertJsonPath('default_locale', 'en');
     }
 
     public function test_update_stores_webhook_urls_and_secret(): void

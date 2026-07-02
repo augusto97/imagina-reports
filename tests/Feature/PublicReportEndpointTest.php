@@ -43,6 +43,28 @@ class PublicReportEndpointTest extends TestCase
         $this->getJson('/api/v1/public/reports/does-not-exist')->assertNotFound();
     }
 
+    public function test_a_suspended_agencys_public_report_goes_dark(): void
+    {
+        // An unpaid agency must stop consuming the platform: its whole public surface
+        // (portal data, period selector, embeds) returns 402 until it reactivates.
+        $agency = Agency::factory()->create(['status' => 'suspended']);
+        $report = Report::factory()->create(['agency_id' => $agency->id]);
+
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")->assertStatus(402);
+        $this->getJson("/api/v1/public/reports/{$report->public_token}/periods")->assertStatus(402);
+        $this->get("/embed/{$report->public_token}")->assertStatus(402);
+    }
+
+    public function test_reactivating_the_agency_restores_public_access(): void
+    {
+        $agency = Agency::factory()->create(['status' => 'suspended']);
+        $report = Report::factory()->create(['agency_id' => $agency->id]);
+
+        $agency->update(['status' => 'active']);
+
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")->assertOk();
+    }
+
     public function test_it_exposes_merge_field_context(): void
     {
         $agency = Agency::factory()->create(['name' => 'Imagina WP']);

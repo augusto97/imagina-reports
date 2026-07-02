@@ -339,10 +339,14 @@ export function SettingsScreen(): ReactElement {
         return <p className="ir-text-sm ir-text-muted-foreground">Cargando ajustes…</p>;
     }
 
+    const whiteLabel = agency.limits.features.white_label === true;
+
     const save = (): void => {
         const payload: AgencyUpdate = {
             name,
-            brand_color: color,
+            // Without the white-label feature the color is read-only: send the current
+            // value untouched so saving name/locale still works (the server 403s changes).
+            brand_color: whiteLabel ? color : agency.brand_color,
             default_locale: locale,
         };
         if (apiKey !== '') {
@@ -358,6 +362,11 @@ export function SettingsScreen(): ReactElement {
 
             <Card title="Marca (white-label)">
                 <div className="ir-flex ir-flex-col ir-gap-4">
+                    {!whiteLabel && (
+                        <p className="ir-rounded-md ir-bg-amber-500/10 ir-px-3 ir-py-2 ir-text-xs ir-text-amber-700">
+                            Tu plan no incluye marca blanca: el color y el logo no se pueden personalizar. Mejora tu plan para desbloquearlo.
+                        </p>
+                    )}
                     <Field label="Nombre de la agencia">
                         <Input value={name} onChange={(event) => setName(event.target.value)} />
                     </Field>
@@ -366,10 +375,11 @@ export function SettingsScreen(): ReactElement {
                             <input
                                 type="color"
                                 value={color}
+                                disabled={!whiteLabel}
                                 onChange={(event) => setColor(event.target.value)}
-                                className="ir-h-9 ir-w-12 ir-rounded ir-border"
+                                className="ir-h-9 ir-w-12 ir-rounded ir-border disabled:ir-opacity-50"
                             />
-                            <Input value={color} onChange={(event) => setColor(event.target.value)} className="ir-w-32" />
+                            <Input value={color} disabled={!whiteLabel} onChange={(event) => setColor(event.target.value)} className="ir-w-32" />
                         </div>
                     </Field>
                     <Field label="Idioma por defecto">
@@ -393,13 +403,14 @@ export function SettingsScreen(): ReactElement {
                             <input
                                 type="file"
                                 accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                disabled={!whiteLabel}
                                 onChange={(event) => {
                                     const file = event.target.files?.[0];
                                     if (file !== undefined) {
                                         uploadLogo.mutate(file);
                                     }
                                 }}
-                                className="ir-text-sm"
+                                className="ir-text-sm disabled:ir-opacity-50"
                             />
                             {uploadLogo.isPending && <span className="ir-text-xs ir-text-muted-foreground">Subiendo…</span>}
                         </div>

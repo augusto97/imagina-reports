@@ -69,6 +69,13 @@ final class PublicReportController extends Controller
      */
     private function gate(Report $report, Request $request): ?JsonResponse
     {
+        // Suspended (unpaid) agency → its whole public surface is dark, print included
+        // (delivery is blocked for suspended agencies anyway). Checked on the report's own
+        // agency so ad-hoc reports without a definition are covered too.
+        if ($report->agency?->isSuspended() === true) {
+            return response()->json(['message' => 'Este informe no está disponible en este momento.'], 402);
+        }
+
         // PDF generation (Browsershot) bypasses the gate with the server-only print token.
         $print = $request->header('X-Print-Token') ?: $request->query('print');
         if (is_string($print) && hash_equals($report->printToken(), $print)) {

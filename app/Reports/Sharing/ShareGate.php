@@ -25,6 +25,13 @@ final class ShareGate
             return null;
         }
 
+        // A suspended (unpaid) agency's public surface goes dark entirely — portal,
+        // dashboards, embeds. Already-emailed PDFs are the only thing that survives:
+        // a suspended agency must not keep consuming the platform (SaaS Fase 2).
+        if ($definition->agency?->isSuspended() === true) {
+            return response()->json(['message' => 'Este informe no está disponible en este momento.'], 402);
+        }
+
         $visibility = $definition->visibility ?? ReportVisibility::Public;
 
         if ($visibility === ReportVisibility::Private) {

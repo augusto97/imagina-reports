@@ -34,8 +34,20 @@ final class AgencyController extends Controller
 
         $agency->name = $request->string('name')->toString();
 
+        // Brand color is a white-label perk: without the feature, only keeping the
+        // current value is allowed (so saving unrelated settings still works).
         $brandColor = $validated['brand_color'] ?? null;
-        $agency->brand_color = is_string($brandColor) && $brandColor !== '' ? $brandColor : null;
+        $newColor = is_string($brandColor) && $brandColor !== '' ? $brandColor : null;
+
+        if ($newColor !== $agency->brand_color) {
+            abort_unless(
+                app(Entitlements::class)->hasFeature($agency, 'white_label'),
+                403,
+                'Tu plan no incluye marca blanca. Mejora el plan para personalizar el color y el logo.',
+            );
+        }
+
+        $agency->brand_color = $newColor;
 
         $locale = $validated['default_locale'] ?? null;
         $agency->default_locale = is_string($locale) && $locale !== '' ? $locale : $agency->default_locale;
@@ -121,6 +133,12 @@ final class AgencyController extends Controller
         ]);
 
         $agency = $this->current($tenant);
+
+        abort_unless(
+            app(Entitlements::class)->hasFeature($agency, 'white_label'),
+            403,
+            'Tu plan no incluye marca blanca. Mejora el plan para personalizar el color y el logo.',
+        );
 
         $path = $request->file('logo')?->store('logos', 'public');
 
