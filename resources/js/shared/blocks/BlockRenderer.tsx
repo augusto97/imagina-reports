@@ -74,6 +74,25 @@ function asRecords(data: unknown): Record<string, unknown>[] {
 /** Slice/series palette — starts with the agency accent, then complementary hues. */
 const CHART_COLORS = ['hsl(var(--ir-primary))', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899'];
 
+// Printable height of one A4 sheet in CSS px (96dpi): 297mm − 28mm sheet padding ≈ 269mm,
+// held a touch under the true 1016px so rounding never spills a hairline onto a blank page.
+const PRINT_CONTENT_PX = 1004;
+
+/**
+ * The natural pixel height of a fixed-grid page (react-grid-layout rows are a FIXED height,
+ * so a page can be taller than an A4 sheet → the PDF used to split it, leaving half-blank
+ * pages). Returns 0 when the page isn't a fixed-grid page.
+ */
+function gridDesignHeightPx(blocks: Block[]): number {
+    const bottomRow = blocks.reduce((max, block) => {
+        const layout = block.layout;
+
+        return layout != null ? Math.max(max, (layout.y ?? 0) + (layout.h ?? 0)) : max;
+    }, 0);
+
+    return bottomRow > 0 ? bottomRow * (GRID_ROW_HEIGHT + GRID_MARGIN) - GRID_MARGIN : 0;
+}
+
 const PAD: Record<string, string> = { sm: 'ir-p-3', md: 'ir-p-6', lg: 'ir-p-10' };
 const RADIUS: Record<string, string> = { none: 'ir-rounded-none', sm: 'ir-rounded', md: 'ir-rounded-lg', lg: 'ir-rounded-2xl' };
 const ALIGN: Record<string, string> = { left: 'ir-text-left', center: 'ir-text-center', right: 'ir-text-right' };
@@ -1334,9 +1353,28 @@ export function BlockList({
                 {pages.map((pageBlocks, pageIndex) => {
                     const bleed = pageBlocks.length > 0 && pageBlocks.every((b) => b.type === 'cover' || b.type === 'back_cover');
 
+                    // WYSIWYG per page: a fixed-grid page taller than one sheet is scaled DOWN
+                    // uniformly so it prints on exactly ONE physical page — no awkward splits or
+                    // half-blank pages. The inner width is inflated by 1/scale so it still fills
+                    // the sheet width after the transform; the outer box reserves the scaled height.
+                    const designHeight = bleed ? 0 : gridDesignHeightPx(pageBlocks);
+                    const scale = designHeight > PRINT_CONTENT_PX ? PRINT_CONTENT_PX / designHeight : 1;
+
                     return (
                         <section key={pageIndex} className={cn('ir-sheet', bleed && 'ir-sheet--bleed')}>
-                            {renderPage(pageBlocks)}
+                            {scale < 1 ? (
+                                // overflow:hidden is REQUIRED — a CSS transform shrinks the page
+                                // visually but the print engine still paginates by the un-scaled
+                                // layout height, so without clipping to the reserved (scaled)
+                                // height the page would still break across sheets.
+                                <div style={{ height: designHeight * scale, overflow: 'hidden' }}>
+                                    <div style={{ width: `${100 / scale}%`, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                        {renderPage(pageBlocks)}
+                                    </div>
+                                </div>
+                            ) : (
+                                renderPage(pageBlocks)
+                            )}
                         </section>
                     );
                 })}
