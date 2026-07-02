@@ -346,11 +346,13 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 
     return (
         <Section style={block.style}>
-            <div className="ir-flex ir-h-full ir-flex-col ir-justify-center ir-gap-1.5">
+            <div className="ir-kpi ir-flex ir-h-full ir-flex-col ir-justify-center ir-gap-1.5">
                 <p className="ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wider ir-text-muted-foreground">
                     {str(prop(block, 'label'))}
                 </p>
-                <p className="ir-text-[1.75rem] ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums">
+                {/* The value auto-shrinks to the card width (ir-kpi is a size container) so a
+                    long amount like "300.000 COP" never overflows/gets clipped in a narrow card. */}
+                <p className="ir-kpi-value ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums">
                     {formatNumber(value, str(block.style?.format), settings)}
                 </p>
                 {changePercent !== null && (
@@ -1362,7 +1364,16 @@ export function BlockList({
 
                     return (
                         <section key={pageIndex} className={cn('ir-sheet', bleed && 'ir-sheet--bleed')}>
-                            {scale < 1 ? (
+                            {bleed ? (
+                                // Cover / back-cover fill the whole sheet: render them directly in a
+                                // full-height column (NOT the fixed-row grid, whose cell height would
+                                // cap the cover at a fraction of the page).
+                                <div className="ir-flex ir-h-full ir-flex-col">
+                                    {pageBlocks.map((block) => (
+                                        <BlockRenderer key={block.id} block={block} data={data[block.id]} />
+                                    ))}
+                                </div>
+                            ) : scale < 1 ? (
                                 // overflow:hidden is REQUIRED — a CSS transform shrinks the page
                                 // visually but the print engine still paginates by the un-scaled
                                 // layout height, so without clipping to the reserved (scaled)

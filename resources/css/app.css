@@ -144,6 +144,17 @@
     margin-top: 0;
 }
 
+/* KPI value auto-fit: the card is a size container, and the number scales with the card's
+   width (capped at 1.75rem) so a long amount like "300.000 COP" shrinks to fit instead of
+   overflowing and getting clipped by the cell. nowrap keeps it on one line as it shrinks. */
+.ir-kpi {
+    container-type: inline-size;
+}
+.ir-kpi-value {
+    font-size: clamp(0.85rem, 12cqi, 1.75rem);
+    white-space: nowrap;
+}
+
 /* Rendered narrative (sanitized Tiptap HTML): restore the list/heading/spacing the Tailwind
    base reset strips, so agency rich text reads correctly in the portal and the PDF. */
 .ir-report-prose > * + * {
