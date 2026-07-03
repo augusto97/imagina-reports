@@ -585,14 +585,31 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                     />
                 </div>
             )}
-            <table className="ir-w-full ir-text-left ir-text-sm">
+            {/* table-layout:fixed + a colgroup keeps the table exactly its cell's width: numeric
+                columns get a fixed, comfortable width and text columns wrap into the remainder,
+                so nothing overflows and gets clipped by the cell (the "8.078 3[7]" cut-off). */}
+            <table className="ir-w-full ir-table-fixed ir-text-left ir-text-sm">
+                <colgroup>
+                    {columns.map((col) => {
+                        if (bars && col === 'value') {
+                            return <col key={col} />;
+                        }
+                        if (!numeric.has(col)) {
+                            return <col key={col} />; // text columns share the remaining width
+                        }
+                        // A short rank/index column ("1,2,3…") needs far less room than a value column.
+                        const isRank = rows.every((row) => { const n = Number(row[col]); return Number.isInteger(n) && n >= 0 && n < 1000; });
+
+                        return <col key={col} style={{ width: isRank ? '2.5rem' : '4.75rem' }} />;
+                    })}
+                </colgroup>
                 <thead>
                     <tr className="ir-border-b ir-text-[11px] ir-uppercase ir-tracking-wide ir-text-muted-foreground">
                         {columns.map((col) => (
-                            <th key={col} className={cn('ir-pb-2 ir-font-semibold', numeric.has(col) && 'ir-text-right')}>
+                            <th key={col} className={cn('ir-pb-2 ir-pr-2 ir-font-semibold last:ir-pr-0', numeric.has(col) && 'ir-text-right')}>
                                 <button
                                     type="button"
-                                    className="ir-inline-flex ir-items-center ir-gap-1 hover:ir-text-foreground"
+                                    className="ir-inline-flex ir-max-w-full ir-items-center ir-gap-1 ir-truncate hover:ir-text-foreground"
                                     onClick={() => toggleSort(col)}
                                 >
                                     {col}
@@ -613,7 +630,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                             )}
                         >
                             {columns.map((col) => (
-                                <td key={col} className={cn('ir-py-2', numeric.has(col) && 'ir-text-right ir-tabular-nums')}>
+                                <td key={col} className={cn('ir-py-2 ir-pr-2 ir-align-top last:ir-pr-0', numeric.has(col) ? 'ir-whitespace-nowrap ir-text-right ir-tabular-nums' : 'ir-break-words')}>
                                     {bars && col === 'value' && typeof row[col] !== 'undefined' ? (
                                         <div className="ir-flex ir-items-center ir-gap-2">
                                             <div className="ir-h-1.5 ir-flex-1 ir-overflow-hidden ir-rounded ir-bg-muted">
