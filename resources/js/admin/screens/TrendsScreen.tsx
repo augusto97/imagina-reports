@@ -64,7 +64,18 @@ function buildChartData(sites: SiteTrend[]): ChartRow[] {
 }
 
 export function TrendsScreen(): ReactElement {
-    const { data: trends, isLoading } = useTrends();
+    const { data: trends, isLoading, isError, refetch } = useTrends();
+
+    if (isError) {
+        return (
+            <Card title="Tendencias">
+                <p className="ir-text-sm ir-text-danger">No se pudieron cargar las tendencias.</p>
+                <button type="button" onClick={() => void refetch()} className="ir-mt-2 ir-text-sm ir-font-medium ir-text-primary hover:ir-underline">
+                    Reintentar
+                </button>
+            </Card>
+        );
+    }
 
     if (isLoading || trends === undefined) {
         return <p className="ir-text-sm ir-text-muted-foreground">Cargando tendencias…</p>;

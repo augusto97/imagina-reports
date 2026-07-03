@@ -17,8 +17,10 @@ import {
     Users,
     X,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { type ReactElement, useEffect, useState } from "react";
 
+import { setApiErrorHandlers } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 
 import { useAgency, useAuthUser, useLogout, useStopImpersonating } from "./api";
@@ -84,6 +86,21 @@ function Screen({ view }: { view: AdminView }): ReactElement {
 
 export function App(): ReactElement {
     const { data: user, isLoading, isError } = useAuthUser();
+    const queryClient = useQueryClient();
+    const setSuspended = useAdminUi((state) => state.setSuspended);
+
+    // Global reactions to auth/billing status codes (FE-2): a 401 anywhere but the auth
+    // endpoints means the session expired mid-use → drop the cached identity so the app
+    // falls back to the login screen instead of silently no-op'ing every action. A 402
+    // means the agency is suspended → raise the global banner.
+    useEffect(() => {
+        setApiErrorHandlers({
+            onUnauthorized: () => void queryClient.invalidateQueries({ queryKey: ["auth-user"] }),
+            onPaymentRequired: () => setSuspended(true),
+        });
+
+        return () => setApiErrorHandlers({});
+    }, [queryClient, setSuspended]);
 
     if (isLoading) {
         return (
@@ -154,6 +171,7 @@ function useMediaQuery(query: string): boolean {
 function AuthenticatedApp({ email, version, impersonating, role }: { email: string; version?: string; impersonating?: number | null; role?: string }): ReactElement {
     const view = useAdminUi((state) => state.view);
     const setView = useAdminUi((state) => state.setView);
+    const suspended = useAdminUi((state) => state.suspended);
     const logout = useLogout();
     const stopImpersonating = useStopImpersonating();
     const privileged = role === "owner" || role === "admin";
@@ -217,6 +235,16 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
 
     return (
         <div className="ir-flex ir-h-screen ir-flex-col ir-overflow-hidden ir-bg-background ir-text-foreground">
+            {/* Suspended-agency banner (FE-2): a 402 surfaced somewhere, so most screens can't
+                load. Make the reason explicit instead of leaving misleading empty states. */}
+            {suspended && (
+                <div className="ir-flex ir-shrink-0 ir-items-center ir-justify-center ir-gap-3 ir-bg-danger ir-px-4 ir-py-1.5 ir-text-xs ir-font-medium ir-text-white">
+                    <span>Tu cuenta está suspendida por un pago pendiente. Regulariza tu suscripción para reactivar el servicio.</span>
+                    <button type="button" onClick={() => setView("settings")} className="ir-rounded ir-bg-white/20 ir-px-2 ir-py-0.5 hover:ir-bg-white/30">
+                        Ir a Ajustes
+                    </button>
+                </div>
+            )}
             {/* Impersonation banner (platform admin viewing an agency). */}
             {typeof impersonating === "number" && (
                 <div className="ir-flex ir-shrink-0 ir-items-center ir-justify-center ir-gap-3 ir-bg-amber-500 ir-px-4 ir-py-1.5 ir-text-xs ir-font-medium ir-text-white">

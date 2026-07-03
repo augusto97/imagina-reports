@@ -22,9 +22,13 @@ interface AdminUiState {
     view: AdminView;
     selectedSiteId: number | null;
     editingTemplateId: number | null;
+    /** Set when the API returns 402 anywhere → the agency is suspended (FE-2). Drives a
+     *  global banner so screens stop showing misleading "all clear" empty states. */
+    suspended: boolean;
     setView: (view: AdminView) => void;
     selectSite: (siteId: number) => void;
     editTemplate: (templateId: number | null) => void;
+    setSuspended: (suspended: boolean) => void;
 }
 
 // The active section is restored from the URL hash and the auxiliary ids from
@@ -33,7 +37,9 @@ export const useAdminUi = create<AdminUiState>((set) => ({
     view: viewFromHash() ?? 'clients',
     selectedSiteId: persistedId('ir-selected-site'),
     editingTemplateId: persistedId('ir-editing-template'),
+    suspended: false,
     setView: (view) => set({ view }),
+    setSuspended: (suspended) => set({ suspended }),
     // Selecting a site focuses it in the unified Clientes workspace (master-detail).
     selectSite: (siteId) => {
         window.localStorage.setItem('ir-selected-site', String(siteId));

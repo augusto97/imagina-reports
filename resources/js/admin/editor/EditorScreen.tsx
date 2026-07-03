@@ -198,12 +198,16 @@ export function EditorScreen(): ReactElement {
     // Undo/redo history — snapshots of the blocks array.
     const [past, setPast] = useState<Block[][]>([]);
     const [future, setFuture] = useState<Block[][]>([]);
+    // Unsaved-work flag (FE-1): set by any canvas edit, cleared on load/save. Drives the
+    // beforeunload guard so a reload/close doesn't silently discard an unsaved layout.
+    const [dirty, setDirty] = useState(false);
 
     /** Apply a structural change to the canvas, recording it for undo. */
     const commit = (next: Block[]): void => {
         setPast((stack) => [...stack, blocks]);
         setFuture([]);
         setBlocks(next);
+        setDirty(true);
     };
 
     /** Replace the canvas wholesale (load/AI/reset) and clear the undo history. */
@@ -247,6 +251,7 @@ export function EditorScreen(): ReactElement {
             setPageNames([]);
             setSelectedId(null);
             setErrors([]);
+            setDirty(false);
         }
     }, [editingTemplateId]);
 
@@ -265,8 +270,24 @@ export function EditorScreen(): ReactElement {
             );
             setSelectedId(null);
             setErrors([]);
+            setDirty(false);
         }
     }, [editingTemplate, editingTemplateId]);
+
+    // Warn before a reload / tab close discards unsaved canvas work (FE-1).
+    useEffect(() => {
+        if (!dirty) {
+            return;
+        }
+
+        const handler = (event: BeforeUnloadEvent): void => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", handler);
+
+        return () => window.removeEventListener("beforeunload", handler);
+    }, [dirty]);
 
     // Keyboard shortcuts: Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo.
     useEffect(() => {
@@ -318,6 +339,7 @@ export function EditorScreen(): ReactElement {
                 resetBlocks(loaded.length > 0 ? loaded : [makeBlock("header")]);
                 setSelectedId(null);
                 setErrors([]);
+                setDirty(true);
             },
         });
     };
@@ -332,6 +354,7 @@ export function EditorScreen(): ReactElement {
                 );
                 setSelectedId(null);
                 setErrors([]);
+                setDirty(true);
                 // Tell the user which blocks the AI proposed but were dropped because the
                 // site has no data for them (so the layout shrank for a reason).
                 setAiNotice(
@@ -579,7 +602,10 @@ export function EditorScreen(): ReactElement {
 
     const save = (): void => {
         const handlers = {
-            onSuccess: () => setErrors([]),
+            onSuccess: () => {
+                setErrors([]);
+                setDirty(false);
+            },
             onError: (error: unknown) => setErrors(extractBlockErrors(error)),
         };
 

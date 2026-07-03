@@ -126,7 +126,18 @@ function SiteCard({ site }: { site: SiteUpsell }): ReactElement {
 }
 
 export function UpsellScreen(): ReactElement {
-    const { data: upsell, isLoading } = useUpsell();
+    const { data: upsell, isLoading, isError, refetch } = useUpsell();
+
+    if (isError) {
+        return (
+            <Card title="Oportunidades de venta">
+                <p className="ir-text-sm ir-text-danger">No se pudieron cargar las oportunidades.</p>
+                <button type="button" onClick={() => void refetch()} className="ir-mt-2 ir-text-sm ir-font-medium ir-text-primary hover:ir-underline">
+                    Reintentar
+                </button>
+            </Card>
+        );
+    }
 
     if (isLoading || upsell === undefined) {
         return <p className="ir-text-sm ir-text-muted-foreground">Cargando oportunidades…</p>;

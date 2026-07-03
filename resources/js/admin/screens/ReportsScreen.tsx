@@ -880,7 +880,7 @@ function ReportConfigCard({
 export function ReportsScreen(): ReactElement {
     const { data: sites = [] } = useSites();
     const { data: templates = [] } = useReportTemplates();
-    const { data: definitions = [] } = useReportDefinitions();
+    const { data: definitions = [], isLoading: definitionsLoading, isError: definitionsError, refetch: refetchDefinitions } = useReportDefinitions();
     const { data: reports = [] } = useReports();
     const { data: schedules = [] } = useSchedules();
 
@@ -937,8 +937,16 @@ export function ReportsScreen(): ReactElement {
                 ))}
             </div>
 
-            {/* Configured reports + their history. */}
-            {definitions.length === 0 ? (
+            {/* Configured reports + their history. Distinguish loading and error from the
+                genuine empty state (FE-4) so a failed load doesn't read as "no reports". */}
+            {definitionsError ? (
+                <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-lg ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">
+                    <p className="ir-text-sm ir-text-danger">No se pudieron cargar los reportes.</p>
+                    <Button variant="outline" onClick={() => void refetchDefinitions()}>Reintentar</Button>
+                </div>
+            ) : definitionsLoading ? (
+                <p className="ir-text-sm ir-text-muted-foreground">Cargando reportes…</p>
+            ) : definitions.length === 0 ? (
                 <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-lg ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">
                     <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
                         <FileBarChart className="ir-size-6" />

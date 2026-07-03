@@ -1,5 +1,7 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
+import { apiErrorMessage } from '@shared/lib/api';
+
 import {
     downloadSiteAgentPlugin,
     useConnectors,
@@ -223,6 +225,9 @@ function DataSourceEditForm({
             <p className="ir-text-xs ir-text-muted-foreground">Actualiza la URL, claves o el token si caducó. Los campos secretos en blanco se conservan.</p>
             <SetupGuidePanel connector={connector} />
             <ConnectorFields connector={connector} values={values} editing onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))} />
+            {update.isError && (
+                <p className="ir-rounded ir-bg-danger/10 ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-danger">{apiErrorMessage(update.error, 'No se pudo guardar la fuente. Revisa las credenciales.')}</p>
+            )}
             <div className="ir-flex ir-gap-2">
                 <Button type="submit" size="sm" disabled={update.isPending}>
                     Guardar cambios
@@ -338,6 +343,10 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     {connector !== undefined && <SetupGuidePanel connector={connector} />}
                     {connector !== undefined && (
                         <ConnectorFields connector={connector} values={values} onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))} />
+                    )}
+
+                    {create.isError && (
+                        <p className="ir-rounded ir-bg-danger/10 ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-danger">{apiErrorMessage(create.error, 'No se pudo guardar la fuente. Revisa las credenciales e inténtalo de nuevo.')}</p>
                     )}
 
                     {connector !== undefined && (
