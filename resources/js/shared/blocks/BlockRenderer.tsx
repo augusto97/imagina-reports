@@ -938,40 +938,65 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
     // A per-cover logo (the agency's or the client's, uploaded/pasted) overrides the agency one.
     const logoOverride = str(prop(block, 'logoUrl'));
     const logo = logoOverride !== '' ? logoOverride : brand.logoUrl;
-    const subline = [client, site].filter((part) => part !== '').join(' · ');
 
     const hasBg = typeof s?.bg === 'string' && s.bg !== '';
     const hasColor = typeof s?.color === 'string' && s.color !== '';
     const align = ALIGN[str(s?.align)] ?? '';
 
+    const kicker = str(prop(block, 'eyebrow')) !== '' ? str(prop(block, 'eyebrow')) : client;
+    const meta: { label: string; value: string }[] = [
+        site !== '' ? { label: 'Sitio', value: site } : null,
+        period !== '' ? { label: 'Período', value: period } : null,
+        showScore && score !== '' ? { label: 'Estado general', value: `${score}/100` } : null,
+    ].filter((item): item is { label: string; value: string } => item !== null);
+
     return (
         <div
-            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-gap-8 ir-rounded-2xl ir-p-10 print:ir-rounded-none print:ir-p-[20mm]', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            className={cn('ir-relative ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-overflow-hidden ir-rounded-2xl ir-p-10 print:ir-rounded-none print:ir-p-[22mm]', hasBg ? '' : 'ir-bg-primary/[0.06]', align)}
             style={styleCss(s)}
         >
-            <div className="ir-flex ir-items-center ir-justify-between">
+            {/* Depth without assets: a soft diagonal sheen + concentric rings that read as a
+                designed cover instead of a flat fill. Tinted from the text colour so it works
+                on any brand background. */}
+            <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.12) 100%)' }} />
+            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-40 -ir-top-40 ir-size-[28rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.1 }} />
+            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-24 ir-top-16 ir-size-80 ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.08 }} />
+
+            {/* Top: brand + period chip */}
+            <div className="ir-relative ir-flex ir-items-center ir-justify-between ir-gap-4">
                 {logo !== null ? (
-                    <img src={logo} alt={brand.agencyName} className="ir-h-10 ir-max-w-[40%] ir-object-contain" />
+                    <img src={logo} alt={brand.agencyName} className="ir-h-11 ir-max-w-[45%] ir-object-contain" />
                 ) : (
                     <span className={cn('ir-text-sm ir-font-semibold ir-uppercase ir-tracking-[0.18em]', hasColor ? '' : 'ir-text-primary')}>{brand.agencyName || 'Tu Agencia'}</span>
                 )}
-                {period !== '' && <span className={cn('ir-text-xs', hasColor ? 'ir-opacity-70' : 'ir-text-muted-foreground')}>{period}</span>}
+                {period !== '' && (
+                    <span className="ir-shrink-0 ir-rounded-full ir-px-3.5 ir-py-1 ir-text-xs ir-font-medium" style={{ border: '1px solid currentColor', opacity: 0.85 }}>
+                        {period}
+                    </span>
+                )}
             </div>
 
-            <div className={cn('ir-flex ir-flex-col ir-gap-3', align)}>
-                <h1 className="ir-text-4xl ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
-                {subtitle !== '' && <p className={cn('ir-max-w-xl ir-text-base', hasColor ? 'ir-opacity-80' : 'ir-text-muted-foreground')}>{subtitle}</p>}
-                {subline !== '' && <p className={cn('ir-text-lg ir-font-medium', hasColor ? 'ir-opacity-90' : 'ir-text-foreground/80')}>{subline}</p>}
+            {/* Hero: kicker + title + subtitle, vertically centred */}
+            <div className="ir-relative ir-flex ir-flex-col ir-gap-4">
+                {kicker !== '' && (
+                    <span className="ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.26em] ir-opacity-70">{kicker}</span>
+                )}
+                <h1 className="ir-max-w-3xl ir-text-[2.9rem] ir-font-bold ir-leading-[1.05] ir-tracking-tight">{title}</h1>
+                {subtitle !== '' && <p className="ir-max-w-xl ir-text-base ir-opacity-80 sm:ir-text-lg">{subtitle}</p>}
             </div>
 
-            {showScore && score !== '' && (
-                <div className="ir-flex ir-items-end ir-justify-between">
-                    <div className="ir-w-44">
-                        <Gauge score={Number(score) || 0} />
-                        <p className={cn('ir-mt-1 ir-text-center ir-text-xs ir-uppercase ir-tracking-wide', hasColor ? 'ir-opacity-70' : 'ir-text-muted-foreground')}>Estado general</p>
-                    </div>
+            {/* Bottom: metadata panel over a hairline divider */}
+            <div className="ir-relative">
+                <div className="ir-mb-5 ir-h-px ir-w-full" style={{ background: 'currentColor', opacity: 0.2 }} />
+                <div className="ir-flex ir-flex-wrap ir-gap-x-12 ir-gap-y-4">
+                    {meta.map((item) => (
+                        <div key={item.label} className="ir-flex ir-flex-col ir-gap-1 ir-text-left">
+                            <span className="ir-text-[10px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-opacity-60">{item.label}</span>
+                            <span className="ir-text-sm ir-font-medium ir-opacity-95">{item.value}</span>
+                        </div>
+                    ))}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
@@ -995,15 +1020,32 @@ function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
 
     return (
         <div
-            className={cn('ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-gap-6 ir-rounded-2xl ir-p-10 ir-text-center print:ir-rounded-none print:ir-p-[20mm]', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            className={cn('ir-relative ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-overflow-hidden ir-rounded-2xl ir-p-10 ir-text-center print:ir-rounded-none print:ir-p-[22mm]', hasBg ? '' : 'ir-bg-primary/[0.06]')}
             style={styleCss(s)}
         >
-            {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-h-10 ir-max-w-[60%] ir-object-contain" />}
-            <p className={cn('ir-max-w-2xl ir-text-2xl ir-font-bold ir-leading-snug', hasColor ? '' : 'ir-text-primary')}>{headline}</p>
-            {text !== '' && <p className={cn('ir-max-w-xl ir-text-sm', hasColor ? 'ir-opacity-80' : 'ir-text-muted-foreground')}>{text}</p>}
-            {(contact !== '' || brand.agencyName !== '') && (
-                <p className={cn('ir-mt-2 ir-text-sm ir-font-medium', hasColor ? 'ir-opacity-90' : 'ir-text-foreground/70')}>{contact !== '' ? contact : brand.agencyName}</p>
-            )}
+            {/* Matching decorative treatment to the cover, so the report opens and closes as a set. */}
+            <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.10) 100%)' }} />
+            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-left-40 -ir-bottom-40 ir-size-[28rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.09 }} />
+            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-40 -ir-top-40 ir-size-[26rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.08 }} />
+
+            <div className="ir-relative ir-flex ir-max-w-2xl ir-flex-col ir-items-center ir-gap-6">
+                {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-mb-2 ir-h-12 ir-max-w-[55%] ir-object-contain" />}
+
+                {/* Reassurance badge — the shield reads as "protected" at a glance. */}
+                <span className="ir-flex ir-size-16 ir-items-center ir-justify-center ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.9 }}>
+                    <ShieldCheck className="ir-size-8" style={{ opacity: 0.9 }} />
+                </span>
+
+                <p className={cn('ir-text-[1.9rem] ir-font-bold ir-leading-snug', hasColor ? '' : 'ir-text-primary')}>{headline}</p>
+                {text !== '' && <p className="ir-max-w-xl ir-text-base ir-opacity-80">{text}</p>}
+
+                {(contact !== '' || brand.agencyName !== '') && (
+                    <>
+                        <div className="ir-mt-2 ir-h-px ir-w-16" style={{ background: 'currentColor', opacity: 0.25 }} />
+                        <p className="ir-text-sm ir-font-medium ir-opacity-90">{contact !== '' ? contact : brand.agencyName}</p>
+                    </>
+                )}
+            </div>
         </div>
     );
 }
