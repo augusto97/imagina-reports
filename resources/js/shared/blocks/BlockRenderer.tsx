@@ -100,11 +100,47 @@ const ALIGN: Record<string, string> = { left: 'ir-text-left', center: 'ir-text-c
 type Style = Record<string, unknown> | undefined;
 
 /** Inline CSS (background/text colour) from a block's style overrides. */
+/** Which kind of background a block's style resolves to (solid colour / gradient / image). */
+function bgKind(s: Style): 'image' | 'gradient' | 'solid' | 'none' {
+    const type = str(s?.bg_type);
+    const bg = str(s?.bg);
+    const bg2 = str(s?.bg2);
+    const img = str(s?.bg_image);
+
+    if ((type === 'image' || type === '') && img !== '') {
+        return 'image';
+    }
+    if ((type === 'gradient' || (type === '' && bg2 !== '')) && bg !== '') {
+        return 'gradient';
+    }
+
+    return bg !== '' ? 'solid' : 'none';
+}
+
 function styleCss(s: Style): CSSProperties {
     const css: CSSProperties = {};
-    if (typeof s?.bg === 'string' && s.bg !== '') {
-        css.backgroundColor = s.bg;
+    const bg = str(s?.bg);
+    const bg2 = str(s?.bg2);
+    const img = str(s?.bg_image);
+    const angle = typeof s?.bg_angle === 'number' ? s.bg_angle : 135;
+
+    switch (bgKind(s)) {
+        case 'image':
+            css.backgroundImage = `url("${img}")`;
+            css.backgroundSize = 'cover';
+            css.backgroundPosition = 'center';
+            if (bg !== '') {
+                css.backgroundColor = bg; // shows through a transparent image / while it loads
+            }
+            break;
+        case 'gradient':
+            css.backgroundImage = `linear-gradient(${angle}deg, ${bg}, ${bg2 !== '' ? bg2 : bg})`;
+            break;
+        case 'solid':
+            css.backgroundColor = bg;
+            break;
     }
+
     if (typeof s?.color === 'string' && s.color !== '') {
         css.color = s.color;
     }
@@ -939,9 +975,15 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
     const logoOverride = str(prop(block, 'logoUrl'));
     const logo = logoOverride !== '' ? logoOverride : brand.logoUrl;
 
-    const hasBg = typeof s?.bg === 'string' && s.bg !== '';
     const hasColor = typeof s?.color === 'string' && s.color !== '';
-    const align = ALIGN[str(s?.align)] ?? '';
+    const hasImage = bgKind(s) === 'image';
+    const hasCustomBg = bgKind(s) !== 'none';
+
+    // Real alignment (not just text-align): the flex tracks must align too, or "centre"
+    // never actually centres. Applies to the hero column and the metadata row.
+    const alignKey = str(s?.align) || 'left';
+    const items = alignKey === 'center' ? 'ir-items-center ir-text-center' : alignKey === 'right' ? 'ir-items-end ir-text-right' : 'ir-items-start ir-text-left';
+    const justify = alignKey === 'center' ? 'ir-justify-center' : alignKey === 'right' ? 'ir-justify-end' : 'ir-justify-start';
 
     const kicker = str(prop(block, 'eyebrow')) !== '' ? str(prop(block, 'eyebrow')) : client;
     const meta: { label: string; value: string }[] = [
@@ -952,15 +994,21 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
 
     return (
         <div
-            className={cn('ir-relative ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-overflow-hidden ir-rounded-2xl ir-p-10 print:ir-rounded-none print:ir-p-[22mm]', hasBg ? '' : 'ir-bg-primary/[0.06]', align)}
+            className={cn('ir-relative ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-justify-between ir-overflow-hidden ir-rounded-2xl ir-p-10 print:ir-rounded-none print:ir-p-[22mm]', hasCustomBg ? '' : 'ir-bg-primary/[0.06]')}
             style={styleCss(s)}
         >
-            {/* Depth without assets: a soft diagonal sheen + concentric rings that read as a
-                designed cover instead of a flat fill. Tinted from the text colour so it works
-                on any brand background. */}
-            <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.12) 100%)' }} />
-            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-40 -ir-top-40 ir-size-[28rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.1 }} />
-            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-24 ir-top-16 ir-size-80 ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.08 }} />
+            {hasImage ? (
+                // Over a photo, a dark scrim keeps the white text readable on any image.
+                <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.18) 50%, rgba(0,0,0,0.42) 100%)' }} />
+            ) : (
+                <>
+                    {/* Depth without assets: a soft diagonal sheen + concentric rings that read as
+                        a designed cover instead of a flat fill. Tinted from the text colour. */}
+                    <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.12) 100%)' }} />
+                    <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-40 -ir-top-40 ir-size-[28rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.1 }} />
+                    <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-24 ir-top-16 ir-size-80 ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.08 }} />
+                </>
+            )}
 
             {/* Top: brand + period chip */}
             <div className="ir-relative ir-flex ir-items-center ir-justify-between ir-gap-4">
@@ -976,8 +1024,8 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
                 )}
             </div>
 
-            {/* Hero: kicker + title + subtitle, vertically centred */}
-            <div className="ir-relative ir-flex ir-flex-col ir-gap-4">
+            {/* Hero: kicker + title + subtitle */}
+            <div className={cn('ir-relative ir-flex ir-flex-col ir-gap-4', items)}>
                 {kicker !== '' && (
                     <span className="ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.26em] ir-opacity-70">{kicker}</span>
                 )}
@@ -988,9 +1036,9 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
             {/* Bottom: metadata panel over a hairline divider */}
             <div className="ir-relative">
                 <div className="ir-mb-5 ir-h-px ir-w-full" style={{ background: 'currentColor', opacity: 0.2 }} />
-                <div className="ir-flex ir-flex-wrap ir-gap-x-12 ir-gap-y-4">
+                <div className={cn('ir-flex ir-flex-wrap ir-gap-x-12 ir-gap-y-4', justify)}>
                     {meta.map((item) => (
-                        <div key={item.label} className="ir-flex ir-flex-col ir-gap-1 ir-text-left">
+                        <div key={item.label} className="ir-flex ir-flex-col ir-gap-1">
                             <span className="ir-text-[10px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-opacity-60">{item.label}</span>
                             <span className="ir-text-sm ir-font-medium ir-opacity-95">{item.value}</span>
                         </div>
@@ -1015,18 +1063,25 @@ function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
     const logoOverride = str(prop(block, 'logoUrl'));
     const logo = logoOverride !== '' ? logoOverride : brand.logoUrl;
 
-    const hasBg = typeof s?.bg === 'string' && s.bg !== '';
     const hasColor = typeof s?.color === 'string' && s.color !== '';
+    const hasImage = bgKind(s) === 'image';
+    const hasCustomBg = bgKind(s) !== 'none';
 
     return (
         <div
-            className={cn('ir-relative ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-overflow-hidden ir-rounded-2xl ir-p-10 ir-text-center print:ir-rounded-none print:ir-p-[22mm]', hasBg ? '' : 'ir-bg-primary/[0.06]')}
+            className={cn('ir-relative ir-flex ir-h-full ir-min-h-[60vh] ir-flex-col ir-items-center ir-justify-center ir-overflow-hidden ir-rounded-2xl ir-p-10 ir-text-center print:ir-rounded-none print:ir-p-[22mm]', hasCustomBg ? '' : 'ir-bg-primary/[0.06]')}
             style={styleCss(s)}
         >
-            {/* Matching decorative treatment to the cover, so the report opens and closes as a set. */}
-            <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.10) 100%)' }} />
-            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-left-40 -ir-bottom-40 ir-size-[28rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.09 }} />
-            <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-40 -ir-top-40 ir-size-[26rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.08 }} />
+            {hasImage ? (
+                <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.35))' }} />
+            ) : (
+                <>
+                    {/* Matching decorative treatment to the cover, so the report opens and closes as a set. */}
+                    <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.10) 100%)' }} />
+                    <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-left-40 -ir-bottom-40 ir-size-[28rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.09 }} />
+                    <div aria-hidden className="ir-pointer-events-none ir-absolute -ir-right-40 -ir-top-40 ir-size-[26rem] ir-rounded-full" style={{ border: '1.5px solid currentColor', opacity: 0.08 }} />
+                </>
+            )}
 
             <div className="ir-relative ir-flex ir-max-w-2xl ir-flex-col ir-items-center ir-gap-6">
                 {logo !== null && <img src={logo} alt={brand.agencyName} className="ir-mb-2 ir-h-12 ir-max-w-[55%] ir-object-contain" />}

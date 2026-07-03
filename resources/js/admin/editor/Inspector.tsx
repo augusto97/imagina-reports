@@ -58,6 +58,74 @@ function str(value: unknown): string {
     return typeof value === 'string' ? value : '';
 }
 
+/**
+ * Background editor for the cover / back-cover: a solid colour, a two-colour gradient, or a
+ * full-bleed image — plus the text colour. `bg_type` selects which is applied (see styleCss).
+ */
+function BackgroundControl({ style, setStyle }: { style: Record<string, unknown> | undefined; setStyle: (key: string, value: unknown) => void }): ReactElement {
+    const type = str(style?.bg_type) !== ''
+        ? str(style?.bg_type)
+        : str(style?.bg_image) !== ''
+          ? 'image'
+          : str(style?.bg2) !== ''
+            ? 'gradient'
+            : 'solid';
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-3">
+            <Field label="Tipo de fondo">
+                <SegmentedControl
+                    value={type}
+                    onChange={(value) => setStyle('bg_type', value)}
+                    options={[
+                        { value: 'solid', label: 'Color' },
+                        { value: 'gradient', label: 'Degradado' },
+                        { value: 'image', label: 'Imagen' },
+                    ]}
+                />
+            </Field>
+
+            {type === 'solid' && (
+                <Field label="Color">
+                    <ColorSwatch value={str(style?.bg)} onChange={(value) => setStyle('bg', value)} />
+                </Field>
+            )}
+
+            {type === 'gradient' && (
+                <>
+                    <Field label="Desde">
+                        <ColorSwatch value={str(style?.bg)} onChange={(value) => setStyle('bg', value)} />
+                    </Field>
+                    <Field label="Hasta">
+                        <ColorSwatch value={str(style?.bg2)} onChange={(value) => setStyle('bg2', value)} />
+                    </Field>
+                    <Field label="Dirección">
+                        <SegmentedControl
+                            value={String(typeof style?.bg_angle === 'number' ? style.bg_angle : 135)}
+                            onChange={(value) => setStyle('bg_angle', Number(value))}
+                            options={[
+                                { value: '180', label: 'Vertical' },
+                                { value: '135', label: 'Diagonal' },
+                                { value: '90', label: 'Horizontal' },
+                            ]}
+                        />
+                    </Field>
+                </>
+            )}
+
+            {type === 'image' && (
+                <Field label="Imagen de fondo" hint="Se recorta para cubrir toda la página; se le aplica un velo oscuro para que el texto se lea.">
+                    <ImageField value={str(style?.bg_image)} onChange={(url) => setStyle('bg_image', url === '' ? undefined : url)} />
+                </Field>
+            )}
+
+            <Field label="Color del texto">
+                <ColorSwatch value={str(style?.color)} onChange={(value) => setStyle('color', value)} />
+            </Field>
+        </div>
+    );
+}
+
 /** Visual chart-type gallery (CLAUDE.md §11.3) — every option renders for single-series data. */
 const CHART_TYPES: { type: string; label: string; Icon: LucideIcon }[] = [
     { type: 'line', label: 'Línea', Icon: LineChart },
@@ -664,16 +732,22 @@ export function Inspector({
                     )}
 
                     {supportsColor(block.type) && (
-                        <Section title="Color">
-                            <div className="ir-flex ir-flex-col ir-gap-3">
-                                <Field label="Fondo">
-                                    <ColorSwatch value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
-                                </Field>
-                                <Field label="Texto">
-                                    <ColorSwatch value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
-                                </Field>
-                            </div>
-                        </Section>
+                        block.type === 'cover' || block.type === 'back_cover' ? (
+                            <Section title="Fondo">
+                                <BackgroundControl style={block.style} setStyle={setStyle} />
+                            </Section>
+                        ) : (
+                            <Section title="Color">
+                                <div className="ir-flex ir-flex-col ir-gap-3">
+                                    <Field label="Fondo">
+                                        <ColorSwatch value={str(block.style?.bg)} onChange={(value) => setStyle('bg', value)} />
+                                    </Field>
+                                    <Field label="Texto">
+                                        <ColorSwatch value={str(block.style?.color)} onChange={(value) => setStyle('color', value)} />
+                                    </Field>
+                                </div>
+                            </Section>
+                        )
                     )}
 
                     {(supportsAlign(block.type) || supportsBox(block.type)) && (
