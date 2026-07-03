@@ -39,13 +39,16 @@ final class TeamController extends Controller
         $agency = Agency::query()->findOrFail($this->tenant->id());
         abort_unless($entitlements->canAddUser($agency), 403, 'Has alcanzado el límite de usuarios de tu plan. Mejora el plan para añadir más.');
 
-        $user = User::query()->create([
+        // forceFill: agency_id is a tenant boundary excluded from $fillable (audit SEC), set
+        // here from the authenticated agency — never from request input.
+        $user = new User;
+        $user->forceFill([
             'agency_id' => $agency->id,
             'name' => $request->string('name')->toString(),
             'email' => $request->string('email')->toString(),
             'password' => Hash::make($request->string('password')->toString()),
             'role' => UserRole::from($request->string('role')->toString()),
-        ]);
+        ])->save();
 
         return UserResource::make($user)->response()->setStatusCode(201);
     }

@@ -33,14 +33,15 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    // Deliberately excludes agency_id, is_platform_admin and impersonating_agency_id
+    // (audit SEC hardening): those are privilege/tenant boundaries and are only ever set from
+    // server-derived values via forceFill (team/platform controllers), never mass-assigned
+    // from request input.
     protected $fillable = [
-        'agency_id',
         'name',
         'email',
         'password',
         'role',
-        'is_platform_admin',
-        'impersonating_agency_id',
     ];
 
     /**

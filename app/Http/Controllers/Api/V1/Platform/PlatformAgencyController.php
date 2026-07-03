@@ -47,13 +47,16 @@ final class PlatformAgencyController extends Controller
             'status' => 'active',
         ]);
 
-        User::query()->create([
+        // forceFill: agency_id is excluded from $fillable (audit SEC); set here from the
+        // just-created agency, not from request input.
+        $owner = new User;
+        $owner->forceFill([
             'agency_id' => $agency->id,
             'name' => $request->string('owner_name')->toString(),
             'email' => $request->string('owner_email')->toString(),
             'password' => Hash::make($request->string('owner_password')->toString()),
             'role' => UserRole::Owner,
-        ]);
+        ])->save();
 
         return response()->json($this->present($agency->load('plan')), 201);
     }
@@ -68,14 +71,15 @@ final class PlatformAgencyController extends Controller
     /** Enter an agency for support (impersonation recorded on the admin's own row). */
     public function impersonate(Request $request, Agency $agency): JsonResponse
     {
-        $this->admin($request)->update(['impersonating_agency_id' => $agency->id]);
+        // forceFill: impersonating_agency_id is excluded from $fillable (audit SEC).
+        $this->admin($request)->forceFill(['impersonating_agency_id' => $agency->id])->save();
 
         return response()->json(['impersonating' => $agency->id]);
     }
 
     public function stopImpersonate(Request $request): JsonResponse
     {
-        $this->admin($request)->update(['impersonating_agency_id' => null]);
+        $this->admin($request)->forceFill(['impersonating_agency_id' => null])->save();
 
         return response()->json(['impersonating' => null]);
     }
