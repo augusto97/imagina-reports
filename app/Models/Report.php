@@ -26,6 +26,9 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed> $resolved_blocks
  * @property int|null $health_score
  * @property string|null $executive_summary
+ * @property list<string>|null $hidden_metrics
+ * @property bool $has_advisory
+ * @property string|null $advisory
  * @property string|null $pdf_path
  * @property string $public_token
  * @property ReportStatus $status
@@ -48,6 +51,9 @@ class Report extends Model
         'resolved_blocks',
         'health_score',
         'executive_summary',
+        'hidden_metrics',
+        'has_advisory',
+        'advisory',
         'pdf_path',
         'public_token',
         'status',
@@ -63,8 +69,69 @@ class Report extends Model
             'period_end' => 'datetime',
             'resolved_blocks' => 'array',
             'health_score' => 'integer',
+            'hidden_metrics' => 'array',
+            'has_advisory' => 'boolean',
             'status' => ReportStatus::class,
         ];
+    }
+
+    /**
+     * Keep the denormalized list-summary columns in sync with resolved_blocks (PERF-3): any
+     * save that changes the snapshot — generation, advisory edit, regenerate — recomputes them,
+     * so the reports LIST can read light columns and never decode the heavy JSON.
+     */
+    protected static function booted(): void
+    {
+        static::saving(static function (Report $report): void {
+            if ($report->isDirty('resolved_blocks')) {
+                $report->forceFill($report->deriveListSummary());
+            }
+        });
+    }
+
+    /**
+     * Derive the reports-list fields from resolved_blocks: the metrics whose blocks were hidden
+     * for lack of data (diagnostics), whether an advisory block exists, and its current text.
+     *
+     * @return array{hidden_metrics: list<string>, has_advisory: bool, advisory: string|null}
+     */
+    public function deriveListSummary(): array
+    {
+        $resolved = $this->resolved_blocks;
+
+        $diagnostics = $resolved['diagnostics'] ?? [];
+        $hiddenMetrics = [];
+
+        if (is_array($diagnostics)) {
+            foreach ($diagnostics as $diagnostic) {
+                $source = is_array($diagnostic) ? ($diagnostic['source'] ?? null) : null;
+                $metric = is_array($diagnostic) ? ($diagnostic['metric'] ?? null) : null;
+
+                if (is_string($source) && is_string($metric)) {
+                    $hiddenMetrics[] = "{$source}.{$metric}";
+                }
+            }
+        }
+
+        $blocks = $resolved['blocks'] ?? [];
+        $data = $resolved['data'] ?? [];
+        $hasAdvisory = false;
+        $advisory = null;
+
+        if (is_array($blocks)) {
+            foreach ($blocks as $block) {
+                if (is_array($block) && ($block['type'] ?? null) === 'advisory') {
+                    $hasAdvisory = true;
+                    $id = $block['id'] ?? null;
+                    $value = is_string($id) && is_array($data) ? ($data[$id] ?? null) : null;
+                    if (is_string($value)) {
+                        $advisory = $value;
+                    }
+                }
+            }
+        }
+
+        return ['hidden_metrics' => $hiddenMetrics, 'has_advisory' => $hasAdvisory, 'advisory' => $advisory];
     }
 
     /**

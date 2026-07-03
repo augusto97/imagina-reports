@@ -123,7 +123,11 @@ class ReportNarrativeApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('advisory', 'Diagnóstico editado.');
 
-        $this->assertSame('Diagnóstico editado.', $report->fresh()?->resolved_blocks['data']['adv'] ?? null);
+        $fresh = $report->fresh();
+        $this->assertSame('Diagnóstico editado.', $fresh?->resolved_blocks['data']['adv'] ?? null);
+        // The denormalized column the reports LIST reads must stay in sync (PERF-3).
+        $this->assertSame('Diagnóstico editado.', $fresh?->advisory);
+        $this->assertTrue((bool) $fresh?->has_advisory);
     }
 
     public function test_it_regenerates_the_advisory_with_the_ai(): void

@@ -26,7 +26,18 @@ final class ReportController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        return ReportSummaryResource::collection(Report::query()->latest()->get());
+        // Select only the light columns — never resolved_blocks (50-500 KB/row). The list's
+        // three snapshot-derived fields are read from denormalized columns instead (PERF-3).
+        return ReportSummaryResource::collection(
+            Report::query()
+                ->select([
+                    'id', 'agency_id', 'report_definition_id', 'period_start', 'period_end',
+                    'health_score', 'status', 'executive_summary', 'hidden_metrics',
+                    'has_advisory', 'advisory', 'public_token', 'pdf_path', 'created_at',
+                ])
+                ->latest()
+                ->get()
+        );
     }
 
     public function show(Report $report): ReportSummaryResource

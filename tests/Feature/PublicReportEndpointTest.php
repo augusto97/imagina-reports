@@ -114,6 +114,22 @@ class PublicReportEndpointTest extends TestCase
             ->assertJsonMissing(['public_token' => $draft->public_token]);
     }
 
+    public function test_the_public_endpoint_is_throttled_but_the_print_render_is_exempt(): void
+    {
+        $report = Report::factory()->create(['agency_id' => Agency::factory()->create()->id]);
+
+        // A normal client request counts against the per-IP limit (rate-limit headers present).
+        $this->getJson("/api/v1/public/reports/{$report->public_token}")
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Limit', '120');
+
+        // The server's own PDF render carries a valid print token → exempt, so it can never be
+        // throttled out during a month-start batch (no limit applied).
+        $exempt = $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Print-Token' => $report->printToken()]);
+        $exempt->assertOk();
+        $this->assertNull($exempt->headers->get('X-RateLimit-Limit'));
+    }
+
     public function test_it_exposes_the_report_theme(): void
     {
         $report = Report::factory()->create([

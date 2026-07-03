@@ -18,10 +18,13 @@ use App\Services\Webhooks\HttpWebhookDispatcher;
 use App\Services\Webhooks\WebhookDispatcher;
 use App\Support\Http\SsrfGuard;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Psr\Http\Message\RequestInterface;
 
@@ -63,6 +66,44 @@ class AppServiceProvider extends ServiceProvider
         Event::subscribe(ReportWebhookSubscriber::class);
 
         $this->guardOutboundHttp();
+        $this->configurePublicRateLimiter();
+    }
+
+    /**
+     * Rate limit the token-authenticated public surface (portal / dashboard) to blunt a cheap
+     * DoS — each request re-resolves a report from snapshots (SEC-7). The server's own PDF
+     * render loads these same endpoints from its OWN IP, so a naive per-IP limit would throttle
+     * a month-start batch of PDFs; those requests carry a valid print token, so they're exempt.
+     */
+    private function configurePublicRateLimiter(): void
+    {
+        RateLimiter::for('public-report', function (Request $request): Limit {
+            if ($this->isInternalPrintRender($request)) {
+                return Limit::none();
+            }
+
+            return Limit::perMinute(120)->by($request->ip() ?? 'unknown');
+        });
+    }
+
+    /**
+     * True when the request is the server's own headless-Chromium PDF render: it carries the
+     * per-report print token (derived from the route's public token + the app key), which only
+     * the server can produce. Cheap to check — no DB lookup.
+     */
+    private function isInternalPrintRender(Request $request): bool
+    {
+        $provided = $request->header('X-Print-Token') ?: $request->query('print');
+        $token = $request->route('token');
+
+        if (! is_string($provided) || $provided === '' || ! is_string($token)) {
+            return false;
+        }
+
+        $key = config('app.key');
+        $expected = hash_hmac('sha256', 'print:'.$token, is_string($key) ? $key : '');
+
+        return hash_equals($expected, $provided);
     }
 
     /**

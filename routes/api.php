@@ -60,15 +60,20 @@ Route::get('/health', static fn (): JsonResponse => response()->json([
     'time' => now()->toIso8601String(),
 ]))->name('api.health');
 
-// Public, signed-token report data for the portal + PDF (no auth, CLAUDE.md §8).
+// Public, signed-token report data for the portal + PDF (no auth, CLAUDE.md §8). Throttled
+// per IP to blunt a cheap DoS (SEC-7); the server's own PDF render is exempt via its print
+// token (see AppServiceProvider::configurePublicRateLimiter).
 Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
+    ->middleware('throttle:public-report')
     ->name('api.public.reports.show');
 Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
+    ->middleware('throttle:public-report')
     ->name('api.public.reports.periods');
 
 // Live dashboard data (Etapa D): a published definition re-resolved for a client-chosen
 // date range, from stored snapshots only (CLAUDE.md §3.1).
 Route::get('/public/dashboards/{token}', [PublicDashboardController::class, 'show'])
+    ->middleware('throttle:public-report')
     ->name('api.public.dashboards.show');
 
 // Push ingest (CLAUDE.md §9 — CrowdSec push model). Public: each client VPS POSTs its
