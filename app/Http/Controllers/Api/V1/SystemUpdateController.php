@@ -19,8 +19,11 @@ use Illuminate\Support\Facades\Artisan;
  */
 final class SystemUpdateController extends Controller
 {
-    public function status(UpdateManager $manager): JsonResponse
+    public function status(Request $request, UpdateManager $manager): JsonResponse
     {
+        // App version/worker state is platform-only — don't leak build info to agencies.
+        $this->authorizePrivileged($request);
+
         return response()->json($manager->status());
     }
 

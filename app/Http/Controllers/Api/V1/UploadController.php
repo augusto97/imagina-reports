@@ -19,7 +19,9 @@ final class UploadController extends Controller
     public function image(Request $request): JsonResponse
     {
         $request->validate([
-            'image' => ['required', 'file', 'mimetypes:image/png,image/jpeg,image/svg+xml,image/webp', 'max:2048'],
+            // SVG is intentionally NOT accepted: it can carry <script> and is served
+            // same-origin from /storage, which would be a stored-XSS vector. Raster only.
+            'image' => ['required', 'file', 'mimetypes:image/png,image/jpeg,image/webp', 'max:2048'],
         ]);
 
         $path = $request->file('image')?->store('uploads', 'public');

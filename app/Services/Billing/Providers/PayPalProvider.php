@@ -165,6 +165,12 @@ final class PayPalProvider implements PaymentProvider
 
     public function resolveWebhook(Request $request, PlatformSetting $settings): ?WebhookResult
     {
+        // Never trust the posted body: verify PayPal's signature first. Without this, anyone
+        // who knows a subscription id could POST a forged event to activate/suspend an agency.
+        if (! $this->verifySignature($request, $settings)) {
+            return null;
+        }
+
         $event = $request->input('event_type');
 
         if (! is_string($event)) {
@@ -191,5 +197,36 @@ final class PayPalProvider implements PaymentProvider
         };
 
         return $status !== null ? new WebhookResult($id, $status) : null;
+    }
+
+    /**
+     * Verify a webhook against PayPal's verify-webhook-signature API. Fails CLOSED: if the
+     * webhook id isn't configured, or PayPal doesn't return SUCCESS, the event is rejected —
+     * an unverified webhook must never move subscription/agency state.
+     */
+    private function verifySignature(Request $request, PlatformSetting $settings): bool
+    {
+        $webhookId = $settings->secret('paypal_webhook_id');
+        if (! is_string($webhookId) || $webhookId === '') {
+            return false;
+        }
+
+        try {
+            $response = $this->client($settings)->post('/v1/notifications/verify-webhook-signature', [
+                'transmission_id' => $request->header('Paypal-Transmission-Id'),
+                'transmission_time' => $request->header('Paypal-Transmission-Time'),
+                'cert_url' => $request->header('Paypal-Cert-Url'),
+                'auth_algo' => $request->header('Paypal-Auth-Algo'),
+                'transmission_sig' => $request->header('Paypal-Transmission-Sig'),
+                'webhook_id' => $webhookId,
+                'webhook_event' => $request->all(),
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
+
+        return $response->successful() && $response->json('verification_status') === 'SUCCESS';
     }
 }

@@ -43,7 +43,7 @@ function ImageField({ value, onChange, placeholder }: { value: string; onChange:
         <div className="ir-flex ir-flex-col ir-gap-1.5">
             <div className="ir-flex ir-items-center ir-gap-2">
                 <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder ?? 'https://…'} />
-                <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="ir-hidden" onChange={(event) => pick(event.target.files?.[0])} />
+                <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="ir-hidden" onChange={(event) => pick(event.target.files?.[0])} />
                 <Button type="button" variant="ghost" size="sm" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
                     {upload.isPending ? 'Subiendo…' : 'Subir'}
                 </Button>

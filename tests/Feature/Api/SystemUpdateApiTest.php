@@ -31,10 +31,13 @@ class SystemUpdateApiTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['agency_id' => null, 'is_platform_admin' => true]));
     }
 
-    public function test_status_is_available_to_any_authenticated_user(): void
+    public function test_status_is_platform_admin_only(): void
     {
-        $this->loginAs(UserRole::Collaborator);
+        // Build info (versions, worker state) must not leak to a regular agency user.
+        $this->loginAs(UserRole::Owner);
+        $this->getJson('/api/v1/system/update/status')->assertForbidden();
 
+        $this->loginAsPlatformAdmin();
         $this->getJson('/api/v1/system/update/status')
             ->assertOk()
             ->assertJsonStructure(['current', 'available', 'update_available', 'worker_version', 'worker_checked_at']);

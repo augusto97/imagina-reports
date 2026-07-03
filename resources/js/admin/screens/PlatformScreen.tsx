@@ -335,9 +335,10 @@ function BillingTab(): ReactElement {
     const [mp, setMp] = useState('');
     const [ppId, setPpId] = useState('');
     const [ppSecret, setPpSecret] = useState('');
+    const [ppHook, setPpHook] = useState('');
 
-    const save = (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; billing_sandbox?: boolean }): void => {
-        update.mutate(payload, { onSuccess: () => { setMp(''); setPpId(''); setPpSecret(''); } });
+    const save = (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean }): void => {
+        update.mutate(payload, { onSuccess: () => { setMp(''); setPpId(''); setPpSecret(''); setPpHook(''); } });
     };
 
     return (
@@ -372,6 +373,19 @@ function BillingTab(): ReactElement {
                     <Button className="ir-self-start" onClick={() => save({ paypal_client_id: ppId, paypal_secret: ppSecret })} disabled={update.isPending || ppId === '' || ppSecret === ''}>
                         Guardar
                     </Button>
+                    <div className="ir-mt-1 ir-border-t ir-pt-3">
+                        <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
+                            Webhook ID: {settings?.paypal_webhook_configured ? <span className="ir-font-medium ir-text-emerald-600">configurado ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar — los webhooks de PayPal se rechazan hasta configurarlo</span>}
+                        </p>
+                        <Field label="Webhook ID" hint="En tu app de PayPal → Webhooks. Se usa para verificar la firma de cada webhook (obligatorio).">
+                            <div className="ir-flex ir-gap-2">
+                                <Input type="password" autoComplete="off" value={ppHook} onChange={(e) => setPpHook(e.target.value)} placeholder={settings?.paypal_webhook_configured ? '••••••••' : 'WH-…'} />
+                                <Button variant="ghost" onClick={() => save({ paypal_webhook_id: ppHook })} disabled={update.isPending || ppHook === ''}>
+                                    Guardar
+                                </Button>
+                            </div>
+                        </Field>
+                    </div>
                 </div>
             </Card>
 

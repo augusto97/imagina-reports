@@ -376,7 +376,7 @@ export function useUpdatePlatformBillingSettings() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; billing_sandbox?: boolean }) =>
+        mutationFn: (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean }) =>
             api.put<PlatformBillingSettings>('/platform/billing-settings', payload).then((r) => r.data),
         onSuccess: (data) => queryClient.setQueryData(['platform-billing-settings'], data),
     });

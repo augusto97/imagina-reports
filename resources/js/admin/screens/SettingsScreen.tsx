@@ -402,7 +402,7 @@ export function SettingsScreen(): ReactElement {
                             )}
                             <input
                                 type="file"
-                                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                accept="image/png,image/jpeg,image/webp"
                                 disabled={!whiteLabel}
                                 onChange={(event) => {
                                     const file = event.target.files?.[0];

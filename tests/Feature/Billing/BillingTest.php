@@ -197,10 +197,24 @@ class BillingTest extends TestCase
         $this->assertSame(['provider' => 'mercadopago', 'external_id' => 'MP-old'], $subscription->meta['replaces'] ?? null);
     }
 
+    private function configurePayPal(): void
+    {
+        $settings = PlatformSetting::current();
+        $settings->putSecret('paypal_client_id', 'cid');
+        $settings->putSecret('paypal_secret', 'csecret');
+        $settings->putSecret('paypal_webhook_id', 'WH-123');
+        $settings->save();
+    }
+
     public function test_a_paypal_renewal_payment_matches_by_billing_agreement_id(): void
     {
         // PAYMENT.SALE.COMPLETED carries the SALE id in resource.id; the subscription id
         // travels in billing_agreement_id — a renewal must reactivate a past_due row.
+        Http::fake([
+            'api-m.sandbox.paypal.com/v1/oauth2/token' => Http::response(['access_token' => 'tok']),
+            'api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature' => Http::response(['verification_status' => 'SUCCESS']),
+        ]);
+        $this->configurePayPal();
         $agency = Agency::factory()->create(['status' => 'active']);
         Subscription::query()->create(['agency_id' => $agency->id, 'provider' => 'paypal', 'external_id' => 'I-SUB1', 'status' => SubscriptionStatus::PastDue, 'grace_until' => now()->addDays(3)]);
 
@@ -210,6 +224,42 @@ class BillingTest extends TestCase
         ])->assertOk();
 
         $this->assertDatabaseHas('ir_subscriptions', ['external_id' => 'I-SUB1', 'status' => 'active', 'grace_until' => null]);
+    }
+
+    public function test_an_unverified_paypal_webhook_is_rejected(): void
+    {
+        // A forged webhook (PayPal's verify-signature returns anything but SUCCESS) must NOT
+        // touch subscription/agency state — this is the fix for the forgeable-activation hole.
+        Http::fake([
+            'api-m.sandbox.paypal.com/v1/oauth2/token' => Http::response(['access_token' => 'tok']),
+            'api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature' => Http::response(['verification_status' => 'FAILURE']),
+        ]);
+        $this->configurePayPal();
+        $agency = Agency::factory()->create(['status' => 'suspended']);
+        Subscription::query()->create(['agency_id' => $agency->id, 'provider' => 'paypal', 'external_id' => 'I-SUB2', 'status' => SubscriptionStatus::Pending]);
+
+        $this->postJson('/api/v1/webhooks/billing/paypal', [
+            'event_type' => 'BILLING.SUBSCRIPTION.ACTIVATED',
+            'resource' => ['id' => 'I-SUB2'],
+        ])->assertOk(); // webhook endpoint always 200s so providers don't retry-storm
+
+        // …but nothing changed: still suspended, still pending.
+        $this->assertSame('suspended', $agency->refresh()->status);
+        $this->assertDatabaseHas('ir_subscriptions', ['external_id' => 'I-SUB2', 'status' => 'pending']);
+    }
+
+    public function test_a_paypal_webhook_without_a_configured_webhook_id_is_rejected(): void
+    {
+        // Fail closed: with no PAYPAL_WEBHOOK_ID configured we can't verify, so we reject.
+        $agency = Agency::factory()->create(['status' => 'suspended']);
+        Subscription::query()->create(['agency_id' => $agency->id, 'provider' => 'paypal', 'external_id' => 'I-SUB3', 'status' => SubscriptionStatus::Pending]);
+
+        $this->postJson('/api/v1/webhooks/billing/paypal', [
+            'event_type' => 'BILLING.SUBSCRIPTION.ACTIVATED',
+            'resource' => ['id' => 'I-SUB3'],
+        ])->assertOk();
+
+        $this->assertSame('suspended', $agency->refresh()->status);
     }
 
     public function test_a_cancelled_webhook_suspends_the_agency(): void

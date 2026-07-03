@@ -42,6 +42,18 @@ class UploadTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_it_rejects_an_svg_upload(): void
+    {
+        // SVG can carry <script> and is served same-origin → stored-XSS. Rejected.
+        Storage::fake('public');
+        $this->actAsUser();
+
+        $svg = UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+
+        $this->post('/api/v1/uploads/image', ['image' => $svg], ['Accept' => 'application/json'])
+            ->assertStatus(422);
+    }
+
     public function test_it_requires_authentication(): void
     {
         $this->postJson('/api/v1/uploads/image')->assertUnauthorized();

@@ -9,6 +9,7 @@ use App\Http\Requests\StoreReportDefinitionRequest;
 use App\Http\Requests\UpdateReportDefinitionRequest;
 use App\Http\Resources\ReportDefinitionResource;
 use App\Models\ReportDefinition;
+use App\Models\ReportTemplate;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -24,8 +25,9 @@ final class ReportDefinitionController extends Controller
     {
         $data = $request->validated();
 
-        // Enforce that the site belongs to this agency (scoped 404 otherwise).
+        // Enforce that the site (and template, if any) belong to this agency (scoped 404).
         Site::query()->findOrFail($data['site_id']);
+        $this->assertOwnedTemplate($data);
 
         $definition = ReportDefinition::query()->create($data);
 
@@ -39,9 +41,28 @@ final class ReportDefinitionController extends Controller
 
     public function update(UpdateReportDefinitionRequest $request, ReportDefinition $reportDefinition): ReportDefinitionResource
     {
-        $reportDefinition->update($request->validated());
+        $data = $request->validated();
+
+        $this->assertOwnedTemplate($data);
+        $reportDefinition->update($data);
 
         return new ReportDefinitionResource($reportDefinition);
+    }
+
+    /**
+     * A definition may reference a template by id from the request body; make sure it
+     * belongs to this agency (the AgencyScope 404s a foreign one) so it can't bind to
+     * another tenant's template.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertOwnedTemplate(array $data): void
+    {
+        $templateId = $data['template_id'] ?? null;
+
+        if ($templateId !== null && $templateId !== '') {
+            ReportTemplate::query()->findOrFail($templateId);
+        }
     }
 
     public function destroy(ReportDefinition $reportDefinition): JsonResponse

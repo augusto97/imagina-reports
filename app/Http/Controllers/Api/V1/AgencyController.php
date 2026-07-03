@@ -129,7 +129,8 @@ final class AgencyController extends Controller
     public function uploadLogo(Request $request, TenantContext $tenant): JsonResponse
     {
         $request->validate([
-            'logo' => ['required', 'file', 'mimetypes:image/png,image/jpeg,image/svg+xml,image/webp', 'max:1024'],
+            // No SVG (stored-XSS via same-origin /storage): PNG/JPEG/WEBP only.
+            'logo' => ['required', 'file', 'mimetypes:image/png,image/jpeg,image/webp', 'max:1024'],
         ]);
 
         $agency = $this->current($tenant);

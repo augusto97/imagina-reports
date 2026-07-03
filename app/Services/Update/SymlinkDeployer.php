@@ -100,7 +100,15 @@ final class SymlinkDeployer implements Deployer
         $checksum = is_string($release->checksum) ? trim($release->checksum) : '';
         $actual = hash_file('sha256', $zip);
 
-        if ($checksum !== '' && (! is_string($actual) || ! hash_equals(strtolower($checksum), strtolower($actual)))) {
+        // Fail closed: refuse to install a release we can't integrity-check, rather than
+        // silently skipping verification when the checksum is missing.
+        if ($checksum === '') {
+            @unlink($zip);
+
+            throw new RuntimeException('Release has no checksum; refusing to install unverified code.');
+        }
+
+        if (! is_string($actual) || ! hash_equals(strtolower($checksum), strtolower($actual))) {
             @unlink($zip);
 
             throw new RuntimeException('Release checksum mismatch.');
