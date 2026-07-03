@@ -26,11 +26,16 @@ los sitios push (CrowdSec) una vez** (el owner lo aceptó). (b) **PERF-2 cola PD
 con supervisor Horizon a 1–2 procesos (RAM acotada; el PDF on-demand sigue síncrono, sin cambio de UX). ⚠️ **Requiere que Horizon
 recargue config al desplegar** (`queue:restart`/`horizon:terminate`, ya en el flujo de deploy). **También:** `failed()` en
 `RunScheduledReportJob` (logea el periodo perdido), feedback de error en equipo/preview, y **User `$fillable`** sin
-`agency_id/is_platform_admin/impersonating_agency_id` (se setean con forceFill). **470 tests PHP + 15 vitest + stan/pint/ts/lint
-limpios.** **PENDIENTES (pospuestos por riesgo/acoplamiento, NO aplicados):** paginar índices (reports/clients/…) — acopla el
-frontend; throttle de rutas públicas SEC-7 — choca con el render del PDF desde la IP del server; consistencia de gating de IA y
-features de plan `remove_branding`/`custom_domain` — cambian lo que recibe el cliente / feature grande. **SIGUIENTE:** validar pagos
-en sandbox real; reconectar sitios push tras desplegar v1.13.121.
+`agency_id/is_platform_admin/impersonating_agency_id` (se setean con forceFill). **APROBADO + APLICADO (release v1.13.122):**
+(c) **PERF-3 lista de reportes ligera** — `hidden_metrics/has_advisory/advisory` desnormalizados a columnas propias mantenidas en
+sync con `resolved_blocks` por un hook `saving` del modelo (generación/edición/regeneración quedan consistentes); el índice ya no
+decodifica el JSON pesado por fila. **Mismo contrato de API, sin tocar frontend**; filas existentes backfilleadas. (d) **SEC-7 throttle
+público** — rutas públicas (portal/dashboard/periods) a 120/min por IP; el render de PDF del propio server queda **exento** por su print
+token, así un lote del 1º de mes no se auto-bloquea. **471 tests PHP + 15 vitest + stan/pint/ts/lint limpios.** **PENDIENTES (pospuestos,
+NO aplicados — cambian la salida al cliente o son feature grande):** paginación COMPLETA de índices con orden/filtro server-side
+(la versión ligera sin cambio de contrato ya se hizo para reports); consistencia de gating de IA (narrativa/advisory no chequean el
+plan `ai_builder`); features de plan `remove_branding`/`custom_domain` sin implementar. **SIGUIENTE:** validar pagos en sandbox real;
+reconectar sitios push tras desplegar (v1.13.121+).
 
 **🐞 FIX GRAVE: SIN PLAN = ILIMITADO + LA AGENCIA NO PODÍA ELEGIR PLAN (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.99):** dos fallos que reportó el owner. **(1) SIN PLAN = ILIMITADO:** `Entitlements::limits()` devolvía `null` (=ilimitado) cuando
