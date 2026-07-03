@@ -161,6 +161,28 @@ class PublicReportEndpointTest extends TestCase
             ->assertOk();
     }
 
+    public function test_repeated_wrong_passwords_are_rate_limited(): void
+    {
+        $agency = Agency::factory()->create();
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $agency->id,
+            'visibility' => 'password',
+            'password_hash' => Hash::make('s3cret'),
+        ]);
+        $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+
+        // Ten wrong guesses are still answered with the normal 401 prompt.
+        for ($i = 0; $i < 10; $i++) {
+            $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Report-Password' => 'nope'])
+                ->assertUnauthorized();
+        }
+
+        // The eleventh is throttled — even the correct password can't get through the window.
+        $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Report-Password' => 's3cret'])
+            ->assertStatus(429)
+            ->assertJsonPath('requires_password', true);
+    }
+
     public function test_an_agency_can_update_its_definition_sharing_settings(): void
     {
         $agency = Agency::factory()->create();
