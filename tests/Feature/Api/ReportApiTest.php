@@ -86,6 +86,20 @@ class ReportApiTest extends TestCase
         $this->assertSame(ReportStatus::Approved, $report->fresh()?->status);
     }
 
+    public function test_approve_cannot_revert_an_already_sent_report(): void
+    {
+        $definition = $this->definition();
+        $report = Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $definition->id,
+            'status' => ReportStatus::Sent,
+        ]);
+
+        $this->postJson("/api/v1/reports/{$report->id}/approve")->assertStatus(422);
+
+        $this->assertSame(ReportStatus::Sent, $report->fresh()?->status);
+    }
+
     public function test_send_queues_delivery_for_an_approved_report(): void
     {
         Queue::fake();

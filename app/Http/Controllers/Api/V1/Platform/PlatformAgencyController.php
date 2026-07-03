@@ -27,9 +27,13 @@ final class PlatformAgencyController extends Controller
 
     public function index(): JsonResponse
     {
-        $agencies = Agency::query()->with('plan')->withCount('users')->orderByDesc('id')->get();
+        $agencies = Agency::query()->with('plan')->orderByDesc('id')->get();
 
-        return response()->json($agencies->map(fn (Agency $agency): array => $this->present($agency))->all());
+        // Batch usage for all agencies in a handful of grouped queries (PERF-4) instead of
+        // 5 counts per row.
+        $usage = $this->entitlements->usageForAll();
+
+        return response()->json($agencies->map(fn (Agency $agency): array => $this->present($agency, $usage[$agency->id] ?? null))->all());
     }
 
     public function store(StorePlatformAgencyRequest $request): JsonResponse
@@ -85,9 +89,12 @@ final class PlatformAgencyController extends Controller
     }
 
     /**
+     * @param  array{sites: int, data_sources: int, clients: int, users: int, reports_this_month: int}|null  $usage
+     *                                                                                                               Precomputed usage (from the batched index query); null falls back to a
+     *                                                                                                               single-agency lookup for store/update.
      * @return array<string, mixed>
      */
-    private function present(Agency $agency): array
+    private function present(Agency $agency, ?array $usage = null): array
     {
         return [
             'id' => $agency->id,
@@ -98,7 +105,7 @@ final class PlatformAgencyController extends Controller
             'plan_id' => $agency->plan_id,
             'plan_overrides' => $agency->plan_overrides,
             'limits' => $this->entitlements->limits($agency),
-            'usage' => $this->entitlements->usage($agency),
+            'usage' => $usage ?? $this->entitlements->usage($agency),
             'created_at' => $agency->created_at?->toIso8601String(),
         ];
     }

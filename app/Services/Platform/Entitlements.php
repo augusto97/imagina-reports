@@ -108,6 +108,71 @@ final class Entitlements
         return $model::query()->withoutGlobalScopes()->where('agency_id', $agency->id)->count();
     }
 
+    /**
+     * Usage for EVERY agency in a fixed number of grouped queries (5 total) instead of 5
+     * counts per agency — so the platform panel's agency list stays flat regardless of how
+     * many agencies exist (PERF-4). Keyed by agency_id; agencies with no rows default to 0.
+     *
+     * @return array<int, array{sites: int, data_sources: int, clients: int, users: int, reports_this_month: int}>
+     */
+    public function usageForAll(): array
+    {
+        $sites = $this->groupCount(Site::class);
+        $dataSources = $this->groupCount(DataSource::class);
+        $clients = $this->groupCount(Client::class);
+        $users = $this->groupCount(User::class);
+        $reports = $this->groupCount(Report::class, Date::now()->startOfMonth());
+
+        $ids = array_unique(array_merge(
+            array_keys($sites),
+            array_keys($dataSources),
+            array_keys($clients),
+            array_keys($users),
+            array_keys($reports),
+        ));
+
+        $usage = [];
+        foreach ($ids as $id) {
+            $usage[$id] = [
+                'sites' => $sites[$id] ?? 0,
+                'data_sources' => $dataSources[$id] ?? 0,
+                'clients' => $clients[$id] ?? 0,
+                'users' => $users[$id] ?? 0,
+                'reports_this_month' => $reports[$id] ?? 0,
+            ];
+        }
+
+        return $usage;
+    }
+
+    /**
+     * COUNT(*) grouped by agency_id for one model, optionally filtered to rows created since
+     * a moment (used for reports-this-month).
+     *
+     * @param  class-string<Model>  $model
+     * @return array<int, int>
+     */
+    private function groupCount(string $model, ?\DateTimeInterface $since = null): array
+    {
+        $query = $model::query()->withoutGlobalScopes();
+
+        if ($since !== null) {
+            $query->where('created_at', '>=', $since);
+        }
+
+        $map = [];
+        foreach ($query->groupBy('agency_id')->selectRaw('agency_id, count(*) as aggregate')->get() as $row) {
+            $agencyId = $row->getAttribute('agency_id');
+            $count = $row->getAttribute('aggregate');
+
+            if (is_numeric($agencyId) && is_numeric($count)) {
+                $map[(int) $agencyId] = (int) $count;
+            }
+        }
+
+        return $map;
+    }
+
     public function canAddSite(Agency $agency): bool
     {
         return $this->withinLimit($this->limits($agency)['max_sites'], $this->usage($agency)['sites']);

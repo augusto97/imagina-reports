@@ -51,8 +51,14 @@ final class ReportController extends Controller
         return response()->json(['message' => 'Report generation queued.'], 202);
     }
 
-    public function approve(Report $report): ReportSummaryResource
+    public function approve(Report $report): ReportSummaryResource|JsonResponse
     {
+        // Never move a report backwards: approving an already-sent report would revert its
+        // status to Approved (a confusing regression). Draft → Approved is the only transition.
+        if ($report->status === ReportStatus::Sent) {
+            return response()->json(['message' => 'Este reporte ya fue enviado.'], 422);
+        }
+
         $report->update(['status' => ReportStatus::Approved]);
 
         return new ReportSummaryResource($report);
