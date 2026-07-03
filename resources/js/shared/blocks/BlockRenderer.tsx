@@ -117,6 +117,27 @@ function bgKind(s: Style): 'image' | 'gradient' | 'solid' | 'none' {
     return bg !== '' ? 'solid' : 'none';
 }
 
+/**
+ * The legibility overlay drawn over a background image, or null when there's no image or the
+ * agency turned it off. A flat tint (not a gradient) so it reads consistently across any photo;
+ * the opacity (0–100) and tint (dark/light) are editable. Defaults to a medium dark scrim.
+ */
+function bgOverlay(s: Style): string | null {
+    if (bgKind(s) !== 'image') {
+        return null;
+    }
+
+    const raw = typeof s?.bg_overlay === 'number' ? s.bg_overlay : 45;
+    const opacity = Math.min(Math.max(raw, 0), 100);
+    if (opacity <= 0) {
+        return null;
+    }
+
+    const rgb = str(s?.bg_overlay_color) === 'light' ? '255, 255, 255' : '0, 0, 0';
+
+    return `rgba(${rgb}, ${opacity / 100})`;
+}
+
 function styleCss(s: Style): CSSProperties {
     const css: CSSProperties = {};
     const bg = str(s?.bg);
@@ -978,6 +999,7 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
     const hasColor = typeof s?.color === 'string' && s.color !== '';
     const hasImage = bgKind(s) === 'image';
     const hasCustomBg = bgKind(s) !== 'none';
+    const overlay = bgOverlay(s);
 
     // Real alignment (not just text-align): the flex tracks must align too, or "centre"
     // never actually centres. Applies to the hero column and the metadata row.
@@ -998,8 +1020,8 @@ function CoverBlock({ block, data }: BlockComponentProps): ReactElement {
             style={styleCss(s)}
         >
             {hasImage ? (
-                // Over a photo, a dark scrim keeps the white text readable on any image.
-                <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.18) 50%, rgba(0,0,0,0.42) 100%)' }} />
+                // Over a photo, an editable flat scrim keeps the text readable on any image.
+                overlay !== null && <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: overlay }} />
             ) : (
                 <>
                     {/* Depth without assets: a soft diagonal sheen + concentric rings that read as
@@ -1066,6 +1088,7 @@ function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
     const hasColor = typeof s?.color === 'string' && s.color !== '';
     const hasImage = bgKind(s) === 'image';
     const hasCustomBg = bgKind(s) !== 'none';
+    const overlay = bgOverlay(s);
 
     return (
         <div
@@ -1073,7 +1096,7 @@ function BackCoverBlock({ block }: BlockComponentProps): ReactElement {
             style={styleCss(s)}
         >
             {hasImage ? (
-                <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.35))' }} />
+                overlay !== null && <div aria-hidden className="ir-pointer-events-none ir-absolute ir-inset-0" style={{ background: overlay }} />
             ) : (
                 <>
                     {/* Matching decorative treatment to the cover, so the report opens and closes as a set. */}

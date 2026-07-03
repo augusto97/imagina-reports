@@ -114,9 +114,33 @@ function BackgroundControl({ style, setStyle }: { style: Record<string, unknown>
             )}
 
             {type === 'image' && (
-                <Field label="Imagen de fondo" hint="Se recorta para cubrir toda la página; se le aplica un velo oscuro para que el texto se lea.">
-                    <ImageField value={str(style?.bg_image)} onChange={(url) => setStyle('bg_image', url === '' ? undefined : url)} />
-                </Field>
+                <>
+                    <Field label="Imagen de fondo" hint="Se recorta para cubrir toda la página.">
+                        <ImageField value={str(style?.bg_image)} onChange={(url) => setStyle('bg_image', url === '' ? undefined : url)} />
+                    </Field>
+                    <Field label="Velo (para legibilidad)">
+                        <SegmentedControl
+                            value={String(typeof style?.bg_overlay === 'number' ? style.bg_overlay : 45)}
+                            onChange={(value) => setStyle('bg_overlay', Number(value))}
+                            options={[
+                                { value: '0', label: 'Ninguno' },
+                                { value: '25', label: 'Suave' },
+                                { value: '45', label: 'Medio' },
+                                { value: '65', label: 'Fuerte' },
+                            ]}
+                        />
+                    </Field>
+                    <Field label="Tinte del velo">
+                        <SegmentedControl
+                            value={str(style?.bg_overlay_color) || 'dark'}
+                            onChange={(value) => setStyle('bg_overlay_color', value)}
+                            options={[
+                                { value: 'dark', label: 'Oscuro' },
+                                { value: 'light', label: 'Claro' },
+                            ]}
+                        />
+                    </Field>
+                </>
             )}
 
             <Field label="Color del texto">
