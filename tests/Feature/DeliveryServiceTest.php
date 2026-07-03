@@ -52,6 +52,20 @@ class DeliveryServiceTest extends TestCase
         $this->assertNotNull($report->pdf_path);
     }
 
+    public function test_the_email_is_localized_to_the_report_locale(): void
+    {
+        Storage::fake();
+        $agency = Agency::factory()->create(['name' => 'Acme']);
+        app(TenantContext::class)->set($agency->id);
+
+        $english = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'locale' => 'en']);
+        $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $english->id, 'pdf_path' => null]);
+
+        $mail = new ReportReadyMail($report);
+        $mail->assertSeeInHtml('Your report is ready');
+        $mail->assertDontSeeInHtml('Tu reporte está listo');
+    }
+
     public function test_it_does_not_mark_sent_when_every_email_fails(): void
     {
         Mail::shouldReceive('to')->andThrow(new \RuntimeException('SMTP down'));

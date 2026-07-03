@@ -49,6 +49,7 @@ import {
     useUpdateReportDefinition,
     useUpdateReportNarrative,
 } from '../api';
+import { apiErrorMessage } from '@shared/lib/api';
 import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
@@ -867,6 +868,13 @@ function ReportConfigCard({
                             );
                         })}
                     </div>
+                )}
+                {/* Surface a failed lifecycle action (approve/send/regenerate) instead of a
+                    dead click — especially "Enviar", where silence means nobody notices. */}
+                {(approve.isError || send.isError || generate.isError) && (
+                    <p className="ir-mt-2 ir-text-xs ir-text-danger">
+                        {apiErrorMessage(approve.error ?? send.error ?? generate.error, 'No se pudo completar la acción. Inténtalo de nuevo.')}
+                    </p>
                 )}
             </div>
         </section>

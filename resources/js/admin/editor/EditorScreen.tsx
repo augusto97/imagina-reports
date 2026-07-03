@@ -295,6 +295,16 @@ export function EditorScreen(): ReactElement {
             if (!(event.metaKey || event.ctrlKey)) {
                 return;
             }
+            // Don't hijack undo/redo while the user is typing in a text field or the Tiptap
+            // rich-text editor — otherwise Ctrl+Z reverts the block structure instead of the
+            // text they're editing (FE). Let the focused editor handle its own history.
+            const target = event.target;
+            if (
+                target instanceof HTMLElement &&
+                (target.isContentEditable || target.closest('input, textarea, [contenteditable="true"]') !== null)
+            ) {
+                return;
+            }
             const key = event.key.toLowerCase();
             if (key === "z" && !event.shiftKey) {
                 event.preventDefault();

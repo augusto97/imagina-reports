@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Models\Report;
+use App\Models\ReportDefinition;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
@@ -16,7 +17,12 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 final class ReportReadyMail extends Mailable
 {
-    public function __construct(public readonly Report $report) {}
+    public function __construct(public readonly Report $report)
+    {
+        // Render the email in the report's own locale (FUN — i18n): subject + body follow
+        // the definition's language instead of always Spanish.
+        $this->locale($this->resolveLocale());
+    }
 
     public function envelope(): Envelope
     {
@@ -24,7 +30,24 @@ final class ReportReadyMail extends Mailable
         $appName = config('app.name');
         $name = is_string($appName) ? $appName : 'Imagina Reports';
 
-        return new Envelope(subject: $name.' — tu reporte está listo');
+        $subject = __('report.ready_subject');
+
+        return new Envelope(subject: $name.' — '.(is_string($subject) ? $subject : 'tu reporte está listo'));
+    }
+
+    /**
+     * The report's language, from its definition's locale. Normalized (pt-BR → pt_BR) and
+     * constrained to the locales we actually ship; anything else falls back to Spanish (the
+     * product default).
+     */
+    private function resolveLocale(): string
+    {
+        $definition = $this->report->definition;
+        $raw = $definition instanceof ReportDefinition ? $definition->locale : 'es';
+
+        $normalized = str_replace('-', '_', $raw);
+
+        return in_array($normalized, ['es', 'en', 'pt_BR'], true) ? $normalized : 'es';
     }
 
     public function content(): Content

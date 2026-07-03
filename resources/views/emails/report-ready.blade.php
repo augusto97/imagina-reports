@@ -1,18 +1,18 @@
 @component('mail::message')
-# Tu reporte está listo
+# {{ __('report.ready_heading') }}
 
-{{ $agency?->name ?? config('app.name') }} ha preparado tu reporte del período.
+{{ __('report.ready_intro', ['agency' => $agency?->name ?? config('app.name')]) }}
 
 @if($report->health_score !== null)
-**Estado general:** {{ $report->health_score }}/100
+**{{ __('report.health_status') }}:** {{ $report->health_score }}/100
 @endif
 
 @component('mail::button', ['url' => $portalUrl])
-Ver reporte
+{{ __('report.ready_cta') }}
 @endcomponent
 
-El PDF va adjunto a este correo.
+{{ __('report.ready_pdf_note') }}
 
-Gracias,<br>
+{{ __('report.ready_thanks') }}<br>
 {{ $agency?->name ?? config('app.name') }}
 @endcomponent
