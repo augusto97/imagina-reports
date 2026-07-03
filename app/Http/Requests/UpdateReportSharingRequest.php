@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\ReportVisibility;
+use App\Http\Requests\Concerns\RequiresPrivilegedRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,10 +15,7 @@ use Illuminate\Validation\Rule;
  */
 final class UpdateReportSharingRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
+    use RequiresPrivilegedRole;
 
     /**
      * @return array<string, mixed>

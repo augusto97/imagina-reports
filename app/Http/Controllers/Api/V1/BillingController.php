@@ -66,6 +66,9 @@ final class BillingController extends Controller
 
     public function subscribe(Request $request): JsonResponse
     {
+        // Starting/paying for a subscription is a financial action — owner/admin only.
+        $this->authorizePrivileged($request);
+
         $request->validate([
             'provider' => ['required', 'string'],
             'plan_id' => ['required', 'integer'],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\RequiresPrivilegedRole;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -12,10 +13,7 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 final class UpdateAgencyRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
+    use RequiresPrivilegedRole;
 
     /**
      * Drop blank webhook rows the UI may submit before validating the rest.

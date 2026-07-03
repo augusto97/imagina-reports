@@ -19,6 +19,7 @@ use App\Models\Site;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -250,8 +251,10 @@ final class DataSourceController extends Controller
         return new DataSourceResource($dataSource);
     }
 
-    public function destroy(DataSource $dataSource): JsonResponse
+    public function destroy(Request $request, DataSource $dataSource): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         // Snapshots cascade on delete (FK), so this removes the source and its history.
         $dataSource->delete();
 

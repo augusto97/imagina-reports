@@ -22,7 +22,7 @@ final class SystemUpdateController extends Controller
     public function status(Request $request, UpdateManager $manager): JsonResponse
     {
         // App version/worker state is platform-only — don't leak build info to agencies.
-        $this->authorizePrivileged($request);
+        $this->authorizePlatformAdmin($request);
 
         return response()->json($manager->status());
     }
@@ -34,7 +34,7 @@ final class SystemUpdateController extends Controller
      */
     public function check(Request $request, UpdateManager $manager): JsonResponse
     {
-        $this->authorizePrivileged($request);
+        $this->authorizePlatformAdmin($request);
 
         Artisan::call('system:check-updates');
 
@@ -52,7 +52,7 @@ final class SystemUpdateController extends Controller
      */
     public function restartWorkers(Request $request, UpdateManager $manager): JsonResponse
     {
-        $this->authorizePrivileged($request);
+        $this->authorizePlatformAdmin($request);
 
         // Best-effort: a failure in one restart path (e.g. Horizon not running) must not
         // 500 the request — the other path and the version re-check still run.
@@ -71,7 +71,7 @@ final class SystemUpdateController extends Controller
 
     public function run(Request $request, UpdateManager $manager): JsonResponse
     {
-        $this->authorizePrivileged($request);
+        $this->authorizePlatformAdmin($request);
 
         $manager->markQueued();
         RunUpdateJob::dispatch();
@@ -81,14 +81,14 @@ final class SystemUpdateController extends Controller
 
     public function rollback(Request $request, UpdateManager $manager): JsonResponse
     {
-        $this->authorizePrivileged($request);
+        $this->authorizePlatformAdmin($request);
 
         $manager->rollback();
 
         return response()->json(['message' => 'Rollback executed.']);
     }
 
-    private function authorizePrivileged(Request $request): void
+    private function authorizePlatformAdmin(Request $request): void
     {
         $user = $request->user();
 

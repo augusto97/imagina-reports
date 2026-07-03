@@ -15,6 +15,7 @@ use App\Models\Site;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class SiteController extends Controller
@@ -50,8 +51,10 @@ final class SiteController extends Controller
      * definitions, reports and work logs (see the Site model's deleting hook + DB FKs) —
      * so it is deliberately destructive; the UI confirms before calling it.
      */
-    public function destroy(Site $site): JsonResponse
+    public function destroy(Request $request, Site $site): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         $site->delete();
 
         return response()->json(null, 204);

@@ -34,7 +34,10 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
-            'role' => UserRole::Collaborator,
+            // A factory user is a fully-capable agency member by default (owner); restricted
+            // roles are opt-in via ->collaborator()/explicit role so gated-action tests don't
+            // all have to spell it out.
+            'role' => UserRole::Owner,
             'remember_token' => Str::random(10),
         ];
     }

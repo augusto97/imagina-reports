@@ -12,6 +12,7 @@ use App\Models\ReportDefinition;
 use App\Models\ReportTemplate;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ReportDefinitionController extends Controller
@@ -65,8 +66,10 @@ final class ReportDefinitionController extends Controller
         }
     }
 
-    public function destroy(ReportDefinition $reportDefinition): JsonResponse
+    public function destroy(Request $request, ReportDefinition $reportDefinition): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         // Cascade deletes its generated reports (FK), so this clears the definition end to end.
         $reportDefinition->delete();
 

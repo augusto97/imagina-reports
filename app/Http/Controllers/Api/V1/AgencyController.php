@@ -94,8 +94,10 @@ final class AgencyController extends Controller
     }
 
     /** Run the retention prune for this agency now; returns how many snapshots were deleted. */
-    public function pruneSnapshots(TenantContext $tenant, SnapshotRetentionService $retention): JsonResponse
+    public function pruneSnapshots(Request $request, TenantContext $tenant, SnapshotRetentionService $retention): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         $deleted = $retention->pruneAgency($this->current($tenant));
 
         return response()->json(['deleted' => $deleted]);
@@ -105,8 +107,10 @@ final class AgencyController extends Controller
      * Send a `ping` test event to the configured webhook endpoints (§8) so the operator
      * can confirm the integration is wired up before relying on the real events.
      */
-    public function testWebhooks(TenantContext $tenant, WebhookDispatcher $webhooks): JsonResponse
+    public function testWebhooks(Request $request, TenantContext $tenant, WebhookDispatcher $webhooks): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         $agency = $this->current($tenant);
         $count = count($this->webhookUrls($agency));
 
@@ -128,6 +132,8 @@ final class AgencyController extends Controller
      */
     public function uploadLogo(Request $request, TenantContext $tenant): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         $request->validate([
             // No SVG (stored-XSS via same-origin /storage): PNG/JPEG/WEBP only.
             'logo' => ['required', 'file', 'mimetypes:image/png,image/jpeg,image/webp', 'max:1024'],

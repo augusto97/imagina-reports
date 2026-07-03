@@ -14,6 +14,7 @@ use App\Models\Site;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
@@ -49,8 +50,10 @@ final class ClientController extends Controller
         return new ClientResource($client);
     }
 
-    public function destroy(Client $client): JsonResponse
+    public function destroy(Request $request, Client $client): JsonResponse
     {
+        $this->authorizePrivileged($request);
+
         // Deleting a client cascades its sites (and their data/reports), so refuse while
         // it still has sites — the operator should remove or reassign them first.
         if (Site::query()->where('client_id', $client->id)->exists()) {
