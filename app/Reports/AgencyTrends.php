@@ -25,7 +25,11 @@ final readonly class AgencyTrends
      */
     public function build(): array
     {
+        // Only the light columns — never the heavy resolved_blocks JSON (50–500 KB/row),
+        // since this only needs the health score + period (PERF). agency_id and
+        // report_definition_id are required for the tenant scope and the eager load.
         $reports = Report::query()
+            ->select(['id', 'agency_id', 'report_definition_id', 'period_end', 'health_score'])
             ->with('definition.site.client')
             ->orderBy('period_end')
             ->get();

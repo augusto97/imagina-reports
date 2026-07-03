@@ -33,8 +33,10 @@ final readonly class AgencyUpsell
      */
     public function build(): array
     {
-        // Latest generated report per site (ascending order → last write wins).
+        // Latest generated report per site (ascending order → last write wins). Only the light
+        // columns — the metric bags come from snapshots (below), not resolved_blocks (PERF).
         $reports = Report::query()
+            ->select(['id', 'agency_id', 'report_definition_id', 'period_start', 'period_end'])
             ->with('definition.site.client')
             ->orderBy('period_end')
             ->get();
@@ -49,6 +51,9 @@ final readonly class AgencyUpsell
                 $latestBySite[$site->id] = $report;
             }
         }
+
+        // Connected source types per site in ONE query instead of one per site (PERF — was N+1).
+        $connectedBySite = $this->connectedTypes(array_keys($latestBySite));
 
         $sites = [];
         $opportunitiesTotal = 0;
@@ -66,13 +71,7 @@ final readonly class AgencyUpsell
             $current = $this->bags->forSite($siteId, $period);
             $previous = $this->bags->forSite($siteId, $period->previous());
 
-            $connected = array_values(
-                DataSource::query()
-                    ->where('site_id', $siteId)
-                    ->get()
-                    ->map(static fn (DataSource $source): string => $source->type->value)
-                    ->all(),
-            );
+            $connected = $connectedBySite[$siteId] ?? [];
 
             $opportunities = array_map(
                 static fn (UpsellOpportunity $opportunity): array => [
@@ -110,5 +109,30 @@ final readonly class AgencyUpsell
             ],
             'sites' => $sites,
         ];
+    }
+
+    /**
+     * Connected source-type values grouped by site id, fetched in a single query.
+     *
+     * @param  list<int>  $siteIds
+     * @return array<int, list<string>>
+     */
+    private function connectedTypes(array $siteIds): array
+    {
+        if ($siteIds === []) {
+            return [];
+        }
+
+        $map = [];
+
+        foreach (DataSource::query()->whereIn('site_id', $siteIds)->get() as $source) {
+            $siteId = $source->site_id;
+
+            if ($siteId !== null) {
+                $map[$siteId][] = $source->type->value;
+            }
+        }
+
+        return $map;
     }
 }
