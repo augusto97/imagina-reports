@@ -19,6 +19,12 @@ final class DeliverReportJob implements ShouldQueue
 {
     use Queueable;
 
+    /** PDF render (up to ~120s) + N emails can exceed the 60s default worker timeout (PERF-1).
+     *  tries=1 — deliver() re-sends to every recipient, so a retry would duplicate client emails. */
+    public int $timeout = 300;
+
+    public int $tries = 1;
+
     public function __construct(public readonly int $reportId) {}
 
     public function handle(DeliveryService $delivery, TenantContext $tenant): void

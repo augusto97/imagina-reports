@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ReportStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
@@ -48,9 +49,14 @@ final class PublicReportController extends Controller
             return $denied;
         }
 
+        // Only expose SENT siblings in the client-facing period selector. Otherwise a client
+        // holding one period's link would receive the public_token of this month's unapproved
+        // draft (incl. un-reviewed AI text) and could open it (FUN-3). Admin preview of a draft
+        // still works — the admin opens that draft's token directly, not via this selector.
         $periods = Report::query()
             ->withoutGlobalScopes()
             ->where('report_definition_id', $report->report_definition_id)
+            ->where('status', ReportStatus::Sent)
             ->orderByDesc('period_start')
             ->get(['public_token', 'period_start', 'period_end'])
             ->map(static fn (Report $sibling): array => [

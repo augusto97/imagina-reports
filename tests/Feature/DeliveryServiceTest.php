@@ -51,4 +51,30 @@ class DeliveryServiceTest extends TestCase
         $this->assertSame(ReportStatus::Sent, $report->status);
         $this->assertNotNull($report->pdf_path);
     }
+
+    public function test_it_does_not_mark_sent_when_every_email_fails(): void
+    {
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('SMTP down'));
+        Storage::fake();
+        $this->app->instance(PdfRenderer::class, new FakePdfRenderer);
+
+        $agency = Agency::factory()->create();
+        app(TenantContext::class)->set($agency->id);
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $agency->id,
+            'recipients' => ['ana@cliente.test'],
+        ]);
+        $report = Report::factory()->create([
+            'agency_id' => $agency->id,
+            'report_definition_id' => $definition->id,
+            'status' => ReportStatus::Approved,
+            'pdf_path' => null,
+        ]);
+
+        app(DeliveryService::class)->deliver($report);
+
+        // The failed attempt is recorded, but the report stays Approved (not a false "Sent").
+        $this->assertSame(1, ReportDelivery::query()->where('status', DeliveryStatus::Failed)->count());
+        $this->assertSame(ReportStatus::Approved, $report->refresh()->status);
+    }
 }

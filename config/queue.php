@@ -69,7 +69,10 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // Must exceed the longest job $timeout (RunScheduledReportJob = 600s), or the queue
+            // re-dispatches a still-running generate/deliver → a second report or duplicate
+            // client emails (PERF-1). Kept above every per-job timeout with headroom.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 900),
             'block_for' => null,
             'after_commit' => false,
         ],

@@ -4,15 +4,24 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Connectors\ConnectorRegistry;
+use App\Connectors\MetricSet;
+use App\Enums\DataSourceType;
+use App\Jobs\DeliverReportJob;
 use App\Jobs\RunScheduledReportJob;
 use App\Models\Agency;
+use App\Models\DataSource;
+use App\Models\MetricSnapshot;
 use App\Models\Plan;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Models\Schedule;
+use App\Models\Site;
 use App\Services\ScheduleRunner;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Tests\Support\Connectors\FakeConnector;
 use Tests\TestCase;
 
 class SchedulingTest extends TestCase
@@ -71,6 +80,29 @@ class SchedulingTest extends TestCase
         app()->call([new RunScheduledReportJob($schedule->id), 'handle']);
 
         $this->assertSame(0, Report::query()->withoutGlobalScopes()->where('agency_id', $agency->id)->count());
+    }
+
+    public function test_it_syncs_the_sites_sources_before_generating(): void
+    {
+        // FUN-1: the scheduled run must refresh data first, not build from stale/absent
+        // snapshots. Registering a fake connector and running the job should leave a fresh
+        // snapshot for the period AND a generated report.
+        Queue::fake([DeliverReportJob::class]);
+        app(ConnectorRegistry::class)->register(new FakeConnector(DataSourceType::MainWp->value, 'MainWP', MetricSet::ok(['fake.visits' => 42])));
+
+        $agency = Agency::factory()->create(['status' => 'active']);
+        app(TenantContext::class)->set($agency->id);
+        $site = Site::factory()->create(['agency_id' => $agency->id]);
+        $source = DataSource::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'type' => DataSourceType::MainWp]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id]);
+        $schedule = Schedule::factory()->due()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+
+        app()->call([new RunScheduledReportJob($schedule->id), 'handle']);
+
+        // A snapshot exists for the source → sync ran before generation.
+        $this->assertSame(1, MetricSnapshot::query()->withoutGlobalScopes()->where('data_source_id', $source->id)->count());
+        // And the report was generated and its delivery queued.
+        $this->assertSame(1, Report::query()->withoutGlobalScopes()->where('agency_id', $agency->id)->count());
     }
 
     public function test_a_schedule_respects_the_monthly_report_limit(): void

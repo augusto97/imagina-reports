@@ -20,6 +20,13 @@ final class GenerateReportJob implements ShouldQueue
 {
     use Queueable;
 
+    /** Two Claude calls (narrative + advisory) plus block resolution can run past the 60s
+     *  default worker timeout; give it room (PERF-1). tries=1 — persist() always inserts a
+     *  fresh Report, so a retry would duplicate it. */
+    public int $timeout = 300;
+
+    public int $tries = 1;
+
     public function __construct(
         public readonly int $definitionId,
         public readonly string $periodStart,

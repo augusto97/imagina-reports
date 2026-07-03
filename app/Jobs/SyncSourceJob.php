@@ -23,6 +23,21 @@ final class SyncSourceJob implements ShouldQueue
 {
     use Queueable;
 
+    /** A connector fetch (several aggregated API calls) can run past the 60s default (PERF-1). */
+    public int $timeout = 180;
+
+    /** Idempotent (the SyncService upserts the snapshot), so a transient API/network failure is
+     *  safe to retry — unlike generate/deliver. Backoff spaces the attempts. */
+    public int $tries = 3;
+
+    /**
+     * @return list<int>
+     */
+    public function backoff(): array
+    {
+        return [30, 120];
+    }
+
     /**
      * @param  list<string>  $requestedMetrics
      */

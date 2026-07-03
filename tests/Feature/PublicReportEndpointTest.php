@@ -87,15 +87,31 @@ class PublicReportEndpointTest extends TestCase
         $agency = Agency::factory()->create();
         $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id]);
 
-        $current = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
-        Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id]);
+        $current = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id, 'status' => 'sent']);
+        Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id, 'status' => 'sent']);
         // A report from a different definition must NOT appear.
-        Report::factory()->create(['agency_id' => $agency->id]);
+        Report::factory()->create(['agency_id' => $agency->id, 'status' => 'sent']);
 
         $this->getJson("/api/v1/public/reports/{$current->public_token}/periods")
             ->assertOk()
             ->assertJsonCount(2)
             ->assertJsonStructure([['public_token', 'period_start', 'period_end']]);
+    }
+
+    public function test_the_period_selector_never_leaks_unsent_draft_tokens(): void
+    {
+        $agency = Agency::factory()->create();
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id]);
+
+        $sent = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id, 'status' => 'sent']);
+        // This month's unapproved draft — its token must not reach the client via the selector.
+        $draft = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $definition->id, 'status' => 'draft']);
+
+        $this->getJson("/api/v1/public/reports/{$sent->public_token}/periods")
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.public_token', $sent->public_token)
+            ->assertJsonMissing(['public_token' => $draft->public_token]);
     }
 
     public function test_it_exposes_the_report_theme(): void

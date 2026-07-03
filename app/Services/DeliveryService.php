@@ -31,8 +31,21 @@ final readonly class DeliveryService
             $report->refresh();
         }
 
-        foreach ($this->recipients($report) as $recipient) {
-            $this->sendTo($report, $recipient);
+        $recipients = $this->recipients($report);
+        $succeeded = 0;
+
+        foreach ($recipients as $recipient) {
+            if ($this->sendTo($report, $recipient)->status === DeliveryStatus::Sent) {
+                $succeeded++;
+            }
+        }
+
+        // Only claim "Sent" (and fire report.sent → webhooks) when the client actually
+        // received something: at least one email went through, or the report is portal-only
+        // (no recipients to email). If every email failed, leave the status untouched so the
+        // agency sees the failed deliveries and can retry instead of a false "Enviado".
+        if ($succeeded === 0 && $recipients !== []) {
+            return;
         }
 
         $report->forceFill(['status' => ReportStatus::Sent])->save();
