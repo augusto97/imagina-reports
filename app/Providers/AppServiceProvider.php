@@ -16,10 +16,14 @@ use App\Services\Update\Deployer;
 use App\Services\Update\SymlinkDeployer;
 use App\Services\Webhooks\HttpWebhookDispatcher;
 use App\Services\Webhooks\WebhookDispatcher;
+use App\Support\Http\SsrfGuard;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
+use Psr\Http\Message\RequestInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -57,5 +61,28 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(ReportGenerated::class, DetectReportAnomalies::class);
         Event::listen(ReportGenerated::class, DetectUpsellOpportunities::class);
         Event::subscribe(ReportWebhookSubscriber::class);
+
+        $this->guardOutboundHttp();
+    }
+
+    /**
+     * SSRF defense for every outbound HTTP-client request (connectors, webhooks): reject a
+     * request whose host resolves to a private/reserved/loopback address. Registered once
+     * here so it covers all connectors without per-connector wiring. Skipped in tests (which
+     * fake HTTP) so the suite never does real DNS.
+     */
+    private function guardOutboundHttp(): void
+    {
+        if ($this->app->runningUnitTests()) {
+            return;
+        }
+
+        Http::globalRequestMiddleware(function (RequestInterface $request): RequestInterface {
+            if (SsrfGuard::isBlockedUrl((string) $request->getUri())) {
+                throw new ConnectionException('Blocked request to a private or reserved address (SSRF guard).');
+            }
+
+            return $request;
+        });
     }
 }

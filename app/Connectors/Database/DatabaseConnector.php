@@ -16,8 +16,10 @@ use App\Connectors\Period;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use App\Support\Http\SsrfGuard;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -149,9 +151,17 @@ final class DatabaseConnector implements DataSourceConnector
         $config = $source->config ?? [];
         $credentials = $source->credentials ?? [];
 
+        $host = $this->toStr(Arr::get($config, 'host'));
+
+        // SSRF/port-scan guard: this connector opens a real DB socket to an agency-chosen
+        // host, bypassing the outbound-HTTP guard — so block private/reserved targets here.
+        if (SsrfGuard::isBlockedHost($host)) {
+            throw new RuntimeException('The database host is not allowed.');
+        }
+
         return [
             'driver' => $this->toStr(Arr::get($config, 'driver')) ?: 'mysql',
-            'host' => $this->toStr(Arr::get($config, 'host')),
+            'host' => $host,
             'port' => $this->toStr(Arr::get($config, 'port')),
             'database' => $this->toStr(Arr::get($config, 'database')),
             'username' => $this->toStr(Arr::get($config, 'username')),
