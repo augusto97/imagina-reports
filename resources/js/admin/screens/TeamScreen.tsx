@@ -1,6 +1,8 @@
 import { Trash2, UserPlus } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
+import { apiErrorMessage } from '@shared/lib/api';
+
 import { useCreateTeamMember, useDeleteTeamMember, useTeam, useUpdateTeamMember } from '../api';
 import { Badge, Button, Card, Field, Input, Select } from '../components/ui';
 import type { TeamMember } from '../types';
@@ -111,6 +113,11 @@ export function TeamScreen(): ReactElement {
                             </li>
                         ))}
                     </ul>
+                )}
+                {/* Surface a rejected role change / removal (e.g. "can't remove the last owner")
+                    instead of silently discarding the server's message. */}
+                {(update.isError || remove.isError) && (
+                    <p className="ir-mt-3 ir-text-xs ir-text-danger">{apiErrorMessage(update.error ?? remove.error, 'No se pudo actualizar el equipo.')}</p>
                 )}
             </Card>
         </div>

@@ -1259,6 +1259,10 @@ export function EditorScreen(): ReactElement {
                                     {preview_.sources_with_data.length}{" "}
                                     fuente(s).
                                 </span>
+                            ) : preview.isError ? (
+                                <span className="ir-text-danger">
+                                    No se pudieron cargar los datos del sitio.
+                                </span>
                             ) : (
                                 <span className="ir-text-muted-foreground">
                                     Cargando datos…

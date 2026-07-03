@@ -86,4 +86,17 @@ final class RunScheduledReportJob implements ShouldQueue
             DeliverReportJob::dispatch($report->id);
         });
     }
+
+    /**
+     * The scheduler advances next_run_at when it dispatches this job, so a failed run would
+     * otherwise drop that period silently with nothing to retry it. Log it loudly so the
+     * missed month is visible in the logs instead of just vanishing (FUN).
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('Scheduled report run failed; this period was not generated.', [
+            'schedule_id' => $this->scheduleId,
+            'error' => $exception?->getMessage(),
+        ]);
+    }
 }
