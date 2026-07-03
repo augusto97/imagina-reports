@@ -7,6 +7,25 @@
 ---
 
 ## Where I left off (read me first)
+**🛡️ AUDITORÍA COMPLETA + ARREGLOS (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, releases v1.13.116–120):** auditoría de
+seguridad/rendimiento/funcional/frontend (artefacto `scratchpad/auditoria.html`) y arreglo de **todos los hallazgos de severidad ALTA**
+más varios medios. **Seguridad:** SVG stored-XSS (quitado de subidas), updater fail-closed en checksum vacío, verificación de firma en
+webhook PayPal, autorización por rol en CRUD/facturación/borrados (trait `RequiresPrivilegedRole` + `Controller::authorizePrivileged`),
+`SsrfGuard` global en todo HTTP saliente + conector DB, `template_id` scopeado, rate-limit anti-fuerza-bruta en informes con contraseña
+(`ShareGate`). **Funcional:** informes programados ahora **SINCRONIZAN antes de generar** (`RunScheduledReportJob`, FUN-1); «Enviado»
+solo si ≥1 email tuvo éxito (`DeliveryService`, FUN-2); el selector público de periodos ya no filtra borradores (FUN-3); `approve`
+no revierte un informe ya enviado; limpieza de PDFs huérfanos al borrar definición/sitio (`ReportPdfCleanup`); email localizado al
+locale del informe (es/en/pt_BR). **Rendimiento (PERF-1):** timeouts/tries por job + `retry_after` 900 (evita duplicados por re-encolado);
+usage de plataforma en 5 consultas agrupadas (PERF-4); Trends/Upsell ya no cargan `resolved_blocks` + Upsell sin N+1. **Frontend:**
+interceptor global 401/402 + banner de suspensión (FE-2), guardia de cambios sin guardar en el editor (FE-1), feedback de error en
+fuentes de datos y acciones de ciclo de vida (FE-3), ramas `isError` en Reports/Trends/Upsell (FE-4), Ctrl+Z ya no secuestra el editor
+al escribir, confirmación al borrar work-logs. **469 tests PHP + 15 vitest + stan/pint/ts/lint limpios.** **DECISIONES CONSERVADORAS
+(no aplicadas, requieren visto bueno del owner):** (a) **cifrar `push_token`** — rompería el lookup de ingesta de sitios ya
+configurados (se busca por el valor en claro); se dejó como riesgo aceptado. (b) **PERF-2 cola PDF dedicada** — cambio de infra
+(Horizon) + PDF on-demand asíncrono; sin aplicar. Otros medios pospuestos por acoplar el frontend: paginar índices (reports/clients/…),
+throttle de rutas públicas (SEC-7, riesgo con el render del PDF desde la IP del server), consistencia de gating de IA, features de plan
+`remove_branding`/`custom_domain`. **SIGUIENTE:** confirmar con el owner las 2 decisiones conservadoras; validar pagos en sandbox real.
+
 **🐞 FIX GRAVE: SIN PLAN = ILIMITADO + LA AGENCIA NO PODÍA ELEGIR PLAN (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.99):** dos fallos que reportó el owner. **(1) SIN PLAN = ILIMITADO:** `Entitlements::limits()` devolvía `null` (=ilimitado) cuando
 la agencia no tenía plan → barra libre. CORREGIDO: sin plan (y sin override) → **límite 0** (nada permitido) y `hasFeature`→false. Un
