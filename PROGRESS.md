@@ -19,12 +19,18 @@ locale del informe (es/en/pt_BR). **Rendimiento (PERF-1):** timeouts/tries por j
 usage de plataforma en 5 consultas agrupadas (PERF-4); Trends/Upsell ya no cargan `resolved_blocks` + Upsell sin N+1. **Frontend:**
 interceptor global 401/402 + banner de suspensión (FE-2), guardia de cambios sin guardar en el editor (FE-1), feedback de error en
 fuentes de datos y acciones de ciclo de vida (FE-3), ramas `isError` en Reports/Trends/Upsell (FE-4), Ctrl+Z ya no secuestra el editor
-al escribir, confirmación al borrar work-logs. **469 tests PHP + 15 vitest + stan/pint/ts/lint limpios.** **DECISIONES CONSERVADORAS
-(no aplicadas, requieren visto bueno del owner):** (a) **cifrar `push_token`** — rompería el lookup de ingesta de sitios ya
-configurados (se busca por el valor en claro); se dejó como riesgo aceptado. (b) **PERF-2 cola PDF dedicada** — cambio de infra
-(Horizon) + PDF on-demand asíncrono; sin aplicar. Otros medios pospuestos por acoplar el frontend: paginar índices (reports/clients/…),
-throttle de rutas públicas (SEC-7, riesgo con el render del PDF desde la IP del server), consistencia de gating de IA, features de plan
-`remove_branding`/`custom_domain`. **SIGUIENTE:** confirmar con el owner las 2 decisiones conservadoras; validar pagos en sandbox real.
+al escribir, confirmación al borrar work-logs. **APROBADAS POR EL OWNER Y YA APLICADAS (release v1.13.121):** (a) **`push_token`
+cifrado en reposo** — cast `encrypted` + columna `push_token_hash` (SHA-256) como clave de búsqueda de ingesta; un dump ya no expone
+tokens usables, el panel sigue mostrando token+URL. ⚠️ **La migración invalida los tokens actuales → hay que reconectar/re-provisionar
+los sitios push (CrowdSec) una vez** (el owner lo aceptó). (b) **PERF-2 cola PDF dedicada** — `DeliverReportJob` va a la cola `pdf`
+con supervisor Horizon a 1–2 procesos (RAM acotada; el PDF on-demand sigue síncrono, sin cambio de UX). ⚠️ **Requiere que Horizon
+recargue config al desplegar** (`queue:restart`/`horizon:terminate`, ya en el flujo de deploy). **También:** `failed()` en
+`RunScheduledReportJob` (logea el periodo perdido), feedback de error en equipo/preview, y **User `$fillable`** sin
+`agency_id/is_platform_admin/impersonating_agency_id` (se setean con forceFill). **470 tests PHP + 15 vitest + stan/pint/ts/lint
+limpios.** **PENDIENTES (pospuestos por riesgo/acoplamiento, NO aplicados):** paginar índices (reports/clients/…) — acopla el
+frontend; throttle de rutas públicas SEC-7 — choca con el render del PDF desde la IP del server; consistencia de gating de IA y
+features de plan `remove_branding`/`custom_domain` — cambian lo que recibe el cliente / feature grande. **SIGUIENTE:** validar pagos
+en sandbox real; reconectar sitios push tras desplegar v1.13.121.
 
 **🐞 FIX GRAVE: SIN PLAN = ILIMITADO + LA AGENCIA NO PODÍA ELEGIR PLAN (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.99):** dos fallos que reportó el owner. **(1) SIN PLAN = ILIMITADO:** `Entitlements::limits()` devolvía `null` (=ilimitado) cuando
