@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\Pdf\PdfRenderer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\FakePdfRenderer;
 use Tests\TestCase;
@@ -184,6 +185,23 @@ class ReportApiTest extends TestCase
         $this->deleteJson("/api/v1/report-definitions/{$definition->id}")->assertOk();
         $this->assertDatabaseMissing('ir_report_definitions', ['id' => $definition->id]);
         $this->assertDatabaseMissing('ir_reports', ['id' => $report->id]);
+    }
+
+    public function test_deleting_a_definition_purges_its_report_pdf_files(): void
+    {
+        Storage::fake();
+        $definition = $this->definition();
+        Storage::put('reports/report-1.pdf', 'pdf-bytes');
+        Report::factory()->create([
+            'agency_id' => $this->agency->id,
+            'report_definition_id' => $definition->id,
+            'pdf_path' => 'reports/report-1.pdf',
+        ]);
+
+        $this->deleteJson("/api/v1/report-definitions/{$definition->id}")->assertOk();
+
+        // The FK cascade removes the row; the file must not be left orphaned on disk.
+        Storage::assertMissing('reports/report-1.pdf');
     }
 
     public function test_it_downloads_a_report_pdf(): void

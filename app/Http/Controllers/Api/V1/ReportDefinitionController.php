@@ -11,6 +11,7 @@ use App\Http\Resources\ReportDefinitionResource;
 use App\Models\ReportDefinition;
 use App\Models\ReportTemplate;
 use App\Models\Site;
+use App\Services\Reports\ReportPdfCleanup;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -69,6 +70,10 @@ final class ReportDefinitionController extends Controller
     public function destroy(Request $request, ReportDefinition $reportDefinition): JsonResponse
     {
         $this->authorizePrivileged($request);
+
+        // Purge the reports' PDF files first — the FK cascade removes the rows but leaves the
+        // stored files orphaned (FUN — PDF cleanup).
+        ReportPdfCleanup::forDefinitions([$reportDefinition->id]);
 
         // Cascade deletes its generated reports (FK), so this clears the definition end to end.
         $reportDefinition->delete();

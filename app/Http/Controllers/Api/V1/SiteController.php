@@ -13,6 +13,7 @@ use App\Models\Client;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
 use App\Services\Platform\Entitlements;
+use App\Services\Reports\ReportPdfCleanup;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,9 @@ final class SiteController extends Controller
     public function destroy(Request $request, Site $site): JsonResponse
     {
         $this->authorizePrivileged($request);
+
+        // Purge orphaned report PDFs before the FK cascade removes the rows (FUN — PDF cleanup).
+        ReportPdfCleanup::forSite($site->id);
 
         $site->delete();
 

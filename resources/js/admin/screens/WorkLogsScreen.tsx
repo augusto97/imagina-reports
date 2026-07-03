@@ -455,7 +455,16 @@ export function WorkLogsScreen(): ReactElement {
                                                             <button type="button" className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground" title="Editar" onClick={() => startEdit(log)}>
                                                                 <Pencil className="ir-size-3.5" />
                                                             </button>
-                                                            <button type="button" className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger" title="Eliminar" onClick={() => remove.mutate(log.id)}>
+                                                            <button
+                                                                type="button"
+                                                                className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger"
+                                                                title="Eliminar"
+                                                                onClick={() => {
+                                                                    if (window.confirm('¿Eliminar esta entrada de trabajo? Es evidencia del trabajo realizado y no se puede deshacer.')) {
+                                                                        remove.mutate(log.id);
+                                                                    }
+                                                                }}
+                                                            >
                                                                 <Trash2 className="ir-size-3.5" />
                                                             </button>
                                                         </div>
