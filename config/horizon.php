@@ -212,6 +212,23 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        // Dedicated queue for PDF-rendering deliveries (PERF-2). Kept at low concurrency so a
+        // month-start burst of DeliverReportJobs can only run a couple of headless Chromium
+        // instances at once — bounding RAM instead of letting the default supervisor spin up
+        // ~10 and OOM the VPS. Higher per-worker memory ceiling + longer timeout for the render.
+        'supervisor-pdf' => [
+            'connection' => 'redis',
+            'queue' => ['pdf'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 1,
+            'timeout' => 320,
+            'nice' => 5,
+        ],
     ],
 
     'environments' => [
@@ -221,11 +238,17 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-pdf' => [
+                'maxProcesses' => 2,
+            ],
         ],
 
         'local' => [
             'supervisor-1' => [
                 'maxProcesses' => 3,
+            ],
+            'supervisor-pdf' => [
+                'maxProcesses' => 1,
             ],
         ],
     ],

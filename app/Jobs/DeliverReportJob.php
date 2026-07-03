@@ -25,7 +25,14 @@ final class DeliverReportJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public function __construct(public readonly int $reportId) {}
+    public function __construct(public readonly int $reportId)
+    {
+        // Route delivery to the dedicated, low-concurrency 'pdf' queue (PERF-2): each report
+        // spins up a headless Chromium (~300-500 MB). On the 1st of the month hundreds of
+        // these enqueue at once — capping the pdf queue's processes keeps RAM bounded so a
+        // burst can't OOM the VPS. They just drain a bit more slowly (they're background work).
+        $this->onQueue('pdf');
+    }
 
     public function handle(DeliveryService $delivery, TenantContext $tenant): void
     {

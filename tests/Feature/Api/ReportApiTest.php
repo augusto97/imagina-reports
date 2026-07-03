@@ -113,7 +113,8 @@ class ReportApiTest extends TestCase
 
         $this->postJson("/api/v1/reports/{$report->id}/send")->assertStatus(202);
 
-        Queue::assertPushed(DeliverReportJob::class, fn (DeliverReportJob $job): bool => $job->reportId === $report->id);
+        // Delivery goes to the dedicated, low-concurrency 'pdf' queue (PERF-2).
+        Queue::assertPushed(DeliverReportJob::class, fn (DeliverReportJob $job): bool => $job->reportId === $report->id && $job->queue === 'pdf');
     }
 
     public function test_send_is_blocked_for_a_draft(): void

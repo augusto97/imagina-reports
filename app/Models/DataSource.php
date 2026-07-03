@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed>|null $credentials
  * @property array<string, mixed>|null $config
  * @property string|null $push_token
+ * @property string|null $push_token_hash
  * @property DataSourceStatus $status
  * @property Carbon|null $last_synced_at
  * @property string|null $last_error
@@ -54,6 +55,7 @@ class DataSource extends Model
         'credentials',
         'config',
         'push_token',
+        'push_token_hash',
         'status',
         'last_synced_at',
         'last_error',
@@ -64,6 +66,7 @@ class DataSource extends Model
      */
     protected $hidden = [
         'credentials',
+        'push_token_hash',
     ];
 
     /**
@@ -83,8 +86,28 @@ class DataSource extends Model
             'type' => DataSourceType::class,
             'status' => DataSourceStatus::class,
             'credentials' => 'encrypted:array',
+            // Encrypted at rest (audit SEC). Lookups go through push_token_hash, never this.
+            'push_token' => 'encrypted',
             'config' => 'array',
             'last_synced_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Assign a fresh push token: store it encrypted (for display) and its deterministic hash
+     * (the ingest lookup key). Always set together so the two never drift.
+     */
+    public function assignPushToken(string $token): void
+    {
+        $this->forceFill([
+            'push_token' => $token,
+            'push_token_hash' => self::hashPushToken($token),
+        ])->save();
+    }
+
+    /** The deterministic lookup hash for a push token (what the ingest endpoint matches on). */
+    public static function hashPushToken(string $token): string
+    {
+        return hash('sha256', $token);
     }
 }

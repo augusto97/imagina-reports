@@ -11,6 +11,7 @@ use App\Models\DataSource;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class IngestTest extends TestCase
@@ -23,14 +24,16 @@ class IngestTest extends TestCase
         $client = Client::factory()->create(['agency_id' => $agency->id]);
         $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
 
-        return DataSource::factory()->create([
+        $source = DataSource::factory()->create([
             'agency_id' => $agency->id,
             'site_id' => $site->id,
             'type' => DataSourceType::CrowdSec,
             'config' => [],
             'credentials' => [],
-            'push_token' => $token,
         ]);
+        $source->assignPushToken($token);
+
+        return $source;
     }
 
     public function test_a_pushed_payload_is_normalized_and_stored_as_a_snapshot(): void
@@ -68,19 +71,33 @@ class IngestTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_the_push_token_is_stored_encrypted_not_in_plaintext(): void
+    {
+        $source = $this->crowdSecSource('tok-secret-xyz');
+
+        // The raw DB value is ciphertext (a dump exposes no usable token)…
+        $raw = DB::table('ir_data_sources')->where('id', $source->id)->value('push_token');
+        $this->assertIsString($raw);
+        $this->assertNotSame('tok-secret-xyz', $raw);
+
+        // …but the app still reads the token back, and ingest still authenticates by it.
+        $this->assertSame('tok-secret-xyz', $source->refresh()->push_token);
+        $this->postJson('/api/v1/ingest/tok-secret-xyz', ['alerts' => []])->assertOk();
+    }
+
     public function test_a_non_push_source_rejects_pushed_data(): void
     {
         $agency = Agency::factory()->create();
         $client = Client::factory()->create(['agency_id' => $agency->id]);
         $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
-        DataSource::factory()->create([
+        $source = DataSource::factory()->create([
             'agency_id' => $agency->id,
             'site_id' => $site->id,
             'type' => DataSourceType::MainWp, // not a ReceivesPushedData connector
             'config' => [],
             'credentials' => [],
-            'push_token' => 'tok-mainwp',
         ]);
+        $source->assignPushToken('tok-mainwp');
 
         $this->postJson('/api/v1/ingest/tok-mainwp', ['alerts' => []])
             ->assertStatus(422);

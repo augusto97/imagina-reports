@@ -63,11 +63,10 @@ final class DataSourceController extends Controller
         }
 
         if ($source->push_token === null || $source->push_token === '') {
-            $source->forceFill(['push_token' => Str::random(48)])->save();
+            $source->assignPushToken(Str::random(48));
         }
 
         $source->setAttribute('is_push', true);
-        $source->setAttribute('push_token', $source->push_token);
         $source->setAttribute('ingest_url', route('api.ingest.store', ['token' => $source->push_token]));
     }
 

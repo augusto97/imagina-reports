@@ -32,8 +32,9 @@ final class IngestController extends Controller
     {
         // The token is the only credential. No tenant is bound on this public route, so
         // the AgencyScope is a no-op and the lookup spans agencies by design — the token
-        // itself scopes to exactly one source. Unknown token → 404 (reveal nothing).
-        $source = DataSource::query()->where('push_token', $token)->first();
+        // itself scopes to exactly one source. Matched by its deterministic hash (the token
+        // is encrypted at rest), so a DB dump exposes no usable token. Unknown → 404.
+        $source = DataSource::query()->where('push_token_hash', DataSource::hashPushToken($token))->first();
 
         if ($source === null) {
             return response()->json(['message' => 'Unknown push token.'], 404);
