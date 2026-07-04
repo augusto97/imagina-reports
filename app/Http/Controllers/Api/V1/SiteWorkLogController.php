@@ -23,6 +23,10 @@ use Illuminate\Support\Carbon;
  */
 final class SiteWorkLogController extends Controller
 {
+    /** Backstop so an old site's work-log history can't return an unbounded result set (PERF).
+     *  Far above any realistic display need; the timeline shows the most recent entries. */
+    private const MAX_ROWS = 2000;
+
     public function index(Request $request, Site $site): AnonymousResourceCollection
     {
         $query = $site->workLogs()->orderByDesc('performed_at');
@@ -35,7 +39,7 @@ final class SiteWorkLogController extends Controller
             $query->where('performed_at', '<=', Carbon::parse($request->string('to')->toString())->endOfDay());
         }
 
-        return WorkLogResource::collection($query->get());
+        return WorkLogResource::collection($query->limit(self::MAX_ROWS)->get());
     }
 
     public function store(StoreWorkLogRequest $request, Site $site): JsonResponse
