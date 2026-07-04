@@ -90,6 +90,13 @@ export function ReportApp({ token, printToken }: { token: string; printToken?: s
                 // a human viewing the link gets the interactive one-page-at-a-time navigation.
                 mode={printToken != null && printToken !== '' ? 'print' : 'paged'}
             />
+            {/* "Powered by" attribution — hidden for agencies whose plan includes remove_branding
+                (premium white-label). A subtle, unobtrusive line under the report. */}
+            {data.show_branding !== false && (
+                <p className="ir-mt-6 ir-text-center ir-text-[11px] ir-text-muted-foreground">
+                    Generado con Imagina Reports
+                </p>
+            )}
         </div>
     );
 }

@@ -209,9 +209,14 @@ final class Entitlements
         return $allowed === null || in_array($connector, $allowed, true);
     }
 
-    public function hasFeature(Agency $agency, string $feature): bool
+    public function hasFeature(?Agency $agency, string $feature): bool
     {
-        // Off by default: a feature is granted only by the plan (or an override).
+        // Off by default: a feature is granted only by the plan (or an override). A missing
+        // agency (shouldn't happen, but the relation is nullable) has no features.
+        if ($agency === null) {
+            return false;
+        }
+
         return (bool) ($this->limits($agency)['features'][$feature] ?? false);
     }
 

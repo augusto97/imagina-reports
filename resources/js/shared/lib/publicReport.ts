@@ -46,6 +46,8 @@ export interface PublicReport {
     theme?: ReportTheme | null;
     /** Named pages for the interactive navigation menu (§11 — Looker/Power-BI parity). */
     pages?: { name?: string }[];
+    /** "Powered by" attribution shown unless the agency's plan removes branding. */
+    show_branding?: boolean;
 }
 
 export interface ReportPeriod {

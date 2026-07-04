@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -72,7 +73,11 @@ class PlatformSetting extends Model
 
         try {
             return Crypt::decryptString($raw);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // A decrypt failure almost always means APP_KEY changed — log it (never the value)
+            // so an operator can see WHY a payment provider suddenly stopped authenticating.
+            Log::warning('Failed to decrypt a platform secret; APP_KEY may have changed.', ['key' => $key, 'error' => $e->getMessage()]);
+
             return null;
         }
     }

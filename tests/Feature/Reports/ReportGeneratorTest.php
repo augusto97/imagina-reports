@@ -12,6 +12,7 @@ use App\Models\Agency;
 use App\Models\Client;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
+use App\Models\Plan;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Models\ReportTemplate;
@@ -242,6 +243,23 @@ class ReportGeneratorTest extends TestCase
         $this->assertSame('Este mes tu sitio recibió 1.500 visitas y se mantuvo protegido.', $report->executive_summary);
         $this->assertSame($report->executive_summary, $report->resolved_blocks['data']['summary'] ?? null);
         $this->assertContains('summary', $this->visibleIds($report));
+    }
+
+    public function test_a_plan_without_ai_gets_no_auto_narrative(): void
+    {
+        // AI is a plan feature: an agency whose plan lacks ai_builder still gets a full report,
+        // just no auto-written summary (the block stays empty/editable). Consistent gating.
+        $this->app->instance(AiClient::class, new FakeAiClient('No debería aparecer.'));
+
+        $plan = Plan::factory()->create(['features' => ['ai_builder' => false, 'white_label' => true, 'remove_branding' => false, 'custom_domain' => false]]);
+        $agency = Agency::factory()->create(['plan_id' => $plan->id]);
+        app(TenantContext::class)->set($agency->id);
+        $site = Site::factory()->create(['agency_id' => $agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'locale' => 'es']);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $this->assertNull($report->executive_summary);
     }
 
     public function test_it_fills_the_advisory_block_with_history_aware_facts(): void

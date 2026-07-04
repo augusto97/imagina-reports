@@ -12,6 +12,7 @@ use App\Reports\AiReportBuilder;
 use App\Reports\ExecutiveSummary;
 use App\Reports\ReportFacts;
 use App\Reports\ReportGenerator;
+use App\Services\Platform\Entitlements;
 use Illuminate\Http\JsonResponse;
 use Throwable;
 
@@ -38,8 +39,10 @@ final class ReportNarrativeController extends Controller
     /**
      * Re-write the summary with the AI from the report's stored figures.
      */
-    public function regenerate(Report $report, AiReportBuilder $builder): JsonResponse
+    public function regenerate(Report $report, AiReportBuilder $builder, Entitlements $entitlements): JsonResponse
     {
+        $this->assertAiEnabled($report, $entitlements);
+
         $resolved = $report->resolved_blocks;
         $blocks = is_array($resolved['blocks'] ?? null) ? $resolved['blocks'] : [];
         $data = is_array($resolved['data'] ?? null) ? $resolved['data'] : [];
@@ -80,8 +83,10 @@ final class ReportNarrativeController extends Controller
      * summary it re-resolves the period (so it can read trend/maintenance/uptime), still from
      * stored snapshots only (§3.1).
      */
-    public function regenerateAdvisory(Report $report, ReportGenerator $generator, AiReportBuilder $builder): JsonResponse
+    public function regenerateAdvisory(Report $report, ReportGenerator $generator, AiReportBuilder $builder, Entitlements $entitlements): JsonResponse
     {
+        $this->assertAiEnabled($report, $entitlements);
+
         $resolved = $report->resolved_blocks;
         $blocks = is_array($resolved['blocks'] ?? null) ? $resolved['blocks'] : [];
 
@@ -106,6 +111,19 @@ final class ReportNarrativeController extends Controller
         }
 
         return response()->json(['advisory' => $text !== '' ? $text : $this->currentAdvisory($report)]);
+    }
+
+    /**
+     * AI generation is a plan feature (§10.6) — consistent with the template-assembly gate.
+     * Manual edits (update/updateAdvisory) stay open; only the AI regenerate actions are gated.
+     */
+    private function assertAiEnabled(Report $report, Entitlements $entitlements): void
+    {
+        abort_unless(
+            $entitlements->hasFeature($report->agency, 'ai_builder'),
+            403,
+            'Tu plan no incluye la generación con IA. Mejora el plan para usarla.',
+        );
     }
 
     /**

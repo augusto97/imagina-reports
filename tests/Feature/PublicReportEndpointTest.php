@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Agency;
 use App\Models\Client;
+use App\Models\Plan;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Models\Site;
@@ -128,6 +129,22 @@ class PublicReportEndpointTest extends TestCase
         $exempt = $this->getJson("/api/v1/public/reports/{$report->public_token}", ['X-Print-Token' => $report->printToken()]);
         $exempt->assertOk();
         $this->assertNull($exempt->headers->get('X-RateLimit-Limit'));
+    }
+
+    public function test_branding_is_shown_by_default_and_removed_by_the_plan_feature(): void
+    {
+        // Default plan (no remove_branding) → the "powered by" line shows.
+        $shown = Report::factory()->create(['agency_id' => Agency::factory()->create()->id]);
+        $this->getJson("/api/v1/public/reports/{$shown->public_token}")
+            ->assertOk()
+            ->assertJsonPath('show_branding', true);
+
+        // A plan WITH remove_branding → hidden.
+        $plan = Plan::factory()->create(['features' => ['ai_builder' => true, 'white_label' => true, 'remove_branding' => true, 'custom_domain' => false]]);
+        $premium = Report::factory()->create(['agency_id' => Agency::factory()->create(['plan_id' => $plan->id])->id]);
+        $this->getJson("/api/v1/public/reports/{$premium->public_token}")
+            ->assertOk()
+            ->assertJsonPath('show_branding', false);
     }
 
     public function test_it_exposes_the_report_theme(): void

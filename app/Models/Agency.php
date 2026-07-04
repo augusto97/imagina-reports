@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -114,7 +115,11 @@ class Agency extends Model
 
         try {
             return Crypt::decryptString($stored);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // Usually an APP_KEY change — log it (never the key itself) so the operator knows why
+            // the AI builder stopped working instead of it silently doing nothing.
+            Log::warning('Failed to decrypt the agency Anthropic key; APP_KEY may have changed.', ['agency_id' => $this->id, 'error' => $e->getMessage()]);
+
             return null;
         }
     }

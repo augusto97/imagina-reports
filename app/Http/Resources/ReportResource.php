@@ -9,6 +9,7 @@ use App\Enums\WorkLogStatus;
 use App\Models\Report;
 use App\Models\ReportComment;
 use App\Models\WorkLog;
+use App\Services\Platform\Entitlements;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
@@ -70,6 +71,9 @@ final class ReportResource extends JsonResource
                 'brand_color' => $agency->brand_color,
                 'locale' => $agency->default_locale,
             ],
+            // "Powered by" attribution: shown unless the agency's plan includes remove_branding
+            // (the premium white-label feature). No agency → shown.
+            'show_branding' => $agency === null || ! app(Entitlements::class)->hasFeature($agency, 'remove_branding'),
         ];
     }
 

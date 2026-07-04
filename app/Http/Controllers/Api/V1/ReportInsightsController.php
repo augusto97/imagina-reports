@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Report;
 use App\Reports\AiReportBuilder;
 use App\Reports\ReportFacts;
+use App\Services\Platform\Entitlements;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -18,8 +19,11 @@ use Illuminate\Http\JsonResponse;
  */
 final class ReportInsightsController extends Controller
 {
-    public function store(Report $report, AiReportBuilder $builder): JsonResponse
+    public function store(Report $report, AiReportBuilder $builder, Entitlements $entitlements): JsonResponse
     {
+        // AI insights are a plan feature (§10.6) — same gate as the AI builder/narrative.
+        abort_unless($entitlements->hasFeature($report->agency, 'ai_builder'), 403, 'Tu plan no incluye la generación con IA. Mejora el plan para usarla.');
+
         $facts = $this->facts($report);
 
         if ($facts === []) {

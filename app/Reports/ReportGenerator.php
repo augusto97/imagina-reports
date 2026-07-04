@@ -13,6 +13,7 @@ use App\Reports\Blocks\Block;
 use App\Reports\Blocks\BlocksValidator;
 use App\Reports\Calc\CalculatedMetrics;
 use App\Reports\Templates\DefaultTemplate;
+use App\Services\Platform\Entitlements;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -35,17 +36,23 @@ final readonly class ReportGenerator
         private CalculatedMetrics $calculated,
         private WorkLogMetrics $workLogs,
         private AiReportBuilder $ai,
+        private Entitlements $entitlements,
     ) {}
 
     public function generate(ReportDefinition $definition, Period $period): Report
     {
         ['blocks' => $visibleBlocks, 'data' => $data, 'health_score' => $score, 'theme' => $theme, 'diagnostics' => $diagnostics, 'pages' => $pages, 'bags' => $bags] = $this->compose($definition, $period);
 
+        // AI is a plan feature (§10.6): only spend it for agencies whose plan includes the AI
+        // builder — consistent with the template-assembly gate. Plans without it still get a
+        // full report, just no auto-written narrative/advisory (the blocks stay empty/editable).
+        $aiEnabled = $this->entitlements->hasFeature($definition->agency, 'ai_builder');
+
         // AI per-period narrative (§10.6): regenerate the executive-summary text from the
         // resolved figures and inject it into the report's narrative block(s). This is the
         // one acknowledged exception to "no external APIs during GENERATE" (§3.1/§10.6); it
         // is fully resilient — a failure leaves the summary empty and never breaks the report.
-        $summary = $this->narrative($definition, $visibleBlocks, $data, $score);
+        $summary = $aiEnabled ? $this->narrative($definition, $visibleBlocks, $data, $score) : null;
         if ($summary !== null) {
             $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
         }
@@ -54,7 +61,7 @@ final readonly class ReportGenerator
         // that also reads the previous period, the maintenance/updates done, downtime and the
         // multi-month health trend, recommending a follow-up only when the data warrants it.
         // Same resilience as the narrative — a failure just leaves the block empty.
-        if (AdvisoryInsight::present($visibleBlocks)) {
+        if ($aiEnabled && AdvisoryInsight::present($visibleBlocks)) {
             $advisory = $this->advisory($definition, $visibleBlocks, $data, $score, $bags, $period);
             if ($advisory !== null) {
                 $data = AdvisoryInsight::inject($visibleBlocks, $data, $advisory);
