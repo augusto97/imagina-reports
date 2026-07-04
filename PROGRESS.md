@@ -31,11 +31,20 @@ recargue config al desplegar** (`queue:restart`/`horizon:terminate`, ya en el fl
 sync con `resolved_blocks` por un hook `saving` del modelo (generación/edición/regeneración quedan consistentes); el índice ya no
 decodifica el JSON pesado por fila. **Mismo contrato de API, sin tocar frontend**; filas existentes backfilleadas. (d) **SEC-7 throttle
 público** — rutas públicas (portal/dashboard/periods) a 120/min por IP; el render de PDF del propio server queda **exento** por su print
-token, así un lote del 1º de mes no se auto-bloquea. **471 tests PHP + 15 vitest + stan/pint/ts/lint limpios.** **PENDIENTES (pospuestos,
-NO aplicados — cambian la salida al cliente o son feature grande):** paginación COMPLETA de índices con orden/filtro server-side
-(la versión ligera sin cambio de contrato ya se hizo para reports); consistencia de gating de IA (narrativa/advisory no chequean el
-plan `ai_builder`); features de plan `remove_branding`/`custom_domain` sin implementar. **SIGUIENTE:** validar pagos en sandbox real;
-reconectar sitios push tras desplegar (v1.13.121+).
+token, así un lote del 1º de mes no se auto-bloquea. **LOTE FINAL «hazlos todos» (release v1.13.123):** **ErrorBoundary por bloque**
+en `BlockRenderer` (un bloque que lanza ya no rompe todo el reporte/PDF — antes colgaba Browsershot); feedback de error al guardar en
+el editor (422/403/500, no solo errores de bloque); invalidaciones con reintento acotado (generate/send ya no usan un `setTimeout`
+único); **gating de IA consistente** (narrativa/advisory/insights auto y endpoints chequean `ai_builder`; sin plan → informe completo
+pero sin texto IA, endpoints 403); **`remove_branding`** implementado (footer «Generado con Imagina Reports» salvo que el plan lo quite,
+flag `show_branding` en la API pública); log de fallos de descifrado (APP_KEY cambiada) en secretos de plataforma y clave IA de agencia;
+enum muerto `DeliveryChannel::Portal` eliminado; tope de 2000 filas en el índice de work-logs (evita resultado sin cota). **473 tests
+PHP + 15 vitest + stan/pint/ts/lint limpios.** **NO IMPLEMENTADO (decisión honesta, requiere al owner):** **`custom_domain`** — es
+infra pura (DNS + TLS + routing en ServerAvatar), no se puede resolver solo en código; el flag existe pero hacerlo funcional necesita
+montaje de servidor. **Paginación COMPLETA** de todos los índices con orden/filtro server-side — acopla frontend en muchas pantallas y
+podría romper listas que funcionan; se hizo la versión segura (reports ligero + tope en work-logs), pero la paginación completa se
+recomienda como pase aparte y revisado. También quedó fuera por bajo valor/riesgo: `current_period_end` (display; poblarlo toca el
+parseo de webhooks de pago) y micro-caché de entitlements en `/agency` (arriesga 60 s de estado obsoleto tras cambio de plan).
+**SIGUIENTE:** validar pagos en sandbox real; reconectar sitios push tras desplegar.
 
 **🐞 FIX GRAVE: SIN PLAN = ILIMITADO + LA AGENCIA NO PODÍA ELEGIR PLAN (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, release
 v1.13.99):** dos fallos que reportó el owner. **(1) SIN PLAN = ILIMITADO:** `Entitlements::limits()` devolvía `null` (=ilimitado) cuando
