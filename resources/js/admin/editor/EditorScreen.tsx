@@ -63,6 +63,7 @@ import {
     useUpdateReportTemplate,
 } from "../api";
 import { hexToHslString } from "@shared/lib/color";
+import { apiErrorMessage } from "@shared/lib/api";
 import { SyncStatus } from "./SyncStatus";
 
 import { Button, Card, Field, Input, Modal } from "../components/ui";
@@ -616,7 +617,12 @@ export function EditorScreen(): ReactElement {
                 setErrors([]);
                 setDirty(false);
             },
-            onError: (error: unknown) => setErrors(extractBlockErrors(error)),
+            onError: (error: unknown) => {
+                // Block-binding errors list per block; anything else (422 name, 403, 500) would
+                // otherwise be a silent failed click — fall back to the server's message.
+                const blockErrors = extractBlockErrors(error);
+                setErrors(blockErrors.length > 0 ? blockErrors : [apiErrorMessage(error, "No se pudo guardar. Revisa el nombre e inténtalo de nuevo.")]);
+            },
         };
 
         // Only send a theme when something is set, so an unstyled template stays null.

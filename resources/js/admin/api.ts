@@ -1,6 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api, fetchCsrfCookie } from '@shared/lib/api';
+
+/**
+ * Re-fetch a query on a short, bounded schedule. Queued jobs (report generation, delivery)
+ * only change the data a few seconds after the request returns 202, so a single refetch tends
+ * to miss the update; this catches it without a manual reload and stops on its own.
+ */
+function revalidateSoon(queryClient: QueryClient, queryKey: string[]): void {
+    for (const delay of [600, 1500, 3000, 6000, 10000]) {
+        window.setTimeout(() => void queryClient.invalidateQueries({ queryKey }), delay);
+    }
+}
 
 import type { Block } from '@shared/blocks/types';
 
@@ -787,7 +798,9 @@ export function useSendReport() {
 
     return useMutation({
         mutationFn: (reportId: number) => api.post(`/reports/${reportId}/send`).then((r) => r.data),
-        onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), 800),
+        // Delivery is queued (now on the throttled PDF queue), so the status flips to "sent"
+        // a few seconds later — bounded revalidation catches it instead of a single 800ms guess.
+        onSuccess: () => revalidateSoon(queryClient, ['reports']),
     });
 }
 
@@ -1146,15 +1159,9 @@ export function useGenerateReport() {
     return useMutation({
         mutationFn: (payload: { report_definition_id: number; period_start: string; period_end: string }) =>
             api.post('/reports/generate', payload).then((r) => r.data),
-        onSuccess: () => {
-            // Generation runs on the queue and the report row only appears once the job
-            // finishes, so a single quick refetch usually misses it. Re-fetch on a short
-            // bounded schedule until it lands — no manual reload needed.
-            const delays = [600, 1500, 3000, 5000, 8000, 12000];
-            for (const delay of delays) {
-                setTimeout(() => void queryClient.invalidateQueries({ queryKey: ['reports'] }), delay);
-            }
-        },
+        // Generation runs on the queue and the report row only appears once the job finishes,
+        // so a single quick refetch usually misses it — bounded revalidation catches it.
+        onSuccess: () => revalidateSoon(queryClient, ['reports']),
     });
 }
 

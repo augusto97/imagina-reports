@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Lightbulb, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
-import { type CSSProperties, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
+import { Component as ReactComponent, type CSSProperties, type ErrorInfo, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -1281,10 +1281,47 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     custom: CustomBlock,
 };
 
+/**
+ * Isolates a single block's render (FE): a block that throws (bad data shape, a Recharts edge
+ * case) used to crash the whole React tree — which in the PDF means window.reportReady never
+ * flips and Browsershot hangs, and in the portal means a blank page. The boundary contains the
+ * failure to that one block so the rest of the report still renders and the PDF still completes.
+ */
+class BlockErrorBoundary extends ReactComponent<{ children: ReactNode }, { failed: boolean }> {
+    constructor(props: { children: ReactNode }) {
+        super(props);
+        this.state = { failed: false };
+    }
+
+    static getDerivedStateFromError(): { failed: boolean } {
+        return { failed: true };
+    }
+
+    componentDidCatch(error: Error, info: ErrorInfo): void {
+        console.warn('Block failed to render; isolated by boundary.', error, info);
+    }
+
+    render(): ReactNode {
+        if (this.state.failed) {
+            return (
+                <div className="ir-rounded-md ir-border ir-border-dashed ir-border-danger/40 ir-bg-danger/5 ir-p-3 ir-text-xs ir-text-muted-foreground">
+                    No se pudo mostrar este bloque.
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
 export function BlockRenderer({ block, data }: BlockComponentProps): ReactElement | null {
     const Component = registry[block.type] ?? CustomBlock;
 
-    return <Component block={block} data={data} />;
+    return (
+        <BlockErrorBoundary>
+            <Component block={block} data={data} />
+        </BlockErrorBoundary>
+    );
 }
 
 /** Column span (out of 6) for a block's configured width. Defaults to full width. */
