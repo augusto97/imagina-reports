@@ -10,5 +10,4 @@ namespace App\Enums;
 enum DeliveryChannel: string
 {
     case Email = 'email';
-    case Portal = 'portal';
 }
