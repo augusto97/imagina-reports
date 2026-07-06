@@ -22,6 +22,8 @@ class ConnectorRegistrationTest extends TestCase
         $this->assertTrue($registry->has(DataSourceType::BetterUptime->value));
         $this->assertTrue($registry->has(DataSourceType::Virusdie->value));
         $this->assertTrue($registry->has(DataSourceType::WooCommerce->value));
+        $this->assertTrue($registry->has(DataSourceType::GoogleAds->value));
+        $this->assertTrue($registry->has(DataSourceType::FacebookAds->value));
         $this->assertTrue($registry->has(DataSourceType::Database->value));
         $this->assertTrue($registry->has(DataSourceType::Endpoint->value));
         $this->assertTrue($registry->has(DataSourceType::SiteAgent->value));

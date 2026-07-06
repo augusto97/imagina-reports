@@ -20,6 +20,8 @@ enum DataSourceType: string
     case BetterUptime = 'betteruptime';
     case WooCommerce = 'woocommerce';
     case TrueRanker = 'trueranker';
+    case GoogleAds = 'google_ads';
+    case FacebookAds = 'facebook_ads';
     case Database = 'database';
     case Endpoint = 'endpoint';
     case SiteAgent = 'site_agent';
@@ -36,6 +38,8 @@ enum DataSourceType: string
             self::BetterUptime => 'Better Stack (Uptime)',
             self::WooCommerce => 'WooCommerce',
             self::TrueRanker => 'TrueRanker',
+            self::GoogleAds => 'Google Ads',
+            self::FacebookAds => 'Facebook / Meta Ads',
             self::Database => 'Database',
             self::Endpoint => 'Endpoint / CSV',
             self::SiteAgent => 'Agente Imagina (sitio)',
