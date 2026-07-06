@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**➕ CONECTORES GOOGLE ADS + FACEBOOK/META ADS (2026-07-06, rama `claude/github-app-analysis-a7b2bd`, release v1.14.0):** dos conectores
+nuevos siguiendo el contrato `DataSourceConnector` (§7/§9). El frontend NO se tocó — la config y el picker de métricas se generan
+solos desde `/api/v1/connectors`. **Google Ads** (`app/Connectors/GoogleAds/GoogleAdsConnector.php`, enum `google_ads`): auth OAuth2
+(refresh_token → access_token por sync) + developer token + customer_id (+ login_customer_id para MCC); lee impresiones, clics, coste
+(micros→moneda), conversiones, valor, CTR, CPC vía GAQL (`:search`, agregado en origen §3.3) + series por día + top campañas. **Facebook/
+Meta Ads** (`app/Connectors/FacebookAds/FacebookAdsConnector.php`, enum `facebook_ads`): auth access_token (usuario del sistema, larga
+duración) + ad_account_id; lee impresiones, alcance, clics, inversión, CTR, CPC, CPM, conversiones (suma de `actions` de tipos
+purchase/lead/complete_registration — supuesto documentado) desde el endpoint Insights de la Marketing API + series por día + top
+campañas. Ambos registrados en `ConnectorServiceProvider`, cases+labels en `DataSourceType`, y tests con `Http::fake`
+(`tests/Feature/Connectors/AdsConnectorsTest.php`). Versión de API en constantes (`API_VERSION`): Google Ads `v18`, Graph `v21.0` —
+subir cuando Google/Meta deprecen. **477 tests PHP + 15 vitest + stan/pint/ts/lint limpios.** **NOTA DE SETUP (el owner debe conseguir
+credenciales):** Google Ads requiere developer token aprobado + app OAuth + refresh_token con scope `adwords`; Meta requiere app de
+Marketing API + usuario del sistema + token de larga duración con `ads_read`. Los pasos están en el `setupGuide()` de cada conector
+(se muestran en el panel al configurar la fuente). **Posible mejora futura (no hecha):** plantillas de galería «Publicidad» pre-armadas
+para estos conectores en `templateGallery.ts`.
+
+
 **🛡️ AUDITORÍA COMPLETA + ARREGLOS (2026-07-03, rama `claude/github-app-analysis-a7b2bd`, releases v1.13.116–120):** auditoría de
 seguridad/rendimiento/funcional/frontend (artefacto `scratchpad/auditoria.html`) y arreglo de **todos los hallazgos de severidad ALTA**
 más varios medios. **Seguridad:** SVG stored-XSS (quitado de subidas), updater fail-closed en checksum vacío, verificación de firma en
