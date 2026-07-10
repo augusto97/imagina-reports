@@ -245,6 +245,56 @@ class ReportGeneratorTest extends TestCase
         $this->assertContains('summary', $this->visibleIds($report));
     }
 
+    public function test_it_computes_factory_marketing_metrics_across_ad_sources(): void
+    {
+        $google = $this->dataSource(DataSourceType::GoogleAds);
+        $this->snapshot($google, '2026-06-15 00:00:00', '2026-06-15 23:59:59', [
+            'google_ads.cost' => 100, 'google_ads.conversions' => 10, 'google_ads.clicks' => 200, 'google_ads.impressions' => 1000,
+        ]);
+        $meta = $this->dataSource(DataSourceType::FacebookAds);
+        $this->snapshot($meta, '2026-06-15 00:00:00', '2026-06-15 23:59:59', [
+            'facebook_ads.spend' => 100, 'facebook_ads.conversions' => 10, 'facebook_ads.clicks' => 200, 'facebook_ads.impressions' => 1000,
+        ]);
+        $woo = $this->dataSource(DataSourceType::WooCommerce);
+        $this->snapshot($woo, '2026-06-15 00:00:00', '2026-06-15 23:59:59', ['woocommerce.revenue' => 1000, 'woocommerce.new_customers' => 5]);
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'blocks' => [
+                ['id' => 'spend', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'ad_spend_total'], 'props' => ['label' => 'Inversión']],
+                ['id' => 'roas', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'roas'], 'props' => ['label' => 'ROAS']],
+                ['id' => 'cpa', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'cpa'], 'props' => ['label' => 'CPA']],
+                ['id' => 'cac', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'cac'], 'props' => ['label' => 'CAC']],
+            ],
+        ]);
+
+        $data = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'))->resolved_blocks['data'] ?? [];
+        $this->assertIsArray($data);
+
+        $this->assertEqualsWithDelta(200, $data['spend'], 0.001);   // 100 + 100 blended ad spend
+        $this->assertEqualsWithDelta(5, $data['roas'], 0.001);      // 1000 revenue / 200 spend
+        $this->assertEqualsWithDelta(10, $data['cpa'], 0.001);      // 200 spend / 20 conversions
+        $this->assertEqualsWithDelta(40, $data['cac'], 0.001);      // 200 spend / 5 new customers
+    }
+
+    public function test_factory_ad_spend_falls_back_to_a_single_source_when_only_one_is_connected(): void
+    {
+        // Only Google Ads connected: the blended total must be just Google's cost, not skipped
+        // for referencing an absent facebook_ads.spend.
+        $google = $this->dataSource(DataSourceType::GoogleAds);
+        $this->snapshot($google, '2026-06-15 00:00:00', '2026-06-15 23:59:59', ['google_ads.cost' => 75]);
+
+        $definition = ReportDefinition::factory()->create([
+            'agency_id' => $this->agency->id,
+            'site_id' => $this->site->id,
+            'blocks' => [['id' => 'spend', 'type' => 'kpi', 'binding' => ['source' => 'calc', 'metric' => 'ad_spend_total'], 'props' => ['label' => 'Inversión']]],
+        ]);
+
+        $data = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'))->resolved_blocks['data'] ?? [];
+        $this->assertEqualsWithDelta(75, $data['spend'], 0.001);
+    }
+
     public function test_a_plan_without_ai_gets_no_auto_narrative(): void
     {
         // AI is a plan feature: an agency whose plan lacks ai_builder still gets a full report,

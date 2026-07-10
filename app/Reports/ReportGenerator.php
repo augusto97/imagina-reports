@@ -12,6 +12,7 @@ use App\Models\ReportDefinition;
 use App\Reports\Blocks\Block;
 use App\Reports\Blocks\BlocksValidator;
 use App\Reports\Calc\CalculatedMetrics;
+use App\Reports\Calc\FactoryCalculatedMetrics;
 use App\Reports\Templates\DefaultTemplate;
 use App\Services\Platform\Entitlements;
 use Illuminate\Support\Carbon;
@@ -34,6 +35,7 @@ final readonly class ReportGenerator
         private MetricBagLoader $bags,
         private BlockResolver $resolver,
         private CalculatedMetrics $calculated,
+        private FactoryCalculatedMetrics $factoryCalc,
         private WorkLogMetrics $workLogs,
         private AiReportBuilder $ai,
         private Entitlements $entitlements,
@@ -112,8 +114,10 @@ final readonly class ReportGenerator
             $previousBags = $this->withWorkLogs($previousBags, $this->workLogs->forSite($site, $period->previous()));
         }
 
-        // Calculated metrics (formulas over the bag) injected as a `calc` source.
-        $calcDefs = $this->calcDefinitions($definition);
+        // Calculated metrics (formulas over the bag) injected as a `calc` source. Built-in
+        // cross-source marketing metrics (ROAS, blended ad spend, CPA…) are merged in at the
+        // LOWEST precedence, so a user's own calc metric with the same key still wins.
+        $calcDefs = self::mergeCalcDefinitions($this->factoryCalc->definitionsFor($bags), $this->calcDefinitions($definition));
         $bags = $this->withCalc($bags, $this->calculated->compute($calcDefs, $bags));
         $previousBags = $this->withCalc($previousBags, $this->calculated->compute($calcDefs, $previousBags));
 

@@ -8,6 +8,7 @@ use App\Connectors\ConnectorRegistry;
 use App\Connectors\MetricDefinition;
 use App\Http\Controllers\Controller;
 use App\Models\Site;
+use App\Reports\Calc\FactoryCalculatedMetrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 
@@ -22,15 +23,33 @@ final class MetricCatalogController extends Controller
     public function show(Site $site, ConnectorRegistry $registry): JsonResponse
     {
         $catalog = [];
+        $connectedSources = [];
 
         foreach ($site->dataSources()->get() as $source) {
             if (! $registry->has($source->type->value)) {
                 continue;
             }
 
+            $connectedSources[] = $source->type->value;
+
             foreach ($registry->for($source)->metricCatalog($source)->all() as $definition) {
                 $catalog[] = $this->present($source->type->value, $definition);
             }
+        }
+
+        // Built-in cross-source marketing metrics (ROAS, blended ad spend, CPA…) — offered as
+        // `calc.*` when the required sources are connected, so the agency can drop a ROAS card
+        // without writing a formula (CLAUDE.md §10.1). Computed at generation time.
+        foreach (app(FactoryCalculatedMetrics::class)->catalogFor(array_values(array_unique($connectedSources))) as $factory) {
+            $catalog[] = [
+                'source' => 'calc',
+                'metric' => $factory['key'],
+                'key' => "calc.{$factory['key']}",
+                'label' => $factory['label'],
+                'type' => 'number',
+                'unit' => null,
+                'dimensions' => [],
+            ];
         }
 
         // Work-log metrics (CLAUDE.md §11.5) — not a connector, but bindable like one
