@@ -671,13 +671,25 @@ export function Inspector({
                     )}
 
                     {block.type === 'goal' && (
-                        <Field label="Meta (objetivo)">
-                            <Input
-                                type="number"
-                                value={block.props?.target === undefined ? '' : String(block.props.target)}
-                                onChange={(event) => setProp('target', event.target.value)}
-                            />
-                        </Field>
+                        <>
+                            <Field label="Meta / presupuesto (objetivo)">
+                                <Input
+                                    type="number"
+                                    value={block.props?.target === undefined ? '' : String(block.props.target)}
+                                    onChange={(event) => setProp('target', event.target.value)}
+                                />
+                            </Field>
+                            <Field label="Modo">
+                                <select
+                                    className={selectClass}
+                                    value={str(block.style?.goal_direction) === 'under' ? 'under' : 'over'}
+                                    onChange={(event) => setStyle('goal_direction', event.target.value === 'under' ? 'under' : undefined)}
+                                >
+                                    <option value="over">Meta — más es mejor (verde al superar)</option>
+                                    <option value="under">Presupuesto — menos es mejor (rojo al pasarse)</option>
+                                </select>
+                            </Field>
+                        </>
                     )}
 
                     {block.type === 'narrative' && (

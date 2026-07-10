@@ -1157,25 +1157,34 @@ function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
     // or, failing that, the block's own `target` prop.
     const dataTarget = data !== null && typeof data === 'object' && 'target' in data ? Number((data as Record<string, unknown>).target) : NaN;
     const target = !Number.isNaN(dataTarget) ? dataTarget : Number(prop(block, 'target')) || 0;
-    const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-    const onTrack = pct >= 100;
     const format = str(block.style?.format);
 
+    // Budget/pacing mode (goal_direction = 'under'): staying UNDER the target is good — the
+    // opposite of a goal (over = red). Used for ad-spend-vs-budget cards. Default = goal.
+    const budgetMode = str(block.style?.goal_direction) === 'under';
+    const ratio = target > 0 ? (value / target) * 100 : 0; // may exceed 100 (over budget/target)
+    const barPct = Math.min(100, ratio);
+    const onTrack = budgetMode ? target > 0 && value <= target : ratio >= 100;
+    const remaining = target - value;
+
+    const barColor = onTrack ? 'ir-bg-emerald-500' : budgetMode ? 'ir-bg-red-500' : 'ir-bg-amber-500';
+    const textColor = onTrack ? 'ir-text-emerald-600' : budgetMode ? 'ir-text-red-600' : 'ir-text-muted-foreground';
+    const caption = budgetMode
+        ? remaining >= 0
+            ? `${ratio.toLocaleString(undefined, { maximumFractionDigits: 0 })}% del presupuesto · quedan ${formatNumber(remaining, format, settings)}`
+            : `${ratio.toLocaleString(undefined, { maximumFractionDigits: 0 })}% del presupuesto · te pasaste ${formatNumber(-remaining, format, settings)}`
+        : `${barPct.toLocaleString(undefined, { maximumFractionDigits: 0 })}% de la meta`;
+
     return (
-        <Section title={str(prop(block, 'label'), 'Meta')} style={block.style}>
+        <Section title={str(prop(block, 'label'), budgetMode ? 'Presupuesto' : 'Meta')} style={block.style}>
             <div className="ir-flex ir-items-baseline ir-justify-between">
                 <span className="ir-text-2xl ir-font-semibold">{formatNumber(value, format, settings)}</span>
                 <span className="ir-text-sm ir-text-muted-foreground">/ {formatNumber(target, format, settings)}</span>
             </div>
             <div className="ir-mt-2 ir-h-2 ir-overflow-hidden ir-rounded ir-bg-muted">
-                <div
-                    className={cn('ir-h-full ir-rounded', onTrack ? 'ir-bg-emerald-500' : 'ir-bg-amber-500')}
-                    style={{ width: `${pct}%` }}
-                />
+                <div className={cn('ir-h-full ir-rounded', barColor)} style={{ width: `${barPct}%` }} />
             </div>
-            <p className={cn('ir-mt-1 ir-text-xs', onTrack ? 'ir-text-emerald-600' : 'ir-text-muted-foreground')}>
-                {pct.toLocaleString(undefined, { maximumFractionDigits: 0 })}% de la meta
-            </p>
+            <p className={cn('ir-mt-1 ir-text-xs', textColor)}>{caption}</p>
         </Section>
     );
 }

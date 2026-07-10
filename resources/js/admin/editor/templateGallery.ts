@@ -360,9 +360,10 @@ export const GALLERY: GalleryTemplate[] = [
             // Cross-channel roll-up: blended spend + ROAS come from the factory calculated
             // metrics (calc.*), which resolve when the ad sources (+ revenue for ROAS) exist.
             kpi('calc', 'ad_spend_total', 'Inversión total', { x: 0, y: 2, w: 3, h: 4 }, { format: 'currency' }),
-            kpi('calc', 'ad_conversions_total', 'Conversiones', { x: 3, y: 2, w: 3, h: 4 }),
-            kpi('calc', 'roas', 'ROAS', { x: 6, y: 2, w: 3, h: 4 }),
-            kpi('calc', 'cpa', 'Coste por conversión', { x: 9, y: 2, w: 3, h: 4 }, { format: 'currency' }),
+            kpi('calc', 'roas', 'ROAS', { x: 3, y: 2, w: 3, h: 4 }),
+            kpi('calc', 'cpa', 'Coste por conversión', { x: 6, y: 2, w: 3, h: 4 }, { format: 'currency' }),
+            // Budget pacing: spend vs the monthly budget (edit the target). Over budget = red.
+            spec({ type: 'goal', binding: { source: 'calc', metric: 'ad_spend_total' }, props: { label: 'Presupuesto del mes', target: 1000 }, style: { format: 'currency', goal_direction: 'under' }, layout: { x: 9, y: 2, w: 3, h: 4 } }),
             // Google Ads column.
             spec({ type: 'header', props: { title: 'Google Ads', subtitle: '' }, layout: { x: 0, y: 6, w: 6, h: 2 } }),
             kpi('google_ads', 'cost', 'Inversión (Google)', { x: 0, y: 8, w: 3, h: 4 }, { format: 'currency' }),
