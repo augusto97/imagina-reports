@@ -142,6 +142,32 @@ final class PreviewController extends Controller
     }
 
     /**
+     * Backfill the last N complete calendar months in one action, so a newly-added client
+     * immediately has historical trend data (competitor-parity onboarding). Each month is
+     * synced as its own snapshot (aggregated at source, §3.3). Bounded to protect the queue.
+     */
+    public function backfill(Request $request, Site $site): JsonResponse
+    {
+        $months = max(1, min($request->integer('months', 6), 24));
+
+        $sources = $site->dataSources()->get();
+        $now = Carbon::now();
+        $queued = 0;
+
+        for ($i = 1; $i <= $months; $i++) {
+            $monthStart = $now->copy()->startOfMonth()->subMonths($i);
+            $period = new Period($monthStart->copy()->startOfMonth(), $monthStart->copy()->endOfMonth());
+
+            foreach ($sources as $source) {
+                SyncSourceJob::dispatch($source->id, $period->start->toIso8601String(), $period->end->toIso8601String());
+                $queued++;
+            }
+        }
+
+        return response()->json(['queued' => $queued, 'months' => $months], 202);
+    }
+
+    /**
      * @param  array<string, int|float>  $calc
      * @param  array<string, array<array-key, mixed>>  $bags
      * @return array<string, array<array-key, mixed>>

@@ -1153,6 +1153,14 @@ export function useSyncSiteById() {
     });
 }
 
+/** Backfill the last N months of history for a site (onboarding), queued per month × source. */
+export function useBackfillSite() {
+    return useMutation({
+        mutationFn: ({ siteId, months }: { siteId: number; months: number }) =>
+            api.post<{ queued: number; months: number }>(`/sites/${siteId}/backfill`, { months }).then((r) => r.data),
+    });
+}
+
 export function useGenerateReport() {
     const queryClient = useQueryClient();
 

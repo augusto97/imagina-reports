@@ -150,6 +150,7 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::post('sites/{site}/calc-preview', [CalculatedMetricController::class, 'preview'])->name('api.sites.calc-preview');
     Route::put('sites/{site}/calculated-metrics', [CalculatedMetricController::class, 'updateSite'])->name('api.sites.calculated-metrics.update');
     Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
+    Route::post('sites/{site}/backfill', [PreviewController::class, 'backfill'])->name('api.sites.backfill');
     Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
     Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');

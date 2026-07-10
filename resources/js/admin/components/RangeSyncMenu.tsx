@@ -2,7 +2,7 @@ import { CalendarRange, RefreshCw } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import { RANGE_PRESETS } from '@shared/lib/dateRanges';
-import { useSyncSiteById } from '../api';
+import { useBackfillSite, useSyncSiteById } from '../api';
 import { Button } from './ui';
 
 /**
@@ -14,8 +14,10 @@ import { Button } from './ui';
  */
 export function RangeSyncMenu({ siteId }: { siteId: number }): ReactElement {
     const sync = useSyncSiteById();
+    const backfill = useBackfillSite();
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
+    const [months, setMonths] = useState(6);
 
     const applyPreset = (key: string): void => {
         const preset = RANGE_PRESETS.find((entry) => entry.key === key);
@@ -69,6 +71,33 @@ export function RangeSyncMenu({ siteId }: { siteId: number }): ReactElement {
                 </p>
             )}
             {sync.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo encolar la sincronización.</p>}
+
+            {/* Historical backfill — sync the last N complete months at once so un cliente nuevo
+                tenga tendencias desde el primer día. */}
+            <div className="ir-mt-3 ir-border-t ir-border-border/60 ir-pt-3">
+                <p className="ir-mb-2 ir-text-[11px] ir-text-muted-foreground">
+                    O trae el histórico de golpe (ideal al dar de alta un cliente): sincroniza los últimos meses completos, uno por snapshot.
+                </p>
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                    <select className={input} value={months} onChange={(event) => setMonths(Number(event.target.value))} aria-label="Meses a traer">
+                        {[3, 6, 12, 24].map((n) => (
+                            <option key={n} value={n}>
+                                Últimos {n} meses
+                            </option>
+                        ))}
+                    </select>
+                    <Button size="sm" variant="outline" onClick={() => backfill.mutate({ siteId, months })} disabled={backfill.isPending}>
+                        <CalendarRange className={`ir-size-3.5 ${backfill.isPending ? 'ir-animate-spin' : ''}`} />
+                        {backfill.isPending ? 'Encolando…' : 'Traer histórico'}
+                    </Button>
+                </div>
+                {backfill.isSuccess && (
+                    <p className="ir-mt-2 ir-text-xs ir-text-emerald-600">
+                        Encolado el histórico: {backfill.data?.queued ?? 0} sincronización(es). Puede tardar unos minutos.
+                    </p>
+                )}
+                {backfill.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo encolar el histórico.</p>}
+            </div>
         </div>
     );
 }

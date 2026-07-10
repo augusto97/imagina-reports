@@ -307,6 +307,26 @@ class PreviewApiTest extends TestCase
         Queue::assertPushed(SyncSourceJob::class, 2);
     }
 
+    public function test_backfill_queues_a_sync_per_month_and_source(): void
+    {
+        Queue::fake();
+
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id]);
+        DataSource::factory()->count(2)->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Ga4]);
+
+        // 3 months × 2 sources = 6 sync jobs.
+        $this->postJson("/api/v1/sites/{$site->id}/backfill", ['months' => 3])
+            ->assertStatus(202)
+            ->assertJsonPath('queued', 6)
+            ->assertJsonPath('months', 3);
+
+        Queue::assertPushed(SyncSourceJob::class, 6);
+    }
+
     public function test_sync_now_can_target_only_specific_sources(): void
     {
         Queue::fake();
