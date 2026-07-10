@@ -22,6 +22,8 @@ enum DataSourceType: string
     case TrueRanker = 'trueranker';
     case GoogleAds = 'google_ads';
     case FacebookAds = 'facebook_ads';
+    case TikTokAds = 'tiktok_ads';
+    case Mailchimp = 'mailchimp';
     case Database = 'database';
     case Endpoint = 'endpoint';
     case SiteAgent = 'site_agent';
@@ -40,6 +42,8 @@ enum DataSourceType: string
             self::TrueRanker => 'TrueRanker',
             self::GoogleAds => 'Google Ads',
             self::FacebookAds => 'Facebook / Meta Ads',
+            self::TikTokAds => 'TikTok Ads',
+            self::Mailchimp => 'Mailchimp',
             self::Database => 'Database',
             self::Endpoint => 'Endpoint / CSV',
             self::SiteAgent => 'Agente Imagina (sitio)',

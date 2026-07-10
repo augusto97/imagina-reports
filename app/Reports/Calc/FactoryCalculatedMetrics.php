@@ -17,6 +17,23 @@ namespace App\Reports\Calc;
  */
 final class FactoryCalculatedMetrics
 {
+    /**
+     * Ad-platform metric keys that roll up into the blended totals. Add a new ad connector's
+     * keys here (and its source key to AD_SOURCES) and it automatically feeds ROAS / blended
+     * spend / CPA — no other change needed.
+     *
+     * @var array<string, list<string>>
+     */
+    private const AD_METRICS = [
+        'spend' => ['google_ads.cost', 'facebook_ads.spend', 'linkedin_ads.cost', 'tiktok_ads.spend'],
+        'conversions' => ['google_ads.conversions', 'facebook_ads.conversions', 'linkedin_ads.conversions', 'tiktok_ads.conversions'],
+        'clicks' => ['google_ads.clicks', 'facebook_ads.clicks', 'linkedin_ads.clicks', 'tiktok_ads.clicks'],
+        'impressions' => ['google_ads.impressions', 'facebook_ads.impressions', 'linkedin_ads.impressions', 'tiktok_ads.impressions'],
+    ];
+
+    /** Source keys considered "advertising" for the editor catalog. */
+    private const AD_SOURCES = ['google_ads', 'facebook_ads', 'linkedin_ads', 'tiktok_ads'];
+
     /** Human labels for the factory metric keys, shared by the resolver and the editor catalog. */
     private const LABELS = [
         'ad_spend_total' => 'Inversión publicitaria total',
@@ -38,10 +55,10 @@ final class FactoryCalculatedMetrics
         $present = $this->presentKeys($bags);
         $defs = [];
 
-        $spend = $this->sumExpr($present, ['google_ads.cost', 'facebook_ads.spend']);
-        $conversions = $this->sumExpr($present, ['google_ads.conversions', 'facebook_ads.conversions']);
-        $clicks = $this->sumExpr($present, ['google_ads.clicks', 'facebook_ads.clicks']);
-        $impressions = $this->sumExpr($present, ['google_ads.impressions', 'facebook_ads.impressions']);
+        $spend = $this->sumExpr($present, self::AD_METRICS['spend']);
+        $conversions = $this->sumExpr($present, self::AD_METRICS['conversions']);
+        $clicks = $this->sumExpr($present, self::AD_METRICS['clicks']);
+        $impressions = $this->sumExpr($present, self::AD_METRICS['impressions']);
         $revenue = $this->firstPresent($present, ['woocommerce.revenue', 'ga4.revenue']);
 
         if ($spend !== null) {
@@ -83,7 +100,7 @@ final class FactoryCalculatedMetrics
     public function catalogFor(array $connectedSources): array
     {
         $has = static fn (string $source): bool => in_array($source, $connectedSources, true);
-        $ads = $has('google_ads') || $has('facebook_ads');
+        $ads = array_intersect(self::AD_SOURCES, $connectedSources) !== [];
         $revenue = $has('woocommerce') || $has('ga4');
 
         $keys = [];
