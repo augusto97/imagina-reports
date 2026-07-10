@@ -7,6 +7,27 @@
 ---
 
 ## Where I left off (read me first)
+**🚀 TIER 1 + TIER 2 (marketing/competitividad) (2026-07-10, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** tras el
+análisis competitivo (Supermetrics/Whatagraph/AgencyAnalytics/DashThis/Databox) se construyó el roadmap Tier 1+2. **Hecho:**
+(1) **Plantillas de galería «Publicidad»** para google_ads, facebook_ads, tiktok_ads, mailchimp y una **PPC combinada** (Google+Meta
+con `calc.ad_spend_total/roas/cpa` + goal de presupuesto) en `templateGallery.ts`. (2) **Métricas calculadas de fábrica cross-source**
+(`app/Reports/Calc/FactoryCalculatedMetrics.php`): ad_spend_total, ad_conversions_total, ad_clicks/impressions_total, **ROAS** (ingresos÷gasto),
+**CPA**, ad_ctr, **CAC** (gasto÷nuevos clientes Woo) — bag-aware (solo suma fuentes presentes), precedencia más baja que las del usuario;
+aparecen en el picker vía `MetricCatalogController`. Listas `AD_METRICS/AD_SOURCES` configurables → añadir plataforma nueva la enchufa al ROAS.
+(3) **Bloque goal en modo «presupuesto»** (`style.goal_direction='under'`): verde si value≤target, rojo si se pasa; selector Meta/Presupuesto
+en el Inspector. (4) **Conectores TikTok Ads + Mailchimp** (Business/Marketing API, agregados en origen, tests con `Http::fake`). (5) **Backfill
+histórico** (`PreviewController::backfill`, `POST sites/{site}/backfill`, hasta 24 meses) + control «Traer histórico» en `RangeSyncMenu`.
+(6) **Reglas de anomalía de marketing** (spend_spike, conversions_drop en `config/anomalies.php` + `AnomalyDetector` refactor a spikes/drops
+genéricos) + **alertas a Slack** (`SendSlackJob`+`SlackMessage`, `slack_webhook_url` en settings de agencia, filtra ruido de report.generated).
+(7) **«Añadir sección con IA»** (`AiReportBuilder::assembleSection`, `POST sites/{site}/ai-section`, botón en el editor que ANEXA solo los
+bloques de la sección descrita —sin cover/header/summary/cta— validados contra el catálogo real; los bindings inventados se descartan y reportan).
+**491 tests PHP + 16 vitest + stan/pint/ts/lint limpios.** **⚠️ PENDIENTE DE RELEASE:** el MCP de GitHub está DESCONECTADO, así que el
+release se dispara con un **tag git** (`git tag v1.15.0 && git push origin v1.15.0`; `release.yml` corre `on: push: tags: ['v*']`) — o
+que el owner reconecte el MCP. **RECORDATORIOS DE DESPLIEGUE:** reconectar una vez los sitios push (tokens cifrados); Horizon recarga config
+al desplegar (cola pdf). **DIFERIDO (necesita decisión del owner):** scorecard multi-métrica completo (se usó goal invertido como pacing);
+conectores LinkedIn/Bing/GBP (LinkedIn ya está en las claves `AD_METRICS`); conversión de divisa FX (choca con §5); serie temporal blended
+cross-plataforma.
+
 **➕ CONECTORES GOOGLE ADS + FACEBOOK/META ADS (2026-07-06, rama `claude/github-app-analysis-a7b2bd`, release v1.14.0):** dos conectores
 nuevos siguiendo el contrato `DataSourceConnector` (§7/§9). El frontend NO se tocó — la config y el picker de métricas se generan
 solos desde `/api/v1/connectors`. **Google Ads** (`app/Connectors/GoogleAds/GoogleAdsConnector.php`, enum `google_ads`): auth OAuth2
