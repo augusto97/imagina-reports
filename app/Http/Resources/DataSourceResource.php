@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Connectors\SiteAgent\SiteAgentConnector;
+use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -41,6 +43,30 @@ final class DataSourceResource extends JsonResource
             'is_push' => (bool) $source->getAttribute('is_push'),
             'push_token' => $source->getAttribute('push_token'),
             'ingest_url' => $source->getAttribute('ingest_url'),
+            // Site Agent only: the plugin version the site reports + whether it's behind the
+            // shipped one, so the card can prompt to update (an outdated agent silently omits
+            // newer metrics like the applied-updates history). Null for other source types.
+            ...$this->agentInfo($source),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function agentInfo(DataSource $source): array
+    {
+        if ($source->type !== DataSourceType::SiteAgent) {
+            return [];
+        }
+
+        $meta = $source->meta ?? [];
+        $version = is_string($meta['agent_version'] ?? null) ? $meta['agent_version'] : null;
+
+        return [
+            'agent_version' => $version,
+            'agent_latest' => SiteAgentConnector::LATEST_AGENT_VERSION,
+            'agent_outdated' => $version !== null && version_compare($version, SiteAgentConnector::LATEST_AGENT_VERSION, '<'),
+            'agent_logging_since' => is_string($meta['agent_logging_since'] ?? null) ? $meta['agent_logging_since'] : null,
         ];
     }
 }

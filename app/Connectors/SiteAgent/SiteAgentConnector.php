@@ -41,6 +41,14 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
 
     private const PATH = '/wp-json/imagina-reports/v1/metrics';
 
+    /**
+     * The current agent plugin version shipped in wp-plugin/imagina-reports-agent. A site
+     * running an older agent silently omits newer payload sections (e.g. `activity` →
+     * the applied-updates history), so the report hides those blocks. We compare the
+     * version the site reports against this to warn the agency to update the plugin.
+     */
+    public const LATEST_AGENT_VERSION = '1.9.1';
+
     public function __construct(private ?AbandonedPluginChecker $abandonedChecker = null) {}
 
     private function abandonedChecker(): AbandonedPluginChecker
@@ -200,7 +208,34 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             return MetricSet::failed('Agente Imagina: respuesta inválida.');
         }
 
-        return MetricSet::ok($this->mapMetrics($data, $requestedMetrics));
+        return MetricSet::ok($this->mapMetrics($data, $requestedMetrics), $this->agentMeta($data));
+    }
+
+    /**
+     * Source metadata (not metrics): the agent plugin version and since when it has been
+     * logging applied updates. Surfaced on the source card so the agency can tell whether a
+     * site needs its plugin updated, and why the applied-updates history might be empty.
+     *
+     * @param  array<array-key, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function agentMeta(array $data): array
+    {
+        $version = $this->toStr(Arr::get($data, 'agent_version'));
+        $loggingSince = $this->toStr(Arr::get($data, 'activity.logging_since'));
+
+        $meta = [];
+
+        if ($version !== '') {
+            $meta['agent_version'] = $version;
+            $meta['agent_outdated'] = version_compare($version, self::LATEST_AGENT_VERSION, '<');
+        }
+
+        if ($loggingSince !== '') {
+            $meta['agent_logging_since'] = $loggingSince;
+        }
+
+        return $meta;
     }
 
     /**

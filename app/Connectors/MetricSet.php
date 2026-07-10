@@ -16,29 +16,35 @@ final readonly class MetricSet
 {
     /**
      * @param  array<string, mixed>  $metrics
+     * @param  array<string, mixed>  $meta  Connector-reported source metadata (not metrics,
+     *                                      not secrets) — e.g. the agent plugin version. Persisted
+     *                                      onto the DataSource by the SyncService, not the snapshot.
      */
     private function __construct(
         public MetricSetStatus $status,
         public array $metrics,
         public ?string $error = null,
+        public array $meta = [],
     ) {}
 
     /**
      * @param  array<string, mixed>  $metrics
+     * @param  array<string, mixed>  $meta
      */
-    public static function ok(array $metrics): self
+    public static function ok(array $metrics, array $meta = []): self
     {
-        return new self(MetricSetStatus::Ok, $metrics);
+        return new self(MetricSetStatus::Ok, $metrics, null, $meta);
     }
 
     /**
      * Some metrics were retrieved; others failed.
      *
      * @param  array<string, mixed>  $metrics
+     * @param  array<string, mixed>  $meta
      */
-    public static function partial(array $metrics, string $error): self
+    public static function partial(array $metrics, string $error, array $meta = []): self
     {
-        return new self(MetricSetStatus::Partial, $metrics, $error);
+        return new self(MetricSetStatus::Partial, $metrics, $error, $meta);
     }
 
     public static function failed(string $error): self

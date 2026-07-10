@@ -145,6 +145,11 @@ export interface DataSourceDto {
     is_push?: boolean;
     push_token?: string | null;
     ingest_url?: string | null;
+    /** Site Agent only: plugin version reported by the site + whether it's behind ours. */
+    agent_version?: string | null;
+    agent_latest?: string | null;
+    agent_outdated?: boolean;
+    agent_logging_since?: string | null;
 }
 
 export type ReportVisibility = 'public' | 'password' | 'private';

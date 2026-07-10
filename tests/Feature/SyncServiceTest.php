@@ -73,6 +73,18 @@ class SyncServiceTest extends TestCase
         $this->assertSame(1, MetricSnapshot::query()->count());
     }
 
+    public function test_it_persists_connector_reported_meta_onto_the_source(): void
+    {
+        $this->registerConnector(MetricSet::ok(['fake.visits' => 1], ['agent_version' => '1.0.0', 'agent_outdated' => true]));
+        $source = $this->dataSource();
+
+        app(SyncService::class)->sync($source, Period::make('2026-06-01', '2026-06-30'));
+
+        $source->refresh();
+        $this->assertSame('1.0.0', $source->meta['agent_version']);
+        $this->assertTrue($source->meta['agent_outdated']);
+    }
+
     public function test_a_failed_fetch_marks_the_source_in_error(): void
     {
         $this->registerConnector(MetricSet::failed('auth rejected'));

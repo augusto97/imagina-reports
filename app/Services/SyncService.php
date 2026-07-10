@@ -69,10 +69,19 @@ final readonly class SyncService
 
     private function recordOutcome(DataSource $source, MetricSet $metricSet): void
     {
-        $source->forceFill([
+        $attributes = [
             'status' => $metricSet->isFailed() ? DataSourceStatus::Error : DataSourceStatus::Ok,
             'last_synced_at' => Date::now(),
             'last_error' => $metricSet->error,
-        ])->save();
+        ];
+
+        // Connector-reported source metadata (e.g. the agent plugin version) — merged onto
+        // the source so the card can show it without re-testing. Merge (not replace) so a
+        // failed/partial sync that reports nothing doesn't wipe a previously-known value.
+        if ($metricSet->meta !== []) {
+            $attributes['meta'] = array_merge($source->meta ?? [], $metricSet->meta);
+        }
+
+        $source->forceFill($attributes)->save();
     }
 }

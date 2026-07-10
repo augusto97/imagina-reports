@@ -116,6 +116,48 @@ function formatGeneratedAt(value: string | null): string {
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/**
+ * Human label for a hidden metric key (`site_agent.updates_log` → "Agente: actualizaciones
+ * aplicadas (detalle)"), so the "sin datos" hint reads plainly instead of showing raw keys.
+ * Falls back to a de-prefixed, humanized form for anything not in the map.
+ */
+const METRIC_LABELS: Record<string, string> = {
+    'site_agent.updates_log': 'Agente: historial de actualizaciones aplicadas',
+    'site_agent.updates_applied': 'Agente: actualizaciones aplicadas (nº)',
+    'site_agent.abandoned_plugins': 'Agente: plugins abandonados',
+    'site_agent.leads': 'Agente: solicitudes/leads',
+    'site_agent.security_audit': 'Agente: auditoría de seguridad',
+    'site_agent.ssl_status': 'Agente: estado del certificado SSL',
+    'mainwp.updates_applied': 'MainWP: actualizaciones aplicadas',
+    'woocommerce.revenue': 'WooCommerce: ingresos',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+    site_agent: 'Agente',
+    mainwp: 'MainWP',
+    ga4: 'Analytics',
+    gsc: 'Search Console',
+    woocommerce: 'WooCommerce',
+    cloudflare: 'Cloudflare',
+    crowdsec: 'CrowdSec',
+    betteruptime: 'Uptime',
+    calc: 'Calculada',
+};
+
+function humanizeMetric(key: string): string {
+    if (METRIC_LABELS[key]) {
+        return METRIC_LABELS[key];
+    }
+    const dot = key.indexOf('.');
+    if (dot === -1) {
+        return key;
+    }
+    const source = key.slice(0, dot);
+    const metric = key.slice(dot + 1).replace(/_/g, ' ');
+
+    return `${SOURCE_LABELS[source] ?? source}: ${metric}`;
+}
+
 /** Short date for the next scheduled run (or «—»). */
 function formatDate(value: string): string {
     const date = new Date(value);
@@ -806,7 +848,7 @@ function ReportConfigCard({
                                             <span>Generado {formatGeneratedAt(report.created_at)}</span>
                                             {report.health_score !== null && <span>· Salud {report.health_score}</span>}
                                             {hidden.length > 0 && (
-                                                <span className="ir-text-amber-600" title={`Sin datos: ${hidden.join(', ')}. Sincroniza el periodo y regenera.`}>
+                                                <span className="ir-text-amber-600" title={`Sin datos este periodo (no es un error): ${hidden.map(humanizeMetric).join(', ')}. El bloque se ocultó porque su métrica llegó vacía. Sincroniza el periodo y regenera; si es del Agente, revisa que el plugin del sitio esté actualizado.`}>
                                                     · ⚠ {hidden.length} sin datos
                                                 </span>
                                             )}

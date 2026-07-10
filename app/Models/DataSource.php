@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property DataSourceType $type
  * @property array<string, mixed>|null $credentials
  * @property array<string, mixed>|null $config
+ * @property array<string, mixed>|null $meta
  * @property string|null $push_token
  * @property string|null $push_token_hash
  * @property DataSourceStatus $status
@@ -54,6 +55,7 @@ class DataSource extends Model
         'type',
         'credentials',
         'config',
+        'meta',
         'push_token',
         'push_token_hash',
         'status',
@@ -89,6 +91,7 @@ class DataSource extends Model
             // Encrypted at rest (audit SEC). Lookups go through push_token_hash, never this.
             'push_token' => 'encrypted',
             'config' => 'array',
+            'meta' => 'array',
             'last_synced_at' => 'datetime',
         ];
     }

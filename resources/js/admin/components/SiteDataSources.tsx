@@ -249,6 +249,27 @@ function statusDot(status: string): string {
 }
 
 /**
+ * Site Agent version line: shows the plugin version the site reports and, when it's
+ * behind the shipped one, an amber prompt to update — an outdated agent silently omits
+ * newer metrics (e.g. the applied-updates history), which otherwise looks "broken".
+ */
+function AgentVersion({ source }: { source: DataSourceDto }): ReactElement | null {
+    if (source.type !== 'site_agent' || !source.agent_version) {
+        return null;
+    }
+
+    if (source.agent_outdated) {
+        return (
+            <p className="ir-truncate ir-text-xs ir-text-amber-600" title={`El sitio corre el agente ${source.agent_version}. Sube el plugin a ${source.agent_latest} para recuperar las métricas nuevas (p. ej. el historial de actualizaciones).`}>
+                ⚠ Agente {source.agent_version} — actualiza a {source.agent_latest}
+            </p>
+        );
+    }
+
+    return <p className="ir-truncate ir-text-xs ir-text-muted-foreground">Agente {source.agent_version} ✓</p>;
+}
+
+/**
  * Self-contained data-sources manager for a single site: lists the configured connectors
  * with test/edit/delete, and an "add source" panel driven by each connector's
  * configSchema. Extracted so the workspace (master-detail) can embed it directly.
@@ -369,6 +390,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                                     <div className="ir-min-w-0">
                                         <p className="ir-truncate ir-text-sm ir-font-medium">{labelFor(source.type)}</p>
                                         <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{detail}</p>
+                                        <AgentVersion source={source} />
                                     </div>
                                 </div>
                                 <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">

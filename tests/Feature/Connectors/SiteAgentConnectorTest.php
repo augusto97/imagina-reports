@@ -246,6 +246,19 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertSame('Instalado 1.0', $log[2]['Versión']);
     }
 
+    public function test_fetch_captures_the_agent_version_as_source_meta(): void
+    {
+        Http::fake(['a.test/wp-json/imagina-reports/v1/metrics*' => Http::response($this->payload())]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        // The payload reports 1.0.0, which is behind the shipped agent → flagged outdated so
+        // the source card can prompt to update (older agents omit newer metrics).
+        $this->assertSame('1.0.0', $set->meta['agent_version']);
+        $this->assertTrue($set->meta['agent_outdated']);
+        $this->assertSame('2026-05-01 00:00:00', $set->meta['agent_logging_since']);
+    }
+
     public function test_updates_history_hides_when_the_agent_predates_it(): void
     {
         $payload = $this->payload();
