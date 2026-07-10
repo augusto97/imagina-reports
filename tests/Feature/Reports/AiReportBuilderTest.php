@@ -61,6 +61,27 @@ class AiReportBuilderTest extends TestCase
         $this->assertSame([['type' => 'kpi', 'metric' => 'woocommerce.revenue']], $result['dropped']);
     }
 
+    public function test_assemble_section_returns_only_section_blocks_and_strips_structural_ones(): void
+    {
+        $site = $this->siteWithGa4();
+        $response = (string) json_encode([
+            'blocks' => [
+                // A header/cover would belong to the whole report, not an inserted section — stripped.
+                ['id' => 'h', 'type' => 'header', 'binding' => null, 'props' => [], 'style' => []],
+                ['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions'], 'props' => [], 'style' => []],
+                // Invented binding is still dropped and reported.
+                ['id' => 'k2', 'type' => 'kpi', 'binding' => ['source' => 'woocommerce', 'metric' => 'revenue'], 'props' => [], 'style' => []],
+            ],
+        ]);
+
+        $result = $this->builderReturning($response)->assembleSection($site, 'una sección de tráfico');
+
+        $ids = array_map(static fn (array $block): mixed => $block['id'], $result['blocks']);
+        $this->assertSame(['k1'], $ids);
+        $this->assertArrayNotHasKey('narrative', $result);
+        $this->assertSame([['type' => 'kpi', 'metric' => 'woocommerce.revenue']], $result['dropped']);
+    }
+
     public function test_it_throws_on_unparseable_output(): void
     {
         $site = $this->siteWithGa4();

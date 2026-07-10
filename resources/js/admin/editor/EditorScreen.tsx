@@ -53,6 +53,7 @@ import type { Block, BlockType } from "@shared/blocks/types";
 import {
     type PreviewResult,
     useAgency,
+    useAiSection,
     useAiTemplate,
     useCreateReportTemplate,
     useDefaultTemplateBlocks,
@@ -156,6 +157,7 @@ export function EditorScreen(): ReactElement {
     const create = useCreateReportTemplate();
     const defaultTpl = useDefaultTemplateBlocks();
     const ai = useAiTemplate(siteId ?? 0);
+    const aiSection = useAiSection(siteId ?? 0);
 
     const editingTemplateId = useAdminUi((state) => state.editingTemplateId);
     const editTemplate = useAdminUi((state) => state.editTemplate);
@@ -171,6 +173,7 @@ export function EditorScreen(): ReactElement {
 
     const [name, setName] = useState("");
     const [aiPrompt, setAiPrompt] = useState("");
+    const [aiSectionPrompt, setAiSectionPrompt] = useState("");
     const [month, setMonth] = useState(currentMonth());
     const [blocks, setBlocks] = useState<Block[]>([makeBlock("header")]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -379,6 +382,38 @@ export function EditorScreen(): ReactElement {
             onError: () => {
                 setAiNotice(null);
                 setErrors(["La IA no pudo generar un borrador válido."]);
+            },
+        });
+    };
+
+    // "Add a section with AI": builds only the described blocks and appends them below
+    // the current page's content, leaving the rest of the layout untouched.
+    const generateSectionWithAi = (): void => {
+        if (aiSectionPrompt.trim() === "") {
+            return;
+        }
+        aiSection.mutate(aiSectionPrompt, {
+            onSuccess: (result) => {
+                if (result.blocks.length === 0) {
+                    setAiNotice(
+                        "La IA no propuso bloques válidos para este sitio (puede que no tenga los datos que pediste).",
+                    );
+                    return;
+                }
+                appendTemplate(() => result.blocks);
+                setAiSectionPrompt("");
+                setErrors([]);
+                setAiNotice(
+                    result.dropped.length > 0
+                        ? `Se añadió la sección. La IA omitió ${result.dropped.length} bloque(s) con métricas que este sitio no tiene: ${result.dropped
+                              .map((block) => block.metric || block.type)
+                              .join(", ")}.`
+                        : null,
+                );
+            },
+            onError: () => {
+                setAiNotice(null);
+                setErrors(["La IA no pudo generar la sección."]);
             },
         });
     };
@@ -1003,6 +1038,34 @@ export function EditorScreen(): ReactElement {
                                         generar con IA.
                                     </p>
                                 )}
+                                <div className="ir-border-t ir-border-border ir-pt-2.5">
+                                    <p className="ir-mb-1.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
+                                        Añadir sección al informe actual
+                                    </p>
+                                    <div className="ir-flex ir-gap-2">
+                                        <Input
+                                            placeholder="Ej.: sección de rendimiento de anuncios…"
+                                            value={aiSectionPrompt}
+                                            onChange={(event) =>
+                                                setAiSectionPrompt(
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                        <Button
+                                            variant="ghost"
+                                            onClick={generateSectionWithAi}
+                                            disabled={
+                                                siteId === null ||
+                                                aiSection.isPending ||
+                                                aiSectionPrompt.trim() === ""
+                                            }
+                                        >
+                                            <Sparkles className="ir-size-4" />
+                                            Añadir
+                                        </Button>
+                                    </div>
+                                </div>
                                 <p className="ir-text-[11px] ir-text-muted-foreground">
                                     ¿Prefieres partir de una plantilla? Pulsa{" "}
                                     <strong>«Plantillas»</strong> en la barra

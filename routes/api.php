@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
+    Route::post('sites/{site}/ai-section', [AiTemplateController::class, 'section'])->name('api.sites.ai-section');
     Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');
     Route::post('sites/{site}/calc-preview', [CalculatedMetricController::class, 'preview'])->name('api.sites.calc-preview');
     Route::put('sites/{site}/calculated-metrics', [CalculatedMetricController::class, 'updateSite'])->name('api.sites.calculated-metrics.update');

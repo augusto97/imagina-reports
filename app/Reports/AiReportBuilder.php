@@ -20,6 +20,12 @@ use App\Reports\Blocks\BlockValidationException;
  */
 final readonly class AiReportBuilder
 {
+    /**
+     * Block types that belong to a whole report, not a single inserted section
+     * (assembleSection strips them so the AI can't prepend a second cover/header).
+     */
+    private const SECTION_EXCLUDED_TYPES = ['header', 'cover', 'cta'];
+
     public function __construct(
         private AiClient $ai,
         private ConnectorRegistry $registry,
@@ -78,6 +84,67 @@ final readonly class AiReportBuilder
         return [
             'blocks' => $visible,
             'narrative' => is_string($narrative) ? $narrative : '',
+            'dropped' => $dropped,
+        ];
+    }
+
+    /**
+     * "Add a section with AI" (§11.3 editor): builds ONLY the blocks for a described
+     * section — no cover, header, executive summary or CTA — so they can be appended to
+     * an existing canvas instead of replacing it. Same catalog validation as
+     * assembleTemplate: invented bindings are dropped, never rendered.
+     *
+     * @return array{blocks: list<array<string, mixed>>, dropped: list<array{type: string, metric: string}>}
+     *
+     * @throws AiReportException
+     */
+    public function assembleSection(Site $site, string $prompt): array
+    {
+        $catalog = $this->siteCatalog($site);
+
+        $raw = $this->ai->complete($this->sectionSystemPrompt(), $this->userPrompt($site, $catalog, $prompt));
+
+        $json = $this->decode($raw);
+
+        if ($json === null) {
+            throw new AiReportException('The AI did not return parseable JSON.');
+        }
+
+        try {
+            $blocks = $this->validator->validate($json['blocks'] ?? null);
+        } catch (BlockValidationException $exception) {
+            throw new AiReportException('The AI returned an invalid block layout: '.implode(' ', $exception->errors));
+        }
+
+        $catalogKeys = array_map(static fn (array $entry): string => $entry['key'], $catalog);
+
+        $visible = [];
+        $dropped = [];
+        foreach ($blocks as $block) {
+            if (in_array($block->type->value, self::SECTION_EXCLUDED_TYPES, true)) {
+                // Section mode inserts into an existing layout, so structural/whole-report
+                // blocks (cover, header, summary, CTA) don't belong — quietly skip them.
+                continue;
+            }
+
+            if (! $this->bindingExists($block, $catalogKeys)) {
+                $binding = is_array($block->binding) ? $block->binding : [];
+                $source = is_string($binding['source'] ?? null) ? $binding['source'] : '';
+                $metric = is_string($binding['metric'] ?? null) ? $binding['metric'] : '';
+
+                $dropped[] = [
+                    'type' => $block->type->value,
+                    'metric' => $source !== '' && $metric !== '' ? "{$source}.{$metric}" : $metric,
+                ];
+
+                continue;
+            }
+
+            $visible[] = $block->toArray();
+        }
+
+        return [
+            'blocks' => $visible,
             'dropped' => $dropped,
         ];
     }
@@ -223,6 +290,21 @@ final readonly class AiReportBuilder
         A "goal" block also needs props.target (a number). A "cta" block uses props.headline/text/buttonLabel/buttonUrl.
         Data blocks (kpi,chart,table,sales_summary,goal) MUST bind to a metric from the provided catalog
         (use the catalog's "source" and "metric"). Never invent metrics. Ids must be unique. No prose outside the JSON.
+        PROMPT;
+    }
+
+    private function sectionSystemPrompt(): string
+    {
+        return <<<'PROMPT'
+        You build ONE section of a branded client report as a small block layout for "Imagina Reports".
+        Return ONLY a JSON object: {"blocks": [...]}. Do NOT include a cover, header, executive summary or CTA —
+        the section is inserted into an existing report that already has them.
+        Each block is {"id": string, "type": one of
+        [kpi,chart,table,narrative,healthscore,security_shield,worklog_timeline,image,divider,sales_summary,goal,comments,custom],
+        "binding": {"source": string, "metric": string}|null, "props": object, "style": object}.
+        A "goal" block also needs props.target (a number). Data blocks (kpi,chart,table,sales_summary,goal) MUST bind
+        to a metric from the provided catalog (use the catalog's "source" and "metric"). Never invent metrics.
+        Prefer a compact, focused section (2-6 blocks). Ids must be unique. No prose outside the JSON.
         PROMPT;
     }
 

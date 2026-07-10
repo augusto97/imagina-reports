@@ -1071,6 +1071,18 @@ export function useAiTemplate(siteId: number) {
     });
 }
 
+export interface AiSectionResult {
+    blocks: Block[];
+    dropped: { type: string; metric: string }[];
+}
+
+export function useAiSection(siteId: number) {
+    return useMutation({
+        mutationFn: (prompt: string) =>
+            api.post<AiSectionResult>(`/sites/${siteId}/ai-section`, { prompt }).then((r) => r.data),
+    });
+}
+
 /* ------------------------------ editor: preview ---------------------------- */
 
 export interface PreviewResult {

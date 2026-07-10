@@ -36,4 +36,28 @@ final class AiTemplateController extends Controller
 
         return response()->json($result);
     }
+
+    /**
+     * "Add a section with AI": returns only the blocks for a described section so the
+     * editor can append them to the current layout (no cover/header/summary/CTA).
+     */
+    public function section(Request $request, Site $site, AiReportBuilder $builder, Entitlements $entitlements, TenantContext $tenant): JsonResponse
+    {
+        $agency = Agency::query()->findOrFail($tenant->id());
+        abort_unless($entitlements->hasFeature($agency, 'ai_builder'), 403, 'Tu plan no incluye el generador con IA. Mejora el plan para usarlo.');
+
+        $prompt = $request->string('prompt')->toString();
+
+        if ($prompt === '') {
+            return response()->json(['message' => 'Describe la sección que quieres añadir.'], 422);
+        }
+
+        try {
+            $result = $builder->assembleSection($site, $prompt);
+        } catch (AiReportException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json($result);
+    }
 }
