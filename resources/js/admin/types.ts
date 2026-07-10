@@ -368,6 +368,7 @@ export interface AgencySettings {
     calculated_metrics: { key: string; label: string; formula: string }[];
     webhook_urls: string[];
     webhook_secret_set: boolean;
+    slack_webhook_url: string;
     plan: { name: string; slug: string } | null;
     status: string;
     limits: PlanLimits;

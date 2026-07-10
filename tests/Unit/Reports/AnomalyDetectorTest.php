@@ -83,6 +83,39 @@ class AnomalyDetectorTest extends TestCase
         ));
     }
 
+    public function test_it_flags_an_ad_spend_spike(): void
+    {
+        $anomalies = (new AnomalyDetector)->detect(
+            ['google_ads' => ['google_ads.cost' => 500]],
+            ['google_ads' => ['google_ads.cost' => 200]],
+        );
+
+        $this->assertCount(1, $anomalies);
+        $this->assertSame(AnomalyType::SpendSpike, $anomalies[0]->type);
+        $this->assertSame('google_ads.cost', $anomalies[0]->metric);
+        $this->assertSame(150.0, $anomalies[0]->changePercent); // 200 → 500
+    }
+
+    public function test_it_flags_a_conversions_drop(): void
+    {
+        $anomalies = (new AnomalyDetector)->detect(
+            ['facebook_ads' => ['facebook_ads.conversions' => 6]],
+            ['facebook_ads' => ['facebook_ads.conversions' => 20]],
+        );
+
+        $this->assertCount(1, $anomalies);
+        $this->assertSame(AnomalyType::ConversionsDrop, $anomalies[0]->type);
+        $this->assertSame('facebook_ads.conversions', $anomalies[0]->metric);
+    }
+
+    public function test_a_stable_ad_spend_is_not_a_spike(): void
+    {
+        $this->assertSame([], (new AnomalyDetector)->detect(
+            ['google_ads' => ['google_ads.cost' => 210]],
+            ['google_ads' => ['google_ads.cost' => 200]],
+        ));
+    }
+
     public function test_a_missing_metric_produces_no_anomaly(): void
     {
         $this->assertSame([], (new AnomalyDetector)->detect([], []));

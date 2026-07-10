@@ -202,6 +202,7 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
     const test = useTestWebhooks();
     const [urls, setUrls] = useState<string[]>(agency.webhook_urls.length > 0 ? agency.webhook_urls : ['']);
     const [secret, setSecret] = useState('');
+    const [slackUrl, setSlackUrl] = useState(agency.slack_webhook_url);
 
     const setUrl = (index: number, value: string): void => setUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
     const addUrl = (): void => setUrls((prev) => [...prev, '']);
@@ -213,6 +214,7 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
             brand_color: agency.brand_color,
             default_locale: agency.default_locale,
             webhook_urls: urls.map((url) => url.trim()).filter((url) => url !== ''),
+            slack_webhook_url: slackUrl.trim(),
         };
         if (secret !== '') {
             payload.webhook_secret = secret;
@@ -261,6 +263,15 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
                         value={secret}
                         onChange={(event) => setSecret(event.target.value)}
                         placeholder={agency.webhook_secret_set ? '•••••••• (deja en blanco para conservar)' : 'Un secreto compartido'}
+                    />
+                </Field>
+
+                <Field label="Slack (opcional)" hint="Pega la URL de un Incoming Webhook de Slack: recibirás un mensaje cuando se detecte una anomalía (caída de tráfico, pico de gasto, caída de conversiones…), se envíe un reporte o surja una oportunidad de venta.">
+                    <Input
+                        type="url"
+                        value={slackUrl}
+                        onChange={(event) => setSlackUrl(event.target.value)}
+                        placeholder="https://hooks.slack.com/services/…"
                     />
                 </Field>
 

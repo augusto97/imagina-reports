@@ -111,6 +111,7 @@ export interface AgencyUpdate {
     anthropic_key?: string;
     webhook_urls?: string[];
     webhook_secret?: string;
+    slack_webhook_url?: string;
 }
 
 /** Send a `ping` test event to the configured webhook endpoints (§8). */

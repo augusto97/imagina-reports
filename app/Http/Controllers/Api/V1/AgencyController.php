@@ -78,6 +78,15 @@ final class AgencyController extends Controller
             }
         }
 
+        if (array_key_exists('slack_webhook_url', $validated)) {
+            $slack = $validated['slack_webhook_url'];
+            if (is_string($slack) && $slack !== '') {
+                $settings['slack_webhook_url'] = $slack;
+            } else {
+                unset($settings['slack_webhook_url']);
+            }
+        }
+
         $agency->settings = $settings;
         $agency->save();
 
@@ -179,6 +188,7 @@ final class AgencyController extends Controller
             'calculated_metrics' => $agency->calculated_metrics ?? [],
             'webhook_urls' => $this->webhookUrls($agency),
             'webhook_secret_set' => is_string($agency->settings['webhook_secret'] ?? null) && $agency->settings['webhook_secret'] !== '',
+            'slack_webhook_url' => is_string($agency->settings['slack_webhook_url'] ?? null) ? $agency->settings['slack_webhook_url'] : '',
             'plan' => $agency->plan !== null ? ['name' => $agency->plan->name, 'slug' => $agency->plan->slug] : null,
             'status' => $agency->status,
             'limits' => app(Entitlements::class)->limits($agency),

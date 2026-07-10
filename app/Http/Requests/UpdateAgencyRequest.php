@@ -46,6 +46,8 @@ final class UpdateAgencyRequest extends FormRequest
             'webhook_urls.*' => ['string', 'url', 'max:2048'],
             // Optional signing secret; empty string clears it. Never returned in plaintext.
             'webhook_secret' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // Slack incoming webhook URL for alerts (§8). Empty string clears it.
+            'slack_webhook_url' => ['sometimes', 'nullable', 'string', 'url', 'max:2048'],
         ];
     }
 }

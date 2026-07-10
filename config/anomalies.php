@@ -27,4 +27,21 @@ return [
         'spike_pct' => (float) env('ANOMALY_ATTACK_SPIKE_PCT', 100),
     ],
 
+    // Ad-spend spike: flag when any ad platform's spend jumps sharply vs a meaningful
+    // baseline (a runaway campaign / misconfigured budget the agency should catch).
+    'spend_spike' => [
+        'metrics' => ['google_ads.cost', 'facebook_ads.spend', 'tiktok_ads.spend'],
+        'min_previous' => (float) env('ANOMALY_SPEND_MIN_PREVIOUS', 50),
+        'min_current' => (float) env('ANOMALY_SPEND_MIN_CURRENT', 200),
+        'spike_pct' => (float) env('ANOMALY_SPEND_SPIKE_PCT', 80),
+    ],
+
+    // Conversions drop: flag when an ad platform's conversions fall sharply vs a
+    // meaningful baseline (performance regression worth a proactive heads-up).
+    'conversions_drop' => [
+        'metrics' => ['google_ads.conversions', 'facebook_ads.conversions', 'tiktok_ads.conversions'],
+        'min_previous' => (float) env('ANOMALY_CONV_MIN_PREVIOUS', 5),
+        'drop_pct' => (float) env('ANOMALY_CONV_DROP_PCT', 40),
+    ],
+
 ];

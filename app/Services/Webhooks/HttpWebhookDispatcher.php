@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Webhooks;
 
 use App\Connectors\Support\ParsesValues;
+use App\Jobs\SendSlackJob;
 use App\Jobs\SendWebhookJob;
 use App\Models\Agency;
 
@@ -34,6 +35,15 @@ final class HttpWebhookDispatcher implements WebhookDispatcher
 
             if ($url !== '') {
                 SendWebhookJob::dispatch($url, $event, $payload, $secret === '' ? null : $secret);
+            }
+        }
+
+        // Slack incoming webhook (§8): the noteworthy events, posted as a human message.
+        $slackUrl = $this->toStr($settings['slack_webhook_url'] ?? '');
+        if ($slackUrl !== '') {
+            $text = (new SlackMessage)->format($event, $payload);
+            if ($text !== null) {
+                SendSlackJob::dispatch($slackUrl, $text);
             }
         }
     }

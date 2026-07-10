@@ -13,12 +13,16 @@ enum AnomalyType: string
 {
     case TrafficDrop = 'traffic_drop';
     case AttackSpike = 'attack_spike';
+    case SpendSpike = 'spend_spike';
+    case ConversionsDrop = 'conversions_drop';
 
     public function label(): string
     {
         return match ($this) {
             self::TrafficDrop => 'Traffic drop',
             self::AttackSpike => 'Attack spike',
+            self::SpendSpike => 'Ad spend spike',
+            self::ConversionsDrop => 'Conversions drop',
         };
     }
 }

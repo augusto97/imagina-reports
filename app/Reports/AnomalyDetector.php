@@ -35,8 +35,17 @@ final class AnomalyDetector
             $anomalies[] = $drop;
         }
 
-        foreach ($this->attackSpikes($current, $previous) as $spike) {
-            $anomalies[] = $spike;
+        foreach ([
+            ['anomalies.attack_spike', AnomalyType::AttackSpike],
+            ['anomalies.spend_spike', AnomalyType::SpendSpike],
+        ] as [$configKey, $type]) {
+            foreach ($this->spikes($current, $previous, $this->arrayOf(config($configKey)), $type) as $spike) {
+                $anomalies[] = $spike;
+            }
+        }
+
+        foreach ($this->drops($current, $previous, $this->arrayOf(config('anomalies.conversions_drop')), AnomalyType::ConversionsDrop) as $drop) {
+            $anomalies[] = $drop;
         }
 
         return $anomalies;
@@ -70,13 +79,16 @@ final class AnomalyDetector
     }
 
     /**
+     * A spike over any of the config's metrics: rose by at least spike_pct vs a meaningful
+     * baseline, OR jumped from a near-zero baseline to at least min_current.
+     *
      * @param  Bags  $current
      * @param  Bags  $previous
+     * @param  array<array-key, mixed>  $config
      * @return list<Anomaly>
      */
-    private function attackSpikes(array $current, array $previous): array
+    private function spikes(array $current, array $previous, array $config, AnomalyType $type): array
     {
-        $config = $this->arrayOf(config('anomalies.attack_spike'));
         $minPrevious = $this->toFloat($config['min_previous'] ?? 0);
         $minCurrent = $this->toFloat($config['min_current'] ?? 0);
         $spikePct = $this->toFloat($config['spike_pct'] ?? 0);
@@ -103,7 +115,47 @@ final class AnomalyDetector
                 || ($prev < $minPrevious && $cur >= $minCurrent);
 
             if ($spiked) {
-                $anomalies[] = new Anomaly(AnomalyType::AttackSpike, $metric, $cur, $prev, $change);
+                $anomalies[] = new Anomaly($type, $metric, $cur, $prev, $change);
+            }
+        }
+
+        return $anomalies;
+    }
+
+    /**
+     * A drop over any of the config's metrics: fell by at least drop_pct from a meaningful
+     * baseline (mirrors trafficDrop but for a metric list).
+     *
+     * @param  Bags  $current
+     * @param  Bags  $previous
+     * @param  array<array-key, mixed>  $config
+     * @return list<Anomaly>
+     */
+    private function drops(array $current, array $previous, array $config, AnomalyType $type): array
+    {
+        $minPrevious = $this->toFloat($config['min_previous'] ?? 0);
+        $dropPct = $this->toFloat($config['drop_pct'] ?? 0);
+
+        $anomalies = [];
+
+        foreach ($this->arrayOf($config['metrics'] ?? []) as $rawMetric) {
+            $metric = $this->toStr($rawMetric);
+
+            if ($metric === '') {
+                continue;
+            }
+
+            $cur = $this->metricValue($current, $metric);
+            $prev = $this->metricValue($previous, $metric);
+
+            if ($cur === null || $prev === null || $prev < $minPrevious) {
+                continue;
+            }
+
+            $change = $this->changePercent($cur, $prev);
+
+            if ($change <= -$dropPct) {
+                $anomalies[] = new Anomaly($type, $metric, $cur, $prev, $change);
             }
         }
 
