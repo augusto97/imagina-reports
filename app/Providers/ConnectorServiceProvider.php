@@ -6,6 +6,8 @@ namespace App\Providers;
 
 use App\Connectors\BetterUptime\BetterUptimeConnector;
 use App\Connectors\Cloudflare\CloudflareConnector;
+use App\Connectors\Connect\ConnectRegistry;
+use App\Connectors\Connect\WooCommerceConnect;
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\CrowdSec\CrowdSecConnector;
 use App\Connectors\Database\DatabaseConnector;
@@ -63,6 +65,16 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
 
             return $registry;
         });
+
+        // One-click connect providers (the alternative to the manual configSchema form).
+        // A type without a provider simply has no "Connect" button — manual entry still works.
+        $this->app->singleton(ConnectRegistry::class, function (): ConnectRegistry {
+            $registry = new ConnectRegistry;
+
+            $registry->register(new WooCommerceConnect);
+
+            return $registry;
+        });
     }
 
     /**
@@ -70,6 +82,6 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
      */
     public function provides(): array
     {
-        return [ConnectorRegistry::class, GoogleTokenProvider::class];
+        return [ConnectorRegistry::class, GoogleTokenProvider::class, ConnectRegistry::class];
     }
 }

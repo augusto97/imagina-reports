@@ -601,6 +601,19 @@ export function useDeleteDataSource(siteId: number) {
     });
 }
 
+/**
+ * Start a one-click connect flow: returns the provider URL to redirect the client to
+ * (their WooCommerce approve screen, an OAuth consent, …). The caller navigates there.
+ */
+export function useConnectStart(siteId: number) {
+    return useMutation({
+        mutationFn: ({ type, input, returnUrl }: { type: string; input: Record<string, string>; returnUrl: string }) =>
+            api
+                .post<{ redirect_url: string }>(`/sites/${siteId}/connect/${type}`, { input, return_url: returnUrl })
+                .then((r) => r.data),
+    });
+}
+
 export interface ConnectionTestResult {
     successful: boolean;
     message: string;

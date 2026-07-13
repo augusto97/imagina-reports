@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\ConfigField;
+use App\Connectors\Connect\ConnectRegistry;
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Http\Controllers\Controller;
@@ -25,24 +26,37 @@ final class ConnectorController extends Controller
      */
     private const HIDDEN = ['crowdsec', 'virusdie'];
 
-    public function index(ConnectorRegistry $registry): JsonResponse
+    public function index(ConnectorRegistry $registry, ConnectRegistry $connect): JsonResponse
     {
         $available = array_filter(
             $registry->all(),
             static fn ($connector): bool => ! in_array($connector->key(), self::HIDDEN, true),
         );
 
-        $connectors = array_map(static fn ($connector): array => [
-            'key' => $connector->key(),
-            'label' => $connector->label(),
-            'config_schema' => array_map(
-                static fn (ConfigField $field): array => $field->toArray(),
-                $connector->configSchema(),
-            ),
-            'guide' => $connector instanceof ProvidesSetupGuide
-                ? $connector->setupGuide()->toArray()
-                : null,
-        ], array_values($available));
+        $connectors = array_map(static function ($connector) use ($connect): array {
+            $provider = $connect->for($connector->key());
+
+            return [
+                'key' => $connector->key(),
+                'label' => $connector->label(),
+                'config_schema' => array_map(
+                    static fn (ConfigField $field): array => $field->toArray(),
+                    $connector->configSchema(),
+                ),
+                'guide' => $connector instanceof ProvidesSetupGuide
+                    ? $connector->setupGuide()->toArray()
+                    : null,
+                // One-click connect metadata (null when the type has no provider): drives the
+                // "Connect with X" button + the up-front fields it needs before redirecting.
+                'connect' => $provider === null ? null : [
+                    'label' => $provider->label(),
+                    'fields' => array_map(
+                        static fn (ConfigField $field): array => $field->toArray(),
+                        $provider->startFields(),
+                    ),
+                ],
+            ];
+        }, array_values($available));
 
         return response()->json($connectors);
     }

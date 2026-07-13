@@ -4,6 +4,7 @@ import { apiErrorMessage } from '@shared/lib/api';
 
 import {
     downloadSiteAgentPlugin,
+    useConnectStart,
     useConnectors,
     useCreateDataSource,
     useDeleteDataSource,
@@ -12,7 +13,7 @@ import {
     useUpdateDataSource,
 } from '../api';
 import type { Ga4DatasetSpec } from '../api';
-import type { Connector, DataSourceDto } from '../types';
+import type { ConfigFieldDef, Connector, DataSourceDto } from '../types';
 import { Ga4DatasetBuilder } from './Ga4DatasetBuilder';
 import { RangeSyncMenu } from './RangeSyncMenu';
 import { Button, Field, Input } from './ui';
@@ -164,6 +165,31 @@ function ConnectorFields({
     );
 }
 
+/** Renders a flat list of config fields (used for the one-click connect's up-front fields). */
+function FieldList({
+    fields,
+    values,
+    onChange,
+}: {
+    fields: ConfigFieldDef[];
+    values: Record<string, string>;
+    onChange: (key: string, value: string) => void;
+}): ReactElement {
+    return (
+        <>
+            {fields.map((field) => (
+                <Field key={field.key} label={field.label} hint={field.help ?? undefined}>
+                    <Input
+                        type={field.secret ? 'password' : 'text'}
+                        value={values[field.key] ?? ''}
+                        onChange={(event) => onChange(field.key, event.target.value)}
+                    />
+                </Field>
+            ))}
+        </>
+    );
+}
+
 function splitConfig(connector: Connector, values: Record<string, string>): { config: Record<string, string>; credentials: Record<string, string> } {
     const config: Record<string, string> = {};
     const credentials: Record<string, string> = {};
@@ -280,6 +306,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     const create = useCreateDataSource(siteId);
     const remove = useDeleteDataSource(siteId);
     const test = useTestConnection();
+    const connectStart = useConnectStart(siteId);
 
     const [adding, setAdding] = useState(false);
     const [type, setType] = useState('');
@@ -287,9 +314,31 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     const [results, setResults] = useState<Record<number, string>>({});
     const [editing, setEditing] = useState<number | null>(null);
     const [builderFor, setBuilderFor] = useState<DataSourceDto | null>(null);
+    // When a connector supports one-click connect, the manual form is hidden behind a toggle
+    // ("usar mis propios accesos") so the client can still bring their own tokens if they prefer.
+    const [manualOpen, setManualOpen] = useState(false);
 
     const connector = connectors.find((item) => item.key === type);
     const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? sourceType;
+
+    // Missing any required up-front connect field (e.g. the WooCommerce store URL)?
+    const connectReady =
+        connector?.connect != null &&
+        connector.connect.fields.every((field) => !field.required || (values[field.key] ?? '').trim() !== '');
+
+    const startConnect = (): void => {
+        if (connector?.connect == null) {
+            return;
+        }
+        const input: Record<string, string> = {};
+        for (const field of connector.connect.fields) {
+            input[field.key] = (values[field.key] ?? '').trim();
+        }
+        connectStart.mutate(
+            { type: connector.key, input, returnUrl: window.location.href },
+            { onSuccess: (result) => (window.location.href = result.redirect_url) },
+        );
+    };
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
@@ -333,6 +382,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                         setAdding((open) => !open);
                         setType('');
                         setValues({});
+                        setManualOpen(false);
                     }}
                 >
                     {adding ? 'Cerrar' : '+ Añadir fuente'}
@@ -342,7 +392,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
             {sources.length > 0 && <RangeSyncMenu siteId={siteId} />}
 
             {adding && (
-                <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
+                <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
                     <Field label="Conector">
                         <select
                             className="ir-h-9 ir-w-full ir-rounded-md ir-border ir-bg-card ir-px-3 ir-text-sm"
@@ -350,6 +400,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                             onChange={(event) => {
                                 setType(event.target.value);
                                 setValues({});
+                                setManualOpen(false);
                             }}
                         >
                             <option value="">Selecciona…</option>
@@ -361,21 +412,47 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                         </select>
                     </Field>
 
-                    {connector !== undefined && <SetupGuidePanel connector={connector} />}
-                    {connector !== undefined && (
-                        <ConnectorFields connector={connector} values={values} onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))} />
+                    {/* One-click connect (the client authorizes on the provider's own screen). */}
+                    {connector?.connect != null && (
+                        <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-border-primary/30 ir-bg-primary/5 ir-p-3">
+                            <p className="ir-text-xs ir-text-muted-foreground">
+                                Conexión rápida: tu cliente autoriza el acceso de solo lectura en su propia cuenta, sin copiar claves ni tokens.
+                            </p>
+                            <FieldList
+                                fields={connector.connect.fields}
+                                values={values}
+                                onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))}
+                            />
+                            {connectStart.isError && (
+                                <p className="ir-rounded ir-bg-danger/10 ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-danger">{apiErrorMessage(connectStart.error, 'No se pudo iniciar la conexión. Revisa la URL e inténtalo de nuevo.')}</p>
+                            )}
+                            <Button type="button" size="sm" onClick={startConnect} disabled={!connectReady || connectStart.isPending}>
+                                {connectStart.isPending ? 'Redirigiendo…' : connector.connect.label}
+                            </Button>
+                            <button
+                                type="button"
+                                className="ir-self-start ir-text-xs ir-text-muted-foreground ir-underline hover:ir-text-foreground"
+                                onClick={() => setManualOpen((open) => !open)}
+                            >
+                                {manualOpen ? 'Ocultar la opción manual' : 'o usar mis propios accesos (avanzado)'}
+                            </button>
+                        </div>
                     )}
 
-                    {create.isError && (
-                        <p className="ir-rounded ir-bg-danger/10 ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-danger">{apiErrorMessage(create.error, 'No se pudo guardar la fuente. Revisa las credenciales e inténtalo de nuevo.')}</p>
+                    {/* Manual form (always available; hidden behind a toggle when connect exists). */}
+                    {connector !== undefined && (connector.connect == null || manualOpen) && (
+                        <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3">
+                            <SetupGuidePanel connector={connector} />
+                            <ConnectorFields connector={connector} values={values} onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))} />
+                            {create.isError && (
+                                <p className="ir-rounded ir-bg-danger/10 ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-danger">{apiErrorMessage(create.error, 'No se pudo guardar la fuente. Revisa las credenciales e inténtalo de nuevo.')}</p>
+                            )}
+                            <Button type="submit" size="sm" disabled={create.isPending}>
+                                Guardar fuente
+                            </Button>
+                        </form>
                     )}
-
-                    {connector !== undefined && (
-                        <Button type="submit" size="sm" disabled={create.isPending}>
-                            Guardar fuente
-                        </Button>
-                    )}
-                </form>
+                </div>
             )}
 
             <ul className="ir-flex ir-flex-col ir-gap-2">

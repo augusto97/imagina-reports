@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BillingWebhookController;
 use App\Http\Controllers\Api\V1\CalculatedMetricController;
 use App\Http\Controllers\Api\V1\ClientController;
+use App\Http\Controllers\Api\V1\ConnectController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\Ga4DatasetController;
@@ -88,6 +89,13 @@ Route::post('/webhooks/billing/{provider}', [BillingWebhookController::class, 'h
     ->middleware('throttle:240,1')
     ->name('api.webhooks.billing');
 
+// One-click connect callback (§9). Public: the provider (e.g. the client's WooCommerce
+// store) POSTs the granted credentials here, tied to the pending intent by a one-time
+// nonce. GET is allowed for future OAuth2 providers whose callback is a browser redirect.
+Route::match(['get', 'post'], '/connect/callback/{type}', [ConnectController::class, 'callback'])
+    ->middleware('throttle:60,1')
+    ->name('api.connect.callback');
+
 // SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');
 
@@ -144,6 +152,7 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::get('sites/{site}/data-sources', [DataSourceController::class, 'index'])->name('api.sites.data-sources.index');
     Route::get('sites/{site}/data-sources/coverage', [DataSourceController::class, 'coverage'])->name('api.sites.data-sources.coverage');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
+    Route::post('sites/{site}/connect/{type}', [ConnectController::class, 'start'])->name('api.sites.connect.start');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
     Route::post('sites/{site}/ai-section', [AiTemplateController::class, 'section'])->name('api.sites.ai-section');

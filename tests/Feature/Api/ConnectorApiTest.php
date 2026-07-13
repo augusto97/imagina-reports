@@ -45,6 +45,22 @@ class ConnectorApiTest extends TestCase
         $this->assertNotEmpty($ga4['guide']['steps']);
     }
 
+    public function test_it_exposes_one_click_connect_metadata_when_available(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['agency_id' => Agency::factory()->create()->id]));
+
+        $connectors = collect($this->getJson('/api/v1/connectors')->json());
+
+        // WooCommerce ships a one-click connect provider (native /wc-auth flow).
+        $woo = $connectors->firstWhere('key', 'woocommerce');
+        $this->assertNotNull($woo['connect']);
+        $this->assertNotEmpty($woo['connect']['label']);
+        $this->assertContains('store_url', array_column($woo['connect']['fields'], 'key'));
+
+        // A connector without a provider reports null (manual form only).
+        $this->assertNull($connectors->firstWhere('key', 'ga4')['connect']);
+    }
+
     public function test_it_requires_authentication(): void
     {
         $this->getJson('/api/v1/connectors')->assertUnauthorized();

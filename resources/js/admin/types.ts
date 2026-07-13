@@ -124,11 +124,18 @@ export interface ConnectorGuide {
     docs_url: string | null;
 }
 
+/** One-click connect metadata for a connector (null when only the manual form applies). */
+export interface ConnectorConnect {
+    label: string;
+    fields: ConfigFieldDef[];
+}
+
 export interface Connector {
     key: string;
     label: string;
     config_schema: ConfigFieldDef[];
     guide?: ConnectorGuide | null;
+    connect?: ConnectorConnect | null;
 }
 
 export interface DataSourceDto {
