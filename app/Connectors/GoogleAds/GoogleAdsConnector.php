@@ -6,8 +6,10 @@ namespace App\Connectors\GoogleAds;
 
 use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
+use App\Connectors\Connect\ConnectableResources;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
@@ -35,7 +37,7 @@ use Throwable;
  * The `metrics.*` GAQL field names and camelCase response keys are the documented API
  * shape; conversions map to the account's configured conversion actions.
  */
-final class GoogleAdsConnector implements DataSourceConnector, ProvidesSetupGuide
+final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -215,14 +217,11 @@ final class GoogleAdsConnector implements DataSourceConnector, ProvidesSetupGuid
     /** Exchange the OAuth refresh token for a short-lived access token; null on failure. */
     private function accessToken(DataSource $source): ?string
     {
-        $config = $source->config ?? [];
-        $credentials = $source->credentials ?? [];
-
         $response = Http::asForm()->timeout(20)->post(self::OAUTH_URL, [
             'grant_type' => 'refresh_token',
-            'client_id' => $this->toStr(Arr::get($config, 'client_id')),
-            'client_secret' => $this->toStr(Arr::get($credentials, 'client_secret')),
-            'refresh_token' => $this->toStr(Arr::get($credentials, 'refresh_token')),
+            'client_id' => $this->clientId($source),
+            'client_secret' => $this->clientSecret($source),
+            'refresh_token' => $this->refreshToken($source),
         ]);
 
         if ($response->failed()) {
@@ -236,17 +235,97 @@ final class GoogleAdsConnector implements DataSourceConnector, ProvidesSetupGuid
 
     private function apiClient(DataSource $source, string $token): PendingRequest
     {
-        $config = $source->config ?? [];
-        $credentials = $source->credentials ?? [];
+        $headers = ['developer-token' => $this->developerToken($source)];
 
-        $headers = ['developer-token' => $this->toStr(Arr::get($credentials, 'developer_token'))];
-
-        $login = $this->toStr(Arr::get($config, 'login_customer_id'));
+        $login = $this->loginCustomerId($source);
         if ($login !== '') {
             $headers['login-customer-id'] = $login;
         }
 
         return Http::withToken($token)->withHeaders($headers)->acceptJson()->timeout(30);
+    }
+
+    /**
+     * OAuth/account settings resolve from the source (the manual form) first, falling back to
+     * the platform Google OAuth app (services.google_oauth) — so a one-click "Connect with
+     * Google" source, which stores only a refresh token, still authenticates.
+     */
+    private function refreshToken(DataSource $source): string
+    {
+        $credentials = $source->credentials ?? [];
+
+        return $this->toStr(Arr::get($credentials, 'refresh_token'))
+            ?: $this->toStr(Arr::get($credentials, 'oauth_refresh_token'));
+    }
+
+    private function clientId(DataSource $source): string
+    {
+        return $this->toStr(Arr::get($source->config ?? [], 'client_id')) ?: $this->platform('client_id');
+    }
+
+    private function clientSecret(DataSource $source): string
+    {
+        return $this->toStr(Arr::get($source->credentials ?? [], 'client_secret')) ?: $this->platform('client_secret');
+    }
+
+    private function developerToken(DataSource $source): string
+    {
+        return $this->toStr(Arr::get($source->credentials ?? [], 'developer_token')) ?: $this->platform('ads_developer_token');
+    }
+
+    private function loginCustomerId(DataSource $source): string
+    {
+        return $this->toStr(Arr::get($source->config ?? [], 'login_customer_id')) ?: $this->platform('ads_login_customer_id');
+    }
+
+    private function platform(string $key): string
+    {
+        $value = config("services.google_oauth.{$key}");
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
+     * The Google Ads accounts this connected login can reach (`listAccessibleCustomers`),
+     * so the client picks the account after the one-click connect. Best-effort — null on error.
+     */
+    public function connectableResources(DataSource $source): ?ConnectableResources
+    {
+        if ($this->refreshToken($source) === '') {
+            return null;
+        }
+
+        $token = $this->accessToken($source);
+        if ($token === null) {
+            return null;
+        }
+
+        $response = $this->apiClient($source, $token)
+            ->get(self::API_BASE.'/'.self::API_VERSION.'/customers:listAccessibleCustomers');
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $names = $response->json('resourceNames');
+        $options = [];
+        foreach (is_array($names) ? $names : [] as $name) {
+            if (! is_string($name)) {
+                continue;
+            }
+            $id = str_starts_with($name, 'customers/') ? substr($name, 10) : $name;
+            if ($id !== '') {
+                $options[] = ['value' => $id, 'label' => $this->formatCustomerId($id)];
+            }
+        }
+
+        return new ConnectableResources('customer_id', 'Cuenta de Google Ads', $options);
+    }
+
+    /** 1234567890 → 123-456-7890 for display (Google's canonical format). */
+    private function formatCustomerId(string $id): string
+    {
+        return strlen($id) === 10 ? substr($id, 0, 3).'-'.substr($id, 3, 3).'-'.substr($id, 6) : $id;
     }
 
     private function searchUrl(DataSource $source): string

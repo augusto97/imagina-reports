@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\Connect\ConnectRegistry;
+use App\Connectors\ConnectorRegistry;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Enums\DataSourceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Agency;
@@ -13,6 +15,7 @@ use App\Models\Site;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -28,7 +31,10 @@ final class ConnectController extends Controller
     /** How long a started connect intent stays valid before the nonce expires. */
     private const INTENT_TTL_MINUTES = 15;
 
-    public function __construct(private readonly ConnectRegistry $registry) {}
+    public function __construct(
+        private readonly ConnectRegistry $registry,
+        private readonly ConnectorRegistry $connectors,
+    ) {}
 
     public function start(Request $request, Site $site, string $type, Entitlements $entitlements, TenantContext $tenant): JsonResponse
     {
@@ -52,42 +58,52 @@ final class ConnectController extends Controller
         $input = is_array($validated['input'] ?? null) ? $validated['input'] : [];
 
         $nonce = Str::random(48);
+        $returnUrl = $this->safeReturnUrl(is_string($validated['return_url'] ?? null) ? $validated['return_url'] : null);
 
         Cache::put($this->intentKey($nonce), [
             'type' => $type,
             'site_id' => $site->id,
             'agency_id' => $agency->id,
             'input' => $input,
+            'return_url' => $returnUrl,
         ], now()->addMinutes(self::INTENT_TTL_MINUTES));
 
-        $callbackUrl = route('api.connect.callback', ['type' => $type]);
-        $returnUrl = $this->safeReturnUrl(is_string($validated['return_url'] ?? null) ? $validated['return_url'] : null);
-
         return response()->json([
-            'redirect_url' => $provider->redirectUrl($input, $nonce, $callbackUrl, $returnUrl),
+            'redirect_url' => $provider->redirectUrl($input, $nonce, $this->callbackUrl($type), $returnUrl),
         ]);
     }
 
     /**
-     * Public: the provider posts the granted credentials here. We tie it back to the pending
-     * intent by the one-time nonce, then create/update the source with the stored config +
-     * the granted credentials. No auth/tenant context — the intent carries the agency + site.
+     * Public: the provider hands back the granted access here — WooCommerce POSTs the keys
+     * server-to-server, an OAuth provider redirects the client's browser with a `code`. We
+     * tie it to the pending intent by the one-time nonce, create/update the source, then
+     * (OAuth) redirect the browser back to the app or (Woo) return JSON. No auth/tenant here.
      */
-    public function callback(Request $request, string $type): JsonResponse
+    public function callback(Request $request, string $type): JsonResponse|RedirectResponse
     {
         $provider = $this->registry->for($type);
         abort_if($provider === null, 404);
 
-        $callback = $provider->parseCallback($request);
-        abort_if($callback === null, 422, 'La conexión no se completó o no otorgó acceso de lectura.');
+        $isBrowser = $provider->callbackIsBrowserRedirect();
 
-        // Single-use: pull() reads and forgets so a nonce can't be replayed.
-        $intent = Cache::pull($this->intentKey($callback->nonce));
-        abort_if(! is_array($intent) || ($intent['type'] ?? null) !== $type, 422, 'La solicitud de conexión expiró o no es válida. Vuelve a intentarlo.');
+        // The intent carries the return URL, so we can bounce the browser back even on denial.
+        $intent = Cache::pull($this->intentKey($provider->nonceFromCallback($request)));
+        $returnUrl = is_array($intent) && is_string($intent['return_url'] ?? null) ? $intent['return_url'] : $this->appUrl();
+
+        if (! is_array($intent) || ($intent['type'] ?? null) !== $type) {
+            return $this->fail($isBrowser, $returnUrl, 'La solicitud de conexión expiró o no es válida. Vuelve a intentarlo.');
+        }
+
+        $callback = $provider->parseCallback($request, $this->callbackUrl($type));
+        if ($callback === null) {
+            return $this->fail($isBrowser, $returnUrl, 'La conexión no se completó o no otorgó acceso de lectura.');
+        }
 
         $agencyId = is_int($intent['agency_id'] ?? null) ? $intent['agency_id'] : null;
         $siteId = is_int($intent['site_id'] ?? null) ? $intent['site_id'] : null;
-        abort_if($agencyId === null || $siteId === null, 422);
+        if ($agencyId === null || $siteId === null) {
+            return $this->fail($isBrowser, $returnUrl, 'La solicitud de conexión no es válida.');
+        }
 
         /** @var array<string, mixed> $config */
         $config = is_array($intent['input'] ?? null) ? $intent['input'] : [];
@@ -95,7 +111,7 @@ final class ConnectController extends Controller
 
         // No tenant context here (public route): scope by the intent's agency explicitly and
         // upsert by (agency, site, type) so re-connecting refreshes the same source.
-        DataSource::withoutGlobalScopes()->updateOrCreate(
+        $source = DataSource::withoutGlobalScopes()->updateOrCreate(
             ['agency_id' => $agencyId, 'site_id' => $siteId, 'type' => $type],
             [
                 'config' => $config,
@@ -105,12 +121,94 @@ final class ConnectController extends Controller
             ],
         );
 
-        return response()->json(['connected' => true]);
+        // Discover the pickable resources (GA4 properties, ad accounts…) now that we hold the
+        // token, so the UI offers a dropdown. Auto-select when there's exactly one.
+        $this->discoverResources($source);
+
+        if ($isBrowser) {
+            return redirect()->away($this->withQuery($returnUrl, ['connected' => $type, 'source' => (string) $source->id]));
+        }
+
+        return response()->json(['connected' => true, 'source_id' => $source->id]);
+    }
+
+    /**
+     * Best-effort: list what the connected account can access and stash it on the source's
+     * meta for the picker. If there's a single option, fill the config field directly and
+     * skip the picker. Never throws — a failure just leaves the client to enter the ID.
+     */
+    private function discoverResources(DataSource $source): void
+    {
+        $connector = $this->connectors->for($source);
+
+        if (! $connector instanceof ListsConnectableResources) {
+            return;
+        }
+
+        try {
+            $resources = $connector->connectableResources($source);
+        } catch (\Throwable) {
+            return;
+        }
+
+        if ($resources === null || $resources->options === []) {
+            return;
+        }
+
+        if (count($resources->options) === 1) {
+            $only = $resources->options[0];
+            $source->forceFill([
+                'config' => array_merge($source->config ?? [], [$resources->field => $only['value']]),
+            ])->save();
+
+            return;
+        }
+
+        $source->forceFill([
+            'meta' => array_merge($source->meta ?? [], ['connect_options' => $resources->toArray()]),
+        ])->save();
     }
 
     private function intentKey(string $nonce): string
     {
         return "connect:intent:{$nonce}";
+    }
+
+    private function callbackUrl(string $type): string
+    {
+        return route('api.connect.callback', ['type' => $type]);
+    }
+
+    private function appUrl(): string
+    {
+        $appUrl = config('app.url');
+
+        return is_string($appUrl) ? $appUrl : '';
+    }
+
+    /** Fail: bounce an OAuth browser back to the app with an error flag, else return JSON 422. */
+    private function fail(bool $isBrowser, string $returnUrl, string $message): JsonResponse|RedirectResponse
+    {
+        if ($isBrowser) {
+            return redirect()->away($this->withQuery($returnUrl, ['connect_error' => $message]));
+        }
+
+        return response()->json(['message' => $message], 422);
+    }
+
+    /**
+     * Append query params to a URL, inserting them before any #fragment so an SPA hash route
+     * still parses them.
+     *
+     * @param  array<string, string>  $params
+     */
+    private function withQuery(string $url, array $params): string
+    {
+        [$base, $fragment] = array_pad(explode('#', $url, 2), 2, null);
+        $separator = str_contains((string) $base, '?') ? '&' : '?';
+        $withParams = $base.$separator.http_build_query($params);
+
+        return $fragment === null ? $withParams : $withParams.'#'.$fragment;
     }
 
     /**
@@ -119,8 +217,7 @@ final class ConnectController extends Controller
      */
     private function safeReturnUrl(?string $candidate): string
     {
-        $appUrl = config('app.url');
-        $appUrl = is_string($appUrl) ? $appUrl : '';
+        $appUrl = $this->appUrl();
 
         if ($candidate !== null && $appUrl !== '' && str_starts_with($candidate, $appUrl)) {
             return $candidate;

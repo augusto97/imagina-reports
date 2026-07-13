@@ -7,6 +7,10 @@ namespace App\Providers;
 use App\Connectors\BetterUptime\BetterUptimeConnector;
 use App\Connectors\Cloudflare\CloudflareConnector;
 use App\Connectors\Connect\ConnectRegistry;
+use App\Connectors\Connect\GoogleConnect;
+use App\Connectors\Connect\MetaAdsConnect;
+use App\Connectors\Connect\OAuth\GoogleOAuthClient;
+use App\Connectors\Connect\OAuth\MetaOAuthClient;
 use App\Connectors\Connect\WooCommerceConnect;
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\CrowdSec\CrowdSecConnector;
@@ -25,6 +29,7 @@ use App\Connectors\TikTokAds\TikTokAdsConnector;
 use App\Connectors\TrueRanker\TrueRankerConnector;
 use App\Connectors\Virusdie\VirusdieConnector;
 use App\Connectors\WooCommerce\WooCommerceConnector;
+use App\Enums\DataSourceType;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
@@ -71,7 +76,22 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
         $this->app->singleton(ConnectRegistry::class, function (): ConnectRegistry {
             $registry = new ConnectRegistry;
 
+            // WooCommerce is always available — no third-party app to configure.
             $registry->register(new WooCommerceConnect);
+
+            // Google (GA4, GSC, Ads) and Meta only appear once their platform OAuth app is
+            // configured (services.google_oauth / services.meta_oauth) — no dead buttons.
+            $google = new GoogleOAuthClient;
+            if ($google->isConfigured()) {
+                $registry->register(new GoogleConnect($google, DataSourceType::Ga4->value, 'Conectar con Google', ['https://www.googleapis.com/auth/analytics.readonly']));
+                $registry->register(new GoogleConnect($google, DataSourceType::Gsc->value, 'Conectar con Google', ['https://www.googleapis.com/auth/webmasters.readonly']));
+                $registry->register(new GoogleConnect($google, DataSourceType::GoogleAds->value, 'Conectar con Google', ['https://www.googleapis.com/auth/adwords']));
+            }
+
+            $meta = new MetaOAuthClient;
+            if ($meta->isConfigured()) {
+                $registry->register(new MetaAdsConnect($meta));
+            }
 
             return $registry;
         });

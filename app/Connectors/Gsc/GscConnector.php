@@ -6,8 +6,11 @@ namespace App\Connectors\Gsc;
 
 use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
+use App\Connectors\Connect\ConnectableResources;
+use App\Connectors\Connect\OAuth\GoogleOAuthClient;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\MetricCatalog;
@@ -29,7 +32,7 @@ use Throwable;
  * pages via the Search Console API `searchanalytics.query`, which aggregates
  * server-side (§3.3). Returns a normalized `gsc.*` bag; catches its own errors (§7).
  */
-final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
+final class GscConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
     private const API_BASE = 'https://searchconsole.googleapis.com/webmasters/v3';
 
@@ -423,7 +426,65 @@ final class GscConnector implements DataSourceConnector, ProvidesSetupGuide
 
     private function token(DataSource $source): string
     {
+        $refresh = $this->oauthRefreshToken($source);
+
+        if ($refresh !== '') {
+            return (new GoogleOAuthClient)->accessTokenFromRefresh($refresh) ?? '';
+        }
+
         return $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+    }
+
+    private function oauthRefreshToken(DataSource $source): string
+    {
+        $value = ($source->credentials ?? [])['oauth_refresh_token'] ?? null;
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
+     * The Search Console properties this connected account can read (`sites.list`), so the
+     * client picks their site from a dropdown after the one-click connect. Best-effort.
+     */
+    public function connectableResources(DataSource $source): ?ConnectableResources
+    {
+        if ($this->oauthRefreshToken($source) === '') {
+            return null;
+        }
+
+        $token = $this->token($source);
+        if ($token === '') {
+            return null;
+        }
+
+        $response = Http::withToken($token)->acceptJson()->get(self::API_BASE.'/sites');
+        if ($response->failed()) {
+            return null;
+        }
+
+        $options = [];
+        foreach ($this->arrayOf($response->json('siteEntry')) as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $url = Arr::get($entry, 'siteUrl');
+            $permission = Arr::get($entry, 'permissionLevel');
+            // Skip properties the account only has unverified/restricted access to.
+            if (! is_string($url) || $url === '' || $permission === 'siteUnverifiedUser') {
+                continue;
+            }
+            $options[] = ['value' => $url, 'label' => $url];
+        }
+
+        return new ConnectableResources('site_url', 'Propiedad de Search Console', $options);
+    }
+
+    /**
+     * @return array<array-key, mixed>
+     */
+    private function arrayOf(mixed $value): array
+    {
+        return is_array($value) ? $value : [];
     }
 
     /**

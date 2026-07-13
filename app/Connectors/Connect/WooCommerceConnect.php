@@ -54,7 +54,18 @@ final class WooCommerceConnect implements ConnectProvider
         return "{$store}/wc-auth/v1/authorize?{$query}";
     }
 
-    public function parseCallback(Request $request): ?ConnectCallback
+    public function nonceFromCallback(Request $request): string
+    {
+        return $this->str($request->input('user_id'));
+    }
+
+    public function callbackIsBrowserRedirect(): bool
+    {
+        // WooCommerce POSTs the keys server-to-server, then redirects the browser itself.
+        return false;
+    }
+
+    public function parseCallback(Request $request, string $callbackUrl): ?ConnectCallback
     {
         $nonce = $this->str($request->input('user_id'));
         $key = $this->str($request->input('consumer_key'));

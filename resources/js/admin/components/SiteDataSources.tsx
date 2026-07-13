@@ -266,6 +266,57 @@ function DataSourceEditForm({
     );
 }
 
+/**
+ * "Pick your property/account" step shown after a one-click OAuth connect returns multiple
+ * resources (GA4 properties, ad accounts…). Saving fills the config field and clears the picker.
+ */
+function ResourcePicker({ source, siteId }: { source: DataSourceDto; siteId: number }): ReactElement | null {
+    const options = source.connect_options;
+    const update = useUpdateDataSource(siteId);
+    const [value, setValue] = useState('');
+
+    if (options == null || options.options.length === 0) {
+        return null;
+    }
+
+    const save = (): void => {
+        if (value === '') {
+            return;
+        }
+        const config: Record<string, string> = {};
+        for (const [key, current] of Object.entries(source.config ?? {})) {
+            if (typeof current === 'string') {
+                config[key] = current;
+            }
+        }
+        config[options.field] = value;
+        update.mutate({ id: source.id, config });
+    };
+
+    return (
+        <div className="ir-mt-2 ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-border ir-border-primary/30 ir-bg-primary/5 ir-p-3">
+            <p className="ir-text-xs ir-font-medium">✅ Cuenta conectada. Elige {options.label}:</p>
+            <div className="ir-flex ir-gap-2">
+                <select
+                    className="ir-h-9 ir-w-full ir-rounded-md ir-border ir-bg-card ir-px-3 ir-text-sm"
+                    value={value}
+                    onChange={(event) => setValue(event.target.value)}
+                >
+                    <option value="">Selecciona…</option>
+                    {options.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                    ))}
+                </select>
+                <Button type="button" size="sm" onClick={save} disabled={value === '' || update.isPending}>
+                    Guardar
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 /** Colored status dot for a data source (green = ok, red = error, amber = partial). */
 function statusDot(status: string): string {
     if (status === 'ok') return 'ir-bg-success';
@@ -489,6 +540,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                                     </Button>
                                 </div>
                             </div>
+                            <ResourcePicker source={source} siteId={siteId} />
                             <PushInstallPanel source={source} />
                             {editing === source.id && (
                                 <DataSourceEditForm

@@ -47,6 +47,9 @@ final class DataSourceResource extends JsonResource
             // shipped one, so the card can prompt to update (an outdated agent silently omits
             // newer metrics like the applied-updates history). Null for other source types.
             ...$this->agentInfo($source),
+            // After a one-click OAuth connect with multiple pickable resources (GA4 properties,
+            // ad accounts…), the options to choose from — drives the "pick your property" step.
+            'connect_options' => is_array($source->meta['connect_options'] ?? null) ? $source->meta['connect_options'] : null,
         ];
     }
 

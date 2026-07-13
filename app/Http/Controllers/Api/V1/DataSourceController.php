@@ -225,6 +225,17 @@ final class DataSourceController extends Controller
 
         if (array_key_exists('config', $data) && is_array($data['config'])) {
             $changes['config'] = $data['config'];
+
+            // Once the client picks the OAuth resource (e.g. the GA4 property), drop the
+            // now-answered picker options from meta so the "choose your property" step clears.
+            $options = $dataSource->meta['connect_options'] ?? null;
+            $field = is_array($options) && is_string($options['field'] ?? null) ? $options['field'] : null;
+            $picked = $field !== null ? ($data['config'][$field] ?? null) : null;
+            if ($field !== null && is_scalar($picked) && (string) $picked !== '') {
+                $meta = $dataSource->meta ?? [];
+                unset($meta['connect_options']);
+                $changes['meta'] = $meta;
+            }
         }
 
         if (array_key_exists('credentials', $data) && is_array($data['credentials'])) {

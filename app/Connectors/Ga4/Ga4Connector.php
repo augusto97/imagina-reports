@@ -6,8 +6,11 @@ namespace App\Connectors\Ga4;
 
 use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
+use App\Connectors\Connect\ConnectableResources;
+use App\Connectors\Connect\OAuth\GoogleOAuthClient;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\MetricCatalog;
@@ -29,9 +32,11 @@ use Throwable;
  * the Analytics Data API (`runReport`), which aggregates server-side by design
  * (§3.3). Returns a normalized `ga4.*` metric bag; catches its own errors (§7).
  */
-final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
+final class Ga4Connector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
     private const API_BASE = 'https://analyticsdata.googleapis.com/v1beta';
+
+    private const ADMIN_BASE = 'https://analyticsadmin.googleapis.com/v1beta';
 
     private const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 
@@ -82,7 +87,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         try {
-            $token = $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+            $token = $this->token($source);
         } catch (Throwable $e) {
             return ConnectionResult::failure('GA4 authentication failed: '.$e->getMessage());
         }
@@ -155,7 +160,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
             throw new RuntimeException('GA4 property_id is not configured.');
         }
 
-        $token = $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+        $token = $this->token($source);
         if ($token === '') {
             throw new RuntimeException('GA4 authentication returned no access token.');
         }
@@ -214,7 +219,7 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         try {
-            $token = $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+            $token = $this->token($source);
         } catch (Throwable $e) {
             return MetricSet::failed('GA4 authentication failed: '.$e->getMessage());
         }
@@ -267,6 +272,85 @@ final class Ga4Connector implements DataSourceConnector, ProvidesSetupGuide
     {
         $value = Arr::get($source->config ?? [], 'property_id', '');
 
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * A GA4 access token for this source. Uses the OAuth refresh token from the one-click
+     * "Connect with Google" flow when present, otherwise the pasted service-account JSON —
+     * so both connection methods work through the same call sites.
+     */
+    private function token(DataSource $source): string
+    {
+        $refresh = $this->oauthRefreshToken($source);
+
+        if ($refresh !== '') {
+            return (new GoogleOAuthClient)->accessTokenFromRefresh($refresh) ?? '';
+        }
+
+        return $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+    }
+
+    private function oauthRefreshToken(DataSource $source): string
+    {
+        $value = ($source->credentials ?? [])['oauth_refresh_token'] ?? null;
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
+     * The GA4 properties this connected account can read (Analytics Admin API
+     * `accountSummaries`), so the client picks their property from a dropdown after the
+     * one-click connect instead of hunting for the numeric ID. Best-effort — null on error.
+     */
+    public function connectableResources(DataSource $source): ?ConnectableResources
+    {
+        if ($this->oauthRefreshToken($source) === '') {
+            return null;
+        }
+
+        $token = $this->token($source);
+        if ($token === '') {
+            return null;
+        }
+
+        $response = Http::withToken($token)->acceptJson()->get(self::ADMIN_BASE.'/accountSummaries', ['pageSize' => 200]);
+        if ($response->failed()) {
+            return null;
+        }
+
+        $options = [];
+        foreach ($this->arrayOf($response->json('accountSummaries')) as $account) {
+            $accountName = is_array($account) ? $this->str(Arr::get($account, 'displayName')) : '';
+            foreach ($this->arrayOf(is_array($account) ? Arr::get($account, 'propertySummaries') : null) as $property) {
+                if (! is_array($property)) {
+                    continue;
+                }
+                $resource = $this->str(Arr::get($property, 'property')); // "properties/123456789"
+                $id = str_starts_with($resource, 'properties/') ? substr($resource, 11) : $resource;
+                if ($id === '') {
+                    continue;
+                }
+                $display = $this->str(Arr::get($property, 'displayName'));
+                $label = $accountName !== '' ? "{$display} — {$accountName}" : $display;
+                $options[] = ['value' => $id, 'label' => $label !== '' ? $label : $id];
+            }
+        }
+
+        return new ConnectableResources('property_id', 'Propiedad de Google Analytics', $options);
+    }
+
+    /**
+     * @param  array<array-key, mixed>|mixed  $value
+     * @return array<array-key, mixed>
+     */
+    private function arrayOf(mixed $value): array
+    {
+        return is_array($value) ? $value : [];
+    }
+
+    private function str(mixed $value): string
+    {
         return is_scalar($value) ? (string) $value : '';
     }
 

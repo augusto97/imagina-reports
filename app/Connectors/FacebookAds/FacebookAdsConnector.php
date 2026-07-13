@@ -6,8 +6,10 @@ namespace App\Connectors\FacebookAds;
 
 use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
+use App\Connectors\Connect\ConnectableResources;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
@@ -34,7 +36,7 @@ use Throwable;
  * over a set of conversion action types (a documented assumption — accounts track different
  * events, so bind spend/clicks/impressions for exact figures).
  */
-final class FacebookAdsConnector implements DataSourceConnector, ProvidesSetupGuide
+final class FacebookAdsConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
     use ParsesValues;
 
@@ -242,6 +244,34 @@ final class FacebookAdsConnector implements DataSourceConnector, ProvidesSetupGu
     private function accountUrl(DataSource $source): string
     {
         return '/act_'.$this->toStr(Arr::get($source->config ?? [], 'ad_account_id'));
+    }
+
+    /**
+     * The ad accounts this connected user can access (`/me/adaccounts`), so the client picks
+     * the account after the one-click "Connect with Facebook". Best-effort — null on error.
+     */
+    public function connectableResources(DataSource $source): ?ConnectableResources
+    {
+        if ($this->toStr(Arr::get($source->credentials ?? [], 'access_token')) === '') {
+            return null;
+        }
+
+        $response = $this->client($source)->get('/me/adaccounts', ['fields' => 'name,account_id', 'limit' => 200]);
+        if ($response->failed()) {
+            return null;
+        }
+
+        $options = [];
+        foreach ($this->listOf($response->json('data')) as $account) {
+            $id = $this->toStr(Arr::get($account, 'account_id'));
+            if ($id === '') {
+                continue;
+            }
+            $name = $this->toStr(Arr::get($account, 'name'));
+            $options[] = ['value' => $id, 'label' => $name !== '' ? "{$name} ({$id})" : $id];
+        }
+
+        return new ConnectableResources('ad_account_id', 'Cuenta publicitaria de Meta', $options);
     }
 
     /** Meta expects the date window as a JSON-encoded `{since, until}` query value. */

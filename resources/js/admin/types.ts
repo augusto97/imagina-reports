@@ -157,6 +157,8 @@ export interface DataSourceDto {
     agent_latest?: string | null;
     agent_outdated?: boolean;
     agent_logging_since?: string | null;
+    /** After a one-click OAuth connect: the resources (GA4 properties, ad accounts…) to pick from. */
+    connect_options?: { field: string; label: string; options: { value: string; label: string }[] } | null;
 }
 
 export type ReportVisibility = 'public' | 'password' | 'private';
