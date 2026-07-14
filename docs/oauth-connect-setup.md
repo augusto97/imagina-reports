@@ -22,36 +22,72 @@ Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoin
 
 ## 1. Google (cubre GA4 + Search Console + Google Ads con un solo login)
 
+> **Nota sobre la consola nueva (2025):** Google renombró la pantalla de consentimiento a
+> **"Google Auth Platform"** y repartió las opciones en el menú izquierdo. El mapa es:
+>
+> | Lo que necesitas | Dónde está ahora |
+> |---|---|
+> | Tipo de usuario (Externo) + usuarios de prueba + publicar | **Audience** |
+> | Nombre / logo / dominio de la app | **Branding** |
+> | **Scopes** (permisos) | **Data Access** → botón *"Add or remove scopes"* |
+> | **Client ID/Secret** y **redirect URIs** | **Clients** → tu cliente OAuth |
+
 ### 1.1 Crear la app OAuth
 1. Entra en **Google Cloud Console** → crea (o elige) un proyecto.
 2. **APIs y servicios → Biblioteca**: habilita estas APIs según lo que quieras ofrecer:
    - **Google Analytics Data API** y **Google Analytics Admin API** (para GA4 + el selector de propiedad).
    - **Google Search Console API** (para GSC).
    - **Google Ads API** (para Google Ads).
-3. **APIs y servicios → Pantalla de consentimiento de OAuth**:
-   - Tipo de usuario: **Externo**.
-   - Rellena nombre de la app, logo, dominio y correos de soporte.
-   - **Scopes**: añade solo los de lectura que uses:
-     - `.../auth/analytics.readonly`
-     - `.../auth/webmasters.readonly`
-     - `.../auth/adwords`
-4. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**:
-   - Tipo: **Aplicación web**.
-   - **URIs de redirección autorizados**: añade los tres de la tabla de arriba (ga4, gsc, google_ads).
+3. **Google Auth Platform → Audience**: tipo de usuario **External**. Mientras la app no esté
+   verificada, añade tu propio correo como **usuario de prueba** para poder conectar.
+4. **Google Auth Platform → Branding**: rellena nombre de la app, logo y dominio.
+5. **Google Auth Platform → Data Access → "Add or remove scopes"**: añade solo los de lectura que
+   uses. Analytics y Search Console aparecen al buscar; **el de Google Ads normalmente NO aparece
+   en el buscador**, así que pégalo en la caja *"Manually add scopes"*:
+   - `https://www.googleapis.com/auth/analytics.readonly`
+   - `https://www.googleapis.com/auth/webmasters.readonly`
+   - `https://www.googleapis.com/auth/adwords`
+   - Luego **Update → Save**.
+6. **Google Auth Platform → Clients → Create client**: tipo **Web application**.
+   - En **Authorized redirect URIs** añade los de la tabla de arriba (ga4, gsc, google_ads).
    - Copia el **Client ID** y el **Client secret**.
 
 ### 1.2 Verificación de la app (importante)
 Con scopes "sensibles" y usuarios externos, Google exige **verificación** de la app (revisión con
 video, dominio verificado y política de privacidad). Mientras esté sin verificar:
-- Puedes añadir **usuarios de prueba** en la pantalla de consentimiento y conectar solo con esos.
+- Puedes añadir **usuarios de prueba** en **Audience** y conectar solo con esos.
 - Los usuarios externos verán una advertencia "app no verificada".
 
-Para producción con clientes reales, completa la verificación de Google.
+Para producción con clientes reales, completa la verificación de Google (**Verification Center**).
 
-### 1.3 Google Ads: developer token
-Google Ads necesita además un **developer token** (API Center de tu cuenta de Google Ads) con
-**acceso básico** aprobado. Si accedes a las cuentas de clientes a través de una cuenta
-administradora (MCC), anota también su ID.
+### 1.3 Google Ads (developer token) — tutorial completo
+Google Ads reutiliza la **misma app OAuth** de arriba (solo asegúrate de tener el scope `adwords`
+y el redirect URI `.../callback/google_ads`). Lo específico es el **developer token**, que es
+**tuyo** (de la herramienta), no del cliente:
+
+1. Si no tienes una, crea una **cuenta de administrador de Google Ads (MCC)** en
+   `ads.google.com/home/tools/manager-accounts` (gratis; solo agrupa cuentas).
+2. En esa MCC → **Herramientas y configuración (⚙️) → Configuración → API Center**.
+3. Copia el **developer token** que aparece ahí.
+4. **⚠️ Solicita "Acceso básico" (Basic Access):** un token nuevo solo sirve para **cuentas de
+   prueba**. En el mismo API Center hay un formulario para pedir acceso básico (describe tu
+   herramienta: reporting de solo lectura para clientes de una agencia). Google lo revisa en
+   **1–3 días hábiles**. Hasta que lo aprueben, conectar cuentas reales da error de permisos.
+5. **¿login_customer_id?** Dos formas de acceder a las cuentas de los clientes:
+   - **Simple (recomendada):** el cliente autoriza con **su propio Google** (que ya accede a su
+     cuenta de Ads). Deja `GOOGLE_ADS_LOGIN_CUSTOMER_ID` **vacío**.
+   - **Bajo tu MCC:** si vinculas las cuentas de clientes bajo tu MCC, pon el **ID de tu MCC**
+     (10 dígitos, sin guiones) en `GOOGLE_ADS_LOGIN_CUSTOMER_ID`.
+
+   El developer token es **siempre el tuyo**, en ambos casos.
+
+**Errores típicos:**
+- `DEVELOPER_TOKEN_NOT_APPROVED` / permiso denegado en cuentas reales → aún tienes solo "Test
+  Access"; falta que aprueben el Basic Access (paso 4).
+- `USER_PERMISSION_DENIED` → el Google que autorizó el cliente no tiene acceso a esa cuenta, o
+  falta el `login_customer_id` correcto si vas por MCC.
+- El botón "Conectar con Google" no aparece en Google Ads → falta `GOOGLE_ADS_DEVELOPER_TOKEN` o
+  las variables OAuth en el `.env` (recuerda `php artisan config:cache`).
 
 ### 1.4 Variables de entorno
 ```dotenv
