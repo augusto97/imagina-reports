@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\MetricCatalogController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
 use App\Http\Controllers\Api\V1\Platform\PlatformBillingController;
+use App\Http\Controllers\Api\V1\Platform\PlatformIntegrationsController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
@@ -210,6 +211,9 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
 
         Route::get('billing-settings', [PlatformBillingController::class, 'show'])->name('api.platform.billing-settings.show');
         Route::put('billing-settings', [PlatformBillingController::class, 'update'])->name('api.platform.billing-settings.update');
+
+        Route::get('integrations', [PlatformIntegrationsController::class, 'show'])->name('api.platform.integrations.show');
+        Route::put('integrations', [PlatformIntegrationsController::class, 'update'])->name('api.platform.integrations.update');
 
         Route::get('plans', [PlanController::class, 'index'])->name('api.platform.plans.index');
         Route::post('plans', [PlanController::class, 'store'])->name('api.platform.plans.store');

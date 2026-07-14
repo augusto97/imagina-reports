@@ -1,7 +1,7 @@
-import { Building2, CreditCard, DownloadCloud, LayoutGrid, LogIn, Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { Building2, CreditCard, DownloadCloud, LayoutGrid, LogIn, Pencil, Plug, Plus, Power, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
-import { usePlatformBillingSettings, useUpdatePlatformBillingSettings } from '../api';
+import { usePlatformBillingSettings, usePlatformIntegrations, useUpdatePlatformBillingSettings, useUpdatePlatformIntegrations } from '../api';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
@@ -400,10 +400,102 @@ function BillingTab(): ReactElement {
     );
 }
 
+/* ------------------------------- Integrations ------------------------------ */
+
+function statusChip(ready: boolean, fromEnv: boolean): ReactElement {
+    if (ready) {
+        return <span className="ir-font-medium ir-text-emerald-600">listo ✓{fromEnv ? ' (por .env)' : ''}</span>;
+    }
+
+    return <span className="ir-font-medium ir-text-amber-600">sin configurar</span>;
+}
+
+function IntegrationsTab(): ReactElement {
+    const { data: settings } = usePlatformIntegrations();
+    const update = useUpdatePlatformIntegrations();
+    const [gId, setGId] = useState('');
+    const [gSecret, setGSecret] = useState('');
+    const [gDev, setGDev] = useState('');
+    const [gMcc, setGMcc] = useState('');
+    const [mId, setMId] = useState('');
+    const [mSecret, setMSecret] = useState('');
+
+    const save = (payload: Record<string, string>): void => {
+        update.mutate(payload, {
+            onSuccess: () => {
+                setGSecret('');
+                setGDev('');
+                setMSecret('');
+            },
+        });
+    };
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-4">
+            <p className="ir-text-sm ir-text-muted-foreground">
+                Credenciales de las apps OAuth para la conexión de un clic. Se guardan cifradas y tienen prioridad sobre las
+                variables del <code className="ir-rounded ir-bg-muted ir-px-1">.env</code>. El botón «Conectar con…» aparece en cuanto quedan «listo».
+                Consulta <strong>docs/oauth-connect-setup.md</strong> para obtenerlas.
+            </p>
+
+            <Card title="Google (GA4, Search Console, Google Ads)" description="Una sola app OAuth de Google Cloud cubre las tres fuentes.">
+                <div className="ir-flex ir-flex-col ir-gap-3">
+                    <p className="ir-text-xs ir-text-muted-foreground">Estado: {statusChip(settings?.google_connect_ready ?? false, settings?.google_from_env ?? false)}</p>
+                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                        <Field label="OAuth Client ID">
+                            <Input autoComplete="off" value={gId} onChange={(e) => setGId(e.target.value)} placeholder={settings?.google_oauth_client_id || '…apps.googleusercontent.com'} />
+                        </Field>
+                        <Field label="OAuth Client Secret">
+                            <Input type="password" autoComplete="off" value={gSecret} onChange={(e) => setGSecret(e.target.value)} placeholder={settings?.google_oauth_client_secret_set ? '•••••••• (deja en blanco para conservar)' : 'GOCSPX-…'} />
+                        </Field>
+                    </div>
+                    <Button className="ir-self-start" onClick={() => save({ google_oauth_client_id: gId, ...(gSecret !== '' ? { google_oauth_client_secret: gSecret } : {}) })} disabled={update.isPending || (gId === '' && gSecret === '')}>
+                        Guardar Google
+                    </Button>
+                    <div className="ir-mt-1 ir-border-t ir-pt-3">
+                        <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
+                            Solo para <strong>Google Ads</strong>: developer token {settings?.google_ads_developer_token_set ? <span className="ir-text-emerald-600">✓</span> : <span className="ir-text-amber-600">sin configurar</span>}
+                        </p>
+                        <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                            <Field label="Developer token">
+                                <Input type="password" autoComplete="off" value={gDev} onChange={(e) => setGDev(e.target.value)} placeholder={settings?.google_ads_developer_token_set ? '••••••••' : 'del API Center'} />
+                            </Field>
+                            <Field label="Login Customer ID (MCC)" hint="Opcional, solo si usas una cuenta administradora. 10 dígitos, sin guiones.">
+                                <Input autoComplete="off" value={gMcc} onChange={(e) => setGMcc(e.target.value)} placeholder={settings?.google_ads_login_customer_id || 'vacío si no aplica'} />
+                            </Field>
+                        </div>
+                        <Button variant="ghost" className="ir-mt-2 ir-self-start" onClick={() => save({ google_ads_login_customer_id: gMcc, ...(gDev !== '' ? { google_ads_developer_token: gDev } : {}) })} disabled={update.isPending || (gDev === '' && gMcc === '')}>
+                            Guardar Google Ads
+                        </Button>
+                    </div>
+                </div>
+            </Card>
+
+            <Card title="Meta (Facebook / Instagram)" description="Una app de Meta cubre Facebook Ads e Instagram.">
+                <div className="ir-flex ir-flex-col ir-gap-3">
+                    <p className="ir-text-xs ir-text-muted-foreground">Estado: {statusChip(settings?.meta_connect_ready ?? false, settings?.meta_from_env ?? false)}</p>
+                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                        <Field label="App ID">
+                            <Input autoComplete="off" value={mId} onChange={(e) => setMId(e.target.value)} placeholder={settings?.meta_oauth_app_id || 'App ID de Meta'} />
+                        </Field>
+                        <Field label="App Secret">
+                            <Input type="password" autoComplete="off" value={mSecret} onChange={(e) => setMSecret(e.target.value)} placeholder={settings?.meta_oauth_app_secret_set ? '•••••••• (deja en blanco para conservar)' : 'App Secret'} />
+                        </Field>
+                    </div>
+                    <Button className="ir-self-start" onClick={() => save({ meta_oauth_app_id: mId, ...(mSecret !== '' ? { meta_oauth_app_secret: mSecret } : {}) })} disabled={update.isPending || (mId === '' && mSecret === '')}>
+                        Guardar Meta
+                    </Button>
+                </div>
+            </Card>
+            {update.isSuccess && <p className="ir-text-xs ir-text-emerald-600">Guardado.</p>}
+        </div>
+    );
+}
+
 /* ---------------------------------- Screen --------------------------------- */
 
 export function PlatformScreen(): ReactElement {
-    const [tab, setTab] = useState<'agencies' | 'plans' | 'billing' | 'system'>('agencies');
+    const [tab, setTab] = useState<'agencies' | 'plans' | 'billing' | 'integrations' | 'system'>('agencies');
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
@@ -412,7 +504,7 @@ export function PlatformScreen(): ReactElement {
                 <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">Gestiona las agencias de tu plataforma, sus planes y límites.</p>
             </div>
             <div className="ir-flex ir-gap-1 ir-rounded-lg ir-bg-muted ir-p-1 ir-self-start">
-                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid], ['billing', 'Facturación', CreditCard], ['system', 'Sistema', DownloadCloud]] as const).map(([key, label, Icon]) => (
+                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid], ['billing', 'Facturación', CreditCard], ['integrations', 'Integraciones', Plug], ['system', 'Sistema', DownloadCloud]] as const).map(([key, label, Icon]) => (
                     <button
                         key={key}
                         type="button"
@@ -427,6 +519,7 @@ export function PlatformScreen(): ReactElement {
             {tab === 'agencies' && <AgenciesTab />}
             {tab === 'plans' && <PlansTab />}
             {tab === 'billing' && <BillingTab />}
+            {tab === 'integrations' && <IntegrationsTab />}
             {tab === 'system' && <SystemUpdatePanel />}
         </div>
     );

@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Connectors\Connect\OAuth;
 
+use App\Services\Platform\OAuthCredentials;
 use Illuminate\Support\Facades\Http;
 
 /**
  * Meta (Facebook) OAuth helper for one-click "Connect with Facebook" (Facebook/Instagram
  * Ads). Builds the login-dialog URL and exchanges the returned code for a long-lived user
  * access token (~60 days) we store as the source credential. The app_id/app_secret are
- * platform-level (services.meta_oauth), configured once by the operator.
+ * platform-level (super-admin panel, falling back to services.meta_oauth).
  */
 final class MetaOAuthClient
 {
     private const GRAPH_VERSION = 'v21.0';
 
     private const DIALOG_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
+
+    public function __construct(private readonly OAuthCredentials $credentials = new OAuthCredentials) {}
 
     public function isConfigured(): bool
     {
@@ -75,15 +78,11 @@ final class MetaOAuthClient
 
     private function appId(): string
     {
-        $value = config('services.meta_oauth.app_id');
-
-        return is_string($value) ? $value : '';
+        return $this->credentials->metaAppId();
     }
 
     private function appSecret(): string
     {
-        $value = config('services.meta_oauth.app_secret');
-
-        return is_string($value) ? $value : '';
+        return $this->credentials->metaAppSecret();
     }
 }

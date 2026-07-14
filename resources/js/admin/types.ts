@@ -75,6 +75,19 @@ export interface PlatformBillingSettings {
     billing_sandbox: boolean;
 }
 
+export interface PlatformIntegrationsSettings {
+    google_oauth_client_id: string;
+    google_ads_login_customer_id: string;
+    meta_oauth_app_id: string;
+    google_oauth_client_secret_set: boolean;
+    google_ads_developer_token_set: boolean;
+    meta_oauth_app_secret_set: boolean;
+    google_connect_ready: boolean;
+    meta_connect_ready: boolean;
+    google_from_env: boolean;
+    meta_from_env: boolean;
+}
+
 export interface TeamMember {
     id: number;
     name: string;

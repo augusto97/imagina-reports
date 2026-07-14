@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace App\Connectors\Connect\OAuth;
 
+use App\Services\Platform\OAuthCredentials;
 use Illuminate\Support\Facades\Http;
 
 /**
  * Google OAuth 2.0 helper for the one-click "Connect with Google" flow (GA4, Search
  * Console, Google Ads). Builds the consent URL, exchanges the returned code for a
  * long-lived refresh token, and mints short-lived access tokens from it for the
- * connectors. The OAuth app's client_id/secret are platform-level (services.google_oauth),
- * configured once by the operator — never per client.
+ * connectors. The OAuth app's client_id/secret are platform-level (super-admin panel,
+ * falling back to services.google_oauth), configured once by the operator — never per client.
  */
 final class GoogleOAuthClient
 {
     private const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 
     private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+
+    public function __construct(private readonly OAuthCredentials $credentials = new OAuthCredentials) {}
 
     public function isConfigured(): bool
     {
@@ -90,15 +93,11 @@ final class GoogleOAuthClient
 
     public function clientId(): string
     {
-        $value = config('services.google_oauth.client_id');
-
-        return is_string($value) ? $value : '';
+        return $this->credentials->googleClientId();
     }
 
     private function clientSecret(): string
     {
-        $value = config('services.google_oauth.client_secret');
-
-        return is_string($value) ? $value : '';
+        return $this->credentials->googleClientSecret();
     }
 }

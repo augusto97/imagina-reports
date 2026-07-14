@@ -20,6 +20,7 @@ use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use App\Services\Platform\OAuthCredentials;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -280,9 +281,15 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
 
     private function platform(string $key): string
     {
-        $value = config("services.google_oauth.{$key}");
+        $credentials = new OAuthCredentials;
 
-        return is_string($value) ? $value : '';
+        return match ($key) {
+            'client_id' => $credentials->googleClientId(),
+            'client_secret' => $credentials->googleClientSecret(),
+            'ads_developer_token' => $credentials->googleAdsDeveloperToken(),
+            'ads_login_customer_id' => $credentials->googleAdsLoginCustomerId(),
+            default => '',
+        };
     }
 
     /**

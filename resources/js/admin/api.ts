@@ -30,6 +30,7 @@ import type {
     Plan,
     PlatformAgency,
     PlatformBillingSettings,
+    PlatformIntegrationsSettings,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportDelivery,
@@ -391,6 +392,19 @@ export function useUpdatePlatformBillingSettings() {
         mutationFn: (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean }) =>
             api.put<PlatformBillingSettings>('/platform/billing-settings', payload).then((r) => r.data),
         onSuccess: (data) => queryClient.setQueryData(['platform-billing-settings'], data),
+    });
+}
+
+export function usePlatformIntegrations() {
+    return useQuery({ queryKey: ['platform-integrations'], queryFn: () => get<PlatformIntegrationsSettings>('/platform/integrations') });
+}
+
+export function useUpdatePlatformIntegrations() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: Record<string, string>) => api.put<PlatformIntegrationsSettings>('/platform/integrations', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['platform-integrations'], data),
     });
 }
 

@@ -9,12 +9,17 @@ use App\Connectors\GoogleAds\GoogleAdsConnector;
 use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AdsConnectorsTest extends TestCase
 {
+    // The Google Ads connector reads platform OAuth settings (PlatformSetting) as a fallback
+    // for client_id/developer_token/MCC, so the schema must exist.
+    use RefreshDatabase;
+
     private function source(DataSourceType $type, array $config, array $credentials): DataSource
     {
         return DataSource::factory()->make([

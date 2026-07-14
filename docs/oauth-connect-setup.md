@@ -4,8 +4,14 @@ Esta guía es para **el operador de la plataforma** (tú, Imagina). Se hace **un
 Después, cada cliente conecta su cuenta pulsando un botón, sin pegar JSON ni tokens.
 
 > La app ya trae todo el código. Lo único que falta es que **registres una app OAuth** en
-> Google y otra en Meta, y pongas sus credenciales en el `.env`. Mientras no lo hagas, el
-> botón "Conectar con…" no aparece y sigue funcionando el formulario manual de siempre.
+> Google y otra en Meta, y pongas sus credenciales. Mientras no lo hagas, el botón
+> "Conectar con…" no aparece y sigue funcionando el formulario manual de siempre.
+>
+> **Dónde poner las credenciales (dos opciones):**
+> 1. **Recomendado — en el panel:** super-admin → **Plataforma → Integraciones**. Se guardan
+>    **cifradas** en la base de datos y se pueden cambiar sin tocar el servidor.
+> 2. **Alternativa — en el `.env`** (las variables de más abajo). Si las pones en el panel,
+>    esas tienen prioridad; el `.env` queda como respaldo.
 
 Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoints públicos
 (sustituye `https://reports.imagina.cloud` por tu `APP_URL`):
