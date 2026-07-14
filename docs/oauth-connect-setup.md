@@ -16,6 +16,7 @@ Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoin
 | Search Console (GSC) | `https://reports.imagina.cloud/api/v1/connect/callback/gsc` |
 | Google Ads | `https://reports.imagina.cloud/api/v1/connect/callback/google_ads` |
 | Facebook / Instagram Ads | `https://reports.imagina.cloud/api/v1/connect/callback/facebook_ads` |
+| Instagram (perfil/insights) | `https://reports.imagina.cloud/api/v1/connect/callback/instagram` |
 
 ---
 
@@ -69,10 +70,14 @@ GOOGLE_ADS_LOGIN_CUSTOMER_ID=1234567890   # opcional (MCC), sin guiones
 2. Añade el producto **Marketing API**.
 3. **Configuración → Básica**: copia el **App ID** y el **App Secret**.
 4. **Facebook Login → Configuración → URIs de redireccionamiento de OAuth válidos**: añade
-   `https://reports.imagina.cloud/api/v1/connect/callback/facebook_ads`.
-5. **App Review**: solicita el permiso **`ads_read`**. Meta exige **verificación de negocio** y
-   una revisión (screencast del flujo). Mientras tanto, los **roles de la app** (tú y tus testers)
+   los dos redirect URIs de Meta de la tabla (facebook_ads **e** instagram).
+5. **App Review**: solicita los permisos que uses. Meta exige **verificación de negocio** y una
+   revisión (screencast del flujo). Mientras tanto, los **roles de la app** (tú y tus testers)
    pueden conectar en modo desarrollo.
+   - **Facebook/Instagram Ads:** `ads_read`.
+   - **Instagram (perfil/insights):** `instagram_basic`, `instagram_manage_insights`,
+     `pages_show_list`, `pages_read_engagement`. La cuenta de Instagram debe ser **Business o
+     Creator** y estar **vinculada a una página de Facebook** (así aparece en el selector).
 
 ### 2.1 Variables de entorno
 ```dotenv

@@ -18,21 +18,22 @@ final class MetaOAuthClient
 
     private const DIALOG_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
 
-    /** Read-only ads access — the scope that requires Meta App Review. */
-    private const SCOPE = 'ads_read';
-
     public function isConfigured(): bool
     {
         return $this->appId() !== '' && $this->appSecret() !== '';
     }
 
-    public function authorizeUrl(string $redirectUri, string $state): string
+    /**
+     * @param  list<string>  $scopes  The read-only permissions to request (each subject to
+     *                                Meta App Review), e.g. ['ads_read'] or the Instagram set.
+     */
+    public function authorizeUrl(array $scopes, string $redirectUri, string $state): string
     {
         $query = http_build_query([
             'client_id' => $this->appId(),
             'redirect_uri' => $redirectUri,
             'response_type' => 'code',
-            'scope' => self::SCOPE,
+            'scope' => implode(',', $scopes),
             'state' => $state,
         ]);
 

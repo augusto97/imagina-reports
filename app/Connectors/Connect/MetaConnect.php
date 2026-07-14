@@ -5,26 +5,34 @@ declare(strict_types=1);
 namespace App\Connectors\Connect;
 
 use App\Connectors\Connect\OAuth\MetaOAuthClient;
-use App\Enums\DataSourceType;
 use Illuminate\Http\Request;
 
 /**
- * One-click "Connect with Facebook" for Facebook/Instagram Ads. Pure OAuth: the client
- * authorizes on Meta's login dialog and we store a long-lived user access token. The ad
- * account is then picked from a dropdown (ListsConnectableResources on the connector).
+ * One-click "Connect with Facebook" for a Meta-backed source (Facebook/Instagram Ads or
+ * Instagram insights). Pure OAuth: the client authorizes on Meta's login dialog and we
+ * store a long-lived user access token. Configured per source type with the right read-only
+ * scopes; the account is then picked from a dropdown (ListsConnectableResources).
  */
-final class MetaAdsConnect implements ConnectProvider
+final class MetaConnect implements ConnectProvider
 {
-    public function __construct(private readonly MetaOAuthClient $oauth) {}
+    /**
+     * @param  list<string>  $scopes
+     */
+    public function __construct(
+        private readonly MetaOAuthClient $oauth,
+        private readonly string $type,
+        private readonly array $scopes,
+        private readonly string $label = 'Conectar con Facebook',
+    ) {}
 
     public function type(): string
     {
-        return DataSourceType::FacebookAds->value;
+        return $this->type;
     }
 
     public function label(): string
     {
-        return 'Conectar con Facebook';
+        return $this->label;
     }
 
     public function startFields(): array
@@ -34,7 +42,7 @@ final class MetaAdsConnect implements ConnectProvider
 
     public function redirectUrl(array $input, string $nonce, string $callbackUrl, string $returnUrl): string
     {
-        return $this->oauth->authorizeUrl($callbackUrl, $nonce);
+        return $this->oauth->authorizeUrl($this->scopes, $callbackUrl, $nonce);
     }
 
     public function nonceFromCallback(Request $request): string
@@ -69,10 +77,5 @@ final class MetaAdsConnect implements ConnectProvider
             config: [],
             credentials: ['access_token' => $token],
         );
-    }
-
-    public function isConfigured(): bool
-    {
-        return $this->oauth->isConfigured();
     }
 }

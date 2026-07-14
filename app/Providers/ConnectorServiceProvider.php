@@ -8,7 +8,7 @@ use App\Connectors\BetterUptime\BetterUptimeConnector;
 use App\Connectors\Cloudflare\CloudflareConnector;
 use App\Connectors\Connect\ConnectRegistry;
 use App\Connectors\Connect\GoogleConnect;
-use App\Connectors\Connect\MetaAdsConnect;
+use App\Connectors\Connect\MetaConnect;
 use App\Connectors\Connect\OAuth\GoogleOAuthClient;
 use App\Connectors\Connect\OAuth\MetaOAuthClient;
 use App\Connectors\Connect\WooCommerceConnect;
@@ -22,6 +22,7 @@ use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\Google\ServiceAccountTokenProvider;
 use App\Connectors\GoogleAds\GoogleAdsConnector;
 use App\Connectors\Gsc\GscConnector;
+use App\Connectors\Instagram\InstagramConnector;
 use App\Connectors\Mailchimp\MailchimpConnector;
 use App\Connectors\MainWp\MainWpConnector;
 use App\Connectors\SiteAgent\SiteAgentConnector;
@@ -64,6 +65,7 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             $registry->register(new FacebookAdsConnector);
             $registry->register(new TikTokAdsConnector);
             $registry->register(new MailchimpConnector);
+            $registry->register(new InstagramConnector);
             $registry->register(new DatabaseConnector);
             $registry->register(new EndpointConnector);
             $registry->register(new SiteAgentConnector);
@@ -90,7 +92,12 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
 
             $meta = new MetaOAuthClient;
             if ($meta->isConfigured()) {
-                $registry->register(new MetaAdsConnect($meta));
+                $registry->register(new MetaConnect($meta, DataSourceType::FacebookAds->value, ['ads_read']));
+                $registry->register(new MetaConnect(
+                    $meta,
+                    DataSourceType::Instagram->value,
+                    ['instagram_basic', 'pages_show_list', 'pages_read_engagement', 'instagram_manage_insights'],
+                ));
             }
 
             return $registry;
