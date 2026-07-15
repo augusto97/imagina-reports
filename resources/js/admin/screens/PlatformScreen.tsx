@@ -1,7 +1,15 @@
 import { Building2, CreditCard, DownloadCloud, LayoutGrid, LogIn, Pencil, Plug, Plus, Power, Trash2 } from 'lucide-react';
-import { type FormEvent, type ReactElement, useState } from 'react';
+import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
-import { usePlatformBillingSettings, usePlatformIntegrations, useUpdatePlatformBillingSettings, useUpdatePlatformIntegrations } from '../api';
+import {
+    usePlatformBillingSettings,
+    usePlatformIntegrations,
+    usePlatformMailSettings,
+    useTestPlatformMail,
+    useUpdatePlatformBillingSettings,
+    useUpdatePlatformIntegrations,
+    useUpdatePlatformMailSettings,
+} from '../api';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
@@ -488,7 +496,109 @@ function IntegrationsTab(): ReactElement {
                 </div>
             </Card>
             {update.isSuccess && <p className="ir-text-xs ir-text-emerald-600">Guardado.</p>}
+
+            <MailSettingsCard />
         </div>
+    );
+}
+
+/* ------------------------------ Outbound mail ------------------------------ */
+
+function MailSettingsCard(): ReactElement {
+    const { data: settings } = usePlatformMailSettings();
+    const update = useUpdatePlatformMailSettings();
+    const sendTest = useTestPlatformMail();
+    const [host, setHost] = useState('');
+    const [port, setPort] = useState('');
+    const [user, setUser] = useState('');
+    const [pass, setPass] = useState('');
+    const [scheme, setScheme] = useState('');
+    const [fromAddr, setFromAddr] = useState('');
+    const [fromName, setFromName] = useState('');
+    const [testTo, setTestTo] = useState('');
+
+    // Prefill the non-secret fields from what's saved, once, when the settings arrive.
+    const [seeded, setSeeded] = useState(false);
+    useEffect(() => {
+        if (settings && !seeded) {
+            setSeeded(true);
+            setHost(settings.mail_host);
+            setPort(settings.mail_port);
+            setUser(settings.mail_username);
+            setScheme(settings.mail_scheme);
+            setFromAddr(settings.mail_from_address);
+            setFromName(settings.mail_from_name);
+        }
+    }, [settings, seeded]);
+
+    const saveSmtp = (): void => {
+        update.mutate({
+            mail_mailer: 'smtp',
+            mail_host: host,
+            mail_port: port,
+            mail_username: user,
+            mail_scheme: scheme,
+            mail_from_address: fromAddr,
+            mail_from_name: fromName,
+            ...(pass !== '' ? { mail_password: pass } : {}),
+        }, { onSuccess: () => setPass('') });
+    };
+
+    const sends = settings?.mail_sends ?? false;
+
+    return (
+        <Card title="Correo saliente (SMTP)" description="Con qué servidor se envían los reportes por email. Se guarda cifrado; sustituye a las variables del .env.">
+            <div className="ir-flex ir-flex-col ir-gap-3">
+                <p className="ir-text-xs ir-text-muted-foreground">
+                    Estado: {sends ? <span className="ir-font-medium ir-text-emerald-600">envía por «{settings?.mail_mailer}» ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar (los correos no salen, solo se registran en el log)</span>}
+                </p>
+                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                    <Field label="Servidor SMTP (host)">
+                        <Input autoComplete="off" value={host} onChange={(e) => setHost(e.target.value)} placeholder="smtp.tuservidor.com" />
+                    </Field>
+                    <Field label="Puerto">
+                        <Input autoComplete="off" value={port} onChange={(e) => setPort(e.target.value)} placeholder="587" />
+                    </Field>
+                    <Field label="Usuario">
+                        <Input autoComplete="off" value={user} onChange={(e) => setUser(e.target.value)} placeholder="usuario@imaginawp.com" />
+                    </Field>
+                    <Field label="Contraseña">
+                        <Input type="password" autoComplete="off" value={pass} onChange={(e) => setPass(e.target.value)} placeholder={settings?.mail_password_set ? '•••••••• (deja en blanco para conservar)' : ''} />
+                    </Field>
+                    <Field label="Cifrado" hint="tls (587) o ssl (465). Déjalo vacío si tu servidor no lo requiere.">
+                        <Select value={scheme} onChange={(e) => setScheme(e.target.value)}>
+                            <option value="">Ninguno</option>
+                            <option value="tls">TLS</option>
+                            <option value="ssl">SSL</option>
+                        </Select>
+                    </Field>
+                </div>
+                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                    <Field label="Remitente (email)">
+                        <Input autoComplete="off" value={fromAddr} onChange={(e) => setFromAddr(e.target.value)} placeholder="reportes@imaginawp.com" />
+                    </Field>
+                    <Field label="Remitente (nombre)">
+                        <Input autoComplete="off" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Imagina Reports" />
+                    </Field>
+                </div>
+                <Button className="ir-self-start" onClick={saveSmtp} disabled={update.isPending}>
+                    Guardar correo
+                </Button>
+
+                <div className="ir-mt-1 ir-border-t ir-pt-3">
+                    <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">Envía un correo de prueba para confirmar que funciona (guarda primero).</p>
+                    <div className="ir-flex ir-gap-2">
+                        <Input autoComplete="off" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="tu@correo.com" />
+                        <Button variant="ghost" onClick={() => sendTest.mutate(testTo)} disabled={sendTest.isPending || testTo === ''}>
+                            {sendTest.isPending ? 'Enviando…' : 'Enviar prueba'}
+                        </Button>
+                    </div>
+                    {sendTest.isSuccess && sendTest.data?.sent && <p className="ir-mt-2 ir-text-xs ir-text-emerald-600">Enviado ✓ Revisa la bandeja (y spam).</p>}
+                    {sendTest.data?.sent === false && <p className="ir-mt-2 ir-text-xs ir-text-red-500">Falló: {sendTest.data.error}</p>}
+                    {sendTest.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo enviar. Revisa la configuración.</p>}
+                </div>
+            </div>
+        </Card>
     );
 }
 

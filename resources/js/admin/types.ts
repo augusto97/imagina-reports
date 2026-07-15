@@ -88,6 +88,18 @@ export interface PlatformIntegrationsSettings {
     meta_from_env: boolean;
 }
 
+export interface PlatformMailSettings {
+    mail_mailer: string;
+    mail_host: string;
+    mail_port: string;
+    mail_username: string;
+    mail_scheme: string;
+    mail_from_address: string;
+    mail_from_name: string;
+    mail_password_set: boolean;
+    mail_sends: boolean;
+}
+
 export interface TeamMember {
     id: number;
     name: string;

@@ -12,6 +12,7 @@ use App\Listeners\DetectUpsellOpportunities;
 use App\Listeners\ReportWebhookSubscriber;
 use App\Services\Pdf\BrowsershotPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
+use App\Services\Platform\PlatformMail;
 use App\Services\Update\Deployer;
 use App\Services\Update\SymlinkDeployer;
 use App\Services\Webhooks\HttpWebhookDispatcher;
@@ -67,6 +68,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->guardOutboundHttp();
         $this->configurePublicRateLimiter();
+
+        // Apply the super-admin's outbound-mail settings over the .env defaults (managed
+        // from the panel, not the server). No-ops when nothing is saved.
+        PlatformMail::apply();
     }
 
     /**

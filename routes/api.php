@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
 use App\Http\Controllers\Api\V1\Platform\PlatformBillingController;
 use App\Http\Controllers\Api\V1\Platform\PlatformIntegrationsController;
+use App\Http\Controllers\Api\V1\Platform\PlatformMailController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
@@ -214,6 +215,10 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
 
         Route::get('integrations', [PlatformIntegrationsController::class, 'show'])->name('api.platform.integrations.show');
         Route::put('integrations', [PlatformIntegrationsController::class, 'update'])->name('api.platform.integrations.update');
+
+        Route::get('mail-settings', [PlatformMailController::class, 'show'])->name('api.platform.mail-settings.show');
+        Route::put('mail-settings', [PlatformMailController::class, 'update'])->name('api.platform.mail-settings.update');
+        Route::post('mail-settings/test', [PlatformMailController::class, 'test'])->name('api.platform.mail-settings.test');
 
         Route::get('plans', [PlanController::class, 'index'])->name('api.platform.plans.index');
         Route::post('plans', [PlanController::class, 'store'])->name('api.platform.plans.store');

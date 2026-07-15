@@ -31,6 +31,7 @@ import type {
     PlatformAgency,
     PlatformBillingSettings,
     PlatformIntegrationsSettings,
+    PlatformMailSettings,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportDelivery,
@@ -405,6 +406,25 @@ export function useUpdatePlatformIntegrations() {
     return useMutation({
         mutationFn: (payload: Record<string, string>) => api.put<PlatformIntegrationsSettings>('/platform/integrations', payload).then((r) => r.data),
         onSuccess: (data) => queryClient.setQueryData(['platform-integrations'], data),
+    });
+}
+
+export function usePlatformMailSettings() {
+    return useQuery({ queryKey: ['platform-mail-settings'], queryFn: () => get<PlatformMailSettings>('/platform/mail-settings') });
+}
+
+export function useUpdatePlatformMailSettings() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: Record<string, string>) => api.put<PlatformMailSettings>('/platform/mail-settings', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['platform-mail-settings'], data),
+    });
+}
+
+export function useTestPlatformMail() {
+    return useMutation({
+        mutationFn: (to: string) => api.post<{ sent: boolean; error?: string }>('/platform/mail-settings/test', { to }).then((r) => r.data),
     });
 }
 
