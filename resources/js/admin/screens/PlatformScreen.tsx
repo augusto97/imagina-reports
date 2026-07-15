@@ -594,8 +594,13 @@ function MailSettingsCard(): ReactElement {
                         </Button>
                     </div>
                     {sendTest.isSuccess && sendTest.data?.sent && <p className="ir-mt-2 ir-text-xs ir-text-emerald-600">Enviado ✓ Revisa la bandeja (y spam).</p>}
-                    {sendTest.data?.sent === false && <p className="ir-mt-2 ir-text-xs ir-text-red-500">Falló: {sendTest.data.error}</p>}
-                    {sendTest.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo enviar. Revisa la configuración.</p>}
+                    {sendTest.data?.sent === false && (
+                        <div className="ir-mt-2 ir-rounded ir-bg-danger/10 ir-p-2 ir-text-xs ir-text-danger">
+                            <p className="ir-font-medium">No se pudo enviar. Error del servidor:</p>
+                            <p className="ir-mt-1 ir-break-words ir-font-mono ir-text-[11px]">{sendTest.data.error}</p>
+                        </div>
+                    )}
+                    {sendTest.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo contactar el servidor. Inténtalo de nuevo.</p>}
                 </div>
             </div>
         </Card>

@@ -77,7 +77,9 @@ final class PlatformMailController extends Controller
                 $message->to($to)->subject('Imagina Reports — correo de prueba');
             });
         } catch (Throwable $e) {
-            return response()->json(['sent' => false, 'error' => $e->getMessage()], 422);
+            // 200 (not 422): the endpoint ran fine, the SEND failed — so the frontend receives
+            // this as data and can show the transport's verbatim error instead of a generic one.
+            return response()->json(['sent' => false, 'error' => $e->getMessage()]);
         }
 
         return response()->json(['sent' => true]);
