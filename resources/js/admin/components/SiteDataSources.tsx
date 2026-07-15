@@ -440,8 +440,6 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                 </Button>
             </div>
 
-            {sources.length > 0 && <RangeSyncMenu siteId={siteId} />}
-
             {adding && (
                 <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
                     <Field label="Conector">
@@ -559,6 +557,10 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     </li>
                 )}
             </ul>
+
+            {/* Period-sync tools live BELOW the list and collapsed by default, so the sources
+                (the primary content) stay at the top and the panel no longer dominates. */}
+            {sources.length > 0 && <RangeSyncMenu siteId={siteId} />}
 
             {builderFor !== null && (
                 <Ga4DatasetBuilder

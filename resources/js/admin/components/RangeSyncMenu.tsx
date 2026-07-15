@@ -40,12 +40,13 @@ export function RangeSyncMenu({ siteId }: { siteId: number }): ReactElement {
     const input = 'ir-h-9 ir-rounded-md ir-border ir-bg-card ir-px-2 ir-text-sm';
 
     return (
-        <div className="ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
-            <p className="ir-mb-1 ir-flex ir-items-center ir-gap-1.5 ir-text-sm ir-font-semibold ir-tracking-tight">
+        <details className="ir-group ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
+            <summary className="ir-flex ir-cursor-pointer ir-select-none ir-items-center ir-gap-1.5 ir-text-sm ir-font-semibold ir-tracking-tight">
                 <CalendarRange className="ir-size-4 ir-text-primary" />
                 Sincronizar un periodo
-            </p>
-            <p className="ir-mb-3 ir-text-[11px] ir-text-muted-foreground">
+                <span className="ir-text-[11px] ir-font-normal ir-text-muted-foreground">— rango concreto o histórico</span>
+            </summary>
+            <p className="ir-mb-3 ir-mt-2 ir-text-[11px] ir-text-muted-foreground">
                 Si un cliente pide un rango concreto (un mes, un trimestre, o del X al Y), sincronízalo aquí: se guarda el snapshot de ese periodo completo y queda disponible para generar el reporte y para que el cliente lo elija en el panel en vivo.
             </p>
             <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
@@ -98,6 +99,6 @@ export function RangeSyncMenu({ siteId }: { siteId: number }): ReactElement {
                 )}
                 {backfill.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo encolar el histórico.</p>}
             </div>
-        </div>
+        </details>
     );
 }
