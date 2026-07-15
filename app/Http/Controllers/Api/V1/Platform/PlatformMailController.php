@@ -36,7 +36,9 @@ final class PlatformMailController extends Controller
             PlatformMail::PORT => ['sometimes', 'nullable', 'integer', 'min:1', 'max:65535'],
             PlatformMail::USERNAME => ['sometimes', 'nullable', 'string'],
             PlatformMail::PASSWORD => ['sometimes', 'nullable', 'string'],
-            PlatformMail::SCHEME => ['sometimes', 'nullable', 'in:tls,ssl'],
+            // Symfony Mailer schemes: 'smtp' (STARTTLS, 587) or 'smtps' (implicit TLS, 465).
+            // Empty lets it auto-detect from the port. NOT 'tls'/'ssl' (the old Laravel 10 names).
+            PlatformMail::SCHEME => ['sometimes', 'nullable', 'in:smtp,smtps'],
             PlatformMail::FROM_ADDRESS => ['sometimes', 'nullable', 'email'],
             PlatformMail::FROM_NAME => ['sometimes', 'nullable', 'string', 'max:120'],
         ]);

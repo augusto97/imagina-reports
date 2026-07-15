@@ -33,7 +33,7 @@ class PlatformMailApiTest extends TestCase
             'mail_port' => 587,
             'mail_username' => 'reportes@imaginawp.com',
             'mail_password' => 'super-secret',
-            'mail_scheme' => 'tls',
+            'mail_scheme' => 'smtp',
             'mail_from_address' => 'reportes@imaginawp.com',
             'mail_from_name' => 'Imagina Reports',
         ])->assertOk()->assertJson([

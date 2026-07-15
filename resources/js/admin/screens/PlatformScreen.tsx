@@ -565,11 +565,11 @@ function MailSettingsCard(): ReactElement {
                     <Field label="Contraseña">
                         <Input type="password" autoComplete="off" value={pass} onChange={(e) => setPass(e.target.value)} placeholder={settings?.mail_password_set ? '•••••••• (deja en blanco para conservar)' : ''} />
                     </Field>
-                    <Field label="Cifrado" hint="tls (587) o ssl (465). Déjalo vacío si tu servidor no lo requiere.">
+                    <Field label="Cifrado" hint="«Automático» detecta según el puerto (587→STARTTLS, 465→SSL). Elige uno explícito solo si tu servidor lo exige.">
                         <Select value={scheme} onChange={(e) => setScheme(e.target.value)}>
-                            <option value="">Ninguno</option>
-                            <option value="tls">TLS</option>
-                            <option value="ssl">SSL</option>
+                            <option value="">Automático (según el puerto)</option>
+                            <option value="smtp">STARTTLS — puerto 587</option>
+                            <option value="smtps">SSL/TLS — puerto 465</option>
                         </Select>
                     </Field>
                 </div>
