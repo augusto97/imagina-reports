@@ -683,7 +683,16 @@ export function EditorScreen(): ReactElement {
         if (editingTemplateId !== null) {
             update.mutate(payload, handlers);
         } else {
-            create.mutate(payload, handlers);
+            create.mutate(payload, {
+                onError: handlers.onError,
+                onSuccess: (created) => {
+                    setErrors([]);
+                    setDirty(false);
+                    // Switch into edit mode for the just-created template, so pressing Guardar
+                    // again UPDATES it instead of creating a duplicate (the reported bug).
+                    editTemplate(created.id);
+                },
+            });
         }
     };
 
