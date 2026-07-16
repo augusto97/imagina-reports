@@ -47,7 +47,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
      * the applied-updates history), so the report hides those blocks. We compare the
      * version the site reports against this to warn the agency to update the plugin.
      */
-    public const LATEST_AGENT_VERSION = '1.9.1';
+    public const LATEST_AGENT_VERSION = '1.9.2';
 
     public function __construct(private ?AbandonedPluginChecker $abandonedChecker = null) {}
 
@@ -69,7 +69,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
     public function configSchema(): array
     {
         return [
-            new ConfigField('url', 'URL del sitio (opcional)', ConfigFieldType::Url, required: false, help: 'Déjalo vacío para usar la URL del sitio. Solo rellénalo si el WordPress vive en otra URL (p. ej. con/sin www).'),
+            new ConfigField('url', 'URL del sitio (opcional)', ConfigFieldType::Url, required: false, help: 'Déjalo vacío para usar la URL del sitio. Basta el dominio raíz (https://tudominio.com); si pegas la URL larga del plugin (…/wp-json/imagina-reports/v1/metrics) también funciona, la recortamos sola.'),
             new ConfigField('api_key', 'Clave del agente', ConfigFieldType::Password, secret: true, help: 'La clave que muestra el plugin «Imagina Reports Agent» en Ajustes → Imagina Reports del sitio.'),
         ];
     }
@@ -592,7 +592,25 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             $base = $source->site->url ?? '';
         }
 
-        return rtrim($base, '/').self::PATH;
+        return $this->normalizeBase($base).self::PATH;
+    }
+
+    /**
+     * The base site URL, tolerant of what the operator pastes. The agent plugin's settings
+     * page shows the FULL metrics endpoint (…/wp-json/imagina-reports/v1/metrics), so accept
+     * that too: strip any `/wp-json…` suffix (and a trailing `/metrics`) so we never double
+     * the path. A subdirectory WordPress install (…/blog) is preserved.
+     */
+    private function normalizeBase(string $base): string
+    {
+        $base = trim($base);
+
+        $pos = stripos($base, '/wp-json');
+        if ($pos !== false) {
+            $base = substr($base, 0, $pos);
+        }
+
+        return rtrim($base, '/');
     }
 
     private function client(DataSource $source): PendingRequest

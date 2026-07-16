@@ -359,6 +359,21 @@ class SiteAgentConnectorTest extends TestCase
         Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://www.other.test/wp-json/imagina-reports/v1/metrics'));
     }
 
+    public function test_a_pasted_full_metrics_endpoint_url_is_normalized(): void
+    {
+        Http::fake(['*' => Http::response($this->payload())]);
+
+        // The plugin shows the FULL endpoint; pasting it must not double the path.
+        (new SiteAgentConnector)->fetch(
+            $this->source('https://a.test', 'https://a.test/wp-json/imagina-reports/v1/metrics'),
+            Period::make('2026-06-01', '2026-06-30'),
+            [],
+        );
+
+        Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://a.test/wp-json/imagina-reports/v1/metrics?')
+            && ! str_contains($request->url(), 'metrics/wp-json'));
+    }
+
     public function test_fetch_returns_only_requested_metrics(): void
     {
         Http::fake(['*' => Http::response($this->payload())]);

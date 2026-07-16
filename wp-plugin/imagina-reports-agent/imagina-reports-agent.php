@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina Reports Agent
  * Plugin URI:        https://imaginawp.com
  * Description:        Expone, de forma segura, el estado de respaldos y la salud del sitio para Imagina Reports. Imagina Reports lo consulta por HTTPS al sincronizar; no abre puertos ni almacena datos crudos.
- * Version:           1.9.1
+ * Version:           1.9.2
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Imagina WP
@@ -34,7 +34,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IMAGINA_REPORTS_AGENT_VERSION', '1.9.1');
+define('IMAGINA_REPORTS_AGENT_VERSION', '1.9.2');
 define('IMAGINA_REPORTS_AGENT_KEY_OPTION', 'imagina_reports_agent_key');
 // Registro local de actualizaciones aplicadas (historial propio del sitio) + el mapa de
 // versiones conocidas con el que se calcula el "de→a" de cada actualización.
@@ -1708,11 +1708,19 @@ function imagina_reports_agent_settings_page() {
                 </td>
             </tr>
             <tr>
-                <th scope="row">URL de métricas</th>
+                <th scope="row">URL del sitio</th>
+                <td>
+                    <input type="text" readonly class="regular-text code" style="width:30rem"
+                           value="<?php echo esc_attr(home_url()); ?>" onclick="this.select();" />
+                    <p class="description">En Imagina Reports, lo normal es <strong>dejar vacío el campo URL</strong> (usa la del sitio). Si lo rellenas, pega <strong>este dominio</strong>, no la URL larga de abajo.</p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">URL de métricas (técnica)</th>
                 <td>
                     <input type="text" readonly class="regular-text code" style="width:30rem"
                            value="<?php echo esc_attr($endpoint); ?>" onclick="this.select();" />
-                    <p class="description">Imagina Reports la deduce sola desde la URL del sitio; aquí solo para referencia.</p>
+                    <p class="description">Solo referencia técnica. <strong>No hace falta pegarla</strong> en Imagina Reports (aunque si la pegas, también la acepta).</p>
                 </td>
             </tr>
         </table>
