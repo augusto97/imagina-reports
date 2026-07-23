@@ -78,8 +78,10 @@ class AdsConnectorsTest extends TestCase
         $this->assertSame('Search - Marca', $set->get('google_ads.top_campaigns')[0]['campaign']);
         $this->assertSame(20.0, $set->get('google_ads.top_campaigns')[0]['cost']);
 
-        // The developer token + OAuth bearer are sent on the API call.
+        // The developer token + OAuth bearer are sent on the correct search endpoint
+        // (customers/{id}/googleAds:search — the '/googleAds' segment is required).
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'googleads.googleapis.com')
+            && str_contains($request->url(), '/googleAds:search')
             && $request->hasHeader('developer-token', 'devtok')
             && $request->hasHeader('Authorization', 'Bearer ya29-fake'));
     }

@@ -343,9 +343,11 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
 
     private function searchUrl(DataSource $source): string
     {
+        // The REST search method is GoogleAdsService.Search → customers/{id}/googleAds:search
+        // (the '/googleAds' segment is required; without it the API returns HTTP 404).
         $customer = $this->toStr(Arr::get($source->config ?? [], 'customer_id'));
 
-        return self::API_BASE.'/'.self::API_VERSION.'/customers/'.$customer.':search';
+        return self::API_BASE.'/'.self::API_VERSION.'/customers/'.$customer.'/googleAds:search';
     }
 
     private function apiError(mixed $json): string
