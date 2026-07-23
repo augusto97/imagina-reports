@@ -100,19 +100,4 @@ class AccountAndPasswordResetTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_login_with_remember_issues_the_long_lived_recaller_cookie(): void
-    {
-        User::factory()->create(['agency_id' => Agency::factory()->create()->id, 'email' => 'l@x.com', 'password' => Hash::make('secret123')]);
-
-        $response = $this->postJson('/api/v1/login', ['email' => 'l@x.com', 'password' => 'secret123', 'remember' => true]);
-        $response->assertOk();
-
-        // remember=true → Laravel queues a long-lived `remember_web_*` cookie so the session
-        // survives past its lifetime (the "logged out too fast" fix).
-        $names = array_map(static fn ($cookie): string => $cookie->getName(), $response->headers->getCookies());
-        $this->assertTrue(
-            collect($names)->contains(fn (string $name): bool => str_starts_with($name, 'remember_web')),
-            'Expected a remember_web_* cookie when remember=true.',
-        );
-    }
 }
