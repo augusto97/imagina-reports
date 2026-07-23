@@ -99,5 +99,4 @@ class AccountAndPasswordResetTest extends TestCase
             'password_confirmation' => 'brand-new-pass',
         ])->assertStatus(422);
     }
-
 }
