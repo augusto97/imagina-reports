@@ -1,4 +1,4 @@
-import { Trash2, UserPlus } from 'lucide-react';
+import { KeyRound, Trash2, UserPlus } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
@@ -23,6 +23,16 @@ export function TeamScreen(): ReactElement {
 
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'collaborator' });
     const set = (key: keyof typeof form, value: string): void => setForm((prev) => ({ ...prev, [key]: value }));
+
+    // Inline "set a new password for this member" (admin action — no current password needed).
+    const [pwFor, setPwFor] = useState<number | null>(null);
+    const [pwValue, setPwValue] = useState('');
+    const savePassword = (id: number): void => {
+        if (pwValue.length < 8) {
+            return;
+        }
+        update.mutate({ id, password: pwValue }, { onSuccess: () => { setPwFor(null); setPwValue(''); } });
+    };
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
@@ -82,34 +92,54 @@ export function TeamScreen(): ReactElement {
                 ) : (
                     <ul className="ir-flex ir-flex-col ir-divide-y">
                         {members.map((member) => (
-                            <li key={member.id} className="ir-flex ir-flex-wrap ir-items-center ir-gap-3 ir-py-3 ir-text-sm">
-                                <div className="ir-min-w-0 ir-flex-1">
-                                    <p className="ir-flex ir-items-center ir-gap-2 ir-font-medium">
-                                        {member.name}
-                                        {member.is_self && <Badge tone="neutral">Tú</Badge>}
-                                    </p>
-                                    <p className="ir-text-xs ir-text-muted-foreground">{member.email}</p>
+                            <li key={member.id} className="ir-flex ir-flex-col ir-gap-2 ir-py-3 ir-text-sm">
+                                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">
+                                    <div className="ir-min-w-0 ir-flex-1">
+                                        <p className="ir-flex ir-items-center ir-gap-2 ir-font-medium">
+                                            {member.name}
+                                            {member.is_self && <Badge tone="neutral">Tú</Badge>}
+                                        </p>
+                                        <p className="ir-text-xs ir-text-muted-foreground">{member.email}</p>
+                                    </div>
+                                    <Select
+                                        className="ir-h-8 ir-w-40 ir-text-xs"
+                                        value={member.role}
+                                        disabled={member.role === 'owner' && owners <= 1}
+                                        onChange={(e) => update.mutate({ id: member.id, role: e.target.value })}
+                                    >
+                                        <option value="collaborator">Colaborador</option>
+                                        <option value="admin">Administrador</option>
+                                        <option value="owner">Propietario</option>
+                                    </Select>
+                                    <Badge tone={ROLE_TONE[member.role] ?? 'neutral'}>{ROLE_LABEL[member.role] ?? member.role}</Badge>
+                                    <button
+                                        type="button"
+                                        className={`ir-rounded ir-p-1 hover:ir-bg-muted ${pwFor === member.id ? 'ir-text-primary' : 'ir-text-muted-foreground'}`}
+                                        title="Cambiar contraseña"
+                                        onClick={() => { setPwFor((cur) => (cur === member.id ? null : member.id)); setPwValue(''); }}
+                                    >
+                                        <KeyRound className="ir-size-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="ir-rounded ir-p-1 ir-text-muted-foreground enabled:hover:ir-bg-danger/10 enabled:hover:ir-text-danger disabled:ir-opacity-30"
+                                        title={canRemove(member) ? 'Eliminar' : 'No se puede eliminar'}
+                                        disabled={!canRemove(member)}
+                                        onClick={() => { if (window.confirm(`¿Eliminar a ${member.name}? Esta acción no se puede deshacer.`)) remove.mutate(member.id); }}
+                                    >
+                                        <Trash2 className="ir-size-4" />
+                                    </button>
                                 </div>
-                                <Select
-                                    className="ir-h-8 ir-w-40 ir-text-xs"
-                                    value={member.role}
-                                    disabled={member.role === 'owner' && owners <= 1}
-                                    onChange={(e) => update.mutate({ id: member.id, role: e.target.value })}
-                                >
-                                    <option value="collaborator">Colaborador</option>
-                                    <option value="admin">Administrador</option>
-                                    <option value="owner">Propietario</option>
-                                </Select>
-                                <Badge tone={ROLE_TONE[member.role] ?? 'neutral'}>{ROLE_LABEL[member.role] ?? member.role}</Badge>
-                                <button
-                                    type="button"
-                                    className="ir-rounded ir-p-1 ir-text-muted-foreground enabled:hover:ir-bg-danger/10 enabled:hover:ir-text-danger disabled:ir-opacity-30"
-                                    title={canRemove(member) ? 'Eliminar' : 'No se puede eliminar'}
-                                    disabled={!canRemove(member)}
-                                    onClick={() => { if (window.confirm(`¿Eliminar a ${member.name}?`)) remove.mutate(member.id); }}
-                                >
-                                    <Trash2 className="ir-size-4" />
-                                </button>
+                                {pwFor === member.id && (
+                                    <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-rounded-md ir-bg-muted/40 ir-p-2">
+                                        <span className="ir-text-xs ir-text-muted-foreground">Nueva contraseña para {member.name} (no necesitas la actual):</span>
+                                        <Input type="text" className="ir-h-8 ir-w-56 ir-text-xs" value={pwValue} onChange={(e) => setPwValue(e.target.value)} placeholder="mín. 8 caracteres" />
+                                        <Button size="sm" onClick={() => savePassword(member.id)} disabled={update.isPending || pwValue.length < 8}>
+                                            Guardar
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={() => { setPwFor(null); setPwValue(''); }}>Cancelar</Button>
+                                    </div>
+                                )}
                             </li>
                         ))}
                     </ul>

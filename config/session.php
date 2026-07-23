@@ -34,7 +34,9 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    // A week by default so an admin panel doesn't log people out mid-work; "remember me"
+    // at login extends this further via the long-lived remember cookie.
+    'lifetime' => (int) env('SESSION_LIFETIME', 10080),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

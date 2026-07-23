@@ -69,13 +69,45 @@ export function useLogin() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: { email: string; password: string }): Promise<AuthUser> => {
+        mutationFn: async (payload: { email: string; password: string; remember?: boolean }): Promise<AuthUser> => {
             await fetchCsrfCookie();
             const { data } = await api.post<{ user: AuthUser }>('/login', payload);
 
             return data.user;
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+/** Update the signed-in user's own name + email. */
+export function useUpdateProfile() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; email: string }) => api.put('/user/profile', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+/** Request a password-reset email (always resolves; the API answers generically). */
+export function useForgotPassword() {
+    return useMutation({
+        mutationFn: async (email: string) => {
+            await fetchCsrfCookie();
+
+            return api.post<{ message: string }>('/forgot-password', { email }).then((r) => r.data);
+        },
+    });
+}
+
+/** Set a new password from a reset-link token. */
+export function useResetPassword() {
+    return useMutation({
+        mutationFn: async (payload: { token: string; email: string; password: string; password_confirmation: string }) => {
+            await fetchCsrfCookie();
+
+            return api.post<{ message: string }>('/reset-password', payload).then((r) => r.data);
+        },
     });
 }
 

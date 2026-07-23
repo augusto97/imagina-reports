@@ -1,7 +1,7 @@
 import { CreditCard, Plus, Send, Trash2, Webhook } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useBilling, useChangePassword, useSubscribe, useTestWebhooks, useUpdateAgency, useUploadLogo } from '../api';
+import { type AgencyUpdate, useAgency, useAuthUser, useBilling, useChangePassword, useSubscribe, useTestWebhooks, useUpdateAgency, useUpdateProfile, useUploadLogo } from '../api';
 import { Badge, Button, Card, Field, Input } from '../components/ui';
 import type { AgencySettings } from '../types';
 
@@ -128,6 +128,51 @@ function BillingCard(): ReactElement | null {
                 {subscribe.isError && (
                     <p className="ir-rounded-md ir-bg-danger/5 ir-px-3 ir-py-2 ir-text-xs ir-text-danger">{subscribeError(subscribe.error)}</p>
                 )}
+            </div>
+        </Card>
+    );
+}
+
+/** Edit the signed-in user's own name + login email. */
+function ProfileCard(): ReactElement {
+    const { data: user } = useAuthUser();
+    const update = useUpdateProfile();
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [seeded, setSeeded] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (user !== undefined && !seeded) {
+            setSeeded(true);
+            setName(user.name);
+            setEmail(user.email);
+        }
+    }, [user, seeded]);
+
+    const submit = (): void => {
+        setError('');
+        update.mutate({ name: name.trim(), email: email.trim() }, {
+            onError: () => setError('No se pudo guardar. ¿El email ya está en uso o es inválido?'),
+        });
+    };
+
+    return (
+        <Card title="Tu cuenta — perfil" description="Tu nombre y el email con el que inicias sesión.">
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <Field label="Nombre">
+                    <Input value={name} onChange={(event) => setName(event.target.value)} />
+                </Field>
+                <Field label="Email (de inicio de sesión)">
+                    <Input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+                </Field>
+                <div className="ir-flex ir-items-center ir-gap-3">
+                    <Button onClick={submit} disabled={update.isPending || name.trim() === '' || email.trim() === ''}>
+                        {update.isPending ? 'Guardando…' : 'Guardar perfil'}
+                    </Button>
+                    {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Perfil actualizado.</span>}
+                    {error !== '' && <span className="ir-text-xs ir-text-red-500">{error}</span>}
+                </div>
             </div>
         </Card>
     );
@@ -462,6 +507,7 @@ export function SettingsScreen(): ReactElement {
 
             <WebhooksCard agency={agency} />
 
+            <ProfileCard />
             <PasswordCard />
         </div>
     );

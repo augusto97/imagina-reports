@@ -1,20 +1,31 @@
 import { LayoutDashboard } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
-import { useLogin } from '../api';
+import { useForgotPassword, useLogin } from '../api';
 import { Button, Card, Field, Input } from '../components/ui';
 
 export function LoginScreen(): ReactElement {
     const login = useLogin();
+    const forgot = useForgotPassword();
+    const [mode, setMode] = useState<'login' | 'forgot'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [remember, setRemember] = useState(true);
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
         if (email === '' || password === '') {
             return;
         }
-        login.mutate({ email, password });
+        login.mutate({ email, password, remember });
+    };
+
+    const submitForgot = (event: FormEvent): void => {
+        event.preventDefault();
+        if (email === '') {
+            return;
+        }
+        forgot.mutate(email);
     };
 
     return (
@@ -24,35 +35,59 @@ export function LoginScreen(): ReactElement {
                     <LayoutDashboard className="ir-size-5 ir-text-primary" />
                     <span className="ir-text-lg ir-font-semibold">Imagina Reports</span>
                 </div>
-                <Card title="Iniciar sesión">
-                    <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3">
-                        <Field label="Email">
-                            <Input
-                                type="email"
-                                autoComplete="username"
-                                value={email}
-                                onChange={(event) => setEmail(event.target.value)}
-                                autoFocus
-                            />
-                        </Field>
-                        <Field label="Contraseña">
-                            <Input
-                                type="password"
-                                autoComplete="current-password"
-                                value={password}
-                                onChange={(event) => setPassword(event.target.value)}
-                            />
-                        </Field>
-                        {login.isError && (
-                            <p className="ir-text-xs ir-text-red-500">
-                                No pudimos iniciar sesión. Revisa tu email y contraseña.
-                            </p>
-                        )}
-                        <Button type="submit" disabled={login.isPending}>
-                            {login.isPending ? 'Entrando…' : 'Entrar'}
-                        </Button>
-                    </form>
-                </Card>
+
+                {mode === 'login' ? (
+                    <Card title="Iniciar sesión">
+                        <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3">
+                            <Field label="Email">
+                                <Input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} autoFocus />
+                            </Field>
+                            <Field label="Contraseña">
+                                <Input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                            </Field>
+                            <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
+                                <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+                                Recordarme en este dispositivo
+                            </label>
+                            {login.isError && <p className="ir-text-xs ir-text-red-500">No pudimos iniciar sesión. Revisa tu email y contraseña.</p>}
+                            <Button type="submit" disabled={login.isPending}>
+                                {login.isPending ? 'Entrando…' : 'Entrar'}
+                            </Button>
+                            <button
+                                type="button"
+                                className="ir-mt-1 ir-self-center ir-text-xs ir-text-muted-foreground ir-underline hover:ir-text-foreground"
+                                onClick={() => { setMode('forgot'); login.reset(); }}
+                            >
+                                ¿Olvidaste tu contraseña?
+                            </button>
+                        </form>
+                    </Card>
+                ) : (
+                    <Card title="Restablecer contraseña" description="Te enviaremos un enlace para crear una nueva.">
+                        <form onSubmit={submitForgot} className="ir-flex ir-flex-col ir-gap-3">
+                            <Field label="Email">
+                                <Input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} autoFocus />
+                            </Field>
+                            {forgot.isSuccess ? (
+                                <p className="ir-rounded-md ir-bg-emerald-500/10 ir-px-3 ir-py-2 ir-text-xs ir-text-emerald-700">
+                                    {forgot.data?.message ?? 'Si el correo existe, te enviamos un enlace.'} Revisa tu bandeja (y spam).
+                                </p>
+                            ) : (
+                                <Button type="submit" disabled={forgot.isPending || email === ''}>
+                                    {forgot.isPending ? 'Enviando…' : 'Enviar enlace'}
+                                </Button>
+                            )}
+                            {forgot.isError && <p className="ir-text-xs ir-text-red-500">No se pudo enviar. Inténtalo de nuevo.</p>}
+                            <button
+                                type="button"
+                                className="ir-mt-1 ir-self-center ir-text-xs ir-text-muted-foreground ir-underline hover:ir-text-foreground"
+                                onClick={() => { setMode('login'); forgot.reset(); }}
+                            >
+                                ← Volver a iniciar sesión
+                            </button>
+                        </form>
+                    </Card>
+                )}
             </div>
         </div>
     );

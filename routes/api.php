@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
+use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
 use App\Http\Controllers\Api\V1\Platform\PlatformBillingController;
@@ -101,12 +102,17 @@ Route::match(['get', 'post'], '/connect/callback/{type}', [ConnectController::cl
 // SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');
 
+// Public "forgot password" flow (§11.1). Throttled to blunt abuse/enumeration.
+Route::post('/forgot-password', [PasswordResetController::class, 'forgot'])->middleware('throttle:6,1')->name('api.password.forgot');
+Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:6,1')->name('api.password.reset');
+
 // Authenticated, tenant-bound routes. `tenant` runs after `auth:sanctum` so the
 // AgencyScope is active for everything inside (CLAUDE.md §5). Resource endpoints
 // are added phase by phase per §8.
 Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void {
     Route::get('/user', [AuthController::class, 'me'])->name('api.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
+    Route::put('/user/profile', [AccountController::class, 'updateProfile'])->name('api.user.profile');
     Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
 
     // Agency billing (self-service subscription).

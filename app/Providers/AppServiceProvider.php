@@ -19,7 +19,9 @@ use App\Services\Webhooks\HttpWebhookDispatcher;
 use App\Services\Webhooks\WebhookDispatcher;
 use App\Support\Http\SsrfGuard;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -72,6 +74,15 @@ class AppServiceProvider extends ServiceProvider
         // Apply the super-admin's outbound-mail settings over the .env defaults (managed
         // from the panel, not the server). No-ops when nothing is saved.
         PlatformMail::apply();
+
+        // The password-reset email links to the SPA reset screen (hash route), not a
+        // server-rendered page — the SPA reads token+email from the query and posts them back.
+        ResetPassword::createUrlUsing(function (CanResetPassword $notifiable, string $token): string {
+            $appUrl = config('app.url');
+            $base = rtrim(is_string($appUrl) ? $appUrl : '', '/');
+
+            return $base.'/#/reset-password?token='.$token.'&email='.urlencode($notifiable->getEmailForPasswordReset());
+        });
     }
 
     /**
