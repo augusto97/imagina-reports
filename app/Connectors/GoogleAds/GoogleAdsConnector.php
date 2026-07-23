@@ -43,7 +43,9 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
     use ParsesValues;
 
     /** Bump when moving to a newer Google Ads API version (endpoint path segment). */
-    private const API_VERSION = 'v18';
+    // Bump when Google sunsets a version (~14-month support window). An outdated version
+    // makes EVERY endpoint return HTTP 404, including customers:listAccessibleCustomers.
+    private const API_VERSION = 'v21';
 
     private const OAUTH_URL = 'https://oauth2.googleapis.com/token';
 
@@ -93,6 +95,10 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
     public function testConnection(DataSource $source): ConnectionResult
     {
         try {
+            if ($this->toStr(Arr::get($source->config ?? [], 'customer_id')) === '') {
+                return ConnectionResult::failure('Falta la cuenta de Google Ads (Customer ID). Elígela en el desplegable tras conectar, o escríbela (solo dígitos, sin guiones).');
+            }
+
             $token = $this->accessToken($source);
             if ($token === null) {
                 return ConnectionResult::failure('No se pudo obtener el token de acceso de Google (revisa client_id, client_secret y refresh_token).');
