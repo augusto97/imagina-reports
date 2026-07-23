@@ -327,12 +327,38 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
                 continue;
             }
             $id = str_starts_with($name, 'customers/') ? substr($name, 10) : $name;
-            if ($id !== '') {
-                $options[] = ['value' => $id, 'label' => $this->formatCustomerId($id)];
+            if ($id === '') {
+                continue;
             }
+            // Look up the account's descriptive name so the picker reads "Mi Cuenta
+            // (123-456-7890)" instead of a bare id (best-effort; falls back to the id).
+            $accountName = $this->descriptiveName($source, $token, $id);
+            $formatted = $this->formatCustomerId($id);
+            $options[] = ['value' => $id, 'label' => $accountName !== '' ? "{$accountName} ({$formatted})" : $formatted];
         }
 
         return new ConnectableResources('customer_id', 'Cuenta de Google Ads', $options);
+    }
+
+    /** The account's descriptive name via a tiny GAQL query; '' on any failure. */
+    private function descriptiveName(DataSource $source, string $token, string $customerId): string
+    {
+        try {
+            $response = $this->apiClient($source, $token)->post(
+                self::API_BASE.'/'.self::API_VERSION.'/customers/'.$customerId.'/googleAds:search',
+                ['query' => 'SELECT customer.descriptive_name FROM customer LIMIT 1'],
+            );
+
+            if ($response->failed()) {
+                return '';
+            }
+
+            $row = $this->listOf($response->json('results'))[0] ?? [];
+
+            return $this->toStr(Arr::get($row, 'customer.descriptiveName'));
+        } catch (Throwable) {
+            return '';
+        }
     }
 
     /** 1234567890 → 123-456-7890 for display (Google's canonical format). */

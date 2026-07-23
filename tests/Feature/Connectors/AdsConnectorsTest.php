@@ -35,6 +35,31 @@ class AdsConnectorsTest extends TestCase
         return Period::make('2026-06-01', '2026-06-30');
     }
 
+    public function test_google_ads_connectable_resources_include_the_account_name(): void
+    {
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), 'oauth2.googleapis.com')) {
+                return Http::response(['access_token' => 'ya29-fake']);
+            }
+            if (str_contains($request->url(), ':listAccessibleCustomers')) {
+                return Http::response(['resourceNames' => ['customers/1234567890']]);
+            }
+
+            // The per-account descriptive_name lookup.
+            return Http::response(['results' => [['customer' => ['descriptiveName' => 'Tienda Acme']]]]);
+        });
+
+        $resources = (new GoogleAdsConnector)->connectableResources(
+            $this->source(DataSourceType::GoogleAds, ['client_id' => 'cid'], ['developer_token' => 'd', 'client_secret' => 's', 'refresh_token' => 'r']),
+        );
+
+        $this->assertNotNull($resources);
+        $this->assertSame('customer_id', $resources->field);
+        $this->assertSame('1234567890', $resources->options[0]['value']);
+        // Label shows the human name + the formatted id.
+        $this->assertSame('Tienda Acme (123-456-7890)', $resources->options[0]['label']);
+    }
+
     public function test_google_ads_aggregates_totals_series_and_top_campaigns(): void
     {
         Http::fake(function (Request $request) {
