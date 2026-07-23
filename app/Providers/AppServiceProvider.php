@@ -77,11 +77,12 @@ class AppServiceProvider extends ServiceProvider
 
         // The password-reset email links to the SPA reset screen (hash route), not a
         // server-rendered page — the SPA reads token+email from the query and posts them back.
-        ResetPassword::createUrlUsing(function (CanResetPassword $notifiable, string $token): string {
+        ResetPassword::createUrlUsing(function (mixed $notifiable, string $token): string {
             $appUrl = config('app.url');
             $base = rtrim(is_string($appUrl) ? $appUrl : '', '/');
+            $email = $notifiable instanceof CanResetPassword ? $notifiable->getEmailForPasswordReset() : '';
 
-            return $base.'/#/reset-password?token='.$token.'&email='.urlencode($notifiable->getEmailForPasswordReset());
+            return $base.'/#/reset-password?token='.$token.'&email='.urlencode($email);
         });
     }
 
