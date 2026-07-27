@@ -31,12 +31,13 @@ class AccountAndPasswordResetTest extends TestCase
             'name' => 'Nuevo Nombre',
             'email' => 'nuevo@imaginawp.com',
             'current_password' => 'secret123',
-        ])
-            ->assertOk()
-            ->assertJsonPath('user.email', 'nuevo@imaginawp.com');
+        ])->assertOk();
 
+        // The name applies immediately; the email waits for confirmation from the new
+        // mailbox (see AccountSecurityTest for the full verify flow).
         $this->assertSame('Nuevo Nombre', $user->fresh()?->name);
-        $this->assertSame('nuevo@imaginawp.com', $user->fresh()?->email);
+        $this->assertSame('old@x.com', $user->fresh()?->email);
+        $this->assertSame('nuevo@imaginawp.com', $user->fresh()?->pending_email);
     }
 
     public function test_changing_the_email_requires_the_current_password(): void

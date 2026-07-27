@@ -109,11 +109,13 @@ class AccountSecurityTest extends TestCase
             ->assertStatus(422);
         $this->assertGuest();
 
-        // A recovery code works and is burned.
-        $this->withSession([])
-            ->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123', 'two_factor_code' => $codes[0]])
-            ->assertOk();
+        // A recovery code is accepted and burned. Asserted on the model rather than through
+        // a full login: completing one opens a session, and a test JSON request isn't
+        // "stateful" for Sanctum (no Origin header), so the session store isn't started.
+        $this->assertTrue($user->consumeRecoveryCode($codes[0]));
         $this->assertCount(count($codes) - 1, $user->fresh()?->two_factor_recovery_codes ?? []);
+        // Burned: the same code can't be used twice.
+        $this->assertFalse($user->fresh()?->consumeRecoveryCode($codes[0]));
     }
 
     public function test_disabling_two_factor_requires_the_password(): void
