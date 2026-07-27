@@ -139,6 +139,7 @@ function ProfileCard(): ReactElement {
     const update = useUpdateProfile();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [currentPassword, setCurrentPassword] = useState('');
     const [seeded, setSeeded] = useState(false);
     const [error, setError] = useState('');
 
@@ -150,11 +151,20 @@ function ProfileCard(): ReactElement {
         }
     }, [user, seeded]);
 
+    // Changing the login email requires the current password (account-recovery factor).
+    const emailChanged = user !== undefined && email.trim() !== user.email;
+
     const submit = (): void => {
         setError('');
-        update.mutate({ name: name.trim(), email: email.trim() }, {
-            onError: () => setError('No se pudo guardar. ¿El email ya está en uso o es inválido?'),
-        });
+        update.mutate(
+            { name: name.trim(), email: email.trim(), ...(emailChanged ? { current_password: currentPassword } : {}) },
+            {
+                onSuccess: () => setCurrentPassword(''),
+                onError: () => setError(emailChanged
+                    ? 'No se pudo guardar. Revisa que la contraseña actual sea correcta y que el email no esté en uso.'
+                    : 'No se pudo guardar. ¿El email ya está en uso o es inválido?'),
+            },
+        );
     };
 
     return (
@@ -166,8 +176,13 @@ function ProfileCard(): ReactElement {
                 <Field label="Email (de inicio de sesión)">
                     <Input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
                 </Field>
+                {emailChanged && (
+                    <Field label="Contraseña actual" hint="Necesaria para cambiar el email de inicio de sesión.">
+                        <Input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+                    </Field>
+                )}
                 <div className="ir-flex ir-items-center ir-gap-3">
-                    <Button onClick={submit} disabled={update.isPending || name.trim() === '' || email.trim() === ''}>
+                    <Button onClick={submit} disabled={update.isPending || name.trim() === '' || email.trim() === '' || (emailChanged && currentPassword === '')}>
                         {update.isPending ? 'Guardando…' : 'Guardar perfil'}
                     </Button>
                     {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Perfil actualizado.</span>}

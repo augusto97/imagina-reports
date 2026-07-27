@@ -58,6 +58,7 @@ final class PlatformMailController extends Controller
         }
 
         $settings->save();
+        PlatformMail::forget();
 
         return response()->json($this->present($settings));
     }

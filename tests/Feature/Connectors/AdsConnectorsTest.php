@@ -45,8 +45,10 @@ class AdsConnectorsTest extends TestCase
                 return Http::response(['resourceNames' => ['customers/1234567890']]);
             }
 
-            // The per-account descriptive_name lookup.
-            return Http::response(['results' => [['customer' => ['descriptiveName' => 'Tienda Acme']]]]);
+            // ONE customer_client query resolves the names for every accessible account.
+            return Http::response(['results' => [
+                ['customerClient' => ['id' => '1234567890', 'descriptiveName' => 'Tienda Acme']],
+            ]]);
         });
 
         $resources = (new GoogleAdsConnector)->connectableResources(

@@ -8,6 +8,9 @@ use App\Enums\UserRole;
 use App\Models\Agency;
 use App\Models\Client;
 use App\Models\DataSource;
+use App\Models\Report;
+use App\Models\ReportDefinition;
+use App\Models\Schedule;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -57,6 +60,51 @@ class RoleAuthorizationTest extends TestCase
 
         $this->postJson('/api/v1/billing/subscribe', ['provider' => 'mercadopago', 'plan_id' => 1])->assertForbidden();
         $this->deleteJson("/api/v1/sites/{$site->id}")->assertForbidden();
+    }
+
+    public function test_a_collaborator_cannot_delete_a_teammate(): void
+    {
+        $this->actAs(UserRole::Collaborator);
+        $victim = User::factory()->create(['agency_id' => $this->agency->id, 'role' => UserRole::Admin]);
+
+        $this->deleteJson("/api/v1/team/{$victim->id}")->assertForbidden();
+        $this->assertNotNull($victim->fresh(), 'The admin must still exist.');
+    }
+
+    public function test_a_collaborator_cannot_change_sharing_or_rotate_a_dashboard_token(): void
+    {
+        $this->actAs(UserRole::Collaborator);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id]);
+
+        // Making a private report public would expose a client's data.
+        $this->putJson("/api/v1/report-definitions/{$definition->id}/sharing", ['visibility' => 'public'])
+            ->assertForbidden();
+        $this->postJson("/api/v1/report-definitions/{$definition->id}/sharing/dashboard-token")
+            ->assertForbidden();
+    }
+
+    public function test_a_collaborator_cannot_manage_schedules(): void
+    {
+        $this->actAs(UserRole::Collaborator);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id]);
+        $schedule = Schedule::factory()->create(['agency_id' => $this->agency->id, 'report_definition_id' => $definition->id]);
+
+        $this->postJson('/api/v1/schedules', ['report_definition_id' => $definition->id, 'cadence' => 'monthly'])
+            ->assertForbidden();
+        $this->deleteJson("/api/v1/schedules/{$schedule->id}")->assertForbidden();
+    }
+
+    public function test_a_collaborator_cannot_delete_a_report(): void
+    {
+        $this->actAs(UserRole::Collaborator);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id]);
+        $report = Report::factory()->create(['agency_id' => $this->agency->id, 'report_definition_id' => $definition->id]);
+
+        $this->deleteJson("/api/v1/reports/{$report->id}")->assertForbidden();
+        $this->assertNotNull($report->fresh(), 'The report must still exist.');
     }
 
     public function test_an_owner_can_do_all_of_it(): void

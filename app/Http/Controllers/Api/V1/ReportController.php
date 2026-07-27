@@ -17,6 +17,7 @@ use App\Services\Platform\Entitlements;
 use App\Services\ReportPdfService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -24,10 +25,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class ReportController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    /** Most-recent-first reports. Bounded (see LIST_LIMIT) — the table grows every month. */
+    private const LIST_LIMIT = 200;
+
+    private const LIST_LIMIT_MAX = 1000;
+
+    public function index(Request $request): AnonymousResourceCollection
     {
         // Select only the light columns — never resolved_blocks (50-500 KB/row). The list's
         // three snapshot-derived fields are read from denormalized columns instead (PERF-3).
+        //
+        // Capped as well: one report per definition per month accumulates forever, so an
+        // unbounded list would grow without limit. `?limit=` raises it for an archive view;
+        // the response stays a plain array, so existing clients are unaffected.
+        $limit = (int) $request->query('limit', (string) self::LIST_LIMIT);
+        $limit = max(1, min($limit, self::LIST_LIMIT_MAX));
+
         return ReportSummaryResource::collection(
             Report::query()
                 ->select([
@@ -36,6 +49,7 @@ final class ReportController extends Controller
                     'has_advisory', 'advisory', 'public_token', 'pdf_path', 'created_at',
                 ])
                 ->latest()
+                ->limit($limit)
                 ->get()
         );
     }
@@ -113,8 +127,12 @@ final class ReportController extends Controller
         return Storage::download($path, "reporte-{$report->id}.pdf");
     }
 
-    public function destroy(Report $report): JsonResponse
+    public function destroy(Request $request, Report $report): JsonResponse
     {
+        // Destructive and irreversible (drops the stored PDF + the frozen blocks) — owner/admin
+        // only, per the privileged-role policy for destructive deletes.
+        $this->authorizePrivileged($request);
+
         if ($report->pdf_path !== null) {
             Storage::delete($report->pdf_path);
         }

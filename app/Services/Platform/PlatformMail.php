@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Platform;
 
 use App\Models\PlatformSetting;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -32,16 +33,25 @@ final class PlatformMail
 
     public const FROM_NAME = 'mail_from_name';
 
+    /** Cache key for the resolved mail settings (see apply()/forget()). */
+    private const CACHE_KEY = 'platform:mail-settings';
+
     public static function apply(): void
     {
         try {
-            $settings = PlatformSetting::query()->first();
+            // apply() runs on EVERY boot — each HTTP request and each queued job — so the
+            // row is cached; the controller calls forget() when it saves.
+            $settings = Cache::remember(
+                self::CACHE_KEY,
+                now()->addHours(6),
+                static fn (): ?PlatformSetting => PlatformSetting::query()->first(),
+            );
         } catch (Throwable) {
-            // No DB / table yet (fresh install, migrations) — keep the .env defaults.
+            // No DB / cache store yet (fresh install, migrations) — keep the .env defaults.
             return;
         }
 
-        if ($settings === null) {
+        if (! $settings instanceof PlatformSetting) {
             return;
         }
 
@@ -74,6 +84,12 @@ final class PlatformMail
             ];
             config(array_filter($overrides, static fn (mixed $value): bool => $value !== ''));
         }
+    }
+
+    /** Drop the cached settings so the next boot re-reads them (called after saving). */
+    public static function forget(): void
+    {
+        Cache::forget(self::CACHE_KEY);
     }
 
     private static function str(mixed $value): string

@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateReportSharingRequest;
 use App\Http\Resources\ReportDefinitionResource;
 use App\Models\ReportDefinition;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -60,8 +61,12 @@ final class ReportSharingController extends Controller
      * token so every previously-shared dashboard/embed URL stops working at once. Useful
      * when a link leaks. Leaves dashboard_enabled untouched.
      */
-    public function rotateDashboardToken(ReportDefinition $reportDefinition): ReportDefinitionResource
+    public function rotateDashboardToken(Request $request, ReportDefinition $reportDefinition): ReportDefinitionResource
     {
+        // Sharing/privacy is privileged — update() gets this from its FormRequest, but this
+        // action has none, so it must gate here (rotating revokes a client's live link).
+        $this->authorizePrivileged($request);
+
         $reportDefinition->forceFill(['dashboard_token' => Str::random(48)])->save();
 
         return new ReportDefinitionResource($reportDefinition);

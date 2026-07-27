@@ -10,6 +10,7 @@ use App\Events\ReportGenerated;
 use App\Listeners\DetectReportAnomalies;
 use App\Listeners\DetectUpsellOpportunities;
 use App\Listeners\ReportWebhookSubscriber;
+use App\Models\User;
 use App\Services\Pdf\BrowsershotPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
 use App\Services\Platform\PlatformMail;
@@ -101,6 +102,28 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(120)->by($request->ip() ?? 'unknown');
         });
+
+        // AI endpoints spend real money on the agency's Anthropic key, so they are capped per
+        // AGENCY (not per user): a runaway retry loop or an over-eager teammate can't burn the
+        // budget. Generous enough for normal editing (a draft + a few regenerations).
+        RateLimiter::for('ai', fn (Request $request): Limit => Limit::perMinute(20)->by($this->agencyKey($request)));
+
+        // Sync/backfill fan out to every connected source and hammer third-party APIs (and
+        // their rate limits), so they are capped per agency too.
+        RateLimiter::for('heavy', fn (Request $request): Limit => Limit::perMinute(30)->by($this->agencyKey($request)));
+    }
+
+    /** Rate-limit bucket: the caller's agency (falls back to user, then IP). */
+    private function agencyKey(Request $request): string
+    {
+        $user = $request->user();
+        $agencyId = $user instanceof User ? $user->agency_id : null;
+
+        if ($agencyId !== null) {
+            return 'agency:'.$agencyId;
+        }
+
+        return $user !== null ? 'user:'.$user->getAuthIdentifier() : 'ip:'.($request->ip() ?? 'unknown');
     }
 
     /**

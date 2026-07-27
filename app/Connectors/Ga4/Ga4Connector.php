@@ -40,6 +40,13 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
 
     private const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 
+    /**
+     * Access tokens already minted this request, keyed by data-source id (see token()).
+     *
+     * @var array<int|string, string>
+     */
+    private array $tokenCache = [];
+
     public function __construct(private readonly GoogleTokenProvider $tokenProvider) {}
 
     public function key(): string
@@ -279,16 +286,31 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
      * A GA4 access token for this source. Uses the OAuth refresh token from the one-click
      * "Connect with Google" flow when present, otherwise the pasted service-account JSON —
      * so both connection methods work through the same call sites.
+     *
+     * Memoized per source id (see $tokenCache): fetch() resolves a token at several call sites
+     * (totals, series, tables), and minting one costs an HTTP round-trip to Google — without
+     * this, a single sync would refresh the token three or four times.
      */
     private function token(DataSource $source): string
     {
-        $refresh = $this->oauthRefreshToken($source);
+        $cacheKey = $source->getKey() ?? spl_object_id($source);
 
-        if ($refresh !== '') {
-            return (new GoogleOAuthClient)->accessTokenFromRefresh($refresh) ?? '';
+        if (isset($this->tokenCache[$cacheKey])) {
+            return $this->tokenCache[$cacheKey];
         }
 
-        return $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+        $refresh = $this->oauthRefreshToken($source);
+
+        $token = $refresh !== ''
+            ? ((new GoogleOAuthClient)->accessTokenFromRefresh($refresh) ?? '')
+            : $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+
+        // Never cache a failed mint — the next call should retry rather than reuse ''.
+        if ($token !== '') {
+            $this->tokenCache[$cacheKey] = $token;
+        }
+
+        return $token;
     }
 
     private function oauthRefreshToken(DataSource $source): string

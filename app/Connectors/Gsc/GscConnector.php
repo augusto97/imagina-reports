@@ -60,6 +60,13 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
         'gsc.by_device' => 'device',
     ];
 
+    /**
+     * Access tokens already minted this request, keyed by data-source id (see token()).
+     *
+     * @var array<int|string, string>
+     */
+    private array $tokenCache = [];
+
     public function __construct(private readonly GoogleTokenProvider $tokenProvider) {}
 
     public function key(): string
@@ -424,15 +431,31 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
         return Http::withToken($token)->acceptJson()->post($endpoint, $body);
     }
 
+    /**
+     * Memoized per source id (see $tokenCache): fetch() resolves a token at several call
+     * sites and minting one costs an HTTP round-trip to Google, so without this a single
+     * sync would refresh the token repeatedly.
+     */
     private function token(DataSource $source): string
     {
-        $refresh = $this->oauthRefreshToken($source);
+        $cacheKey = $source->getKey() ?? spl_object_id($source);
 
-        if ($refresh !== '') {
-            return (new GoogleOAuthClient)->accessTokenFromRefresh($refresh) ?? '';
+        if (isset($this->tokenCache[$cacheKey])) {
+            return $this->tokenCache[$cacheKey];
         }
 
-        return $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+        $refresh = $this->oauthRefreshToken($source);
+
+        $token = $refresh !== ''
+            ? ((new GoogleOAuthClient)->accessTokenFromRefresh($refresh) ?? '')
+            : $this->tokenProvider->accessToken($this->serviceAccount($source), self::SCOPE);
+
+        // Never cache a failed mint — retry on the next call instead of reusing ''.
+        if ($token !== '') {
+            $this->tokenCache[$cacheKey] = $token;
+        }
+
+        return $token;
     }
 
     private function oauthRefreshToken(DataSource $source): string

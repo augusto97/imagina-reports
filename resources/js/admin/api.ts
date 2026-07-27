@@ -84,7 +84,7 @@ export function useUpdateProfile() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (payload: { name: string; email: string }) => api.put('/user/profile', payload).then((r) => r.data),
+        mutationFn: (payload: { name: string; email: string; current_password?: string }) => api.put('/user/profile', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
     });
 }

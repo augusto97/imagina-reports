@@ -19,15 +19,29 @@ use Illuminate\Validation\ValidationException;
  */
 final class AccountController extends Controller
 {
-    /** Update the signed-in user's own name and email (email unique across users). */
+    /**
+     * Update the signed-in user's own name and email (email unique across users).
+     *
+     * Changing the email requires the current password: the login address is an account-
+     * recovery factor, so a hijacked session must not be able to swap it and then take the
+     * account over via "forgot password". Renaming alone needs no password.
+     */
     public function updateProfile(UpdateProfileRequest $request): JsonResponse
     {
         $user = $request->user();
         abort_unless($user instanceof User, 403);
 
+        $email = $request->string('email')->toString();
+
+        if ($email !== $user->email && ! Hash::check($request->string('current_password')->toString(), $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'Introduce tu contraseña actual para cambiar el email.',
+            ]);
+        }
+
         $user->forceFill([
             'name' => $request->string('name')->toString(),
-            'email' => $request->string('email')->toString(),
+            'email' => $email,
         ])->save();
 
         return response()->json([

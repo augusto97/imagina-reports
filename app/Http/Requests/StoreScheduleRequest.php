@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\ScheduleCadence;
+use App\Http\Requests\Concerns\RequiresPrivilegedRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 final class StoreScheduleRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
+    // Scheduling automated deliveries is administrative (it drives what gets emailed to
+    // whom, unattended) — owner/admin only, like the sharing settings.
+    use RequiresPrivilegedRole;
 
     /**
      * @return array<string, mixed>

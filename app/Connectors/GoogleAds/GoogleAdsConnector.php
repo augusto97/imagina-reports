@@ -321,43 +321,65 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
         }
 
         $names = $response->json('resourceNames');
-        $options = [];
+        $ids = [];
         foreach (is_array($names) ? $names : [] as $name) {
             if (! is_string($name)) {
                 continue;
             }
             $id = str_starts_with($name, 'customers/') ? substr($name, 10) : $name;
-            if ($id === '') {
-                continue;
+            if ($id !== '') {
+                $ids[] = $id;
             }
-            // Look up the account's descriptive name so the picker reads "Mi Cuenta
-            // (123-456-7890)" instead of a bare id (best-effort; falls back to the id).
-            $accountName = $this->descriptiveName($source, $token, $id);
+        }
+
+        // Resolve the human names in ONE query (customer_client lists the whole hierarchy
+        // reachable from the first account) instead of one call per account.
+        $labels = $this->accountNames($source, $token, $ids[0] ?? '');
+
+        $options = [];
+        foreach ($ids as $id) {
             $formatted = $this->formatCustomerId($id);
+            $accountName = $labels[$id] ?? '';
             $options[] = ['value' => $id, 'label' => $accountName !== '' ? "{$accountName} ({$formatted})" : $formatted];
         }
 
         return new ConnectableResources('customer_id', 'Cuenta de Google Ads', $options);
     }
 
-    /** The account's descriptive name via a tiny GAQL query; '' on any failure. */
-    private function descriptiveName(DataSource $source, string $token, string $customerId): string
+    /**
+     * Descriptive names for every account reachable from $rootCustomerId, in a single GAQL
+     * query. Best-effort: an empty map just means the picker shows plain ids.
+     *
+     * @return array<string, string> customer id => descriptive name
+     */
+    private function accountNames(DataSource $source, string $token, string $rootCustomerId): array
     {
+        if ($rootCustomerId === '') {
+            return [];
+        }
+
         try {
             $response = $this->apiClient($source, $token)->post(
-                self::API_BASE.'/'.self::API_VERSION.'/customers/'.$customerId.'/googleAds:search',
-                ['query' => 'SELECT customer.descriptive_name FROM customer LIMIT 1'],
+                self::API_BASE.'/'.self::API_VERSION.'/customers/'.$rootCustomerId.'/googleAds:search',
+                ['query' => 'SELECT customer_client.id, customer_client.descriptive_name FROM customer_client'],
             );
 
             if ($response->failed()) {
-                return '';
+                return [];
             }
 
-            $row = $this->listOf($response->json('results'))[0] ?? [];
+            $labels = [];
+            foreach ($this->listOf($response->json('results')) as $row) {
+                $id = $this->toStr(Arr::get($row, 'customerClient.id'));
+                $name = $this->toStr(Arr::get($row, 'customerClient.descriptiveName'));
+                if ($id !== '' && $name !== '') {
+                    $labels[$id] = $name;
+                }
+            }
 
-            return $this->toStr(Arr::get($row, 'customer.descriptiveName'));
+            return $labels;
         } catch (Throwable) {
-            return '';
+            return [];
         }
     }
 

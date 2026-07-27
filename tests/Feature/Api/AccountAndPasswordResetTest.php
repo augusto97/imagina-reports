@@ -20,10 +20,18 @@ class AccountAndPasswordResetTest extends TestCase
 
     public function test_a_user_can_update_their_name_and_email(): void
     {
-        $user = User::factory()->create(['agency_id' => Agency::factory()->create()->id, 'email' => 'old@x.com']);
+        $user = User::factory()->create([
+            'agency_id' => Agency::factory()->create()->id,
+            'email' => 'old@x.com',
+            'password' => Hash::make('secret123'),
+        ]);
         Sanctum::actingAs($user);
 
-        $this->putJson('/api/v1/user/profile', ['name' => 'Nuevo Nombre', 'email' => 'nuevo@imaginawp.com'])
+        $this->putJson('/api/v1/user/profile', [
+            'name' => 'Nuevo Nombre',
+            'email' => 'nuevo@imaginawp.com',
+            'current_password' => 'secret123',
+        ])
             ->assertOk()
             ->assertJsonPath('user.email', 'nuevo@imaginawp.com');
 
@@ -31,14 +39,44 @@ class AccountAndPasswordResetTest extends TestCase
         $this->assertSame('nuevo@imaginawp.com', $user->fresh()?->email);
     }
 
+    public function test_changing_the_email_requires_the_current_password(): void
+    {
+        $user = User::factory()->create([
+            'agency_id' => Agency::factory()->create()->id,
+            'email' => 'old@x.com',
+            'password' => Hash::make('secret123'),
+        ]);
+        Sanctum::actingAs($user);
+
+        // A hijacked session must not be able to swap the recovery address.
+        $this->putJson('/api/v1/user/profile', ['name' => 'X', 'email' => 'attacker@evil.test'])
+            ->assertStatus(422);
+        $this->putJson('/api/v1/user/profile', ['name' => 'X', 'email' => 'attacker@evil.test', 'current_password' => 'wrong'])
+            ->assertStatus(422);
+
+        $this->assertSame('old@x.com', $user->fresh()?->email);
+    }
+
+    public function test_renaming_without_changing_the_email_needs_no_password(): void
+    {
+        $user = User::factory()->create(['agency_id' => Agency::factory()->create()->id, 'email' => 'same@x.com']);
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/v1/user/profile', ['name' => 'Solo Nombre', 'email' => 'same@x.com'])->assertOk();
+
+        $this->assertSame('Solo Nombre', $user->fresh()?->name);
+    }
+
     public function test_email_must_be_unique_across_users(): void
     {
         $agency = Agency::factory()->create();
         User::factory()->create(['agency_id' => $agency->id, 'email' => 'taken@x.com']);
-        $user = User::factory()->create(['agency_id' => $agency->id, 'email' => 'me@x.com']);
+        $user = User::factory()->create(['agency_id' => $agency->id, 'email' => 'me@x.com', 'password' => Hash::make('secret123')]);
         Sanctum::actingAs($user);
 
-        $this->putJson('/api/v1/user/profile', ['name' => 'X', 'email' => 'taken@x.com'])->assertStatus(422);
+        // Correct password, but the address belongs to someone else → rejected on uniqueness.
+        $this->putJson('/api/v1/user/profile', ['name' => 'X', 'email' => 'taken@x.com', 'current_password' => 'secret123'])
+            ->assertStatus(422);
     }
 
     public function test_re_saving_the_same_email_is_allowed(): void

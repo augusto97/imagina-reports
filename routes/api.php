@@ -162,13 +162,13 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::post('sites/{site}/connect/{type}', [ConnectController::class, 'start'])->name('api.sites.connect.start');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
-    Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->name('api.sites.ai-template');
+    Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->middleware('throttle:ai')->name('api.sites.ai-template');
     Route::post('sites/{site}/ai-section', [AiTemplateController::class, 'section'])->name('api.sites.ai-section');
     Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');
     Route::post('sites/{site}/calc-preview', [CalculatedMetricController::class, 'preview'])->name('api.sites.calc-preview');
     Route::put('sites/{site}/calculated-metrics', [CalculatedMetricController::class, 'updateSite'])->name('api.sites.calculated-metrics.update');
-    Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->name('api.sites.sync');
-    Route::post('sites/{site}/backfill', [PreviewController::class, 'backfill'])->name('api.sites.backfill');
+    Route::post('sites/{site}/sync', [PreviewController::class, 'sync'])->middleware('throttle:heavy')->name('api.sites.sync');
+    Route::post('sites/{site}/backfill', [PreviewController::class, 'backfill'])->middleware('throttle:heavy')->name('api.sites.backfill');
     Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
     Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
@@ -239,9 +239,9 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::get('reports/{report}/pdf', [ReportController::class, 'pdf'])->name('api.reports.pdf');
     Route::post('reports/{report}/approve', [ReportController::class, 'approve'])->name('api.reports.approve');
     Route::post('reports/{report}/send', [ReportController::class, 'send'])->name('api.reports.send');
-    Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->name('api.reports.insights');
+    Route::post('reports/{report}/insights', [ReportInsightsController::class, 'store'])->middleware('throttle:ai')->name('api.reports.insights');
     Route::put('reports/{report}/narrative', [ReportNarrativeController::class, 'update'])->name('api.reports.narrative.update');
-    Route::post('reports/{report}/narrative/regenerate', [ReportNarrativeController::class, 'regenerate'])->name('api.reports.narrative.regenerate');
+    Route::post('reports/{report}/narrative/regenerate', [ReportNarrativeController::class, 'regenerate'])->middleware('throttle:ai')->name('api.reports.narrative.regenerate');
     Route::put('reports/{report}/advisory', [ReportNarrativeController::class, 'updateAdvisory'])->name('api.reports.advisory.update');
     Route::post('reports/{report}/advisory/regenerate', [ReportNarrativeController::class, 'regenerateAdvisory'])->name('api.reports.advisory.regenerate');
     Route::get('reports/{report}/comments', [ReportCommentController::class, 'index'])->name('api.reports.comments.index');

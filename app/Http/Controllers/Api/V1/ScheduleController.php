@@ -12,6 +12,7 @@ use App\Models\ReportDefinition;
 use App\Models\Schedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ScheduleController extends Controller
@@ -46,8 +47,11 @@ final class ScheduleController extends Controller
         return ScheduleResource::make($schedule)->response()->setStatusCode(201);
     }
 
-    public function destroy(Schedule $schedule): JsonResponse
+    public function destroy(Request $request, Schedule $schedule): JsonResponse
     {
+        // Administrative + destructive: same gate as creating a schedule (no FormRequest here).
+        $this->authorizePrivileged($request);
+
         // Tenant-scoped by the global AgencyScope on the model binding.
         $schedule->delete();
 

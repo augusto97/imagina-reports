@@ -169,9 +169,36 @@ final class DatabaseConnector implements DataSourceConnector
         ];
     }
 
+    /**
+     * Whether the configured SQL is a single read-only statement. Starting with SELECT/WITH
+     * is not enough on its own: a stacked statement ("select 1; delete from x") also starts
+     * that way. PDO prepared statements already reject multi-statement on MySQL, but this is
+     * the connector's own guard and must not depend on the driver — so we additionally reject
+     * statement separators (outside string literals) and any write/DDL keyword.
+     */
     private function isReadOnly(string $sql): bool
     {
-        return preg_match('/^\s*(select|with)\b/i', $sql) === 1;
+        if (preg_match('/^\s*(select|with)\b/i', $sql) !== 1) {
+            return false;
+        }
+
+        // Strip string literals and comments so a ';' or keyword inside them isn't a false
+        // positive (e.g. WHERE name = 'a; drop').
+        $stripped = preg_replace(
+            ['/\'(?:\'\'|\\\\.|[^\'\\\\])*\'/s', '/"(?:""|\\\\.|[^"\\\\])*"/s', '/`[^`]*`/s', '/--[^\n]*/', '/#[^\n]*/', '/\/\*.*?\*\//s'],
+            ' ',
+            $sql,
+        ) ?? '';
+
+        // A trailing ';' is fine; a separator with anything after it means a second statement.
+        if (preg_match('/;\s*\S/', $stripped) === 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/\b(insert|update|delete|drop|truncate|alter|create|replace|grant|revoke|call|execute|merge|rename|load_file|into\s+outfile|into\s+dumpfile)\b/i',
+            $stripped,
+        ) !== 1;
     }
 
     /**

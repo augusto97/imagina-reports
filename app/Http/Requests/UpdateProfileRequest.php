@@ -28,6 +28,9 @@ final class UpdateProfileRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'string', 'email', 'max:190', Rule::unique('ir_users', 'email')->ignore($userId)],
+            // Only required when the email actually changes — verified in the controller
+            // against the authenticated user (guard-independent).
+            'current_password' => ['sometimes', 'nullable', 'string'],
         ];
     }
 }

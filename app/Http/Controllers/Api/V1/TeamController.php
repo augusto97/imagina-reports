@@ -79,6 +79,10 @@ final class TeamController extends Controller
 
     public function destroy(Request $request, User $user): JsonResponse
     {
+        // Deleting a teammate is privileged (store/update gate this via their FormRequests;
+        // destroy had no FormRequest, so it must check here — a collaborator must not be
+        // able to remove admins/owners).
+        $this->authorizePrivileged($request);
         $this->authorizeSameAgency($user);
 
         $actingId = $request->user()?->getKey();
