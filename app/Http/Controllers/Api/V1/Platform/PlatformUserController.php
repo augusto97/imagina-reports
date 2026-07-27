@@ -6,13 +6,13 @@ namespace App\Http\Controllers\Api\V1\Platform;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Platform\StorePlatformUserRequest;
+use App\Http\Requests\Platform\UpdatePlatformUserRequest;
 use App\Models\Agency;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -32,23 +32,16 @@ final class PlatformUserController extends Controller
         return response()->json($users->map(fn (User $user): array => $this->present($user))->all());
     }
 
-    public function store(Request $request, Agency $agency): JsonResponse
+    public function store(StorePlatformUserRequest $request, Agency $agency): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:190', Rule::unique('ir_users', 'email')],
-            'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', Rule::in(array_column(UserRole::cases(), 'value'))],
-        ]);
-
         // forceFill: agency_id is a tenant boundary excluded from $fillable, set from the route.
         $user = new User;
         $user->forceFill([
             'agency_id' => $agency->id,
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'role' => UserRole::from($data['role']),
+            'name' => $request->string('name')->toString(),
+            'email' => $request->string('email')->toString(),
+            'password' => Hash::make($request->string('password')->toString()),
+            'role' => UserRole::from($request->string('role')->toString()),
         ])->save();
 
         AuditLogger::record(AuditLogger::TEAM_CREATED, $user, "La plataforma añadió a {$user->name} ({$user->email}).", [], null, $agency->id);
@@ -57,29 +50,28 @@ final class PlatformUserController extends Controller
     }
 
     /** Change a user's name/role, or set a new password (support's "reset it for me" path). */
-    public function update(Request $request, Agency $agency, User $user): JsonResponse
+    public function update(UpdatePlatformUserRequest $request, Agency $agency, User $user): JsonResponse
     {
         $this->assertBelongsTo($user, $agency);
 
-        $data = $request->validate([
-            'name' => ['sometimes', 'string', 'max:120'],
-            'role' => ['sometimes', Rule::in(array_column(UserRole::cases(), 'value'))],
-            'password' => ['sometimes', 'nullable', 'string', 'min:8'],
-        ]);
+        $role = $request->has('role') ? UserRole::from($request->string('role')->toString()) : null;
 
         // Never leave an agency without an owner — it would lock everyone out of management.
-        if (isset($data['role']) && $user->role === UserRole::Owner && $data['role'] !== UserRole::Owner->value) {
+        if ($role !== null && $user->role === UserRole::Owner && $role !== UserRole::Owner) {
             $this->assertNotLastOwner($agency, $user, 'No puedes quitar el último propietario de la agencia.');
         }
 
-        if (isset($data['name']) && is_string($data['name'])) {
-            $user->name = $data['name'];
+        if ($request->has('name')) {
+            $user->name = $request->string('name')->toString();
         }
-        if (isset($data['role']) && is_string($data['role'])) {
-            $user->role = UserRole::from($data['role']);
+
+        if ($role !== null) {
+            $user->role = $role;
         }
-        if (isset($data['password']) && is_string($data['password']) && $data['password'] !== '') {
-            $user->password = Hash::make($data['password']);
+
+        $password = $request->string('password')->toString();
+        if ($password !== '') {
+            $user->password = Hash::make($password);
             AuditLogger::record(AuditLogger::ACCOUNT_PASSWORD_CHANGED, $user, "La plataforma restableció la contraseña de {$user->email}.", [], null, $agency->id);
         }
 
