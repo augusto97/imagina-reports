@@ -31,9 +31,12 @@ import type {
     Paginated,
     Plan,
     PlatformAgency,
+    PlatformAgencyDetail,
+    PlatformAgencyUser,
     PlatformBillingSettings,
     PlatformIntegrationsSettings,
     PlatformMailSettings,
+    PlatformOverview,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportDelivery,
@@ -504,8 +507,21 @@ export function useDeleteTeamMember() {
 
 /* --------------------------------- platform -------------------------------- */
 
+export function usePlatformOverview() {
+    return useQuery({ queryKey: ['platform-overview'], queryFn: () => get<PlatformOverview>('/platform/overview') });
+}
+
 export function usePlatformAgencies() {
     return useQuery({ queryKey: ['platform-agencies'], queryFn: () => get<PlatformAgency[]>('/platform/agencies') });
+}
+
+/** Detail of one agency (usage, people, subscription). `null` id = panel closed. */
+export function usePlatformAgency(id: number | null) {
+    return useQuery({
+        queryKey: ['platform-agency', id],
+        queryFn: () => get<PlatformAgencyDetail>(`/platform/agencies/${id ?? 0}`),
+        enabled: id !== null,
+    });
 }
 
 export function useCreatePlatformAgency() {
@@ -524,7 +540,55 @@ export function useUpdatePlatformAgency() {
     return useMutation({
         mutationFn: ({ id, ...payload }: { id: number; name?: string; plan_id?: number | null; status?: string; plan_overrides?: Record<string, unknown> | null }) =>
             api.put<PlatformAgency>(`/platform/agencies/${id}`, payload).then((r) => r.data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-agencies'] }),
+        onSuccess: (_data, variables) => {
+            void queryClient.invalidateQueries({ queryKey: ['platform-agencies'] });
+            void queryClient.invalidateQueries({ queryKey: ['platform-agency', variables.id] });
+        },
+    });
+}
+
+/** Permanent deletion — the API requires retyping the agency's exact name. */
+export function useDeletePlatformAgency() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, confirm_name }: { id: number; confirm_name: string }) =>
+            api.delete(`/platform/agencies/${id}`, { data: { confirm_name } }).then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['platform-agencies'] });
+            void queryClient.invalidateQueries({ queryKey: ['platform-overview'] });
+        },
+    });
+}
+
+/* --- People of any agency (operator support path: add / fix role / reset pass / remove) --- */
+
+export function useCreatePlatformUser() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ agencyId, ...payload }: { agencyId: number; name: string; email: string; password: string; role: string }) =>
+            api.post<PlatformAgencyUser>(`/platform/agencies/${agencyId}/users`, payload).then((r) => r.data),
+        onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ['platform-agency', variables.agencyId] }),
+    });
+}
+
+export function useUpdatePlatformUser() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ agencyId, id, ...payload }: { agencyId: number; id: number; name?: string; role?: string; password?: string }) =>
+            api.put<PlatformAgencyUser>(`/platform/agencies/${agencyId}/users/${id}`, payload).then((r) => r.data),
+        onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ['platform-agency', variables.agencyId] }),
+    });
+}
+
+export function useDeletePlatformUser() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ agencyId, id }: { agencyId: number; id: number }) => api.delete(`/platform/agencies/${agencyId}/users/${id}`),
+        onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ['platform-agency', variables.agencyId] }),
     });
 }
 

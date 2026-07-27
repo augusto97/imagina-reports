@@ -7,6 +7,28 @@
 ---
 
 ## Where I left off (read me first)
+**🛠️ SUPER-ADMIN: PODERES REALES + REDISEÑO DEL PANEL (2026-07-27, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):**
+el owner reportó dos problemas: (a) el super-admin apenas podía cambiar de plan o desactivar — una agencia/usuario creado quedaba
+en la plataforma para siempre; (b) el panel de plataforma «parecía otra app», poco estilizado y difícil de usar.
+**Backend (poderes nuevos):** `PlatformOverviewController` (`GET platform/overview`, KPIs agregados: agencias total/activas/suspendidas/
+nuevas-30d, usuarios + con 2FA, carga clientes/sitios/fuentes/reportes-mes, salud fuentes-en-error/snapshots/bytes, cobros activos/vencidos —
+todo con queries agregadas, sin bucles por agencia); `PlatformAgencyController::show` (detalle: uso vs límites + usuarios + suscripción) y
+`::destroy` (**borrado permanente** de la agencia y su cascada, exige reescribir el nombre exacto; se registra en el log de la app y **no** en
+`ir_audit_logs` porque esa tabla cascadea con la agencia; limpia `impersonating_agency_id` colgante que no tiene FK);
+`PlatformUserController` **nuevo** (CRUD de usuarios de CUALQUIER agencia sin impersonar: alta, cambio de rol, **restablecer contraseña sin
+pedir la anterior**, baja — con guardia de «último propietario» y verificación explícita de pertenencia porque el binding de `User` no está
+tenant-scoped). Rutas registradas en el grupo `platform`. Tests: `tests/Feature/Platform/PlatformOperatorTest.php` (12 casos: overview,
+detalle, borrado con confirmación, impersonación colgante, último owner, aislamiento 404, y que todo sea platform-admin-only).
+**Frontend (rediseño):** `PlatformScreen.tsx` reescrita con el lenguaje visual del resto del admin — pestaña **Resumen** nueva con tiles
+`Stat` (agrupadas por bloques planos, sin cards anidadas), pestaña **Agencias** convertida en **tabla con buscador + filtro de estado** y
+**panel de detalle** al hacer clic (renombrar, plan, suspender/reactivar, entrar, uso vs límites, lista de usuarios con rol/reset-password/
+eliminar en línea, alta de usuario, y zona de peligro con confirmación por nombre); Planes/Facturación/Integraciones pasados a `Card`+`Badge`
+consistentes (chip `ConfigChip` reutilizado). Tipos `PlatformOverview`/`PlatformAgencyDetail`/`PlatformAgencyUser` + hooks
+(`usePlatformOverview`, `usePlatformAgency`, `useDeletePlatformAgency`, CRUD de usuarios) en `api.ts`.
+**Estado de validación:** `typecheck` + `lint` + `vitest` (16) + `npm run build` limpios en local. **El PHP NO se pudo validar en local**
+(el contenedor no puede autenticar contra github.com con composer → `vendor/bin` vacío): **Pint/PHPStan/PHPUnit los corre CI**. Revisar
+el workflow antes de dar por buena la tanda. **Siguiente:** esperar CI verde y, si el owner lo pide, disparar release (v1.17.0).
+
 **🚀 TIER 1 + TIER 2 (marketing/competitividad) (2026-07-10, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** tras el
 análisis competitivo (Supermetrics/Whatagraph/AgencyAnalytics/DashThis/Databox) se construyó el roadmap Tier 1+2. **Hecho:**
 (1) **Plantillas de galería «Publicidad»** para google_ads, facebook_ads, tiktok_ads, mailchimp y una **PPC combinada** (Google+Meta

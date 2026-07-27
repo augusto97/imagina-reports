@@ -24,6 +24,8 @@ use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
 use App\Http\Controllers\Api\V1\Platform\PlatformBillingController;
 use App\Http\Controllers\Api\V1\Platform\PlatformIntegrationsController;
 use App\Http\Controllers\Api\V1\Platform\PlatformMailController;
+use App\Http\Controllers\Api\V1\Platform\PlatformOverviewController;
+use App\Http\Controllers\Api\V1\Platform\PlatformUserController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
@@ -228,10 +230,21 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
 
     // Platform panel (SaaS Fase 1) — super-admin only: manage every agency + plans.
     Route::middleware('platform')->prefix('platform')->group(function (): void {
+        // Operator landing view: platform-wide vital signs.
+        Route::get('overview', [PlatformOverviewController::class, 'index'])->name('api.platform.overview');
+
         Route::get('agencies', [PlatformAgencyController::class, 'index'])->name('api.platform.agencies.index');
+        Route::get('agencies/{agency}', [PlatformAgencyController::class, 'show'])->name('api.platform.agencies.show');
         Route::post('agencies', [PlatformAgencyController::class, 'store'])->name('api.platform.agencies.store');
         Route::put('agencies/{agency}', [PlatformAgencyController::class, 'update'])->name('api.platform.agencies.update');
+        Route::delete('agencies/{agency}', [PlatformAgencyController::class, 'destroy'])->name('api.platform.agencies.destroy');
         Route::post('agencies/{agency}/impersonate', [PlatformAgencyController::class, 'impersonate'])->name('api.platform.agencies.impersonate');
+
+        // People of any agency (support: add, fix a role, reset a password, remove).
+        Route::get('agencies/{agency}/users', [PlatformUserController::class, 'index'])->name('api.platform.agencies.users.index');
+        Route::post('agencies/{agency}/users', [PlatformUserController::class, 'store'])->name('api.platform.agencies.users.store');
+        Route::put('agencies/{agency}/users/{user}', [PlatformUserController::class, 'update'])->name('api.platform.agencies.users.update');
+        Route::delete('agencies/{agency}/users/{user}', [PlatformUserController::class, 'destroy'])->name('api.platform.agencies.users.destroy');
         Route::post('stop-impersonate', [PlatformAgencyController::class, 'stopImpersonate'])->name('api.platform.stop-impersonate');
 
         Route::get('billing-settings', [PlatformBillingController::class, 'show'])->name('api.platform.billing-settings.show');

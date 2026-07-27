@@ -1,5 +1,24 @@
-import { Building2, CreditCard, DownloadCloud, LayoutGrid, LogIn, Pencil, Plug, Plus, Power, Trash2 } from 'lucide-react';
-import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
+import {
+    Activity,
+    AlertTriangle,
+    Building2,
+    CreditCard,
+    Database,
+    DownloadCloud,
+    Gauge,
+    KeyRound,
+    LayoutGrid,
+    LogIn,
+    Pencil,
+    Plug,
+    Plus,
+    Power,
+    Search,
+    ShieldCheck,
+    Trash2,
+    Users,
+} from 'lucide-react';
+import { type FormEvent, type ReactElement, type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import {
     usePlatformBillingSettings,
@@ -16,15 +35,21 @@ import {
     type PlanInput,
     useCreatePlan,
     useCreatePlatformAgency,
+    useCreatePlatformUser,
     useDeletePlan,
+    useDeletePlatformAgency,
+    useDeletePlatformUser,
     useImpersonateAgency,
     usePlatformAgencies,
+    usePlatformAgency,
+    usePlatformOverview,
     usePlatformPlans,
     useUpdatePlan,
     useUpdatePlatformAgency,
+    useUpdatePlatformUser,
 } from '../api';
 import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
-import type { Plan, PlatformAgency } from '../types';
+import type { Plan, PlatformAgency, PlatformAgencyUser } from '../types';
 
 // Currencies MercadoPago (local) + PayPal (USD) commonly support in the region.
 const CURRENCIES = ['USD', 'ARS', 'MXN', 'COP', 'CLP', 'PEN', 'BRL', 'UYU', 'EUR'];
@@ -36,6 +61,57 @@ const FEATURES: { key: string; label: string }[] = [
     { key: 'custom_domain', label: 'Dominio propio' },
 ];
 
+const ROLE_LABELS: Record<PlatformAgencyUser['role'], string> = {
+    owner: 'Propietario',
+    admin: 'Administrador',
+    collaborator: 'Colaborador',
+};
+
+const numberFmt = new Intl.NumberFormat('es');
+
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let value = bytes / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+
+    return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
+}
+
+/* ------------------------------- Primitives -------------------------------- */
+
+/** A single headline number. The overview is built entirely from these. */
+function Stat({
+    label,
+    value,
+    hint,
+    icon: Icon,
+    tone = 'neutral',
+}: {
+    label: string;
+    value: string | number;
+    hint?: string;
+    icon: typeof Building2;
+    tone?: 'neutral' | 'danger' | 'success';
+}): ReactElement {
+    const toneClass = tone === 'danger' ? 'ir-text-danger' : tone === 'success' ? 'ir-text-success' : 'ir-text-foreground';
+
+    return (
+        <div className="ir-rounded-lg ir-border ir-bg-card ir-p-4 ir-shadow-ir-xs">
+            <div className="ir-flex ir-items-center ir-gap-2 ir-text-xs ir-font-medium ir-text-muted-foreground">
+                <Icon className="ir-size-3.5" />
+                {label}
+            </div>
+            <p className={`ir-mt-2 ir-text-2xl ir-font-semibold ir-tabular-nums ir-tracking-tight ${toneClass}`}>{value}</p>
+            {hint !== undefined && <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{hint}</p>}
+        </div>
+    );
+}
+
 /** A used/limit progress bar (null limit = ilimitado). */
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }): ReactElement {
     const pct = limit === null || limit === 0 ? 0 : Math.min(100, (used / limit) * 100);
@@ -45,12 +121,125 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
         <div>
             <div className="ir-flex ir-justify-between ir-text-[11px] ir-text-muted-foreground">
                 <span>{label}</span>
-                <span className={over ? 'ir-font-medium ir-text-danger' : ''}>
+                <span className={over ? 'ir-font-medium ir-text-danger' : 'ir-tabular-nums'}>
                     {used}/{limit ?? '∞'}
                 </span>
             </div>
             <div className="ir-mt-0.5 ir-h-1.5 ir-overflow-hidden ir-rounded ir-bg-muted">
                 <div className={`ir-h-full ir-rounded ${over ? 'ir-bg-danger' : 'ir-bg-primary'}`} style={{ width: `${limit === null ? 6 : pct}%` }} />
+            </div>
+        </div>
+    );
+}
+
+/** A destructive action that requires retyping an exact confirmation phrase. */
+function ConfirmByName({
+    phrase,
+    label,
+    busy,
+    onConfirm,
+}: {
+    phrase: string;
+    label: string;
+    busy: boolean;
+    onConfirm: () => void;
+}): ReactElement {
+    const [typed, setTyped] = useState('');
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-2 sm:ir-flex-row sm:ir-items-end">
+            <div className="ir-flex-1">
+                <Field label={`Escribe «${phrase}» para confirmar`}>
+                    <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={phrase} />
+                </Field>
+            </div>
+            <Button variant="danger" disabled={busy || typed.trim() !== phrase.trim()} onClick={onConfirm}>
+                <Trash2 className="ir-size-3.5" />
+                {busy ? 'Eliminando…' : label}
+            </Button>
+        </div>
+    );
+}
+
+/** A titled block inside the agency detail panel. */
+function DetailSection({ title, description, children }: { title: string; description?: string; children: ReactNode }): ReactElement {
+    return (
+        <section className="ir-border-t ir-px-5 ir-py-4 first:ir-border-t-0">
+            <h3 className="ir-text-xs ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground">{title}</h3>
+            {description !== undefined && <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{description}</p>}
+            <div className="ir-mt-3">{children}</div>
+        </section>
+    );
+}
+
+/* --------------------------------- Overview -------------------------------- */
+
+/** A flat section heading — the overview is a grid of numbers, not a stack of nested cards. */
+function GroupHeading({ title, action }: { title: string; action?: ReactNode }): ReactElement {
+    return (
+        <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
+            <h2 className="ir-text-xs ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground">{title}</h2>
+            {action}
+        </div>
+    );
+}
+
+function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactElement {
+    const { data, isLoading } = usePlatformOverview();
+
+    if (isLoading || data === undefined) {
+        return <p className="ir-text-sm ir-text-muted-foreground">Cargando el estado de la plataforma…</p>;
+    }
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-6">
+            <div className="ir-flex ir-flex-col ir-gap-2.5">
+                <GroupHeading
+                    title="Agencias y personas"
+                    action={
+                        <Button variant="ghost" size="sm" onClick={onOpenAgencies}>
+                            Gestionar agencias
+                        </Button>
+                    }
+                />
+                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
+                    <Stat icon={Building2} label="Agencias" value={numberFmt.format(data.agencies.total)} hint={`${data.agencies.active} activas · ${data.agencies.suspended} suspendidas`} />
+                    <Stat icon={Activity} label="Nuevas (30 días)" value={numberFmt.format(data.agencies.new_this_month)} hint="Altas recientes" />
+                    <Stat icon={Users} label="Usuarios" value={numberFmt.format(data.users.total)} hint={`${data.users.with_two_factor} con 2FA activo`} />
+                    <Stat
+                        icon={AlertTriangle}
+                        label="Fuentes con error"
+                        value={numberFmt.format(data.health.failing_sources)}
+                        hint={data.health.failing_sources > 0 ? 'Requieren soporte' : 'Todo conectado'}
+                        tone={data.health.failing_sources > 0 ? 'danger' : 'success'}
+                    />
+                </div>
+            </div>
+
+            <div className="ir-flex ir-flex-col ir-gap-2.5">
+                <GroupHeading title="Carga de trabajo" />
+                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
+                    <Stat icon={Users} label="Clientes" value={numberFmt.format(data.workload.clients)} />
+                    <Stat icon={Gauge} label="Sitios" value={numberFmt.format(data.workload.sites)} />
+                    <Stat icon={Plug} label="Fuentes de datos" value={numberFmt.format(data.workload.data_sources)} />
+                    <Stat icon={LayoutGrid} label="Reportes este mes" value={numberFmt.format(data.workload.reports_this_month)} />
+                </div>
+            </div>
+
+            <div className="ir-flex ir-flex-col ir-gap-2.5">
+                <GroupHeading title="Almacenamiento y cobros" />
+                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
+                    <Stat icon={Database} label="Snapshots" value={numberFmt.format(data.health.snapshots)} hint="Datos ya agregados por los conectores" />
+                    <Stat icon={Database} label="Tamaño de los datos" value={formatBytes(data.health.storage_bytes)} />
+                    <Stat icon={CreditCard} label="Suscripciones activas" value={numberFmt.format(data.billing.active_subscriptions)} tone={data.billing.active_subscriptions > 0 ? 'success' : 'neutral'} />
+                    <Stat
+                        icon={AlertTriangle}
+                        label="Pendientes / vencidas"
+                        value={numberFmt.format(data.billing.past_due)}
+                        hint={data.billing.past_due > 0 ? 'Revisa el cobro' : 'Sin incidencias'}
+                        tone={data.billing.past_due > 0 ? 'danger' : 'neutral'}
+                    />
+                </div>
             </div>
         </div>
     );
@@ -118,47 +307,260 @@ function CreateAgencyModal({ plans, onClose }: { plans: Plan[]; onClose: () => v
     );
 }
 
-function AgencyRow({ agency, plans }: { agency: PlatformAgency; plans: Plan[] }): ReactElement {
-    const update = useUpdatePlatformAgency();
-    const impersonate = useImpersonateAgency();
-    const suspended = agency.status === 'suspended';
+/** Add a person to an agency without leaving the detail panel. */
+function AddUserForm({ agencyId, onDone }: { agencyId: number; onDone: () => void }): ReactElement {
+    const create = useCreatePlatformUser();
+    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'collaborator' });
+    const set = (key: keyof typeof form, value: string): void => setForm((prev) => ({ ...prev, [key]: value }));
+
+    const submit = (event: FormEvent): void => {
+        event.preventDefault();
+        create.mutate({ agencyId, ...form, name: form.name.trim(), email: form.email.trim() }, { onSuccess: onDone });
+    };
 
     return (
-        <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-lg ir-border ir-bg-card ir-p-4">
-            <div className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3">
-                <div className="ir-min-w-0">
-                    <p className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-semibold">
-                        {agency.name}
-                        {suspended && <Badge tone="danger">Suspendida</Badge>}
-                    </p>
-                    <p className="ir-text-xs ir-text-muted-foreground">/{agency.slug}</p>
-                </div>
-                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
-                    <Select className="ir-h-8 ir-w-40 ir-text-xs" value={agency.plan_id ?? ''} onChange={(e) => update.mutate({ id: agency.id, plan_id: e.target.value === '' ? null : Number(e.target.value) })}>
-                        <option value="">Sin plan</option>
-                        {plans.map((plan) => (
-                            <option key={plan.id} value={plan.id}>
-                                {plan.name}
+        <form onSubmit={submit} className="ir-mt-3 ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/40 ir-p-3">
+            <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
+                <Field label="Nombre">
+                    <Input value={form.name} onChange={(e) => set('name', e.target.value)} />
+                </Field>
+                <Field label="Email">
+                    <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+                </Field>
+                <Field label="Contraseña (mín. 8)">
+                    <Input type="text" value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="Se la compartes a la persona" />
+                </Field>
+                <Field label="Rol">
+                    <Select value={form.role} onChange={(e) => set('role', e.target.value)}>
+                        {(Object.keys(ROLE_LABELS) as PlatformAgencyUser['role'][]).map((role) => (
+                            <option key={role} value={role}>
+                                {ROLE_LABELS[role]}
                             </option>
                         ))}
                     </Select>
-                    <Button variant="outline" size="sm" onClick={() => update.mutate({ id: agency.id, status: suspended ? 'active' : 'suspended' })} title={suspended ? 'Reactivar' : 'Suspender'}>
-                        <Power className="ir-size-3.5" />
-                        {suspended ? 'Reactivar' : 'Suspender'}
+                </Field>
+            </div>
+            {create.isError && <p className="ir-text-xs ir-text-danger">No se pudo crear. ¿El email ya está en uso?</p>}
+            <div className="ir-flex ir-justify-end ir-gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancelar</Button>
+                <Button type="submit" size="sm" disabled={create.isPending || form.name.trim() === '' || form.email.trim() === '' || form.password.length < 8}>
+                    {create.isPending ? 'Añadiendo…' : 'Añadir usuario'}
+                </Button>
+            </div>
+        </form>
+    );
+}
+
+/** One person's row: role change, password reset and removal, all inline. */
+function UserRow({ agencyId, user }: { agencyId: number; user: PlatformAgencyUser }): ReactElement {
+    const update = useUpdatePlatformUser();
+    const remove = useDeletePlatformUser();
+    const [resetting, setResetting] = useState(false);
+    const [password, setPassword] = useState('');
+
+    const applyPassword = (): void => {
+        update.mutate({ agencyId, id: user.id, password }, {
+            onSuccess: () => {
+                setPassword('');
+                setResetting(false);
+            },
+        });
+    };
+
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-2 ir-border-b ir-border-border/60 ir-py-2.5 last:ir-border-b-0">
+            <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-2">
+                <div className="ir-min-w-0">
+                    <p className="ir-flex ir-items-center ir-gap-1.5 ir-text-sm ir-font-medium">
+                        {user.name}
+                        {user.two_factor_enabled && (
+                            <Badge tone="success">
+                                <ShieldCheck className="ir-size-3" />
+                                2FA
+                            </Badge>
+                        )}
+                    </p>
+                    <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{user.email}</p>
+                </div>
+                <div className="ir-flex ir-items-center ir-gap-1.5">
+                    <Select
+                        className="ir-h-8 ir-w-36 ir-text-xs"
+                        value={user.role}
+                        disabled={update.isPending}
+                        onChange={(e) => update.mutate({ agencyId, id: user.id, role: e.target.value })}
+                    >
+                        {(Object.keys(ROLE_LABELS) as PlatformAgencyUser['role'][]).map((role) => (
+                            <option key={role} value={role}>
+                                {ROLE_LABELS[role]}
+                            </option>
+                        ))}
+                    </Select>
+                    <Button variant="ghost" size="sm" title="Restablecer contraseña" onClick={() => setResetting((prev) => !prev)}>
+                        <KeyRound className="ir-size-3.5" />
                     </Button>
-                    <Button variant="accent" size="sm" onClick={() => impersonate.mutate(agency.id)} disabled={impersonate.isPending} title="Entrar a esta agencia">
-                        <LogIn className="ir-size-3.5" />
-                        Entrar
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Eliminar usuario"
+                        disabled={remove.isPending}
+                        onClick={() => {
+                            if (window.confirm(`¿Eliminar a ${user.name} (${user.email})? Esta acción no se puede deshacer.`)) {
+                                remove.mutate({ agencyId, id: user.id });
+                            }
+                        }}
+                    >
+                        <Trash2 className="ir-size-3.5 ir-text-danger" />
                     </Button>
                 </div>
             </div>
-            <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
-                <UsageBar label="Sitios" used={agency.usage.sites} limit={agency.limits.max_sites} />
-                <UsageBar label="Fuentes" used={agency.usage.data_sources} limit={agency.limits.max_data_sources} />
-                <UsageBar label="Clientes" used={agency.usage.clients} limit={agency.limits.max_clients} />
-                <UsageBar label="Reportes/mes" used={agency.usage.reports_this_month} limit={agency.limits.max_reports_per_month} />
-            </div>
+            {resetting && (
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-rounded-md ir-bg-muted/50 ir-p-2">
+                    <Input
+                        className="ir-h-8 ir-flex-1 ir-text-xs"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Nueva contraseña (mín. 8) — se la comunicas tú"
+                    />
+                    <Button size="sm" disabled={update.isPending || password.length < 8} onClick={applyPassword}>
+                        Guardar contraseña
+                    </Button>
+                </div>
+            )}
+            {(update.isError || remove.isError) && (
+                <p className="ir-text-xs ir-text-danger">No se pudo aplicar el cambio. La agencia debe conservar al menos un propietario.</p>
+            )}
         </div>
+    );
+}
+
+/** Fix an agency's name (typos at sign-up are the operator's most common support ticket). */
+function RenameAgency({ id, name }: { id: number; name: string }): ReactElement {
+    const update = useUpdatePlatformAgency();
+    const [value, setValue] = useState(name);
+
+    return (
+        <div className="ir-flex ir-flex-wrap ir-items-end ir-gap-2">
+            <div className="ir-min-w-[12rem] ir-flex-1">
+                <Field label="Nombre de la agencia">
+                    <Input value={value} onChange={(e) => setValue(e.target.value)} />
+                </Field>
+            </div>
+            <Button variant="ghost" disabled={update.isPending || value.trim() === '' || value === name} onClick={() => update.mutate({ id, name: value.trim() })}>
+                Guardar nombre
+            </Button>
+        </div>
+    );
+}
+
+function AgencyDetailModal({ agencyId, plans, onClose }: { agencyId: number; plans: Plan[]; onClose: () => void }): ReactElement {
+    const { data: agency, isLoading } = usePlatformAgency(agencyId);
+    const update = useUpdatePlatformAgency();
+    const remove = useDeletePlatformAgency();
+    const impersonate = useImpersonateAgency();
+    const [addingUser, setAddingUser] = useState(false);
+
+    const suspended = agency?.status === 'suspended';
+
+    return (
+        <Modal onClose={onClose} className="ir-max-w-3xl">
+            <Card
+                title={agency?.name ?? 'Agencia'}
+                description={agency !== undefined ? `/${agency.slug} · alta ${agency.created_at?.slice(0, 10) ?? '—'}` : undefined}
+                actions={
+                    <>
+                        <Button variant="accent" size="sm" disabled={impersonate.isPending} onClick={() => impersonate.mutate(agencyId)}>
+                            <LogIn className="ir-size-3.5" />
+                            Entrar
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={onClose}>Cerrar</Button>
+                    </>
+                }
+            >
+                {isLoading || agency === undefined ? (
+                    <p className="ir-text-sm ir-text-muted-foreground">Cargando…</p>
+                ) : (
+                    // -m-5 cancels Card's padding so each section can own its own spacing.
+                    <div className="-ir-m-5">
+                        <DetailSection title="Identidad">
+                            <RenameAgency id={agency.id} name={agency.name} />
+                        </DetailSection>
+
+                        <DetailSection title="Estado y plan">
+                            <div className="ir-flex ir-flex-wrap ir-items-end ir-gap-3">
+                                <div className="ir-min-w-[12rem] ir-flex-1">
+                                    <Field label="Plan">
+                                        <Select
+                                            value={agency.plan_id ?? ''}
+                                            onChange={(e) => update.mutate({ id: agency.id, plan_id: e.target.value === '' ? null : Number(e.target.value) })}
+                                        >
+                                            <option value="">Sin plan (ilimitado)</option>
+                                            {plans.map((plan) => (
+                                                <option key={plan.id} value={plan.id}>
+                                                    {plan.name}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                    </Field>
+                                </div>
+                                <Button
+                                    variant={suspended ? 'primary' : 'outline'}
+                                    onClick={() => update.mutate({ id: agency.id, status: suspended ? 'active' : 'suspended' })}
+                                    disabled={update.isPending}
+                                >
+                                    <Power className="ir-size-3.5" />
+                                    {suspended ? 'Reactivar agencia' : 'Suspender agencia'}
+                                </Button>
+                                <Badge tone={suspended ? 'danger' : 'success'}>{suspended ? 'Suspendida' : 'Activa'}</Badge>
+                            </div>
+                            {agency.subscription !== null && (
+                                <p className="ir-mt-3 ir-text-xs ir-text-muted-foreground">
+                                    Suscripción {agency.subscription.provider} · <span className="ir-font-medium ir-text-foreground">{agency.subscription.status}</span>
+                                    {agency.subscription.current_period_end !== null && ` · hasta ${agency.subscription.current_period_end.slice(0, 10)}`}
+                                </p>
+                            )}
+                        </DetailSection>
+
+                        <DetailSection title="Uso frente a los límites del plan">
+                            <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-3">
+                                <UsageBar label="Sitios" used={agency.usage.sites} limit={agency.limits.max_sites} />
+                                <UsageBar label="Fuentes" used={agency.usage.data_sources} limit={agency.limits.max_data_sources} />
+                                <UsageBar label="Clientes" used={agency.usage.clients} limit={agency.limits.max_clients} />
+                                <UsageBar label="Usuarios" used={agency.usage.users} limit={agency.limits.max_users} />
+                                <UsageBar label="Reportes/mes" used={agency.usage.reports_this_month} limit={agency.limits.max_reports_per_month} />
+                            </div>
+                        </DetailSection>
+
+                        <DetailSection title={`Usuarios (${agency.users.length})`} description="Añade personas, corrige roles o restablece contraseñas sin pedirle nada a la agencia.">
+                            <div className="ir-flex ir-flex-col">
+                                {agency.users.map((user) => (
+                                    <UserRow key={user.id} agencyId={agency.id} user={user} />
+                                ))}
+                            </div>
+                            {addingUser ? (
+                                <AddUserForm agencyId={agency.id} onDone={() => setAddingUser(false)} />
+                            ) : (
+                                <Button variant="ghost" size="sm" className="ir-mt-3" onClick={() => setAddingUser(true)}>
+                                    <Plus className="ir-size-3.5" />
+                                    Añadir usuario
+                                </Button>
+                            )}
+                        </DetailSection>
+
+                        <DetailSection title="Zona de peligro" description="Eliminar la agencia borra de forma permanente sus clientes, sitios, fuentes, reportes y usuarios. No hay vuelta atrás.">
+                            <ConfirmByName
+                                phrase={agency.name}
+                                label="Eliminar agencia"
+                                busy={remove.isPending}
+                                onConfirm={() =>
+                                    remove.mutate({ id: agency.id, confirm_name: agency.name }, { onSuccess: onClose })
+                                }
+                            />
+                            {remove.isError && <p className="ir-mt-2 ir-text-xs ir-text-danger">No se pudo eliminar. Vuelve a intentarlo.</p>}
+                        </DetailSection>
+                    </div>
+                )}
+            </Card>
+        </Modal>
     );
 }
 
@@ -166,23 +568,100 @@ function AgenciesTab(): ReactElement {
     const { data: agencies = [], isLoading } = usePlatformAgencies();
     const { data: plans = [] } = usePlatformPlans();
     const [creating, setCreating] = useState(false);
+    const [openId, setOpenId] = useState<number | null>(null);
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState('');
+
+    const visible = useMemo((): PlatformAgency[] => {
+        const term = search.trim().toLowerCase();
+
+        return agencies.filter((agency) => {
+            if (status !== '' && agency.status !== status) return false;
+            if (term === '') return true;
+
+            return agency.name.toLowerCase().includes(term) || agency.slug.toLowerCase().includes(term);
+        });
+    }, [agencies, search, status]);
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
-            <div className="ir-flex ir-justify-end">
+            <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                <div className="ir-relative ir-min-w-[14rem] ir-flex-1">
+                    <Search className="ir-pointer-events-none ir-absolute ir-left-2.5 ir-top-1/2 ir-size-4 -ir-translate-y-1/2 ir-text-muted-foreground" />
+                    <Input className="ir-pl-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre o slug…" />
+                </div>
+                <Select className="ir-w-44" value={status} onChange={(e) => setStatus(e.target.value)}>
+                    <option value="">Todos los estados</option>
+                    <option value="active">Activas</option>
+                    <option value="suspended">Suspendidas</option>
+                </Select>
                 <Button onClick={() => setCreating(true)}>
                     <Plus className="ir-size-4" />
                     Nueva agencia
                 </Button>
             </div>
-            {isLoading ? (
-                <p className="ir-text-sm ir-text-muted-foreground">Cargando…</p>
-            ) : agencies.length === 0 ? (
-                <p className="ir-text-sm ir-text-muted-foreground">Aún no hay agencias. Crea la primera.</p>
-            ) : (
-                agencies.map((agency) => <AgencyRow key={agency.id} agency={agency} plans={plans} />)
-            )}
+
+            {/* Plain surface rather than <Card>: the table owns its own edge-to-edge padding. */}
+            <div className="ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm">
+                <div className="ir-overflow-x-auto">
+                    <table className="ir-w-full ir-border-collapse ir-text-left ir-text-sm">
+                        <thead>
+                            <tr className="ir-border-b">
+                                {['Agencia', 'Plan', 'Estado', 'Uso', ''].map((header, index) => (
+                                    <th
+                                        key={header === '' ? `col-${index}` : header}
+                                        className="ir-whitespace-nowrap ir-px-3 ir-py-2.5 ir-text-xs ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground first:ir-pl-5 last:ir-pr-5"
+                                    >
+                                        {header}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {visible.map((agency) => (
+                                <tr
+                                    key={agency.id}
+                                    className="ir-cursor-pointer ir-border-b ir-border-border/60 ir-transition-colors hover:ir-bg-muted/50"
+                                    onClick={() => setOpenId(agency.id)}
+                                >
+                                    <td className="ir-px-3 ir-py-3 first:ir-pl-5">
+                                        <p className="ir-font-medium">{agency.name}</p>
+                                        <p className="ir-text-xs ir-text-muted-foreground">/{agency.slug}</p>
+                                    </td>
+                                    <td className="ir-px-3 ir-py-3">
+                                        {agency.plan !== null ? <Badge tone="accent">{agency.plan.name}</Badge> : <span className="ir-text-xs ir-text-muted-foreground">Sin plan</span>}
+                                    </td>
+                                    <td className="ir-px-3 ir-py-3">
+                                        <Badge tone={agency.status === 'suspended' ? 'danger' : 'success'}>{agency.status === 'suspended' ? 'Suspendida' : 'Activa'}</Badge>
+                                    </td>
+                                    <td className="ir-w-72 ir-px-3 ir-py-3">
+                                        <div className="ir-grid ir-grid-cols-2 ir-gap-x-4 ir-gap-y-1.5">
+                                            <UsageBar label="Sitios" used={agency.usage.sites} limit={agency.limits.max_sites} />
+                                            <UsageBar label="Reportes/mes" used={agency.usage.reports_this_month} limit={agency.limits.max_reports_per_month} />
+                                        </div>
+                                    </td>
+                                    <td className="ir-px-3 ir-py-3 last:ir-pr-5">
+                                        <Button variant="ghost" size="sm" onClick={() => setOpenId(agency.id)}>
+                                            <Pencil className="ir-size-3.5" />
+                                            Gestionar
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {visible.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="ir-px-5 ir-py-10 ir-text-center ir-text-sm ir-text-muted-foreground">
+                                        {isLoading ? 'Cargando…' : agencies.length === 0 ? 'Aún no hay agencias. Crea la primera.' : 'Ninguna agencia coincide con el filtro.'}
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             {creating && <CreateAgencyModal plans={plans} onClose={() => setCreating(false)} />}
+            {openId !== null && <AgencyDetailModal agencyId={openId} plans={plans} onClose={() => setOpenId(null)} />}
         </div>
     );
 }
@@ -289,7 +768,8 @@ function PlansTab(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
-            <div className="ir-flex ir-justify-end">
+            <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
+                <p className="ir-text-sm ir-text-muted-foreground">Los planes definen los límites y las funciones que cada agencia puede usar.</p>
                 <Button onClick={() => setCreating(true)}>
                     <Plus className="ir-size-4" />
                     Nuevo plan
@@ -297,35 +777,49 @@ function PlansTab(): ReactElement {
             </div>
             {isLoading ? (
                 <p className="ir-text-sm ir-text-muted-foreground">Cargando…</p>
+            ) : plans.length === 0 ? (
+                <Card>
+                    <p className="ir-text-sm ir-text-muted-foreground">Aún no hay planes. Crea el primero para poder asignarlo a las agencias.</p>
+                </Card>
             ) : (
-                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-3">
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2 lg:ir-grid-cols-3">
                     {plans.map((plan) => (
-                        <div key={plan.id} className="ir-flex ir-flex-col ir-gap-2 ir-rounded-lg ir-border ir-bg-card ir-p-4">
-                            <div className="ir-flex ir-items-start ir-justify-between">
-                                <div>
-                                    <p className="ir-text-sm ir-font-semibold">{plan.name}</p>
-                                    <p className="ir-text-xs ir-text-muted-foreground">{plan.monthly_price != null ? `${plan.monthly_price} ${plan.currency}/mes` : 'Sin precio'}</p>
-                                </div>
-                                <div className="ir-flex ir-gap-1">
-                                    <button type="button" className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground" title="Editar" onClick={() => setEditing(plan)}>
+                        <Card
+                            key={plan.id}
+                            title={plan.name}
+                            description={plan.monthly_price != null ? `${plan.monthly_price} ${plan.currency}/mes` : 'Sin precio'}
+                            actions={
+                                <>
+                                    <Button variant="ghost" size="sm" title="Editar" onClick={() => setEditing(plan)}>
                                         <Pencil className="ir-size-3.5" />
-                                    </button>
-                                    <button type="button" className="ir-rounded ir-p-1 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger" title="Eliminar" onClick={() => { if (window.confirm(`¿Eliminar el plan «${plan.name}»?`)) remove.mutate(plan.id); }}>
-                                        <Trash2 className="ir-size-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-                            <ul className="ir-flex ir-flex-col ir-gap-0.5 ir-text-xs ir-text-muted-foreground">
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Eliminar"
+                                        onClick={() => {
+                                            if (window.confirm(`¿Eliminar el plan «${plan.name}»? Las agencias que lo usan quedarán sin plan.`)) remove.mutate(plan.id);
+                                        }}
+                                    >
+                                        <Trash2 className="ir-size-3.5 ir-text-danger" />
+                                    </Button>
+                                </>
+                            }
+                        >
+                            <dl className="ir-flex ir-flex-col ir-gap-1 ir-text-xs">
                                 {NUM_FIELDS.map((f) => (
-                                    <li key={f.key}>{f.label}: <span className="ir-text-foreground">{plan[f.key] ?? '∞'}</span></li>
+                                    <div key={f.key} className="ir-flex ir-justify-between ir-gap-3">
+                                        <dt className="ir-text-muted-foreground">{f.label}</dt>
+                                        <dd className="ir-tabular-nums ir-font-medium">{plan[f.key] ?? '∞'}</dd>
+                                    </div>
                                 ))}
-                            </ul>
-                            <div className="ir-flex ir-flex-wrap ir-gap-1">
+                            </dl>
+                            <div className="ir-mt-3 ir-flex ir-flex-wrap ir-gap-1">
                                 {FEATURES.filter((f) => plan.features?.[f.key]).map((f) => (
                                     <Badge key={f.key} tone="accent">{f.label}</Badge>
                                 ))}
                             </div>
-                        </div>
+                        </Card>
                     ))}
                 </div>
             )}
@@ -336,6 +830,11 @@ function PlansTab(): ReactElement {
 }
 
 /* --------------------------------- Billing --------------------------------- */
+
+/** «configurado ✓» / «sin configurar», the same chip everywhere in this panel. */
+function ConfigChip({ ready, note }: { ready: boolean; note?: string }): ReactElement {
+    return ready ? <Badge tone="success">configurado ✓{note !== undefined ? ` ${note}` : ''}</Badge> : <Badge tone="warning">sin configurar</Badge>;
+}
 
 function BillingTab(): ReactElement {
     const { data: settings } = usePlatformBillingSettings();
@@ -351,11 +850,12 @@ function BillingTab(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
-            <Card title="MercadoPago" description="Cobros recurrentes en la moneda local de cada plan. Pega tu Access Token (se guarda cifrado).">
+            <Card
+                title="MercadoPago"
+                description="Cobros recurrentes en la moneda local de cada plan. Pega tu Access Token (se guarda cifrado)."
+                actions={<ConfigChip ready={settings?.mercadopago_configured ?? false} />}
+            >
                 <div className="ir-flex ir-flex-col ir-gap-3">
-                    <p className="ir-text-xs ir-text-muted-foreground">
-                        Estado: {settings?.mercadopago_configured ? <span className="ir-font-medium ir-text-emerald-600">configurado ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar</span>}
-                    </p>
                     <Field label="Access Token">
                         <Input type="password" autoComplete="off" value={mp} onChange={(e) => setMp(e.target.value)} placeholder={settings?.mercadopago_configured ? '•••••••• (deja en blanco para conservar)' : 'APP_USR-…'} />
                     </Field>
@@ -365,11 +865,12 @@ function BillingTab(): ReactElement {
                 </div>
             </Card>
 
-            <Card title="PayPal" description="Suscripciones recurrentes. Client ID + Secret de tu app REST de PayPal.">
+            <Card
+                title="PayPal"
+                description="Suscripciones recurrentes. Client ID + Secret de tu app REST de PayPal."
+                actions={<ConfigChip ready={settings?.paypal_configured ?? false} />}
+            >
                 <div className="ir-flex ir-flex-col ir-gap-3">
-                    <p className="ir-text-xs ir-text-muted-foreground">
-                        Estado: {settings?.paypal_configured ? <span className="ir-font-medium ir-text-emerald-600">configurado ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar</span>}
-                    </p>
                     <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                         <Field label="Client ID">
                             <Input type="password" autoComplete="off" value={ppId} onChange={(e) => setPpId(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'AY…'} />
@@ -382,9 +883,13 @@ function BillingTab(): ReactElement {
                         Guardar
                     </Button>
                     <div className="ir-mt-1 ir-border-t ir-pt-3">
-                        <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
-                            Webhook ID: {settings?.paypal_webhook_configured ? <span className="ir-font-medium ir-text-emerald-600">configurado ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar — los webhooks de PayPal se rechazan hasta configurarlo</span>}
-                        </p>
+                        <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
+                            <span className="ir-text-xs ir-text-muted-foreground">Webhook ID</span>
+                            <ConfigChip ready={settings?.paypal_webhook_configured ?? false} />
+                        </div>
+                        {settings?.paypal_webhook_configured === false && (
+                            <p className="ir-mb-2 ir-text-xs ir-text-warning">Sin esto, los webhooks de PayPal se rechazan y las suscripciones no se actualizan.</p>
+                        )}
                         <Field label="Webhook ID" hint="En tu app de PayPal → Webhooks. Se usa para verificar la firma de cada webhook (obligatorio).">
                             <div className="ir-flex ir-gap-2">
                                 <Input type="password" autoComplete="off" value={ppHook} onChange={(e) => setPpHook(e.target.value)} placeholder={settings?.paypal_webhook_configured ? '••••••••' : 'WH-…'} />
@@ -402,21 +907,13 @@ function BillingTab(): ReactElement {
                     <input type="checkbox" checked={settings?.billing_sandbox ?? true} onChange={(e) => save({ billing_sandbox: e.target.checked })} />
                     Modo sandbox (pruebas). Desactívalo solo cuando uses credenciales de producción.
                 </label>
-                {update.isSuccess && <p className="ir-mt-2 ir-text-xs ir-text-emerald-600">Guardado.</p>}
+                {update.isSuccess && <p className="ir-mt-2 ir-text-xs ir-text-success">Guardado.</p>}
             </Card>
         </div>
     );
 }
 
 /* ------------------------------- Integrations ------------------------------ */
-
-function statusChip(ready: boolean, fromEnv: boolean): ReactElement {
-    if (ready) {
-        return <span className="ir-font-medium ir-text-emerald-600">listo ✓{fromEnv ? ' (por .env)' : ''}</span>;
-    }
-
-    return <span className="ir-font-medium ir-text-amber-600">sin configurar</span>;
-}
 
 function IntegrationsTab(): ReactElement {
     const { data: settings } = usePlatformIntegrations();
@@ -446,9 +943,12 @@ function IntegrationsTab(): ReactElement {
                 Consulta <strong>docs/oauth-connect-setup.md</strong> para obtenerlas.
             </p>
 
-            <Card title="Google (GA4, Search Console, Google Ads)" description="Una sola app OAuth de Google Cloud cubre las tres fuentes.">
+            <Card
+                title="Google (GA4, Search Console, Google Ads)"
+                description="Una sola app OAuth de Google Cloud cubre las tres fuentes."
+                actions={<ConfigChip ready={settings?.google_connect_ready ?? false} note={settings?.google_from_env === true ? '(por .env)' : undefined} />}
+            >
                 <div className="ir-flex ir-flex-col ir-gap-3">
-                    <p className="ir-text-xs ir-text-muted-foreground">Estado: {statusChip(settings?.google_connect_ready ?? false, settings?.google_from_env ?? false)}</p>
                     <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                         <Field label="OAuth Client ID">
                             <Input autoComplete="off" value={gId} onChange={(e) => setGId(e.target.value)} placeholder={settings?.google_oauth_client_id || '…apps.googleusercontent.com'} />
@@ -461,9 +961,10 @@ function IntegrationsTab(): ReactElement {
                         Guardar Google
                     </Button>
                     <div className="ir-mt-1 ir-border-t ir-pt-3">
-                        <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">
-                            Solo para <strong>Google Ads</strong>: developer token {settings?.google_ads_developer_token_set ? <span className="ir-text-emerald-600">✓</span> : <span className="ir-text-amber-600">sin configurar</span>}
-                        </p>
+                        <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
+                            <span className="ir-text-xs ir-text-muted-foreground">Solo para <strong>Google Ads</strong>: developer token</span>
+                            <ConfigChip ready={settings?.google_ads_developer_token_set ?? false} />
+                        </div>
                         <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                             <Field label="Developer token">
                                 <Input type="password" autoComplete="off" value={gDev} onChange={(e) => setGDev(e.target.value)} placeholder={settings?.google_ads_developer_token_set ? '••••••••' : 'del API Center'} />
@@ -479,9 +980,12 @@ function IntegrationsTab(): ReactElement {
                 </div>
             </Card>
 
-            <Card title="Meta (Facebook / Instagram)" description="Una app de Meta cubre Facebook Ads e Instagram.">
+            <Card
+                title="Meta (Facebook / Instagram)"
+                description="Una app de Meta cubre Facebook Ads e Instagram."
+                actions={<ConfigChip ready={settings?.meta_connect_ready ?? false} note={settings?.meta_from_env === true ? '(por .env)' : undefined} />}
+            >
                 <div className="ir-flex ir-flex-col ir-gap-3">
-                    <p className="ir-text-xs ir-text-muted-foreground">Estado: {statusChip(settings?.meta_connect_ready ?? false, settings?.meta_from_env ?? false)}</p>
                     <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                         <Field label="App ID">
                             <Input autoComplete="off" value={mId} onChange={(e) => setMId(e.target.value)} placeholder={settings?.meta_oauth_app_id || 'App ID de Meta'} />
@@ -495,7 +999,7 @@ function IntegrationsTab(): ReactElement {
                     </Button>
                 </div>
             </Card>
-            {update.isSuccess && <p className="ir-text-xs ir-text-emerald-600">Guardado.</p>}
+            {update.isSuccess && <p className="ir-text-xs ir-text-success">Guardado.</p>}
 
             <MailSettingsCard />
         </div>
@@ -547,11 +1051,13 @@ function MailSettingsCard(): ReactElement {
     const sends = settings?.mail_sends ?? false;
 
     return (
-        <Card title="Correo saliente (SMTP)" description="Con qué servidor se envían los reportes por email. Se guarda cifrado; sustituye a las variables del .env.">
+        <Card
+            title="Correo saliente (SMTP)"
+            description="Con qué servidor se envían los reportes por email. Se guarda cifrado; sustituye a las variables del .env."
+            actions={sends ? <Badge tone="success">envía por «{settings?.mail_mailer}» ✓</Badge> : <Badge tone="warning">sin configurar</Badge>}
+        >
             <div className="ir-flex ir-flex-col ir-gap-3">
-                <p className="ir-text-xs ir-text-muted-foreground">
-                    Estado: {sends ? <span className="ir-font-medium ir-text-emerald-600">envía por «{settings?.mail_mailer}» ✓</span> : <span className="ir-font-medium ir-text-amber-600">sin configurar (los correos no salen, solo se registran en el log)</span>}
-                </p>
+                {!sends && <p className="ir-text-xs ir-text-warning">Los correos no salen: solo se registran en el log hasta que configures un servidor.</p>}
                 <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                     <Field label="Servidor SMTP (host)">
                         <Input autoComplete="off" value={host} onChange={(e) => setHost(e.target.value)} placeholder="smtp.tuservidor.com" />
@@ -593,14 +1099,14 @@ function MailSettingsCard(): ReactElement {
                             {sendTest.isPending ? 'Enviando…' : 'Enviar prueba'}
                         </Button>
                     </div>
-                    {sendTest.isSuccess && sendTest.data?.sent && <p className="ir-mt-2 ir-text-xs ir-text-emerald-600">Enviado ✓ Revisa la bandeja (y spam).</p>}
+                    {sendTest.isSuccess && sendTest.data?.sent && <p className="ir-mt-2 ir-text-xs ir-text-success">Enviado ✓ Revisa la bandeja (y spam).</p>}
                     {sendTest.data?.sent === false && (
                         <div className="ir-mt-2 ir-rounded ir-bg-danger/10 ir-p-2 ir-text-xs ir-text-danger">
                             <p className="ir-font-medium">No se pudo enviar. Error del servidor:</p>
                             <p className="ir-mt-1 ir-break-words ir-font-mono ir-text-[11px]">{sendTest.data.error}</p>
                         </div>
                     )}
-                    {sendTest.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo contactar el servidor. Inténtalo de nuevo.</p>}
+                    {sendTest.isError && <p className="ir-mt-2 ir-text-xs ir-text-danger">No se pudo contactar el servidor. Inténtalo de nuevo.</p>}
                 </div>
             </div>
         </Card>
@@ -609,17 +1115,30 @@ function MailSettingsCard(): ReactElement {
 
 /* ---------------------------------- Screen --------------------------------- */
 
+type Tab = 'overview' | 'agencies' | 'plans' | 'billing' | 'integrations' | 'system';
+
+const TABS: { key: Tab; label: string; icon: typeof Building2 }[] = [
+    { key: 'overview', label: 'Resumen', icon: Gauge },
+    { key: 'agencies', label: 'Agencias', icon: Building2 },
+    { key: 'plans', label: 'Planes', icon: LayoutGrid },
+    { key: 'billing', label: 'Facturación', icon: CreditCard },
+    { key: 'integrations', label: 'Integraciones', icon: Plug },
+    { key: 'system', label: 'Sistema', icon: DownloadCloud },
+];
+
 export function PlatformScreen(): ReactElement {
-    const [tab, setTab] = useState<'agencies' | 'plans' | 'billing' | 'integrations' | 'system'>('agencies');
+    const [tab, setTab] = useState<Tab>('overview');
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
             <div>
                 <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Plataforma</h1>
-                <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">Gestiona las agencias de tu plataforma, sus planes y límites.</p>
+                <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">
+                    Control total de la instalación: agencias y sus usuarios, planes, cobros, integraciones y actualizaciones.
+                </p>
             </div>
-            <div className="ir-flex ir-gap-1 ir-rounded-lg ir-bg-muted ir-p-1 ir-self-start">
-                {([['agencies', 'Agencias', Building2], ['plans', 'Planes', LayoutGrid], ['billing', 'Facturación', CreditCard], ['integrations', 'Integraciones', Plug], ['system', 'Sistema', DownloadCloud]] as const).map(([key, label, Icon]) => (
+            <div className="ir-flex ir-flex-wrap ir-gap-1 ir-self-start ir-rounded-lg ir-bg-muted ir-p-1">
+                {TABS.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
                         type="button"
@@ -631,6 +1150,7 @@ export function PlatformScreen(): ReactElement {
                     </button>
                 ))}
             </div>
+            {tab === 'overview' && <OverviewTab onOpenAgencies={() => setTab('agencies')} />}
             {tab === 'agencies' && <AgenciesTab />}
             {tab === 'plans' && <PlansTab />}
             {tab === 'billing' && <BillingTab />}

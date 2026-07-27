@@ -388,6 +388,31 @@ export interface PlatformAgency {
     created_at: string | null;
 }
 
+/** One person inside any agency, as the platform operator sees them. */
+export interface PlatformAgencyUser {
+    id: number;
+    name: string;
+    email: string;
+    role: 'owner' | 'admin' | 'collaborator';
+    two_factor_enabled: boolean;
+    created_at: string | null;
+}
+
+/** The agency detail view: everything the operator needs on one screen. */
+export interface PlatformAgencyDetail extends PlatformAgency {
+    users: PlatformAgencyUser[];
+    subscription: { provider: string; status: string; current_period_end: string | null } | null;
+}
+
+/** Platform-wide vital signs shown on the operator's landing tab. */
+export interface PlatformOverview {
+    agencies: { total: number; active: number; suspended: number; new_this_month: number };
+    users: { total: number; with_two_factor: number };
+    workload: { clients: number; sites: number; data_sources: number; reports_this_month: number };
+    health: { failing_sources: number; snapshots: number; storage_bytes: number };
+    billing: { active_subscriptions: number; past_due: number };
+}
+
 export type UpdateRunStatus = 'idle' | 'queued' | 'running' | 'success' | 'failed';
 
 export interface UpdateRunState {
