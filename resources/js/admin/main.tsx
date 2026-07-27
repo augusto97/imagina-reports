@@ -8,12 +8,14 @@ import { createQueryClient } from '@shared/lib/queryClient';
 
 import { App } from './App';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
+import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 
 const queryClient = createQueryClient();
 
 // The password-reset link (#/reset-password?token=…) is reachable without a session, so it
 // bypasses App's auth gate entirely — decided here at mount from the URL hash.
 const isResetRoute = window.location.hash.startsWith('#/reset-password');
+const isVerifyEmailRoute = window.location.hash.startsWith('#/verify-email');
 
 const container = document.getElementById('ir-admin-root');
 
@@ -24,7 +26,7 @@ if (container === null) {
 createRoot(container).render(
     <StrictMode>
         <QueryClientProvider client={queryClient}>
-            {isResetRoute ? <ResetPasswordScreen /> : <App />}
+            {isResetRoute ? <ResetPasswordScreen /> : isVerifyEmailRoute ? <VerifyEmailScreen /> : <App />}
         </QueryClientProvider>
     </StrictMode>,
 );

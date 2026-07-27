@@ -1,7 +1,23 @@
 import { CreditCard, Plus, Send, Trash2, Webhook } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
 
-import { type AgencyUpdate, useAgency, useAuthUser, useBilling, useChangePassword, useSubscribe, useTestWebhooks, useUpdateAgency, useUpdateProfile, useUploadLogo } from '../api';
+import {
+    type AgencyUpdate,
+    useAgency,
+    useAuditLogs,
+    useAuthUser,
+    useBilling,
+    useChangePassword,
+    useConfirmTwoFactor,
+    useDeleteAgency,
+    useDisableTwoFactor,
+    useStartTwoFactor,
+    useSubscribe,
+    useTestWebhooks,
+    useUpdateAgency,
+    useUpdateProfile,
+    useUploadLogo,
+} from '../api';
 import { Badge, Button, Card, Field, Input } from '../components/ui';
 import type { AgencySettings } from '../types';
 
@@ -176,6 +192,11 @@ function ProfileCard(): ReactElement {
                 <Field label="Email (de inicio de sesión)">
                     <Input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
                 </Field>
+                {user?.pending_email != null && user.pending_email !== '' && (
+                    <p className="ir-rounded-md ir-bg-amber-500/10 ir-px-3 ir-py-2 ir-text-xs ir-text-amber-700">
+                        Cambio pendiente: enviamos un enlace a <strong>{user.pending_email}</strong>. El correo de acceso no cambiará hasta que lo confirmes desde ese buzón.
+                    </p>
+                )}
                 {emailChanged && (
                     <Field label="Contraseña actual" hint="Necesaria para cambiar el email de inicio de sesión.">
                         <Input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
@@ -185,7 +206,11 @@ function ProfileCard(): ReactElement {
                     <Button onClick={submit} disabled={update.isPending || name.trim() === '' || email.trim() === '' || (emailChanged && currentPassword === '')}>
                         {update.isPending ? 'Guardando…' : 'Guardar perfil'}
                     </Button>
-                    {update.isSuccess && <span className="ir-text-xs ir-text-emerald-600">Perfil actualizado.</span>}
+                    {update.isSuccess && (
+                        <span className="ir-text-xs ir-text-emerald-600">
+                            {emailChanged ? 'Te enviamos un enlace al nuevo correo para confirmarlo.' : 'Perfil actualizado.'}
+                        </span>
+                    )}
                     {error !== '' && <span className="ir-text-xs ir-text-red-500">{error}</span>}
                 </div>
             </div>
@@ -388,6 +413,197 @@ function PlanUsageCard({ agency }: { agency: AgencySettings }): ReactElement {
     );
 }
 
+/* ------------------------------ Two-factor auth ----------------------------- */
+
+function TwoFactorCard(): ReactElement {
+    const { data: user } = useAuthUser();
+    const start = useStartTwoFactor();
+    const confirm = useConfirmTwoFactor();
+    const disable = useDisableTwoFactor();
+    const [code, setCode] = useState('');
+    const [password, setPassword] = useState('');
+    const [codes, setCodes] = useState<string[]>([]);
+
+    const enabled = user?.two_factor_enabled === true;
+
+    return (
+        <Card
+            title="Verificación en dos pasos (2FA)"
+            description="Añade un código de un solo uso al iniciar sesión. Funciona con Google Authenticator, 1Password, Authy…"
+        >
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <p className="ir-text-xs ir-text-muted-foreground">
+                    Estado: {enabled
+                        ? <span className="ir-font-medium ir-text-emerald-600">activada ✓</span>
+                        : <span className="ir-font-medium ir-text-amber-600">desactivada</span>}
+                </p>
+
+                {!enabled && start.data == null && (
+                    <Button className="ir-self-start" onClick={() => start.mutate()} disabled={start.isPending}>
+                        {start.isPending ? 'Preparando…' : 'Activar 2FA'}
+                    </Button>
+                )}
+
+                {!enabled && start.data != null && codes.length === 0 && (
+                    <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/30 ir-p-3">
+                        <p className="ir-text-xs ir-text-muted-foreground">
+                            1) Añade esta clave en tu app de autenticación (entrada manual) y 2) escribe el código de 6 dígitos que te muestre.
+                        </p>
+                        <div>
+                            <p className="ir-mb-1 ir-text-[11px] ir-text-muted-foreground">Clave secreta:</p>
+                            <pre className="ir-overflow-x-auto ir-rounded ir-bg-foreground/5 ir-p-2 ir-text-[13px] ir-tracking-widest">{start.data.secret}</pre>
+                        </div>
+                        <details>
+                            <summary className="ir-cursor-pointer ir-text-[11px] ir-text-muted-foreground">Ver enlace otpauth:// (para apps que lo aceptan)</summary>
+                            <pre className="ir-mt-1 ir-overflow-x-auto ir-rounded ir-bg-foreground/5 ir-p-2 ir-text-[10px]">{start.data.otpauth_uri}</pre>
+                        </details>
+                        <Field label="Código de 6 dígitos">
+                            <Input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+                        </Field>
+                        {confirm.isError && <p className="ir-text-xs ir-text-red-500">El código no es válido. Comprueba la hora del teléfono.</p>}
+                        <Button
+                            className="ir-self-start"
+                            onClick={() => confirm.mutate(code, { onSuccess: (data) => { setCodes(data.recovery_codes); setCode(''); } })}
+                            disabled={confirm.isPending || code === ''}
+                        >
+                            Confirmar y activar
+                        </Button>
+                    </div>
+                )}
+
+                {codes.length > 0 && (
+                    <div className="ir-flex ir-flex-col ir-gap-2 ir-rounded-md ir-border ir-border-emerald-500/40 ir-bg-emerald-500/5 ir-p-3">
+                        <p className="ir-text-xs ir-font-medium ir-text-emerald-700">
+                            ✅ 2FA activada. Guarda estos códigos de recuperación ahora — son tu forma de entrar si pierdes el teléfono y no se volverán a mostrar.
+                        </p>
+                        <pre className="ir-overflow-x-auto ir-rounded ir-bg-foreground/5 ir-p-2 ir-text-[12px]">{codes.join('\n')}</pre>
+                        <Button variant="ghost" size="sm" className="ir-self-start" onClick={() => setCodes([])}>Ya los guardé</Button>
+                    </div>
+                )}
+
+                {enabled && (
+                    <div className="ir-mt-1 ir-border-t ir-pt-3">
+                        <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">Para desactivarla, confirma tu contraseña.</p>
+                        <div className="ir-flex ir-gap-2">
+                            <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña actual" />
+                            <Button variant="ghost" onClick={() => disable.mutate(password, { onSuccess: () => setPassword('') })} disabled={disable.isPending || password === ''}>
+                                Desactivar
+                            </Button>
+                        </div>
+                        {disable.isError && <p className="ir-mt-2 ir-text-xs ir-text-red-500">No se pudo desactivar. ¿La contraseña es correcta?</p>}
+                    </div>
+                )}
+            </div>
+        </Card>
+    );
+}
+
+/* --------------------------------- Audit log -------------------------------- */
+
+const AUDIT_LABELS: Record<string, string> = {
+    'team.deleted': 'Eliminó a un miembro',
+    'sharing.updated': 'Cambió la privacidad de un reporte',
+    'sharing.token_rotated': 'Rotó el enlace del panel',
+    'report.deleted': 'Eliminó un reporte',
+    'account.password_changed': 'Cambió su contraseña',
+    'account.email_change_requested': 'Solicitó cambiar su email',
+    'account.email_changed': 'Confirmó su nuevo email',
+    'account.two_factor_enabled': 'Activó 2FA',
+    'account.two_factor_disabled': 'Desactivó 2FA',
+    'agency.deleted': 'Eliminó la agencia',
+};
+
+function AuditLogCard(): ReactElement {
+    const [page, setPage] = useState(1);
+    const { data } = useAuditLogs(page, '');
+    const entries = data?.data ?? [];
+    const meta = data?.meta;
+
+    return (
+        <Card title="Registro de actividad" description="Quién hizo qué y cuándo. Solo lo ven propietario y administradores.">
+            {entries.length === 0 ? (
+                <p className="ir-text-sm ir-text-muted-foreground">Todavía no hay actividad registrada.</p>
+            ) : (
+                <ul className="ir-flex ir-flex-col ir-divide-y">
+                    {entries.map((entry) => (
+                        <li key={entry.id} className="ir-flex ir-flex-wrap ir-items-baseline ir-justify-between ir-gap-2 ir-py-2 ir-text-sm">
+                            <div className="ir-min-w-0">
+                                <p className="ir-font-medium">{entry.summary ?? AUDIT_LABELS[entry.action] ?? entry.action}</p>
+                                <p className="ir-text-xs ir-text-muted-foreground">
+                                    {entry.actor_name ?? 'Sistema'}{entry.actor_email != null ? ` · ${entry.actor_email}` : ''}{entry.ip != null ? ` · ${entry.ip}` : ''}
+                                </p>
+                            </div>
+                            <span className="ir-shrink-0 ir-text-xs ir-text-muted-foreground">
+                                {entry.created_at != null ? new Date(entry.created_at).toLocaleString() : ''}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {meta != null && meta.last_page > 1 && (
+                <div className="ir-mt-3 ir-flex ir-items-center ir-gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>← Anterior</Button>
+                    <span className="ir-text-xs ir-text-muted-foreground">Página {meta.current_page} de {meta.last_page} · {meta.total} registros</span>
+                    <Button size="sm" variant="ghost" onClick={() => setPage((p) => p + 1)} disabled={page >= meta.last_page}>Siguiente →</Button>
+                </div>
+            )}
+        </Card>
+    );
+}
+
+/* -------------------------------- Danger zone ------------------------------- */
+
+function DangerZoneCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const { data: user } = useAuthUser();
+    const remove = useDeleteAgency();
+    const [password, setPassword] = useState('');
+    const [name, setName] = useState('');
+    const [open, setOpen] = useState(false);
+
+    if (user?.role !== 'owner') {
+        return <></>;
+    }
+
+    const confirmDelete = (): void => {
+        if (!window.confirm('Esto elimina la agencia y TODOS sus datos (clientes, sitios, reportes, usuarios). No se puede deshacer. ¿Continuar?')) {
+            return;
+        }
+        remove.mutate(
+            { current_password: password, confirm_name: name },
+            { onSuccess: () => { window.location.hash = '#/'; window.location.reload(); } },
+        );
+    };
+
+    return (
+        <Card title="Zona de peligro" description="Eliminar la agencia borra de forma permanente todos sus datos. No hay vuelta atrás.">
+            {!open ? (
+                <Button variant="ghost" className="ir-self-start ir-text-danger" onClick={() => setOpen(true)}>
+                    Eliminar mi agencia…
+                </Button>
+            ) : (
+                <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-border-danger/40 ir-bg-danger/5 ir-p-3">
+                    <p className="ir-text-xs ir-text-danger">
+                        Se eliminarán clientes, sitios, fuentes, snapshots, reportes y usuarios. Descarga antes lo que necesites conservar.
+                    </p>
+                    <Field label="Contraseña actual">
+                        <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    </Field>
+                    <Field label={`Escribe «${agency.name}» para confirmar`}>
+                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={agency.name} />
+                    </Field>
+                    {remove.isError && <p className="ir-text-xs ir-text-red-500">No se pudo eliminar. Revisa la contraseña y el nombre.</p>}
+                    <div className="ir-flex ir-gap-2">
+                        <Button onClick={confirmDelete} disabled={remove.isPending || password === '' || name.trim() !== agency.name.trim()}>
+                            {remove.isPending ? 'Eliminando…' : 'Eliminar definitivamente'}
+                        </Button>
+                        <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+                    </div>
+                </div>
+            )}
+        </Card>
+    );
+}
+
 export function SettingsScreen(): ReactElement {
     const { data: agency, isLoading } = useAgency();
     const update = useUpdateAgency();
@@ -524,6 +740,9 @@ export function SettingsScreen(): ReactElement {
 
             <ProfileCard />
             <PasswordCard />
+            <TwoFactorCard />
+            <AuditLogCard />
+            <DangerZoneCard agency={agency} />
         </div>
     );
 }

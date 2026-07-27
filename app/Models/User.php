@@ -50,6 +50,9 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'pending_email_token',
         'password',
         'remember_token',
     ];
@@ -64,10 +67,48 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            // 2FA material is encrypted at rest: a DB dump alone can't mint valid codes.
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
+            'pending_email_sent_at' => 'datetime',
             'role' => UserRole::class,
             'is_platform_admin' => 'boolean',
             'impersonating_agency_id' => 'integer',
         ];
+    }
+
+    /** Whether the user finished enrolling in two-factor auth (a confirmed code). */
+    public function hasTwoFactorEnabled(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && is_string($this->two_factor_secret) && $this->two_factor_secret !== '';
+    }
+
+    /**
+     * Consume a one-time recovery code. Returns false when it doesn't match; on a match the
+     * code is burned (removed from the stored list) so it can never be reused.
+     */
+    public function consumeRecoveryCode(string $code): bool
+    {
+        $codes = is_array($this->two_factor_recovery_codes) ? $this->two_factor_recovery_codes : [];
+        $needle = strtoupper(trim($code));
+
+        $remaining = [];
+        $matched = false;
+        foreach ($codes as $stored) {
+            if (! $matched && is_string($stored) && hash_equals(strtoupper($stored), $needle)) {
+                $matched = true;
+
+                continue;
+            }
+            $remaining[] = $stored;
+        }
+
+        if ($matched) {
+            $this->forceFill(['two_factor_recovery_codes' => $remaining])->save();
+        }
+
+        return $matched;
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateReportSharingRequest;
 use App\Http\Resources\ReportDefinitionResource;
 use App\Models\ReportDefinition;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -68,6 +69,8 @@ final class ReportSharingController extends Controller
         $this->authorizePrivileged($request);
 
         $reportDefinition->forceFill(['dashboard_token' => Str::random(48)])->save();
+
+        AuditLogger::record(AuditLogger::SHARING_TOKEN_ROTATED, $reportDefinition, 'Rotó el enlace del panel en vivo (el anterior deja de funcionar).');
 
         return new ReportDefinitionResource($reportDefinition);
     }

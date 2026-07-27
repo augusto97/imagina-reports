@@ -13,6 +13,7 @@ use App\Jobs\GenerateReportJob;
 use App\Models\Agency;
 use App\Models\Report;
 use App\Models\ReportDefinition;
+use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Services\ReportPdfService;
 use App\Support\Tenancy\TenantContext;
@@ -136,6 +137,8 @@ final class ReportController extends Controller
         if ($report->pdf_path !== null) {
             Storage::delete($report->pdf_path);
         }
+
+        AuditLogger::record(AuditLogger::REPORT_DELETED, $report, 'Eliminó un reporte generado.');
 
         $report->delete();
 

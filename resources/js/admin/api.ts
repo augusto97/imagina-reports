@@ -20,6 +20,7 @@ import type {
     AgencyTrends,
     AgencyUpsell,
     AnomalyAlert,
+    AuditLogEntry,
     AuthUser,
     BillingInfo,
     CatalogEntry,
@@ -27,6 +28,7 @@ import type {
     Connector,
     DataSourceDto,
     PageFilters,
+    Paginated,
     Plan,
     PlatformAgency,
     PlatformBillingSettings,
@@ -69,11 +71,16 @@ export function useLogin() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: { email: string; password: string; remember?: boolean }): Promise<AuthUser> => {
+        mutationFn: async (payload: { email: string; password: string; remember?: boolean; two_factor_code?: string }): Promise<AuthUser | { two_factor_required: true }> => {
             await fetchCsrfCookie();
-            const { data } = await api.post<{ user: AuthUser }>('/login', payload);
+            const { data } = await api.post<{ user?: AuthUser; two_factor_required?: boolean }>('/login', payload);
 
-            return data.user;
+            // The password was right but the account needs its second factor.
+            if (data.two_factor_required === true) {
+                return { two_factor_required: true };
+            }
+
+            return data.user as AuthUser;
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
     });
@@ -967,8 +974,16 @@ export function useDeleteComment() {
 
 /* --------------------------------- reports --------------------------------- */
 
-export function useReports() {
-    return useQuery({ queryKey: ['reports'], queryFn: () => get<ReportSummary[]>('/reports') });
+/**
+ * Reports, newest first. The API caps the list (it grows every month), so `limit` is how the
+ * screen asks for more — see the "cargar más" control in ReportsScreen.
+ */
+export function useReports(limit?: number) {
+    return useQuery({
+        queryKey: ['reports', limit ?? 0],
+        queryFn: () => get<ReportSummary[]>(`/reports${limit != null ? `?limit=${limit}` : ''}`),
+        placeholderData: (previous) => previous,
+    });
 }
 
 /* --------------------------------- trends ---------------------------------- */
@@ -1290,4 +1305,62 @@ export async function downloadSiteAgentPlugin(): Promise<void> {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+}
+
+
+/* ------------------------------ Account security ----------------------------- */
+
+/** Start 2FA enrolment: returns the secret + otpauth URI (2FA stays off until confirmed). */
+export function useStartTwoFactor() {
+    return useMutation({
+        mutationFn: () => api.post<{ secret: string; otpauth_uri: string }>('/user/two-factor').then((r) => r.data),
+    });
+}
+
+/** Confirm enrolment with a code from the authenticator app; returns the recovery codes once. */
+export function useConfirmTwoFactor() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (code: string) => api.post<{ enabled: boolean; recovery_codes: string[] }>('/user/two-factor/confirm', { code }).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+export function useDisableTwoFactor() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (currentPassword: string) => api.delete('/user/two-factor', { data: { current_password: currentPassword } }).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+/** Confirm a pending email change from the link sent to the new address. */
+export function useVerifyEmailChange() {
+    return useMutation({
+        mutationFn: async (token: string) => {
+            await fetchCsrfCookie();
+
+            return api.post<{ message: string; email: string }>('/verify-email', { token }).then((r) => r.data);
+        },
+    });
+}
+
+/** Irreversibly delete the agency and all its data (owner only). */
+export function useDeleteAgency() {
+    return useMutation({
+        mutationFn: (payload: { current_password: string; confirm_name: string }) =>
+            api.delete('/agency', { data: payload }).then((r) => r.data),
+    });
+}
+
+/* --------------------------------- Audit log -------------------------------- */
+
+export function useAuditLogs(page: number, action: string) {
+    return useQuery({
+        queryKey: ['audit-logs', page, action],
+        queryFn: () => get<Paginated<AuditLogEntry>>(`/audit-logs?page=${page}${action !== '' ? `&action=${encodeURIComponent(action)}` : ''}`),
+        placeholderData: (previous) => previous,
+    });
 }

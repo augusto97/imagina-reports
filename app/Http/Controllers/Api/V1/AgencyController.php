@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateAgencyRequest;
 use App\Models\Agency;
+use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Services\SnapshotRetentionService;
 use App\Services\Webhooks\WebhookDispatcher;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The authenticated agency's own settings (CLAUDE.md §11.1): white-label branding
@@ -25,6 +31,46 @@ final class AgencyController extends Controller
     public function show(TenantContext $tenant): JsonResponse
     {
         return response()->json($this->present($this->current($tenant)));
+    }
+
+    /**
+     * Permanently delete the agency and everything under it (clients, sites, sources,
+     * snapshots, reports, users). Owner-only, and deliberately hard to trigger by accident:
+     * the caller must re-enter their password AND type the agency name. Cascading FKs do the
+     * actual removal, so nothing is left orphaned — this is the GDPR "delete my data" path.
+     */
+    public function destroy(Request $request, TenantContext $tenant): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User && $user->role === UserRole::Owner, 403, 'Solo el propietario de la agencia puede eliminarla.');
+
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'confirm_name' => ['required', 'string'],
+        ]);
+
+        if (! Hash::check($request->string('current_password')->toString(), $user->password)) {
+            throw ValidationException::withMessages(['current_password' => 'La contraseña actual no es correcta.']);
+        }
+
+        $agency = Agency::query()->findOrFail($tenant->id());
+
+        if (trim($request->string('confirm_name')->toString()) !== trim($agency->name)) {
+            throw ValidationException::withMessages(['confirm_name' => 'Escribe el nombre exacto de la agencia para confirmar.']);
+        }
+
+        AuditLogger::record(AuditLogger::AGENCY_DELETED, $agency, "Eliminó la agencia «{$agency->name}» y todos sus datos.", [], $user, $agency->id);
+
+        // End the session first: the user row disappears with the agency.
+        Auth::guard('web')->logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        $agency->delete();
+
+        return response()->json(['message' => 'Agencia eliminada.']);
     }
 
     public function update(UpdateAgencyRequest $request, TenantContext $tenant): JsonResponse

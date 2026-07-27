@@ -8,8 +8,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePasswordRequest;
 use App\Http\Requests\UpdateProfileRequest;
 use App\Models\User;
+use App\Notifications\VerifyPendingEmail;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -32,21 +37,75 @@ final class AccountController extends Controller
         abort_unless($user instanceof User, 403);
 
         $email = $request->string('email')->toString();
+        $emailChanged = $email !== $user->email;
 
-        if ($email !== $user->email && ! Hash::check($request->string('current_password')->toString(), $user->password)) {
+        if ($emailChanged && ! Hash::check($request->string('current_password')->toString(), $user->password)) {
             throw ValidationException::withMessages([
                 'current_password' => 'Introduce tu contraseña actual para cambiar el email.',
             ]);
         }
 
-        $user->forceFill([
-            'name' => $request->string('name')->toString(),
-            'email' => $email,
-        ])->save();
+        $user->forceFill(['name' => $request->string('name')->toString()])->save();
+
+        // The new address is only applied once its owner confirms it (see verifyEmail).
+        if ($emailChanged) {
+            $token = Str::random(64);
+
+            $user->forceFill([
+                'pending_email' => $email,
+                'pending_email_token' => $token,
+                'pending_email_sent_at' => now(),
+            ])->save();
+
+            // Notify the NEW address — that mailbox is what we're proving ownership of.
+            Notification::route('mail', $email)->notify(new VerifyPendingEmail($token));
+
+            AuditLogger::record(AuditLogger::ACCOUNT_EMAIL_CHANGE_REQUESTED, $user, 'Solicitó cambiar su email de acceso.');
+        }
 
         return response()->json([
             'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email],
+            'pending_email' => $user->pending_email,
         ]);
+    }
+
+    /**
+     * Confirm a pending email change from the link sent to the new address. Public (the user
+     * may open it in another browser); the single-use token is the capability.
+     */
+    public function verifyEmail(Request $request): JsonResponse
+    {
+        $request->validate(['token' => ['required', 'string']]);
+
+        $user = User::query()
+            ->withoutGlobalScopes()
+            ->where('pending_email_token', $request->string('token')->toString())
+            ->first();
+
+        // Links expire so an old inbox message can't change the address much later.
+        if (! $user instanceof User || $user->pending_email === null || $user->pending_email_sent_at?->lt(now()->subDay()) === true) {
+            return response()->json(['message' => 'El enlace no es válido o ha caducado. Vuelve a solicitar el cambio.'], 422);
+        }
+
+        // The address may have been taken since the request was made.
+        $taken = User::query()->withoutGlobalScopes()->where('email', $user->pending_email)->whereKeyNot($user->getKey())->exists();
+        if ($taken) {
+            return response()->json(['message' => 'Ese correo ya está en uso por otra cuenta.'], 422);
+        }
+
+        $newEmail = $user->pending_email;
+
+        $user->forceFill([
+            'email' => $newEmail,
+            'email_verified_at' => now(),
+            'pending_email' => null,
+            'pending_email_token' => null,
+            'pending_email_sent_at' => null,
+        ])->save();
+
+        AuditLogger::record(AuditLogger::ACCOUNT_EMAIL_CHANGED, $user, 'Confirmó su nuevo email de acceso.', [], $user, $user->agency_id);
+
+        return response()->json(['message' => 'Correo confirmado. Ya puedes iniciar sesión con él.', 'email' => $newEmail]);
     }
 
     public function updatePassword(UpdatePasswordRequest $request): JsonResponse
@@ -60,6 +119,8 @@ final class AccountController extends Controller
         }
 
         $user->forceFill(['password' => $request->string('password')->toString()])->save();
+
+        AuditLogger::record(AuditLogger::ACCOUNT_PASSWORD_CHANGED, $user, 'Cambió su contraseña.');
 
         return response()->json(['message' => 'Contraseña actualizada.']);
     }

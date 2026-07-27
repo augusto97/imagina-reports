@@ -22,6 +22,9 @@ final class LoginRequest extends FormRequest
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
             'remember' => ['sometimes', 'boolean'],
+            // Second factor: absent on the first round-trip, supplied after the SPA is told
+            // `two_factor_required`. Accepts a TOTP code or a recovery code.
+            'two_factor_code' => ['sometimes', 'nullable', 'string'],
         ];
     }
 }

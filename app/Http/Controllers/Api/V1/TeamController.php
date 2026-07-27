@@ -11,6 +11,7 @@ use App\Http\Requests\UpdateTeamUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Agency;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -88,6 +89,8 @@ final class TeamController extends Controller
         $actingId = $request->user()?->getKey();
         abort_if($actingId !== null && $user->getKey() === $actingId, 422, 'No puedes eliminarte a ti mismo.');
         abort_if($user->role === UserRole::Owner && $this->ownerCount() <= 1, 422, 'No puedes eliminar el último propietario de la agencia.');
+
+        AuditLogger::record(AuditLogger::TEAM_DELETED, $user, "Eliminó a {$user->name} ({$user->email}) del equipo.");
 
         $user->delete();
 

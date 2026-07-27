@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AnomalyController;
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BillingWebhookController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\Api\V1\SiteWorkLogController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TrendsController;
+use App\Http\Controllers\Api\V1\TwoFactorController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UpsellController;
 use App\Http\Controllers\Api\V1\WorkLogController;
@@ -99,6 +101,12 @@ Route::match(['get', 'post'], '/connect/callback/{type}', [ConnectController::cl
     ->middleware('throttle:60,1')
     ->name('api.connect.callback');
 
+// Public confirmation of a pending email change (§11.1): the single-use token in the link
+// sent to the NEW address is the capability. Throttled to blunt token guessing.
+Route::post('/verify-email', [AccountController::class, 'verifyEmail'])
+    ->middleware('throttle:12,1')
+    ->name('api.account.verify-email');
+
 // SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');
 
@@ -114,6 +122,11 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
     Route::put('/user/profile', [AccountController::class, 'updateProfile'])->name('api.user.profile');
     Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
+
+    // Two-factor enrolment for the signed-in user (§11.1). Enable → confirm → (later) disable.
+    Route::post('/user/two-factor', [TwoFactorController::class, 'store'])->name('api.user.2fa.store');
+    Route::post('/user/two-factor/confirm', [TwoFactorController::class, 'confirm'])->name('api.user.2fa.confirm');
+    Route::delete('/user/two-factor', [TwoFactorController::class, 'destroy'])->name('api.user.2fa.destroy');
 
     // Agency billing (self-service subscription).
     Route::get('billing', [BillingController::class, 'show'])->name('api.billing.show');
@@ -135,6 +148,11 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
     Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
     Route::post('agency/webhooks/test', [AgencyController::class, 'testWebhooks'])->name('api.agency.webhooks.test');
+    // Danger zone: irreversibly delete the agency and all its data (owner only).
+    Route::delete('agency', [AgencyController::class, 'destroy'])->name('api.agency.destroy');
+
+    // Audit trail of sensitive actions (privileged, read-only, paginated).
+    Route::get('audit-logs', [AuditLogController::class, 'index'])->name('api.audit-logs.index');
     // Agency-level reusable calculated metrics (§10.1).
     Route::put('agency/calculated-metrics', [CalculatedMetricController::class, 'update'])->name('api.agency.calculated-metrics.update');
 

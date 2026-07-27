@@ -11,13 +11,25 @@ export function LoginScreen(): ReactElement {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [remember, setRemember] = useState(true);
+    // Set once the API answers `two_factor_required`: the password was right, we now need the code.
+    const [needsCode, setNeedsCode] = useState(false);
+    const [code, setCode] = useState('');
 
     const submit = (event: FormEvent): void => {
         event.preventDefault();
         if (email === '' || password === '') {
             return;
         }
-        login.mutate({ email, password, remember });
+        login.mutate(
+            { email, password, remember, ...(needsCode ? { two_factor_code: code } : {}) },
+            {
+                onSuccess: (result) => {
+                    if ('two_factor_required' in result) {
+                        setNeedsCode(true);
+                    }
+                },
+            },
+        );
     };
 
     const submitForgot = (event: FormEvent): void => {
@@ -45,13 +57,29 @@ export function LoginScreen(): ReactElement {
                             <Field label="Contraseña">
                                 <Input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
                             </Field>
+                            {needsCode && (
+                                <Field label="Código de verificación" hint="Los 6 dígitos de tu app de autenticación. También sirve un código de recuperación.">
+                                    <Input
+                                        autoComplete="one-time-code"
+                                        inputMode="numeric"
+                                        value={code}
+                                        onChange={(event) => setCode(event.target.value)}
+                                        placeholder="123456"
+                                        autoFocus
+                                    />
+                                </Field>
+                            )}
                             <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
                                 <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
                                 Recordarme en este dispositivo
                             </label>
-                            {login.isError && <p className="ir-text-xs ir-text-red-500">No pudimos iniciar sesión. Revisa tu email y contraseña.</p>}
-                            <Button type="submit" disabled={login.isPending}>
-                                {login.isPending ? 'Entrando…' : 'Entrar'}
+                            {login.isError && (
+                                <p className="ir-text-xs ir-text-red-500">
+                                    {needsCode ? 'El código no es válido. Inténtalo de nuevo.' : 'No pudimos iniciar sesión. Revisa tu email y contraseña.'}
+                                </p>
+                            )}
+                            <Button type="submit" disabled={login.isPending || (needsCode && code === '')}>
+                                {login.isPending ? 'Entrando…' : needsCode ? 'Verificar y entrar' : 'Entrar'}
                             </Button>
                             <button
                                 type="button"

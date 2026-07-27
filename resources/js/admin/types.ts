@@ -335,6 +335,8 @@ export interface AuthUser {
     is_platform_admin?: boolean;
     impersonating?: number | null;
     app_version?: string;
+    two_factor_enabled?: boolean;
+    pending_email?: string | null;
 }
 
 export interface PlanLimits {
@@ -421,4 +423,21 @@ export interface UpdateStatus {
     worker_version: string | null;
     worker_checked_at: string | null;
     last_run: UpdateRunState;
+}
+
+export interface AuditLogEntry {
+    id: number;
+    action: string;
+    summary: string | null;
+    actor_name: string | null;
+    actor_email: string | null;
+    subject_type: string | null;
+    subject_id: number | null;
+    ip: string | null;
+    created_at: string | null;
+}
+
+export interface Paginated<T> {
+    data: T[];
+    meta: { current_page: number; last_page: number; per_page: number; total: number };
 }

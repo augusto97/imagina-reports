@@ -931,7 +931,11 @@ export function ReportsScreen(): ReactElement {
     const { data: sites = [] } = useSites();
     const { data: templates = [] } = useReportTemplates();
     const { data: definitions = [], isLoading: definitionsLoading, isError: definitionsError, refetch: refetchDefinitions } = useReportDefinitions();
-    const { data: reports = [] } = useReports();
+    // The API caps the list (reports accumulate every month); this raises the cap on demand.
+    const [reportLimit, setReportLimit] = useState(200);
+    const { data: reports = [] } = useReports(reportLimit);
+    // A full page means there are probably older reports behind it.
+    const mayHaveMoreReports = reports.length >= reportLimit && reportLimit < 1000;
     const { data: schedules = [] } = useSchedules();
 
     const [createOpen, setCreateOpen] = useState(false);
@@ -1028,6 +1032,15 @@ export function ReportsScreen(): ReactElement {
                             onTools={(report, tab) => setTools({ report, tab })}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* The reports list is capped server-side (it grows monthly); load older ones on demand. */}
+            {mayHaveMoreReports && (
+                <div className="ir-flex ir-justify-center">
+                    <Button variant="ghost" size="sm" onClick={() => setReportLimit((current) => Math.min(1000, current + 200))}>
+                        Cargar reportes más antiguos
+                    </Button>
                 </div>
             )}
 
