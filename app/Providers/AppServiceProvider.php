@@ -123,7 +123,9 @@ class AppServiceProvider extends ServiceProvider
             return 'agency:'.$agencyId;
         }
 
-        return $user !== null ? 'user:'.$user->getAuthIdentifier() : 'ip:'.($request->ip() ?? 'unknown');
+        $id = $user?->getAuthIdentifier();
+
+        return is_scalar($id) ? 'user:'.$id : 'ip:'.($request->ip() ?? 'unknown');
     }
 
     /**

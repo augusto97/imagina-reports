@@ -43,7 +43,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
     /**
      * Access tokens already minted this request, keyed by data-source id (see token()).
      *
-     * @var array<int|string, string>
+     * @var array<string, string>
      */
     private array $tokenCache = [];
 
@@ -293,7 +293,8 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
      */
     private function token(DataSource $source): string
     {
-        $cacheKey = $source->getKey() ?? spl_object_id($source);
+        $key = $source->getKey();
+        $cacheKey = is_scalar($key) ? (string) $key : (string) spl_object_id($source);
 
         if (isset($this->tokenCache[$cacheKey])) {
             return $this->tokenCache[$cacheKey];
