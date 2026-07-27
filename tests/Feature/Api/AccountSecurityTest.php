@@ -96,18 +96,22 @@ class AccountSecurityTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ])->save();
 
-        // Password alone: no session, just the challenge.
-        $this->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123'])
+        // Password alone: the challenge, and NO session is opened.
+        $this->withSession([])
+            ->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123'])
             ->assertOk()
             ->assertJson(['two_factor_required' => true]);
         $this->assertGuest();
 
         // A wrong code is rejected.
-        $this->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123', 'two_factor_code' => '000000'])
+        $this->withSession([])
+            ->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123', 'two_factor_code' => '000000'])
             ->assertStatus(422);
+        $this->assertGuest();
 
         // A recovery code works and is burned.
-        $this->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123', 'two_factor_code' => $codes[0]])
+        $this->withSession([])
+            ->postJson('/api/v1/login', ['email' => $user->email, 'password' => 'secret123', 'two_factor_code' => $codes[0]])
             ->assertOk();
         $this->assertCount(count($codes) - 1, $user->fresh()?->two_factor_recovery_codes ?? []);
     }
