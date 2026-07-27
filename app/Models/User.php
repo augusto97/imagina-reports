@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -22,10 +23,10 @@ use Laravel\Sanctum\HasApiTokens;
  * @property int|null $impersonating_agency_id
  * @property string|null $two_factor_secret decrypted by the cast
  * @property list<string>|null $two_factor_recovery_codes decrypted + decoded by the cast
- * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
+ * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $pending_email
  * @property string|null $pending_email_token
- * @property \Illuminate\Support\Carbon|null $pending_email_sent_at
+ * @property Carbon|null $pending_email_sent_at
  */
 class User extends Authenticatable
 {
