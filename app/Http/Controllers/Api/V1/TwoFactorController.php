@@ -66,7 +66,7 @@ final class TwoFactorController extends Controller
         return response()->json([
             'enabled' => true,
             // Shown once: the user must save them now (they're the way back in without the phone).
-            'recovery_codes' => is_array($user->two_factor_recovery_codes) ? $user->two_factor_recovery_codes : [],
+            'recovery_codes' => $user->two_factor_recovery_codes ?? [],
         ]);
     }
 

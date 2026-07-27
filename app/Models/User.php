@@ -20,6 +20,12 @@ use Laravel\Sanctum\HasApiTokens;
  * @property UserRole $role
  * @property bool $is_platform_admin
  * @property int|null $impersonating_agency_id
+ * @property string|null $two_factor_secret decrypted by the cast
+ * @property list<string>|null $two_factor_recovery_codes decrypted + decoded by the cast
+ * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
+ * @property string|null $pending_email
+ * @property string|null $pending_email_token
+ * @property \Illuminate\Support\Carbon|null $pending_email_sent_at
  */
 class User extends Authenticatable
 {
@@ -90,13 +96,14 @@ class User extends Authenticatable
      */
     public function consumeRecoveryCode(string $code): bool
     {
-        $codes = is_array($this->two_factor_recovery_codes) ? $this->two_factor_recovery_codes : [];
+        $codes = $this->two_factor_recovery_codes ?? [];
         $needle = strtoupper(trim($code));
 
         $remaining = [];
         $matched = false;
         foreach ($codes as $stored) {
-            if (! $matched && is_string($stored) && hash_equals(strtoupper($stored), $needle)) {
+            // Only the first match is burned, so duplicates in the list stay usable.
+            if (! $matched && hash_equals(strtoupper($stored), $needle)) {
                 $matched = true;
 
                 continue;
