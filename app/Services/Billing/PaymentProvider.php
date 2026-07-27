@@ -38,8 +38,15 @@ interface PaymentProvider
     public function resolveWebhook(Request $request, PlatformSetting $settings): ?WebhookResult;
 
     /**
+     * Ask the provider for a subscription's CURRENT state, independently of any webhook.
+     * Backs the daily reconciliation that repairs state when a notification never arrived.
+     * Returns null when the provider can't be reached or reports a state we don't map.
+     */
+    public function fetchStatus(string $externalId, PlatformSetting $settings): ?WebhookResult;
+
+    /**
      * Cancel a subscription at the provider (used to stop a replaced subscription from
-     * charging after the agency switches plans). Best-effort at the call site.
+     * charging after the agency switches plans, and when the agency cancels its own).
      *
      * @throws BillingException
      */

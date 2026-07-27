@@ -70,6 +70,7 @@ export interface BillingInfo {
 
 export interface PlatformBillingSettings {
     mercadopago_configured: boolean;
+    mercadopago_webhook_configured: boolean;
     paypal_configured: boolean;
     paypal_webhook_configured: boolean;
     billing_sandbox: boolean;

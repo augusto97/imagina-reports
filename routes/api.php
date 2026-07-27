@@ -133,6 +133,7 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     // Agency billing (self-service subscription).
     Route::get('billing', [BillingController::class, 'show'])->name('api.billing.show');
     Route::post('billing/subscribe', [BillingController::class, 'subscribe'])->name('api.billing.subscribe');
+    Route::post('billing/cancel', [BillingController::class, 'cancel'])->name('api.billing.cancel');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
 

@@ -25,6 +25,9 @@ final class PlatformBillingController extends Controller
     {
         $request->validate([
             'mercadopago_access_token' => ['sometimes', 'nullable', 'string'],
+            // Signing secret from the MercadoPago webhook config — optional, but with it
+            // set every inbound notification must carry a valid x-signature.
+            'mercadopago_webhook_secret' => ['sometimes', 'nullable', 'string'],
             'paypal_client_id' => ['sometimes', 'nullable', 'string'],
             'paypal_secret' => ['sometimes', 'nullable', 'string'],
             // Webhook id from the PayPal app dashboard — required to verify inbound webhooks.
@@ -35,7 +38,7 @@ final class PlatformBillingController extends Controller
         $settings = PlatformSetting::current();
 
         // A present secret sets (or clears, when blank) it; absent leaves it as-is.
-        foreach (['mercadopago_access_token', 'paypal_client_id', 'paypal_secret', 'paypal_webhook_id'] as $key) {
+        foreach (['mercadopago_access_token', 'mercadopago_webhook_secret', 'paypal_client_id', 'paypal_secret', 'paypal_webhook_id'] as $key) {
             if ($request->has($key)) {
                 $value = $request->input($key);
                 $settings->putSecret($key, is_string($value) ? $value : null);
@@ -57,6 +60,7 @@ final class PlatformBillingController extends Controller
     {
         return [
             'mercadopago_configured' => $settings->hasSecret('mercadopago_access_token'),
+            'mercadopago_webhook_configured' => $settings->hasSecret('mercadopago_webhook_secret'),
             'paypal_configured' => $settings->hasSecret('paypal_client_id') && $settings->hasSecret('paypal_secret'),
             'paypal_webhook_configured' => $settings->hasSecret('paypal_webhook_id'),
             'billing_sandbox' => $settings->get('billing_sandbox') !== false,

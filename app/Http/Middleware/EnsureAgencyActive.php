@@ -18,7 +18,8 @@ use Symfony\Component\HttpFoundation\Response;
 final class EnsureAgencyActive
 {
     /** Routes a suspended agency may still reach (auth, profile, billing). */
-    private const ALLOWED = ['api.user', 'api.logout', 'api.agency.show', 'api.billing.show', 'api.billing.subscribe'];
+    // Cancelling stays reachable while suspended: nobody should have to pay to stop paying.
+    private const ALLOWED = ['api.user', 'api.logout', 'api.agency.show', 'api.billing.show', 'api.billing.subscribe', 'api.billing.cancel'];
 
     public function __construct(private readonly TenantContext $tenant) {}
 

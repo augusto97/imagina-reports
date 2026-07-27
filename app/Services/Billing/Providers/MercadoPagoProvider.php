@@ -12,6 +12,7 @@ use App\Models\PlatformSetting;
 use App\Models\User;
 use App\Services\Billing\BillingException;
 use App\Services\Billing\Checkout;
+use App\Services\Billing\Concerns\ParsesProviderDates;
 use App\Services\Billing\PaymentProvider;
 use App\Services\Billing\WebhookResult;
 use Illuminate\Http\Request;
@@ -24,6 +25,8 @@ use Illuminate\Support\Facades\Http;
  */
 final class MercadoPagoProvider implements PaymentProvider
 {
+    use ParsesProviderDates;
+
     private const BASE = 'https://api.mercadopago.com';
 
     public function key(): string
@@ -111,19 +114,34 @@ final class MercadoPagoProvider implements PaymentProvider
             return null;
         }
 
-        // Only preapproval (subscription) events change access; payment events are ignored.
         $type = $request->input('type', $request->input('topic'));
+        $id = $this->notificationId($request);
+
+        if (! is_string($type) || $id === '' || ! $this->signatureIsValid($request, $settings, $id)) {
+            return null;
+        }
+
+        // A renewal charge. Here the id is the authorized PAYMENT, not the preapproval.
+        if ($type === 'subscription_authorized_payment' || $type === 'authorized_payment') {
+            return $this->resolveAuthorizedPayment($id, $token, $settings);
+        }
+
         if ($type !== 'preapproval' && $type !== 'subscription_preapproval') {
             return null;
         }
 
-        $id = $request->input('data.id', $request->input('id'));
-        if (! is_string($id) || $id === '') {
+        return $this->fetchStatus($id, $settings);
+    }
+
+    /** Source of truth: MercadoPago's own record of the preapproval, never the payload. */
+    public function fetchStatus(string $externalId, PlatformSetting $settings): ?WebhookResult
+    {
+        $token = $settings->secret('mercadopago_access_token');
+        if ($token === null) {
             return null;
         }
 
-        // Source of truth: fetch the preapproval and read its authoritative status.
-        $response = Http::withToken($token)->acceptJson()->get(self::BASE.'/preapproval/'.$id);
+        $response = Http::withToken($token)->acceptJson()->get(self::BASE.'/preapproval/'.$externalId);
         if ($response->failed()) {
             return null;
         }
@@ -134,7 +152,96 @@ final class MercadoPagoProvider implements PaymentProvider
             return null;
         }
 
-        return new WebhookResult($id, $status);
+        return new WebhookResult($externalId, $status, $this->parseProviderDate($response->json('next_payment_date')));
+    }
+
+    /**
+     * Resolve a recurring-charge notification.
+     *
+     * A failed renewal does NOT change the preapproval's status — MercadoPago keeps it
+     * `authorized` while it retries. Without reading the authorized payment the app would
+     * never learn a charge failed, so the grace window would never start and the agency
+     * would be cut off abruptly whenever MercadoPago finally paused the subscription.
+     */
+    private function resolveAuthorizedPayment(string $paymentId, string $token, PlatformSetting $settings): ?WebhookResult
+    {
+        $response = Http::withToken($token)->acceptJson()->get(self::BASE.'/authorized_payments/'.$paymentId);
+        if ($response->failed()) {
+            return null;
+        }
+
+        $preapprovalId = $response->json('preapproval_id');
+        if (! is_string($preapprovalId) || $preapprovalId === '') {
+            return null;
+        }
+
+        // `recycling` = retrying after a failure; `rejected` = the charge was refused.
+        $paymentStatus = $response->json('status');
+        if ($paymentStatus === 'recycling' || $paymentStatus === 'rejected') {
+            return new WebhookResult($preapprovalId, SubscriptionStatus::PastDue);
+        }
+
+        // Charged fine: re-read the preapproval so the next charge date is refreshed too.
+        return $this->fetchStatus($preapprovalId, $settings);
+    }
+
+    /** The notification's subject id, which MercadoPago sends as a string or a number. */
+    private function notificationId(Request $request): string
+    {
+        $raw = $request->input('data.id', $request->input('id'));
+
+        if (is_string($raw)) {
+            return $raw;
+        }
+
+        return is_int($raw) ? (string) $raw : '';
+    }
+
+    /**
+     * Verify MercadoPago's `x-signature` HMAC.
+     *
+     * Skipped when no webhook secret is configured: forging is already pointless here —
+     * every status comes from a direct call to MercadoPago, never from the payload — and
+     * failing closed would silently stop renewals on every install that hasn't pasted the
+     * secret yet. Once the secret IS set this fails CLOSED, which also shuts the door on
+     * unauthenticated traffic making us call MercadoPago's API.
+     */
+    private function signatureIsValid(Request $request, PlatformSetting $settings, string $id): bool
+    {
+        $secret = $settings->secret('mercadopago_webhook_secret');
+        if ($secret === null) {
+            return true;
+        }
+
+        $header = $request->header('x-signature');
+        if (! is_string($header) || $header === '') {
+            return false;
+        }
+
+        $parts = [];
+        foreach (explode(',', $header) as $piece) {
+            $pair = explode('=', trim($piece), 2);
+            if (count($pair) === 2) {
+                $parts[trim($pair[0])] = trim($pair[1]);
+            }
+        }
+
+        $ts = $parts['ts'] ?? null;
+        $v1 = $parts['v1'] ?? null;
+        if ($ts === null || $v1 === null) {
+            return false;
+        }
+
+        // Manifest template documented by MercadoPago: id, request-id and ts, each ending
+        // in ';', omitting the parts the notification didn't carry.
+        $manifest = 'id:'.strtolower($id).';';
+        $requestId = $request->header('x-request-id');
+        if (is_string($requestId) && $requestId !== '') {
+            $manifest .= 'request-id:'.$requestId.';';
+        }
+        $manifest .= 'ts:'.$ts.';';
+
+        return hash_equals(hash_hmac('sha256', $manifest, $secret), $v1);
     }
 
     private function mapStatus(string $mp): ?SubscriptionStatus

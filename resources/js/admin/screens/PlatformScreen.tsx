@@ -840,12 +840,13 @@ function BillingTab(): ReactElement {
     const { data: settings } = usePlatformBillingSettings();
     const update = useUpdatePlatformBillingSettings();
     const [mp, setMp] = useState('');
+    const [mpHook, setMpHook] = useState('');
     const [ppId, setPpId] = useState('');
     const [ppSecret, setPpSecret] = useState('');
     const [ppHook, setPpHook] = useState('');
 
-    const save = (payload: { mercadopago_access_token?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean }): void => {
-        update.mutate(payload, { onSuccess: () => { setMp(''); setPpId(''); setPpSecret(''); setPpHook(''); } });
+    const save = (payload: { mercadopago_access_token?: string; mercadopago_webhook_secret?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean }): void => {
+        update.mutate(payload, { onSuccess: () => { setMp(''); setMpHook(''); setPpId(''); setPpSecret(''); setPpHook(''); } });
     };
 
     return (
@@ -856,12 +857,29 @@ function BillingTab(): ReactElement {
                 actions={<ConfigChip ready={settings?.mercadopago_configured ?? false} />}
             >
                 <div className="ir-flex ir-flex-col ir-gap-3">
-                    <Field label="Access Token">
+                    <Field label="Access Token" hint="El token decide el entorno: uno TEST-… cobra en pruebas, uno APP_USR-… cobra de verdad. La casilla «sandbox» de abajo no afecta a MercadoPago.">
                         <Input type="password" autoComplete="off" value={mp} onChange={(e) => setMp(e.target.value)} placeholder={settings?.mercadopago_configured ? '•••••••• (deja en blanco para conservar)' : 'APP_USR-…'} />
                     </Field>
                     <Button className="ir-self-start" onClick={() => save({ mercadopago_access_token: mp })} disabled={update.isPending || mp === ''}>
                         Guardar
                     </Button>
+                    <div className="ir-mt-1 ir-border-t ir-pt-3">
+                        <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
+                            <span className="ir-text-xs ir-text-muted-foreground">Clave secreta del webhook</span>
+                            <ConfigChip ready={settings?.mercadopago_webhook_configured ?? false} />
+                        </div>
+                        <Field
+                            label="Clave secreta (opcional)"
+                            hint="En MercadoPago → Tus integraciones → Webhooks. Con ella se valida la firma de cada aviso. Sin ella el cobro sigue siendo seguro (el estado siempre se consulta a MercadoPago), pero se acepta tráfico sin firmar."
+                        >
+                            <div className="ir-flex ir-gap-2">
+                                <Input type="password" autoComplete="off" value={mpHook} onChange={(e) => setMpHook(e.target.value)} placeholder={settings?.mercadopago_webhook_configured ? '••••••••' : 'clave del webhook'} />
+                                <Button variant="ghost" onClick={() => save({ mercadopago_webhook_secret: mpHook })} disabled={update.isPending || mpHook === ''}>
+                                    Guardar
+                                </Button>
+                            </div>
+                        </Field>
+                    </div>
                 </div>
             </Card>
 
@@ -902,11 +920,14 @@ function BillingTab(): ReactElement {
                 </div>
             </Card>
 
-            <Card title="Entorno">
+            <Card title="Entorno de PayPal">
                 <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm">
                     <input type="checkbox" checked={settings?.billing_sandbox ?? true} onChange={(e) => save({ billing_sandbox: e.target.checked })} />
                     Modo sandbox (pruebas). Desactívalo solo cuando uses credenciales de producción.
                 </label>
+                <p className="ir-mt-2 ir-text-xs ir-text-muted-foreground">
+                    Solo afecta a PayPal. En MercadoPago el entorno lo decide el token que pegues arriba.
+                </p>
                 {update.isSuccess && <p className="ir-mt-2 ir-text-xs ir-text-success">Guardado.</p>}
             </Card>
         </div>

@@ -424,6 +424,19 @@ export function useSubscribe() {
     });
 }
 
+/** Stop future charges. Access runs to the end of the period already paid for. */
+export function useCancelSubscription() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<{ message: string; access_until: string | null }>('/billing/cancel').then((r) => r.data),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['billing'] });
+            void queryClient.invalidateQueries({ queryKey: ['agency'] });
+        },
+    });
+}
+
 export function usePlatformBillingSettings() {
     return useQuery({ queryKey: ['platform-billing-settings'], queryFn: () => get<PlatformBillingSettings>('/platform/billing-settings') });
 }

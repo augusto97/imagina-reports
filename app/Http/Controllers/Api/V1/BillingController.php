@@ -97,4 +97,28 @@ final class BillingController extends Controller
 
         return response()->json(['approval_url' => $url]);
     }
+
+    /**
+     * Cancel the agency's own subscription. Stops future charges at the provider; access
+     * runs to the end of the period already paid for (see BillingService::cancel).
+     */
+    public function cancel(Request $request): JsonResponse
+    {
+        $this->authorizePrivileged($request);
+
+        $agency = Agency::query()->findOrFail($this->tenant->id());
+
+        try {
+            $this->billing->cancel($agency);
+        } catch (BillingException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        $subscription = Subscription::query()->where('agency_id', $agency->id)->first();
+
+        return response()->json([
+            'message' => 'Suscripción cancelada. No se harán más cobros.',
+            'access_until' => $subscription?->grace_until?->toIso8601String(),
+        ]);
+    }
 }

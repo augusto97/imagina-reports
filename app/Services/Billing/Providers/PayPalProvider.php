@@ -10,6 +10,7 @@ use App\Models\Plan;
 use App\Models\PlatformSetting;
 use App\Services\Billing\BillingException;
 use App\Services\Billing\Checkout;
+use App\Services\Billing\Concerns\ParsesProviderDates;
 use App\Services\Billing\PaymentProvider;
 use App\Services\Billing\WebhookResult;
 use Illuminate\Http\Client\PendingRequest;
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\Http;
  */
 final class PayPalProvider implements PaymentProvider
 {
+    use ParsesProviderDates;
+
     public function key(): string
     {
         return 'paypal';
@@ -196,7 +199,42 @@ final class PayPalProvider implements PaymentProvider
             default => null,
         };
 
-        return $status !== null ? new WebhookResult($id, $status) : null;
+        if ($status === null) {
+            return null;
+        }
+
+        return new WebhookResult($id, $status, $this->parseProviderDate($request->input('resource.billing_info.next_billing_time')));
+    }
+
+    /** Source of truth for reconciliation: PayPal's own record of the subscription. */
+    public function fetchStatus(string $externalId, PlatformSetting $settings): ?WebhookResult
+    {
+        try {
+            $response = $this->client($settings)->get('/v1/billing/subscriptions/'.$externalId);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $raw = $response->json('status');
+        $status = match (is_string($raw) ? $raw : '') {
+            'ACTIVE' => SubscriptionStatus::Active,
+            'SUSPENDED' => SubscriptionStatus::Suspended,
+            'CANCELLED', 'EXPIRED' => SubscriptionStatus::Cancelled,
+            'APPROVAL_PENDING', 'APPROVED' => SubscriptionStatus::Pending,
+            default => null,
+        };
+
+        if ($status === null) {
+            return null;
+        }
+
+        return new WebhookResult($externalId, $status, $this->parseProviderDate($response->json('billing_info.next_billing_time')));
     }
 
     /**

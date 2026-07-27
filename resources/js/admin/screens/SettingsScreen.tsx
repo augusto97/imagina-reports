@@ -7,6 +7,7 @@ import {
     useAuditLogs,
     useAuthUser,
     useBilling,
+    useCancelSubscription,
     useChangePassword,
     useConfirmTwoFactor,
     useDeleteAgency,
@@ -385,6 +386,7 @@ function PlanUsageCard({ agency }: { agency: AgencySettings }): ReactElement {
 function BillingCard(): ReactElement | null {
     const { data: billing } = useBilling();
     const subscribe = useSubscribe();
+    const cancel = useCancelSubscription();
     // null = untouched (fall back to the suggested billing email once it loads).
     const [payerEmail, setPayerEmail] = useState<string | null>(null);
 
@@ -438,7 +440,41 @@ function BillingCard(): ReactElement | null {
             >
                 <div className="ir-flex ir-flex-col ir-gap-4">
                     {sub !== null && (
-                        <p className="ir-text-xs ir-text-muted-foreground">Método de pago actual: {sub.provider}.</p>
+                        <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
+                            <p className="ir-text-xs ir-text-muted-foreground">
+                                Método de pago: {sub.provider}
+                                {sub.current_period_end !== null && ` · próximo cobro el ${new Date(sub.current_period_end).toLocaleDateString()}`}
+                            </p>
+                            {sub.status !== 'cancelled' && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={cancel.isPending}
+                                    onClick={() => {
+                                        if (window.confirm('Se cancelará la suscripción y no se harán más cobros. Conservas el acceso hasta el final del periodo que ya pagaste. ¿Continuar?')) {
+                                            cancel.mutate();
+                                        }
+                                    }}
+                                >
+                                    {cancel.isPending ? 'Cancelando…' : 'Cancelar suscripción'}
+                                </Button>
+                            )}
+                        </div>
+                    )}
+
+                    {cancel.isSuccess && (
+                        <p className="ir-rounded-md ir-bg-muted/50 ir-px-3 ir-py-2 ir-text-xs ir-text-muted-foreground">
+                            {cancel.data.message}
+                            {cancel.data.access_until !== null && ` Conservas el acceso hasta el ${new Date(cancel.data.access_until).toLocaleDateString()}.`}
+                        </p>
+                    )}
+                    {cancel.isError && <p className="ir-text-xs ir-text-danger">No se pudo cancelar. Inténtalo de nuevo o contacta con soporte.</p>}
+
+                    {sub?.status === 'past_due' && (
+                        <p className="ir-rounded-md ir-bg-warning/10 ir-px-3 ir-py-2 ir-text-sm ir-text-warning">
+                            No pudimos cobrar tu última cuota. Revisa el medio de pago en {sub.provider}: si no se resuelve, el acceso se
+                            suspenderá cuando termine el periodo de gracia.
+                        </p>
                     )}
 
                     {billing.status === 'suspended' && (
