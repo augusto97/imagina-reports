@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 AJUSTES DE LA AGENCIA REESTRUCTURADOS (2026-07-27, rama `claude/github-app-analysis-a7b2bd`, release v1.18.0):** el owner reportó que
+la pantalla de Ajustes confundía a sus clientes — era **un solo scroll de diez tarjetas**, y el **email de acceso** y el **email de pago de
+MercadoPago** vivían en el mismo flujo, así que la gente editaba el equivocado. `SettingsScreen.tsx` pasa a **5 secciones navegables**
+(barra lateral en `lg+`, pastillas con scroll horizontal en móvil), cada una con su encabezado y una línea explicando qué contiene:
+**Mi cuenta** (datos + contraseña + 2FA) · **Mi agencia** (nombre, idioma, color, logo) · **Plan y pagos** (consumo, email de cobro,
+suscripción) · **Integraciones** (clave Claude, webhooks, Slack) · **Seguridad** (registro de actividad, zona de peligro).
+**Anti-confusión:** los dos correos quedan en secciones distintas; el de MercadoPago tiene tarjeta propia («Email de cobro (MercadoPago)»)
+que dice que **no** cambia el email de acceso, y el de acceso dice lo inverso y apunta a dónde está el otro.
+**Además:** cada tarjeta **guarda lo suyo** con su botón y su confirmación — se eliminó el botón flotante «Guardar ajustes» que guardaba
+marca + clave de IA desde un punto intermedio entre tarjetas sin relación (fuente de confusión propia). Helper `agencyBase(agency)` reenvía
+los campos de identidad guardados porque `UpdateAgencyRequest` exige `name` en cada PUT. Estados («configurada ✓», 2FA, estado de
+suscripción) pasan de prosa en verde/ámbar a **chips `Badge` en la cabecera** de cada tarjeta. Colores hardcodeados (`ir-text-emerald-600`,
+`ir-text-amber-700`, `ir-text-red-500`) sustituidos por los tokens del tema (`ir-text-success/warning/danger`).
+**CI verde** (run 30292033226, commit `7299825`).
+
 **🛠️ SUPER-ADMIN: PODERES REALES + REDISEÑO DEL PANEL (2026-07-27, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):**
 el owner reportó dos problemas: (a) el super-admin apenas podía cambiar de plan o desactivar — una agencia/usuario creado quedaba
 en la plataforma para siempre; (b) el panel de plataforma «parecía otra app», poco estilizado y difícil de usar.
