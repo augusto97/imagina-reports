@@ -25,9 +25,11 @@ detalle, borrado con confirmación, impersonación colgante, último owner, aisl
 eliminar en línea, alta de usuario, y zona de peligro con confirmación por nombre); Planes/Facturación/Integraciones pasados a `Card`+`Badge`
 consistentes (chip `ConfigChip` reutilizado). Tipos `PlatformOverview`/`PlatformAgencyDetail`/`PlatformAgencyUser` + hooks
 (`usePlatformOverview`, `usePlatformAgency`, `useDeletePlatformAgency`, CRUD de usuarios) en `api.ts`.
-**Estado de validación:** `typecheck` + `lint` + `vitest` (16) + `npm run build` limpios en local. **El PHP NO se pudo validar en local**
-(el contenedor no puede autenticar contra github.com con composer → `vendor/bin` vacío): **Pint/PHPStan/PHPUnit los corre CI**. Revisar
-el workflow antes de dar por buena la tanda. **Siguiente:** esperar CI verde y, si el owner lo pide, disparar release (v1.17.0).
+**Estado de validación: CI VERDE** (run 30289663522, commit `203b881`): Pint + PHPStan max + **550 tests PHP** (1642 asserts, 12 nuevos
+en `PlatformOperatorTest`) + typecheck/lint/vitest(16)/build de los dos SPAs. Nota para futuras sesiones: **en este contenedor composer no
+puede autenticar contra github.com** (`vendor/bin` vacío), así que Pint/PHPStan/PHPUnit **solo se validan en CI** — no dar por buena una
+tanda PHP sin mirar el workflow. Cuidado al leer los logs: el "PASS … 453 files" es **Pint**, no PHPUnit; si PHPStan falla, el paso
+`Tests` queda en *skipped*. **Siguiente:** pendiente de que el owner pida el release (sería v1.17.0).
 
 **🚀 TIER 1 + TIER 2 (marketing/competitividad) (2026-07-10, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** tras el
 análisis competitivo (Supermetrics/Whatagraph/AgencyAnalytics/DashThis/Databox) se construyó el roadmap Tier 1+2. **Hecho:**
