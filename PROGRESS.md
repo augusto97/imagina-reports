@@ -7,6 +7,31 @@
 ---
 
 ## Where I left off (read me first)
+**💳 CICLO DE VIDA DE LAS SUSCRIPCIONES — MERCADOPAGO COMPLETADO (2026-07-27, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):**
+auditoría pedida por el owner («¿la integración con MercadoPago está completa, es segura?»). **Diagnóstico:** el alta y la seguridad del cobro
+estaban bien (precio/moneda del `Plan` en servidor; el webhook nunca se fía del payload — solo toma el `id` y consulta `GET /preapproval/{id}`
+a MP, así que **no es falsificable**; cambio de plan sin doble cobro ya resuelto). **Pero todo lo posterior al primer pago faltaba.** Corregido:
+(1) **Renovaciones fallidas.** MP mantiene la preapproval en `authorized` mientras reintenta, y el código ignoraba los eventos de pago → un
+cobro fallido era invisible hasta que MP pausaba la suscripción (corte brusco, sin gracia). Ahora `subscription_authorized_payment` se resuelve
+vía `GET /authorized_payments/{id}`: `recycling`/`rejected` → **PastDue** (abre la ventana de gracia de 7 días + aviso al cliente en el panel),
+`processed` → refresca el periodo. Esto hace que la gracia y `billing:enforce-overdue` **por fin apliquen a MercadoPago** (antes eran de facto
+solo de PayPal, porque `mapStatus()` no podía producir PastDue).
+(2) **`current_period_end`** se rellena desde `next_payment_date` (MP) / `next_billing_time` (PayPal) — antes siempre vacío.
+(3) **Firma `x-signature`** (HMAC-SHA256 sobre `id:…;request-id:…;ts:…;`) verificada **cuando hay secreto configurado** (campo nuevo
+`mercadopago_webhook_secret` en el panel de plataforma). **Decisión consciente:** sin secreto NO se verifica, porque falsificar ya era inútil
+(el estado siempre se consulta a MP) y fallar cerrado rompería las renovaciones de toda instalación que aún no lo haya pegado. Con secreto,
+falla CERRADO y ni siquiera se llama a la API de MP.
+(4) **Cancelación desde la app** (`POST billing/cancel`, owner/admin, permitida aun con la agencia suspendida). Corta cobros en el proveedor y
+**conserva el acceso hasta el final del periodo ya pagado** (`grace_until = current_period_end`); si no hay periodo conocido, corta al momento.
+`enforceOverdue()` generalizado para cubrir PastDue **y** Cancelled con gracia vencida (el Cancelled se queda como Cancelled: es el *motivo*).
+(5) **`billing:reconcile`** diario a las 03:50 (antes del corte de las 04:00): relee de ambos proveedores las suscripciones Pending/Active/PastDue
+y aplica la desviación. Método nuevo `fetchStatus()` en el contrato `PaymentProvider` (implementado en MP y PayPal). Un proveedor caído no
+detiene el barrido.
+(6) La casilla «sandbox» ahora dice que **solo afecta a PayPal**; en MP el entorno lo decide el token (`TEST-` vs `APP_USR-`).
+Tests nuevos: `tests/Feature/Billing/SubscriptionLifecycleTest.php` (12 casos). **CI verde** (run 30302832438, commit `0717a6c`): Pint + PHPStan
+max + **562 tests** (1679 asserts). **PENDIENTE:** que el owner pida el release (sería v1.19.0). **PENDIENTE DE OPERACIÓN:** para activar la
+verificación de firma hay que crear el webhook en MercadoPago → Tus integraciones → Webhooks y pegar su clave secreta en el panel.
+
 **🧭 AJUSTES DE LA AGENCIA REESTRUCTURADOS (2026-07-27, rama `claude/github-app-analysis-a7b2bd`, release v1.18.0):** el owner reportó que
 la pantalla de Ajustes confundía a sus clientes — era **un solo scroll de diez tarjetas**, y el **email de acceso** y el **email de pago de
 MercadoPago** vivían en el mismo flujo, así que la gente editaba el equivocado. `SettingsScreen.tsx` pasa a **5 secciones navegables**
