@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🔌 LA DETECCIÓN DE CUENTAS TRAS CONECTAR YA NO FALLA EN SILENCIO (2026-07-28, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):**
+el owner reportó una fuente de Instagram atascada en «Falta el ID de la cuenta de Instagram». **Causa raíz (nuestra, no de Meta):** tras el
+connect de un clic, `ConnectController::discoverResources()` consultaba qué cuentas ve el token y, si la respuesta venía vacía o la llamada
+fallaba, **hacía `return` sin dejar rastro** — la fuente quedaba con token válido, sin `ig_user_id`, sin picker, sin `last_error` y sin
+explicación; el cliente solo se enteraba al pulsar «Probar», y la única salida era rehacer todo el OAuth. Afectaba a **todos** los conectores
+de un clic (GA4, GSC, Google Ads, Facebook Ads, Instagram), no solo Instagram. **Corregido:** (1) `ConnectableResources` gana `emptyHint`, de
+modo que «no pudimos preguntar al proveedor» y «tu cuenta no expone nada legible» dejan de ser indistinguibles; cada conector explica qué
+arreglar (Instagram: cuenta Business/Creator + vinculada a una página de Facebook + esa página marcada en la pantalla de permisos de Meta —
+este último es el fallo más común). (2) La detección se extrae a **`app/Connectors/Connect/ResourceDiscovery.php`**, que escribe el motivo en
+`last_error` en vez de callarse, y limpia `connect_options` cuando ya no aplica. (3) **`POST data-sources/{ds}/discover`** + botón
+**«Detectar cuentas»** en `SiteDataSources.tsx` (visible en los tipos con connect de un clic) reejecutan la detección con el token ya guardado
+— arreglas la causa en el proveedor y sigues, sin reconectar. Tests: `tests/Feature/Connectors/ResourceDiscoveryTest.php` (6 casos, incluye
+aislamiento por tenant del endpoint). **CI verde** (run 30402988877, commit `f2e6cdb`). **PENDIENTE:** que el owner pida el release (v1.20.0).
+
 **💳 CICLO DE VIDA DE LAS SUSCRIPCIONES — MERCADOPAGO COMPLETADO (2026-07-27, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):**
 auditoría pedida por el owner («¿la integración con MercadoPago está completa, es segura?»). **Diagnóstico:** el alta y la seguridad del cobro
 estaban bien (precio/moneda del `Plan` en servidor; el webhook nunca se fía del payload — solo toma el `id` y consulta `GET /preapproval/{id}`
