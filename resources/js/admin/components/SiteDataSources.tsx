@@ -523,7 +523,9 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                                     <span className={'ir-size-2 ir-shrink-0 ir-rounded-full ' + statusDot(source.status)} title={source.status} />
                                     <div className="ir-min-w-0">
                                         <p className="ir-truncate ir-text-sm ir-font-medium">{labelFor(source.type)}</p>
-                                        <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{detail}</p>
+                                        {/* Wraps rather than truncates: this line carries the reason a
+                                            connection failed, which is useless cut off at one line. */}
+                                        <p className="ir-text-xs ir-text-muted-foreground">{detail}</p>
                                         <AgentVersion source={source} />
                                     </div>
                                 </div>
