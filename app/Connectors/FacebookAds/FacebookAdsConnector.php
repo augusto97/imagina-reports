@@ -271,7 +271,14 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
             $options[] = ['value' => $id, 'label' => $name !== '' ? "{$name} ({$id})" : $id];
         }
 
-        return new ConnectableResources('ad_account_id', 'Cuenta publicitaria de Meta', $options);
+        return new ConnectableResources(
+            'ad_account_id',
+            'Cuenta publicitaria de Meta',
+            $options,
+            'La conexión funcionó, pero esta cuenta de Facebook no administra ninguna cuenta publicitaria. '
+            .'Revisa que tengas acceso a la cuenta en el Administrador Comercial de Meta y que la hayas marcado '
+            .'en la pantalla de permisos, luego pulsa «Detectar cuentas».',
+        );
     }
 
     /** Meta expects the date window as a JSON-encoded `{since, until}` query value. */

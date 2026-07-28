@@ -8,6 +8,7 @@ import {
     useConnectors,
     useCreateDataSource,
     useDeleteDataSource,
+    useDiscoverResources,
     useSiteDataSources,
     useTestConnection,
     useUpdateDataSource,
@@ -357,6 +358,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     const create = useCreateDataSource(siteId);
     const remove = useDeleteDataSource(siteId);
     const test = useTestConnection();
+    const discover = useDiscoverResources(siteId);
     const connectStart = useConnectStart(siteId);
 
     const [adding, setAdding] = useState(false);
@@ -411,6 +413,10 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
 
     const runTest = (id: number): void => {
         test.mutate(id, { onSuccess: (result) => setResults((prev) => ({ ...prev, [id]: result.message })) });
+    };
+
+    const runDiscover = (id: number): void => {
+        discover.mutate(id, { onSuccess: (result) => setResults((prev) => ({ ...prev, [id]: result.message })) });
     };
 
     const confirmRemove = (source: DataSourceDto): void => {
@@ -507,6 +513,8 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
             <ul className="ir-flex ir-flex-col ir-gap-2">
                 {sources.map((source) => {
                     const detail = results[source.id] ?? source.last_error ?? source.status;
+                    // Only one-click connectors have accounts to re-detect.
+                    const canDiscover = connectors.find((item) => item.key === source.type)?.connect != null;
 
                     return (
                         <li key={source.id} className="ir-rounded-lg ir-border ir-bg-card ir-px-3 ir-py-2.5 ir-transition-colors hover:ir-border-foreground/15">
@@ -523,6 +531,17 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                                     {source.type === 'ga4' && (
                                         <Button variant="ghost" size="sm" onClick={() => setBuilderFor(source)} title="Crear métricas personalizadas de GA4">
                                             Métricas
+                                        </Button>
+                                    )}
+                                    {canDiscover && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => runDiscover(source.id)}
+                                            disabled={discover.isPending}
+                                            title="Vuelve a preguntar al proveedor qué cuentas ve esta conexión"
+                                        >
+                                            Detectar cuentas
                                         </Button>
                                     )}
                                     {source.is_push !== true && (

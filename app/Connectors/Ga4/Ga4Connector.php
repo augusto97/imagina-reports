@@ -360,7 +360,13 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             }
         }
 
-        return new ConnectableResources('property_id', 'Propiedad de Google Analytics', $options);
+        return new ConnectableResources(
+            'property_id',
+            'Propiedad de Google Analytics',
+            $options,
+            'La conexión funcionó, pero esta cuenta de Google no tiene acceso a ninguna propiedad de GA4. '
+            .'Pide que te añadan como lector en la propiedad (o conéctate con otra cuenta) y pulsa «Detectar cuentas».',
+        );
     }
 
     /**

@@ -343,7 +343,13 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             $options[] = ['value' => $id, 'label' => $accountName !== '' ? "{$accountName} ({$formatted})" : $formatted];
         }
 
-        return new ConnectableResources('customer_id', 'Cuenta de Google Ads', $options);
+        return new ConnectableResources(
+            'customer_id',
+            'Cuenta de Google Ads',
+            $options,
+            'La conexión funcionó, pero esta cuenta de Google no administra ninguna cuenta de Google Ads. '
+            .'Conéctate con el usuario de Google que tiene acceso a la cuenta publicitaria y pulsa «Detectar cuentas».',
+        );
     }
 
     /**

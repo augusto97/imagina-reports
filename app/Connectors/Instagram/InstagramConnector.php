@@ -225,7 +225,16 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
             $options[] = ['value' => $id, 'label' => $pageName !== '' ? "{$label} — {$pageName}" : $label];
         }
 
-        return new ConnectableResources('ig_user_id', 'Cuenta de Instagram', $options);
+        return new ConnectableResources(
+            'ig_user_id',
+            'Cuenta de Instagram',
+            $options,
+            'La conexión funcionó, pero no encontramos ninguna cuenta de Instagram utilizable. '
+            .'Instagram solo expone datos a través de una página de Facebook, así que revisa que: '
+            .'(1) la cuenta sea Business o Creator —no personal—, (2) esté vinculada a una página de Facebook, '
+            .'y (3) hayas marcado esa página en la pantalla de permisos de Meta al conectar. '
+            .'Corrige lo que falte y pulsa «Detectar cuentas».',
+        );
     }
 
     private function client(DataSource $source): PendingRequest

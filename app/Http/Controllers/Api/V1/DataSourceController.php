@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Connectors\Connect\ResourceDiscovery;
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\Contracts\ReceivesPushedData;
 use App\Enums\DataSourceStatus;
@@ -278,6 +279,23 @@ final class DataSourceController extends Controller
         return response()->json([
             'successful' => $result->successful,
             'message' => $result->message,
+        ]);
+    }
+
+    /**
+     * Re-run the "which accounts can this connection see?" discovery with the token already
+     * stored. Lets the client fix the cause on the provider's side (link the Instagram
+     * account to a Page, get added as a reader on the GA4 property…) and pick up where they
+     * left off, instead of having to redo the whole authorization.
+     */
+    public function discover(DataSource $dataSource, ResourceDiscovery $discovery): JsonResponse
+    {
+        $error = $discovery->discover($dataSource);
+
+        return response()->json([
+            'successful' => $error === null,
+            'message' => $error ?? 'Listo. Si hay varias cuentas, elígela en el desplegable.',
+            'data_source' => new DataSourceResource($dataSource->refresh()),
         ]);
     }
 }

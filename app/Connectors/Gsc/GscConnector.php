@@ -500,7 +500,13 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
             $options[] = ['value' => $url, 'label' => $url];
         }
 
-        return new ConnectableResources('site_url', 'Propiedad de Search Console', $options);
+        return new ConnectableResources(
+            'site_url',
+            'Propiedad de Search Console',
+            $options,
+            'La conexión funcionó, pero esta cuenta de Google no tiene acceso a ninguna propiedad de Search Console. '
+            .'Pide que te añadan como usuario en la propiedad (o conéctate con otra cuenta) y pulsa «Detectar cuentas».',
+        );
     }
 
     /**

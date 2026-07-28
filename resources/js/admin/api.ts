@@ -776,6 +776,17 @@ export function useTestConnection() {
     });
 }
 
+/** Re-run the post-connect account discovery with the token already stored. */
+export function useDiscoverResources(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (dataSourceId: number) =>
+            api.post<ConnectionTestResult>(`/data-sources/${dataSourceId}/discover`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['data-sources', siteId] }),
+    });
+}
+
 /* ----------------------- GA4 self-serve dataset builder -------------------- */
 
 export interface Ga4MetaField {

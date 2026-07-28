@@ -193,6 +193,8 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
     Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
+    // Retry the post-connect account discovery without redoing the authorization.
+    Route::post('data-sources/{dataSource}/discover', [DataSourceController::class, 'discover'])->name('api.data-sources.discover');
     // Self-serve GA4 dataset builder (§10.6/A.3): metadata dictionary + test/save/delete.
     Route::get('data-sources/{dataSource}/ga4/metadata', [Ga4DatasetController::class, 'metadata'])->name('api.data-sources.ga4.metadata');
     Route::post('data-sources/{dataSource}/ga4/datasets/test', [Ga4DatasetController::class, 'test'])->name('api.data-sources.ga4.datasets.test');

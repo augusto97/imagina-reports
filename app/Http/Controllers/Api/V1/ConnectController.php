@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\Connect\ConnectRegistry;
-use App\Connectors\ConnectorRegistry;
-use App\Connectors\Contracts\ListsConnectableResources;
+use App\Connectors\Connect\ResourceDiscovery;
 use App\Enums\DataSourceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Agency;
@@ -33,7 +32,7 @@ final class ConnectController extends Controller
 
     public function __construct(
         private readonly ConnectRegistry $registry,
-        private readonly ConnectorRegistry $connectors,
+        private readonly ResourceDiscovery $discovery,
     ) {}
 
     public function start(Request $request, Site $site, string $type, Entitlements $entitlements, TenantContext $tenant): JsonResponse
@@ -123,50 +122,13 @@ final class ConnectController extends Controller
 
         // Discover the pickable resources (GA4 properties, ad accounts…) now that we hold the
         // token, so the UI offers a dropdown. Auto-select when there's exactly one.
-        $this->discoverResources($source);
+        $this->discovery->discover($source);
 
         if ($isBrowser) {
             return redirect()->away($this->withQuery($returnUrl, ['connected' => $type, 'source' => (string) $source->id]));
         }
 
         return response()->json(['connected' => true, 'source_id' => $source->id]);
-    }
-
-    /**
-     * Best-effort: list what the connected account can access and stash it on the source's
-     * meta for the picker. If there's a single option, fill the config field directly and
-     * skip the picker. Never throws — a failure just leaves the client to enter the ID.
-     */
-    private function discoverResources(DataSource $source): void
-    {
-        $connector = $this->connectors->for($source);
-
-        if (! $connector instanceof ListsConnectableResources) {
-            return;
-        }
-
-        try {
-            $resources = $connector->connectableResources($source);
-        } catch (\Throwable) {
-            return;
-        }
-
-        if ($resources === null || $resources->options === []) {
-            return;
-        }
-
-        if (count($resources->options) === 1) {
-            $only = $resources->options[0];
-            $source->forceFill([
-                'config' => array_merge($source->config ?? [], [$resources->field => $only['value']]),
-            ])->save();
-
-            return;
-        }
-
-        $source->forceFill([
-            'meta' => array_merge($source->meta ?? [], ['connect_options' => $resources->toArray()]),
-        ])->save();
     }
 
     private function intentKey(string $nonce): string

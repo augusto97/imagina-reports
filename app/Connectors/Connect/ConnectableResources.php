@@ -15,11 +15,16 @@ final readonly class ConnectableResources
 {
     /**
      * @param  list<array{value: string, label: string}>  $options
+     * @param  string|null  $emptyHint  Shown to the client when the account authorized fine but
+     *                                  exposes nothing to pick — the difference between "we
+     *                                  couldn't ask" and "you have nothing we can read", which
+     *                                  is the one thing that actually tells them what to fix.
      */
     public function __construct(
         public string $field,
         public string $label,
         public array $options,
+        public ?string $emptyHint = null,
     ) {}
 
     /**
