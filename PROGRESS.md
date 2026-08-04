@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🏢 META: DESCUBRIR ACTIVOS DEL PORTAFOLIO COMERCIAL, NO SOLO LOS PERSONALES (2026-08-04, rama `claude/github-app-analysis-a7b2bd`,
+SIN RELEASE AÚN):** el owner reportó que una cuenta con muchos perfiles de Instagram seguía dando «no encontramos cuentas utilizables»,
+mientras Supermetrics sí conecta. **Tenía razón: era nuestro.** La detección solo recorría las aristas **personales** — `/me/accounts`
+(Instagram) y `/me/adaccounts` (Ads) —, que devuelven lo asignado *a la persona*. Una agencia guarda las páginas y cuentas publicitarias de
+sus clientes en un **portafolio comercial** y suele ser admin del portafolio **sin rol en cada activo**, así que ambas aristas vuelven vacías
+justo para el caso de uso central del producto. **Corregido:** ambos conectores combinan y deduplican tres orígenes — la arista personal +
+`owned_pages`/`owned_ad_accounts` + `client_pages`/`client_ad_accounts` de cada portafolio (`/me/businesses`). Se añadió el scope
+**`business_management`** a los dos `MetaConnect` en `ConnectorServiceProvider`; si Meta aún no lo aprobó, esas aristas dan 403 y **se ignoran**
+(degradación elegante: se ofrece lo que encontró la arista personal en vez de romperse). Tests nuevos en `InstagramConnectorTest` (portafolio,
+deduplicación, permiso denegado) y `AdsConnectorsTest` (portafolio). **CI verde** (run 30951277822, commit `cc0e5b5`).
+**⚠️ ACCIÓN DEL OWNER:** `business_management` también pasa revisión de Meta — hay que añadirlo a la solicitud con su justificación
+(enumerar activos del portafolio para que el usuario elija cuál informar; solo lectura). Sin él, solo se ven activos asignados en personal.
+También en esta tanda: el detalle de la fuente **envuelve en varias líneas** en vez de truncarse con «…» (el motivo del fallo era ilegible).
+
 **🔌 LA DETECCIÓN DE CUENTAS TRAS CONECTAR YA NO FALLA EN SILENCIO (2026-07-28, rama `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):**
 el owner reportó una fuente de Instagram atascada en «Falta el ID de la cuenta de Instagram». **Causa raíz (nuestra, no de Meta):** tras el
 connect de un clic, `ConnectController::discoverResources()` consultaba qué cuentas ve el token y, si la respuesta venía vacía o la llamada
