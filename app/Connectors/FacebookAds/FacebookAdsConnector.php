@@ -43,6 +43,9 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
     /** Bump when moving to a newer Graph API version. */
     private const API_VERSION = 'v21.0';
 
+    /** Campaign × placement rows kept per period. The editor can only filter over these. */
+    private const DATASET_ROW_LIMIT = 500;
+
     private const API_BASE = 'https://graph.facebook.com';
 
     /** Action types counted as "conversions" (documented assumption; overlaps avoided). */
@@ -66,9 +69,52 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
         ];
     }
 
+    /**
+     * The campaign dataset's shape. Measures are deliberately **additive only** (spend,
+     * impressions, clicks, conversions): the DatasetEngine sums a measure across the rows a
+     * block keeps, and summing a ratio like CTR or CPC — or reach, which Meta de-duplicates
+     * per row — produces a number that looks right and isn't. Those stay account-level
+     * scalars. Compute derived ratios with a calculated metric over these instead.
+     *
+     * @return array{dimensions: array<string, string>, measures: array<string, array{label: string, unit: string}>}
+     */
+    private function campaignDataset(): array
+    {
+        return [
+            'dimensions' => [
+                'campaign' => 'Campaña',
+                // Instagram ads ARE Meta ads: same account, same Insights API, told apart by
+                // the placement. This dimension is what lets a block say "only Instagram".
+                'platform' => 'Plataforma (Facebook / Instagram)',
+            ],
+            'measures' => [
+                'spend' => ['label' => 'Inversión', 'unit' => 'currency'],
+                'impressions' => ['label' => 'Impresiones', 'unit' => 'count'],
+                'clicks' => ['label' => 'Clics', 'unit' => 'count'],
+                'conversions' => ['label' => 'Conversiones', 'unit' => 'count'],
+            ],
+        ];
+    }
+
     public function metricCatalog(DataSource $source): MetricCatalog
     {
+        $dataset = $this->campaignDataset();
+        $measures = [];
+        foreach ($dataset['measures'] as $key => $measure) {
+            $measures[] = ['key' => $key, 'label' => $measure['label'], 'unit' => $measure['unit']];
+        }
+
         return new MetricCatalog(
+            new MetricDefinition(
+                'facebook_ads.campaigns',
+                'Campañas (modelable)',
+                MetricType::Dataset,
+                null,
+                array_keys($dataset['dimensions']),
+                null,
+                $measures,
+                $dataset['dimensions'],
+            ),
             new MetricDefinition('facebook_ads.impressions', 'Impresiones', MetricType::Scalar, 'count'),
             new MetricDefinition('facebook_ads.reach', 'Alcance', MetricType::Scalar, 'count'),
             new MetricDefinition('facebook_ads.clicks', 'Clics', MetricType::Scalar, 'count'),
@@ -130,6 +176,7 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
             $errors = [];
             $this->collectSeries($client, $insightsUrl, $period, $metrics, $errors);
             $this->collectTopCampaigns($client, $insightsUrl, $period, $metrics, $errors);
+            $this->collectCampaignDataset($client, $insightsUrl, $period, $metrics, $errors);
 
             return $errors === [] ? MetricSet::ok($metrics) : MetricSet::partial($metrics, implode('; ', $errors));
         } catch (Throwable $e) {
@@ -202,6 +249,54 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
             $metrics['facebook_ads.top_campaigns'] = array_slice($rows, 0, 10);
         } catch (Throwable $e) {
             $errors[] = 'campaigns: '.$e->getMessage();
+        }
+    }
+
+    /**
+     * Campaign × placement rows for the modelable dataset, so a block can be bound to a
+     * specific set of campaigns, or to Instagram placements only, straight from the editor —
+     * no per-client metric, no re-sync when the selection changes.
+     *
+     * Still aggregated at the source and bounded (§3.3): Insights returns one row per
+     * campaign/platform pair, never per impression. The row cap is generous because the
+     * editor can only filter over what the snapshot holds — a campaign outside it can't be
+     * picked later.
+     *
+     * @param  array<string, mixed>  $metrics
+     * @param  list<string>  $errors
+     */
+    private function collectCampaignDataset(PendingRequest $client, string $url, Period $period, array &$metrics, array &$errors): void
+    {
+        try {
+            $response = $client->get($url, [
+                'level' => 'campaign',
+                'breakdowns' => 'publisher_platform',
+                'fields' => 'campaign_name,spend,clicks,impressions,actions',
+                'time_range' => $this->timeRange($period),
+                'limit' => self::DATASET_ROW_LIMIT,
+            ]);
+
+            if ($response->failed()) {
+                $errors[] = 'campaign dataset: HTTP '.$response->status();
+
+                return;
+            }
+
+            $rows = array_map(fn (array $row): array => [
+                'campaign' => $this->toStr(Arr::get($row, 'campaign_name')),
+                'platform' => $this->toStr(Arr::get($row, 'publisher_platform')),
+                'spend' => $this->toFloat(Arr::get($row, 'spend')),
+                'impressions' => $this->toInt(Arr::get($row, 'impressions')),
+                'clicks' => $this->toInt(Arr::get($row, 'clicks')),
+                'conversions' => $this->sumActions(Arr::get($row, 'actions')),
+            ], $this->listOf($response->json('data')));
+
+            // Highest spend first, so a truncated snapshot keeps what matters.
+            usort($rows, static fn (array $a, array $b): int => $b['spend'] <=> $a['spend']);
+
+            $metrics['facebook_ads.campaigns'] = $rows;
+        } catch (Throwable $e) {
+            $errors[] = 'campaign dataset: '.$e->getMessage();
         }
     }
 

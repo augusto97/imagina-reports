@@ -6,6 +6,7 @@ namespace Tests\Feature\Connectors;
 
 use App\Connectors\FacebookAds\FacebookAdsConnector;
 use App\Connectors\GoogleAds\GoogleAdsConnector;
+use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -60,6 +61,49 @@ class AdsConnectorsTest extends TestCase
         $this->assertSame('1234567890', $resources->options[0]['value']);
         // Label shows the human name + the formatted id.
         $this->assertSame('Tienda Acme (123-456-7890)', $resources->options[0]['label']);
+    }
+
+    public function test_the_meta_campaign_dataset_splits_by_placement_so_instagram_can_be_isolated(): void
+    {
+        // Instagram ads are Meta ads: same account, told apart by publisher_platform.
+        Http::fake(function (Request $request) {
+            if (str_contains((string) ($request->data()['breakdowns'] ?? ''), 'publisher_platform')) {
+                return Http::response(['data' => [
+                    ['campaign_name' => 'Rebajas', 'publisher_platform' => 'instagram', 'spend' => '30.00', 'impressions' => '900', 'clicks' => '20', 'actions' => [['action_type' => 'purchase', 'value' => '3']]],
+                    ['campaign_name' => 'Rebajas', 'publisher_platform' => 'facebook', 'spend' => '70.00', 'impressions' => '2100', 'clicks' => '50', 'actions' => []],
+                ]]);
+            }
+
+            return Http::response(['data' => [[]]]);
+        });
+
+        $set = (new FacebookAdsConnector)->fetch(
+            $this->source(DataSourceType::FacebookAds, ['ad_account_id' => '123'], ['access_token' => 'tok']),
+            $this->period(),
+            [],
+        );
+
+        $rows = $set->get('facebook_ads.campaigns');
+        $this->assertIsArray($rows);
+        $this->assertCount(2, $rows);
+        // Sorted by spend, so a truncated snapshot keeps the campaigns that matter.
+        $this->assertSame('facebook', $rows[0]['platform']);
+        $this->assertSame(70.0, $rows[0]['spend']);
+        $this->assertSame('instagram', $rows[1]['platform']);
+        $this->assertSame(3, $rows[1]['conversions']);
+    }
+
+    public function test_the_meta_campaign_dataset_declares_only_additive_measures(): void
+    {
+        // Summing a ratio across rows is silently wrong, so CTR/CPC stay account scalars.
+        $definition = (new FacebookAdsConnector)
+            ->metricCatalog($this->source(DataSourceType::FacebookAds, ['ad_account_id' => '123'], ['access_token' => 'tok']))
+            ->get('facebook_ads.campaigns');
+
+        $this->assertNotNull($definition);
+        $this->assertSame(MetricType::Dataset, $definition->type);
+        $this->assertSame(['campaign', 'platform'], $definition->dimensions);
+        $this->assertSame(['spend', 'impressions', 'clicks', 'conversions'], array_column($definition->measures, 'key'));
     }
 
     public function test_meta_ad_account_discovery_includes_business_portfolio_accounts(): void

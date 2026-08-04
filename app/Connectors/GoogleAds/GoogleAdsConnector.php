@@ -54,6 +54,9 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
     /** Google Ads reports money in micros (millionths of the account currency). */
     private const MICROS = 1_000_000;
 
+    /** Campaign rows kept per period. The editor can only filter over these. */
+    private const DATASET_ROW_LIMIT = 500;
+
     public function key(): string
     {
         return DataSourceType::GoogleAds->value;
@@ -76,9 +79,48 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
         ];
     }
 
+    /**
+     * The campaign dataset's shape. Measures are **additive only** — the DatasetEngine sums
+     * them across the rows a block keeps, and summing CTR or average CPC yields a number
+     * that looks plausible and is wrong. Those stay account-level scalars.
+     *
+     * @return array{dimensions: array<string, string>, measures: array<string, array{label: string, unit: string}>}
+     */
+    private function campaignDataset(): array
+    {
+        return [
+            'dimensions' => [
+                'campaign' => 'Campaña',
+                'channel' => 'Canal (Búsqueda / Display / YouTube…)',
+            ],
+            'measures' => [
+                'cost' => ['label' => 'Coste', 'unit' => 'currency'],
+                'impressions' => ['label' => 'Impresiones', 'unit' => 'count'],
+                'clicks' => ['label' => 'Clics', 'unit' => 'count'],
+                'conversions' => ['label' => 'Conversiones', 'unit' => 'count'],
+            ],
+        ];
+    }
+
     public function metricCatalog(DataSource $source): MetricCatalog
     {
+        $dataset = $this->campaignDataset();
+        $measures = [];
+        foreach ($dataset['measures'] as $key => $measure) {
+            $measures[] = ['key' => $key, 'label' => $measure['label'], 'unit' => $measure['unit']];
+        }
+
         return new MetricCatalog(
+            new MetricDefinition(
+                'google_ads.campaigns',
+                'Campañas (modelable)',
+                MetricType::Dataset,
+                null,
+                array_keys($dataset['dimensions']),
+                null,
+                $measures,
+                $dataset['dimensions'],
+            ),
             new MetricDefinition('google_ads.impressions', 'Impresiones', MetricType::Scalar, 'count'),
             new MetricDefinition('google_ads.clicks', 'Clics', MetricType::Scalar, 'count'),
             new MetricDefinition('google_ads.cost', 'Coste', MetricType::Scalar, 'currency'),
@@ -151,6 +193,7 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             $errors = [];
             $this->collectSeries($client, $url, $range, $metrics, $errors);
             $this->collectTopCampaigns($client, $url, $range, $metrics, $errors);
+            $this->collectCampaignDataset($client, $url, $range, $metrics, $errors);
 
             return $errors === [] ? MetricSet::ok($metrics) : MetricSet::partial($metrics, implode('; ', $errors));
         } catch (Throwable $e) {
@@ -218,6 +261,43 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             ], $this->listOf($response->json('results')));
         } catch (Throwable $e) {
             $errors[] = 'campaigns: '.$e->getMessage();
+        }
+    }
+
+    /**
+     * Campaign × channel rows for the modelable dataset, so a block can be bound to a
+     * specific set of campaigns from the editor — no per-client metric, no re-sync when the
+     * selection changes. Aggregated at the source and bounded (§3.3); the cap is generous
+     * because the editor can only filter over what the snapshot holds.
+     *
+     * @param  array<string, mixed>  $metrics
+     * @param  list<string>  $errors
+     */
+    private function collectCampaignDataset(PendingRequest $client, string $url, string $range, array &$metrics, array &$errors): void
+    {
+        try {
+            $response = $client->post($url, [
+                'query' => 'SELECT campaign.name, campaign.advertising_channel_type, metrics.cost_micros, metrics.clicks, '
+                    ."metrics.impressions, metrics.conversions FROM campaign WHERE {$range} "
+                    .'ORDER BY metrics.cost_micros DESC LIMIT '.self::DATASET_ROW_LIMIT,
+            ]);
+
+            if ($response->failed()) {
+                $errors[] = 'campaign dataset: HTTP '.$response->status();
+
+                return;
+            }
+
+            $metrics['google_ads.campaigns'] = array_map(fn (array $row): array => [
+                'campaign' => $this->toStr(Arr::get($row, 'campaign.name')),
+                'channel' => $this->toStr(Arr::get($row, 'campaign.advertisingChannelType')),
+                'cost' => $this->toFloat(Arr::get($row, 'metrics.costMicros')) / self::MICROS,
+                'impressions' => $this->toInt(Arr::get($row, 'metrics.impressions')),
+                'clicks' => $this->toInt(Arr::get($row, 'metrics.clicks')),
+                'conversions' => $this->toFloat(Arr::get($row, 'metrics.conversions')),
+            ], $this->listOf($response->json('results')));
+        } catch (Throwable $e) {
+            $errors[] = 'campaign dataset: '.$e->getMessage();
         }
     }
 

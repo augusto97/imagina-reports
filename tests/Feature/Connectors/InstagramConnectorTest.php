@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Connectors;
 
 use App\Connectors\Instagram\InstagramConnector;
+use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -91,6 +92,52 @@ class InstagramConnectorTest extends TestCase
         $this->assertCount(1, $resources->options);
         $this->assertSame('178414', $resources->options[0]['value']);
         $this->assertStringContainsString('@acme', $resources->options[0]['label']);
+    }
+
+    public function test_the_media_dataset_exposes_post_level_rows_the_editor_can_filter(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/178414/insights*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/178414/media*' => Http::response(['data' => [
+                [
+                    'caption' => "Lanzamiento de la colección\nsegunda línea",
+                    'media_type' => 'IMAGE',
+                    'permalink' => 'https://instagram.com/p/abc',
+                    'like_count' => 40,
+                    'comments_count' => 5,
+                    // Inline field expansion: one request, not one per post.
+                    'insights' => ['data' => [
+                        ['name' => 'reach', 'values' => [['value' => 900]]],
+                        ['name' => 'saved', 'values' => [['value' => 12]]],
+                    ]],
+                ],
+                // No caption and no insights at all — must still produce a usable row.
+                ['media_type' => 'VIDEO', 'permalink' => 'https://instagram.com/p/xyz', 'like_count' => 3, 'comments_count' => 0],
+            ]]),
+            'graph.facebook.com/*/178414*' => Http::response(['followers_count' => 100, 'media_count' => 2]),
+        ]);
+
+        $rows = (new InstagramConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), [])->get('instagram.media');
+
+        $this->assertIsArray($rows);
+        $this->assertCount(2, $rows);
+        $this->assertSame('Lanzamiento de la colección', $rows[0]['media']);
+        $this->assertSame('IMAGE', $rows[0]['media_type']);
+        $this->assertSame(900, $rows[0]['reach']);
+        $this->assertSame(12, $rows[0]['saved']);
+        // Falls back to the permalink, and missing insights read as zero rather than blowing up.
+        $this->assertSame('https://instagram.com/p/xyz', $rows[1]['media']);
+        $this->assertSame(0, $rows[1]['reach']);
+    }
+
+    public function test_the_media_catalog_entry_declares_its_dimensions_and_measures(): void
+    {
+        $definition = (new InstagramConnector)->metricCatalog($this->source())->get('instagram.media');
+
+        $this->assertNotNull($definition);
+        $this->assertSame(MetricType::Dataset, $definition->type);
+        $this->assertSame(['media', 'media_type'], $definition->dimensions);
+        $this->assertSame(['reach', 'likes', 'comments', 'saved'], array_column($definition->measures, 'key'));
     }
 
     public function test_connectable_resources_also_finds_accounts_held_in_a_business_portfolio(): void

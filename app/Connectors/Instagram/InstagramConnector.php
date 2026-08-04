@@ -47,6 +47,9 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
     /** Day-period account insights we sum over the report period (stable across API versions). */
     private const PERIOD_METRICS = ['reach', 'follower_count', 'profile_views', 'website_clicks'];
 
+    /** Posts kept per period for the modelable dataset. The editor filters over these. */
+    private const DATASET_ROW_LIMIT = 100;
+
     public function key(): string
     {
         return DataSourceType::Instagram->value;
@@ -65,9 +68,48 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
         ];
     }
 
+    /**
+     * The posts dataset's shape. Instagram has no campaigns — that's Meta Ads, a different
+     * source — so the axis an agency actually models here is the post. Measures are
+     * additive only, for the same reason as the ad connectors: the DatasetEngine sums them.
+     *
+     * @return array{dimensions: array<string, string>, measures: array<string, array{label: string, unit: string}>}
+     */
+    private function mediaDataset(): array
+    {
+        return [
+            'dimensions' => [
+                'media' => 'Publicación',
+                'media_type' => 'Tipo (imagen / vídeo / carrusel)',
+            ],
+            'measures' => [
+                'reach' => ['label' => 'Alcance', 'unit' => 'count'],
+                'likes' => ['label' => 'Me gusta', 'unit' => 'count'],
+                'comments' => ['label' => 'Comentarios', 'unit' => 'count'],
+                'saved' => ['label' => 'Guardados', 'unit' => 'count'],
+            ],
+        ];
+    }
+
     public function metricCatalog(DataSource $source): MetricCatalog
     {
+        $dataset = $this->mediaDataset();
+        $measures = [];
+        foreach ($dataset['measures'] as $key => $measure) {
+            $measures[] = ['key' => $key, 'label' => $measure['label'], 'unit' => $measure['unit']];
+        }
+
         return new MetricCatalog(
+            new MetricDefinition(
+                'instagram.media',
+                'Publicaciones (modelable)',
+                MetricType::Dataset,
+                null,
+                array_keys($dataset['dimensions']),
+                null,
+                $measures,
+                $dataset['dimensions'],
+            ),
             new MetricDefinition('instagram.followers', 'Seguidores', MetricType::Scalar, 'count'),
             new MetricDefinition('instagram.media_count', 'Publicaciones', MetricType::Scalar, 'count'),
             new MetricDefinition('instagram.new_followers', 'Nuevos seguidores (periodo)', MetricType::Scalar, 'count'),
@@ -121,6 +163,7 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
 
             $errors = [];
             $this->collectInsights($client, $igUserId, $period, $metrics, $errors);
+            $this->collectMediaDataset($client, $igUserId, $period, $metrics, $errors);
 
             return $errors === [] ? MetricSet::ok($metrics) : MetricSet::partial($metrics, implode('; ', $errors));
         } catch (Throwable $e) {
@@ -164,6 +207,92 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
         } catch (Throwable $e) {
             $errors[] = 'insights: '.$e->getMessage();
         }
+    }
+
+    /**
+     * Post-level rows for the modelable dataset, so a block can show a chosen set of posts
+     * (or only reels, or the top ones by reach) straight from the editor.
+     *
+     * One request, not one per post: Meta lets `insights` be expanded inline as a field, so
+     * the whole bounded page comes back aggregated at the source (§3.3) rather than N+1.
+     *
+     * @param  array<string, mixed>  $metrics
+     * @param  list<string>  $errors
+     */
+    private function collectMediaDataset(PendingRequest $client, string $igUserId, Period $period, array &$metrics, array &$errors): void
+    {
+        try {
+            $response = $client->get('/'.$igUserId.'/media', [
+                'fields' => 'caption,media_type,permalink,timestamp,like_count,comments_count,insights.metric(reach,saved)',
+                'since' => $period->start->timestamp,
+                'until' => $period->end->timestamp,
+                'limit' => self::DATASET_ROW_LIMIT,
+            ]);
+
+            if ($response->failed()) {
+                $errors[] = 'media: HTTP '.$response->status();
+
+                return;
+            }
+
+            $rows = [];
+            foreach ($this->listOf($response->json('data')) as $media) {
+                $insights = $this->insightValues($media);
+
+                $rows[] = [
+                    'media' => $this->mediaLabel($media),
+                    'media_type' => $this->toStr(Arr::get($media, 'media_type')),
+                    'reach' => $insights['reach'] ?? 0,
+                    'likes' => $this->toInt(Arr::get($media, 'like_count')),
+                    'comments' => $this->toInt(Arr::get($media, 'comments_count')),
+                    'saved' => $insights['saved'] ?? 0,
+                ];
+            }
+
+            $metrics['instagram.media'] = $rows;
+        } catch (Throwable $e) {
+            $errors[] = 'media: '.$e->getMessage();
+        }
+    }
+
+    /**
+     * Flatten the inline `insights` expansion into `name => value`. Absent for some media
+     * (very old posts, or types Instagram doesn't report on), which is why callers default.
+     *
+     * @param  array<array-key, mixed>  $media
+     * @return array<string, int>
+     */
+    private function insightValues(array $media): array
+    {
+        $values = [];
+
+        foreach ($this->listOf(Arr::get($media, 'insights.data')) as $entry) {
+            $name = $this->toStr(Arr::get($entry, 'name'));
+            if ($name === '') {
+                continue;
+            }
+            $values[$name] = $this->toInt(Arr::get($this->listOf(Arr::get($entry, 'values'))[0] ?? [], 'value'));
+        }
+
+        return $values;
+    }
+
+    /**
+     * A readable label for a post: its caption's first line, falling back to the link.
+     *
+     * @param  array<array-key, mixed>  $media
+     */
+    private function mediaLabel(array $media): string
+    {
+        $caption = trim($this->toStr(Arr::get($media, 'caption')));
+
+        if ($caption === '') {
+            return $this->toStr(Arr::get($media, 'permalink'));
+        }
+
+        $firstLine = trim((string) strtok($caption, "\n"));
+
+        return mb_strlen($firstLine) > 80 ? mb_substr($firstLine, 0, 77).'…' : $firstLine;
     }
 
     /**
