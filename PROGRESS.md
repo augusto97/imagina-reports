@@ -7,6 +7,32 @@
 ---
 
 ## Where I left off (read me first)
+**🎛️ REDISEÑO DEL EDITOR: SELECTOR DE DATOS, FILTROS UNIFICADOS Y LIENZO ESCALADO (2026-08-04, rama
+`claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** el owner reportó que la interfaz del editor no se sentía premium, se veía mal en
+pantallas medianas y confundía al elegir métricas y filtrar («hasta yo me he confundido en encontrar opciones»). Análisis con evidencia y
+las cuatro correcciones:
+**(1) Elegir datos.** El binding usaba hasta 4 controles apilados, **dos de ellos condicionales** (el buscador solo con >6 métricas, el filtro
+de fuente solo con >1 fuente), así que el panel cambiaba de forma según los datos. Sustituido por **`editor/MetricPicker.tsx`**: un diálogo
+tipo paleta de comandos con búsqueda, agrupado por el **nombre humano** de la fuente (mapa `SOURCE_LABELS`: `ga4` → «Google Analytics»…) y
+etiqueta de qué produce cada dato (Número / Evolución / Tabla / **Modelable**), destacando que los modelables son los únicos filtrables.
+**(2) Filtrar.** Vivía en **dos sitios distintos**: filtros de página en un acordeón CERRADO del panel izquierdo, y filtros de bloque dentro
+de una caja punteada del inspector que **solo existía si la métrica era dataset** (con métrica escalar no había UI ni explicación). Unificado
+en **`editor/FiltersPanel.tsx`**, sección «Filtros» siempre visible: explica *por qué* no se puede filtrar cuando no se puede, muestra los
+filtros heredados del informe/página y **tacha** los que el bloque anula. Distintivo de embudo permanente en los bloques filtrados del lienzo
+(`CanvasBlock`), porque un dato recortado parecía el total.
+**(3) Valores reales.** El valor del filtro era **texto libre** → una errata daba un bloque vacío en silencio. Nuevo endpoint
+`GET sites/{site}/dimension-values` (`DimensionValuesController` + `ShowDimensionValuesRequest`) que lee los valores del **último snapshot**
+(nunca del proveedor, §3.1), y el hook `useDimensionValues`. Texto libre se conserva para `contains` y como respaldo antes del primer sync.
+**(4) Pantallas medianas.** Dos paneles fijos (256+288px) más un rail sticky de 176px dejaban **~460px de lienzo en un portátil de 1280px**
+para un artboard de 1024 → el reporte se dibujaba al 45% y parecía roto. Ahora el artboard se renderiza a su **ancho natural y se ESCALA**
+(`ARTBOARD_WIDTH` + `ResizeObserver` → `fitScale`), con control de zoom y «Ajustar» por defecto. Al colapsar el panel izquierdo queda un
+**rail de iconos** con sus 5 secciones (`LEFT_SECTIONS` + prop `forceOpen` en `controls.tsx/Section`).
+**Pulido:** fuera la caja de borde discontinuo, los `<select>` sueltos del inspector pasan al componente `Select` compartido, los `✕` son
+iconos Lucide, y las claves técnicas de dimensión se traducen en **los dos** caminos del código (antes solo en el de datasets).
+Tests: `tests/Feature/Api/DimensionValuesApiTest.php` (5 casos, incluye aislamiento por tenant). **CI verde** (run 30960217910, commit
+`016952f`). Un run previo falló por PHPStan: `$request->validate()` devuelve `mixed` — **misma trampa que ya mordió en los endpoints de
+plataforma**; la solución en este repo es siempre FormRequest + accesores tipados. **PENDIENTE:** release (v1.22.0).
+
 **📊 DATASETS MODELABLES DE CAMPAÑAS Y PUBLICACIONES — ETAPA A.2 PARA META Y GOOGLE ADS (2026-08-04, rama
 `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** un cliente pide reportes con **solo unas campañas concretas**. El owner planteaba
 replicar el constructor de métricas de GA4 en las fuentes; se descartó y se explicó por qué: **ese constructor existe porque GA4 expone
