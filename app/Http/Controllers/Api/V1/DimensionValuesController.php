@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ShowDimensionValuesRequest;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 
 /**
@@ -28,15 +28,13 @@ final class DimensionValuesController extends Controller
     /** Distinct values returned per dimension — a picker, not a data dump. */
     private const MAX_VALUES = 200;
 
-    public function show(Request $request, Site $site): JsonResponse
+    public function show(ShowDimensionValuesRequest $request, Site $site): JsonResponse
     {
-        $validated = $request->validate([
-            'source' => ['required', 'string'],
-            'metric' => ['required', 'string'],
-            'dimension' => ['required', 'string'],
-        ]);
+        $sourceKey = $request->string('source')->toString();
+        $metric = $request->string('metric')->toString();
+        $dimension = $request->string('dimension')->toString();
 
-        $source = $site->dataSources()->where('type', $validated['source'])->first();
+        $source = $site->dataSources()->where('type', $sourceKey)->first();
 
         if ($source === null) {
             return response()->json(['values' => []]);
@@ -51,7 +49,7 @@ final class DimensionValuesController extends Controller
             return response()->json(['values' => []]);
         }
 
-        $rows = Arr::get($snapshot->payload, $validated['source'].'.'.$validated['metric']);
+        $rows = Arr::get($snapshot->payload, $sourceKey.'.'.$metric);
 
         if (! is_array($rows)) {
             return response()->json(['values' => []]);
@@ -63,7 +61,7 @@ final class DimensionValuesController extends Controller
                 continue;
             }
 
-            $value = $row[$validated['dimension']] ?? null;
+            $value = $row[$dimension] ?? null;
             if (! is_scalar($value)) {
                 continue;
             }
