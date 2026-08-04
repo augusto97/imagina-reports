@@ -90,7 +90,9 @@ class AdsConnectorsTest extends TestCase
         $this->assertSame('facebook', $rows[0]['platform']);
         $this->assertSame(70.0, $rows[0]['spend']);
         $this->assertSame('instagram', $rows[1]['platform']);
-        $this->assertSame(3, $rows[1]['conversions']);
+        // Float because conversion counting shares its summing with conversion VALUES,
+        // which are monetary — same as the account-level facebook_ads.conversions scalar.
+        $this->assertSame(3.0, $rows[1]['conversions']);
     }
 
     public function test_the_meta_campaign_dataset_declares_only_additive_measures(): void
