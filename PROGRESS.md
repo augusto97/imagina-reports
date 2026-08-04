@@ -7,6 +7,27 @@
 ---
 
 ## Where I left off (read me first)
+**📊 DATASETS MODELABLES DE CAMPAÑAS Y PUBLICACIONES — ETAPA A.2 PARA META Y GOOGLE ADS (2026-08-04, rama
+`claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** un cliente pide reportes con **solo unas campañas concretas**. El owner planteaba
+replicar el constructor de métricas de GA4 en las fuentes; se descartó y se explicó por qué: **ese constructor existe porque GA4 expone
+cientos de campos por su Metadata API**, mientras que Insights de Meta tiene un conjunto pequeño y fijo. Además una métrica horneada en la
+fuente **se congela en el sync** (cambiar la selección = métrica nueva + resync + histórico partido), mientras que el filtro de bloque es
+instantáneo y no toca los datos guardados. Se aplicó lo ya decidido en **§13 Etapa A** (los filtros viven en el editor, en diseño):
+**nuevos datasets** (`MetricType::Dataset`, los shapea el `DatasetEngine` con la cascada de filtros que ya existía — cero trabajo de motor):
+(1) **`facebook_ads.campaigns`** — dimensiones `campaign` × `platform` (`publisher_platform`). **Esto responde a «Instagram Ads»: no existe
+como fuente aparte**, son anuncios de Meta en la misma cuenta y solo se distinguen por la ubicación, así que un bloque puede filtrar
+`platform is instagram`. (2) **`google_ads.campaigns`** — `campaign` × `channel`, para que ambas fuentes de anuncios se modelen igual.
+(3) **`instagram.media`** — `media` × `media_type` con alcance/likes/comentarios/guardados; el equivalente orgánico (Instagram no tiene
+campañas). Se obtiene en **una sola petición** expandiendo `insights` como campo, no N+1.
+**Decisión importante — solo medidas ADITIVAS** (spend/cost, impressions, clicks, conversions, reach/likes/comments/saved): el motor **suma**
+la medida sobre las filas que conserva el bloque, y sumar CTR, CPC o el alcance (que Meta deduplica) da un número que parece bueno y no lo es.
+Esos siguen como escalares de cuenta; para ratios de una selección, usar métricas calculadas sobre clics/impresiones.
+**Límite conocido:** el filtro solo alcanza a lo que hay en el snapshot (§3.3, top-N nunca filas crudas) — 500 filas en anuncios, 100 posts,
+ordenado por gasto. Si un cliente tuviera cientos de campañas y quisiera una de la cola, haría falta un filtro a nivel de fuente empujado a
+la API (`filtering` de Insights). **CI verde** (run 30956611021, commit `dcf0bbf`, 576 tests). Un run previo falló por una **aserción mía**
+mal puesta (`conversions` es float porque `sumActions()` se comparte con los valores monetarios), no por el conector.
+**PENDIENTE:** release (v1.22.0) + **resincronizar las fuentes** para que los periodos ya guardados incluyan los datasets nuevos.
+
 **🏢 META: DESCUBRIR ACTIVOS DEL PORTAFOLIO COMERCIAL, NO SOLO LOS PERSONALES (2026-08-04, rama `claude/github-app-analysis-a7b2bd`,
 SIN RELEASE AÚN):** el owner reportó que una cuenta con muchos perfiles de Instagram seguía dando «no encontramos cuentas utilizables»,
 mientras Supermetrics sí conecta. **Tenía razón: era nuestro.** La detección solo recorría las aristas **personales** — `/me/accounts`
