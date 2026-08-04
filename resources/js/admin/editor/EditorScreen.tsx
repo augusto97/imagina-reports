@@ -30,6 +30,7 @@ import {
     Undo2,
     Wrench,
     Zap,
+    Minus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -37,9 +38,22 @@ import {
     type ReactElement,
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
+
+/** The artboard's natural width in px (matches the report's intended layout). */
+const ARTBOARD_WIDTH = 1024;
+
+/** Left-panel sections, in panel order — also what the collapsed icon rail offers. */
+const LEFT_SECTIONS: { key: string; title: string; icon: LucideIcon }[] = [
+    { key: "blocks", title: "Insertar bloque", icon: Shapes },
+    { key: "layers", title: "Capas", icon: Layers },
+    { key: "ai", title: "Generar con IA", icon: Sparkles },
+    { key: "filters", title: "Filtros de página", icon: Filter },
+    { key: "theme", title: "Tema del reporte", icon: Palette },
+];
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -187,6 +201,12 @@ export function EditorScreen(): ReactElement {
     const [theme, setTheme] = useState<ReportTheme>({});
     // Page/dashboard filters (design-time), keyed by scope (`all` or page index).
     const [pageFilters, setPageFilters] = useState<PageFilters>({});
+    // Canvas zoom. 'fit' scales the artboard down to whatever width is left after the
+    // panels — so on a laptop the report keeps its real proportions instead of being
+    // squeezed into a narrow column and looking broken.
+    const [zoom, setZoom] = useState<number | "fit">("fit");
+    const [fitScale, setFitScale] = useState(1);
+    const workspaceRef = useRef<HTMLDivElement>(null);
     // Named pages (§11 — Looker/Power-BI parity): the label of each page in the nav menu,
     // indexed by page. Empty string falls back to "Página N". Editing index for inline rename.
     const [pageNames, setPageNames] = useState<string[]>([]);
@@ -196,6 +216,10 @@ export function EditorScreen(): ReactElement {
     const wideViewport =
         typeof window !== "undefined" && window.innerWidth >= 1024;
     const [leftOpen, setLeftOpen] = useState(wideViewport);
+    // Which left-panel section the icon rail should open. Collapsing the panel used to hide
+    // the palette, layers, AI, filters and theme behind a single toggle with no clue they
+    // existed; the rail keeps them one click away and named.
+    const [railTarget, setRailTarget] = useState<string | null>(null);
     const [rightOpen, setRightOpen] = useState(wideViewport);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
@@ -732,7 +756,35 @@ export function EditorScreen(): ReactElement {
         }
     }
 
+    // Keep the fit scale in step with the space actually available: toggling a panel or
+    // resizing the window changes it, and the artboard must follow without a reload.
+    useEffect(() => {
+        const node = workspaceRef.current;
+        if (node === null) {
+            return;
+        }
+
+        const measure = (): void => {
+            // The artboard's natural width, minus the workspace padding.
+            const available = node.clientWidth - 48;
+            setFitScale(Math.min(1, Math.max(0.35, available / ARTBOARD_WIDTH)));
+        };
+
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(node);
+
+        return () => observer.disconnect();
+    }, []);
+
+    const scale = zoom === "fit" ? fitScale : zoom;
+
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
+
+    // Report-wide + current-page filters reach every dataset block on this page. The
+    // inspector shows them so a block being cut by a page filter isn't a silent mystery
+    // (the block's own filters still win per dimension — the cascade in DatasetEngine).
+    const inheritedFilters = [...(pageFilters.all ?? []), ...(pageFilters[String(currentPage)] ?? [])];
     const siteCurrency =
         sites.find((site) => site.id === siteId)?.currency ?? "USD";
     // Only the current page's blocks are shown/edited on the canvas (multi-page).
@@ -930,10 +982,30 @@ export function EditorScreen(): ReactElement {
                     />
                 )}
                 {/* ---- Left panel (collapsible): config + blocks ---- */}
+                {!leftOpen && (
+                    <div className="ir-hidden ir-w-12 ir-shrink-0 ir-flex-col ir-items-center ir-gap-1 ir-border-r ir-bg-card ir-py-2 lg:ir-flex">
+                        {LEFT_SECTIONS.map(({ key, title, icon: SectionIcon }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                title={title}
+                                onClick={() => {
+                                    setRailTarget(key);
+                                    setLeftOpen(true);
+                                }}
+                                className="ir-rounded-md ir-p-2 ir-text-muted-foreground ir-transition hover:ir-bg-muted hover:ir-text-foreground"
+                            >
+                                <SectionIcon className="ir-size-4" />
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {leftOpen && (
                     <aside className="ir-absolute ir-inset-y-0 ir-left-0 ir-z-20 ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
                         <Section
                             title="Insertar bloque"
+                            forceOpen={railTarget === "blocks" ? 1 : 0}
                             icon={<Shapes className="ir-size-4" />}
                         >
                             <BlockPalette
@@ -944,6 +1016,7 @@ export function EditorScreen(): ReactElement {
 
                         <Section
                             title={`Capas · página ${currentPage + 1}`}
+                            forceOpen={railTarget === "layers" ? 1 : 0}
                             icon={<Layers className="ir-size-4" />}
                             defaultOpen={false}
                         >
@@ -1019,6 +1092,7 @@ export function EditorScreen(): ReactElement {
 
                         <Section
                             title="Generar con IA"
+                            forceOpen={railTarget === "ai" ? 1 : 0}
                             icon={<Sparkles className="ir-size-4" />}
                         >
                             <div className="ir-flex ir-flex-col ir-gap-2.5">
@@ -1090,6 +1164,7 @@ export function EditorScreen(): ReactElement {
 
                         <Section
                             title="Filtros de página"
+                            forceOpen={railTarget === "filters" ? 1 : 0}
                             icon={<Filter className="ir-size-4" />}
                             defaultOpen={false}
                         >
@@ -1103,6 +1178,7 @@ export function EditorScreen(): ReactElement {
 
                         <Section
                             title="Tema del reporte"
+                            forceOpen={railTarget === "theme" ? 1 : 0}
                             icon={<Palette className="ir-size-4" />}
                             defaultOpen={false}
                         >
@@ -1320,7 +1396,42 @@ export function EditorScreen(): ReactElement {
                             )}
                         </div>
 
-                        <div className="ir-text-xs">
+                        <div className="ir-flex ir-items-center ir-gap-3">
+                            {/* Zoom: "Ajustar" is the default because it's what makes the
+                                report look like itself on a laptop. */}
+                            <div className="ir-flex ir-items-center ir-gap-0.5 ir-rounded-md ir-border ir-bg-background ir-p-0.5">
+                                <button
+                                    type="button"
+                                    title="Reducir"
+                                    onClick={() => setZoom(Math.max(0.35, Math.round((scale - 0.1) * 100) / 100))}
+                                    className="ir-rounded ir-px-1.5 ir-py-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                                >
+                                    <Minus className="ir-size-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Ajustar al ancho disponible"
+                                    onClick={() => setZoom(zoom === "fit" ? 1 : "fit")}
+                                    className={cn(
+                                        "ir-min-w-[3.25rem] ir-rounded ir-px-1.5 ir-py-1 ir-text-[11px] ir-font-medium ir-tabular-nums ir-transition",
+                                        zoom === "fit"
+                                            ? "ir-bg-primary/10 ir-text-primary"
+                                            : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
+                                    )}
+                                >
+                                    {zoom === "fit" ? "Ajustar" : `${Math.round(scale * 100)}%`}
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Ampliar"
+                                    onClick={() => setZoom(Math.min(1.5, Math.round((scale + 0.1) * 100) / 100))}
+                                    className="ir-rounded ir-px-1.5 ir-py-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                                >
+                                    <Plus className="ir-size-3.5" />
+                                </button>
+                            </div>
+
+                            <div className="ir-text-xs">
                             {siteId === null ? (
                                 <span className="ir-text-amber-600">
                                     Datos de ejemplo · elige un sitio para datos
@@ -1346,6 +1457,7 @@ export function EditorScreen(): ReactElement {
                                     Cargando datos…
                                 </span>
                             )}
+                            </div>
                         </div>
                     </div>
 
@@ -1381,8 +1493,19 @@ export function EditorScreen(): ReactElement {
                         The sidebar preview is a real column to the LEFT of the artboard (it
                         mirrors the viewer's fixed left rail) — laid out in flow so it never
                         overlaps the report. It stays put on scroll (sticky). */}
-                    <div className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6 lg:ir-p-10">
-                        <div className="ir-flex ir-w-full ir-items-start ir-justify-center ir-gap-5">
+                    <div ref={workspaceRef} className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6">
+                        {/* The artboard renders at its natural width and is SCALED to fit,
+                            so the report keeps the proportions the client will see instead
+                            of reflowing into whatever narrow column the panels leave. */}
+                        <div
+                            className="ir-mx-auto ir-flex ir-items-start ir-justify-center ir-gap-5"
+                            style={{
+                                width: ARTBOARD_WIDTH,
+                                transform: `scale(${scale})`,
+                                transformOrigin: "top center",
+                                marginBottom: `calc((${scale} - 1) * 100%)`,
+                            }}
+                        >
                             {showNavPreview && navPos === "sidebar" && (
                                 <aside
                                     className="ir-sticky ir-top-0 ir-w-44 ir-shrink-0 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-sm"
@@ -1521,6 +1644,8 @@ export function EditorScreen(): ReactElement {
                             <Inspector
                                 block={selectedBlock}
                                 catalog={fullCatalog}
+                                siteId={siteId}
+                                inheritedFilters={inheritedFilters}
                                 onChange={updateBlock}
                             />
                         </div>

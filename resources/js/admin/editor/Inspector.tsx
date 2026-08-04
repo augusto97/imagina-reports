@@ -5,6 +5,8 @@ import {
     AreaChart,
     BarChart3,
     BarChartHorizontal,
+    ChevronRight,
+    Database,
     LineChart,
     type LucideIcon,
     PieChart,
@@ -15,11 +17,13 @@ import type { Block, BlockBinding, DatasetFilter } from '@shared/blocks/types';
 import { cn } from '@shared/lib/utils';
 
 import { useUploadImage } from '../api';
-import { Button, Field, Input } from '../components/ui';
+import { Button, Field, Input, Select } from '../components/ui';
 import type { CatalogEntry } from '../types';
 import { BLOCK_META } from './BlockPalette';
 import { DATA_BLOCKS } from './blockFactory';
 import { ColorSwatch, Section, SegmentedControl, Toggle } from './controls';
+import { FiltersPanel } from './FiltersPanel';
+import { MetricPicker, sourceLabel } from './MetricPicker';
 import { NarrativeEditor } from './NarrativeEditor';
 
 /** A URL field with an inline image upload + preview — for logos and the image block. */
@@ -201,8 +205,6 @@ const supportsAlign = (type: string): boolean => SECTION_TYPES.includes(type) ||
 const supportsBox = (type: string): boolean => SECTION_TYPES.includes(type) || type === 'cta'; // border + pad + radius
 const supportsHideTitle = (type: string): boolean => SECTION_TYPES.includes(type);
 
-const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
-
 /**
  * The right-hand inspector: edits the currently-selected block. Two tabs — **Datos**
  * (binding, labels, drill-down, comparison) and **Estilo** (accordion sections with
@@ -212,23 +214,26 @@ const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 
 export function Inspector({
     block,
     catalog,
+    siteId,
+    inheritedFilters = [],
     onChange,
 }: {
     block: Block | null;
     catalog: CatalogEntry[];
+    /** Preview site — lets the filter rows list the values the data actually holds. */
+    siteId?: number | null;
+    /** Report/page filters that reach this block, shown so their effect isn't invisible. */
+    inheritedFilters?: DatasetFilter[];
     onChange: (block: Block) => void;
 }): ReactElement {
     const [tab, setTab] = useState<'config' | 'style'>('config');
-    const [metricQuery, setMetricQuery] = useState('');
-    // Pick a data source first, then only that source's metrics show — keeps the binding
-    // picker usable when many sources are connected. Defaults to the bound source.
-    const [sourceFilter, setSourceFilter] = useState(block?.binding?.source ?? '');
+    const [pickerOpen, setPickerOpen] = useState(false);
 
-    // Re-sync the source filter to the newly selected block (and clear the text search).
+    // Close the data picker when moving to another block, so it never reopens on a block
+    // the user didn't ask about.
     useEffect(() => {
-        setSourceFilter(block?.binding?.source ?? '');
-        setMetricQuery('');
-    }, [block?.id, block?.binding?.source]);
+        setPickerOpen(false);
+    }, [block?.id]);
 
     if (block === null) {
         return (
@@ -247,24 +252,6 @@ export function Inspector({
     // Dimensions available for the bound metric → the drill-down picker (CLAUDE.md §11.3).
     const boundEntry = block.binding != null ? catalog.find((entry) => entry.source === block.binding?.source && entry.metric === block.binding?.metric) : undefined;
 
-    // Filter the binding picker so large multi-source catalogs stay usable: by source
-    // first, then free text. The currently bound metric is always kept so it never
-    // vanishes while filtering. Sources are the distinct connectors in the catalog.
-    const metricFilter = metricQuery.trim().toLowerCase();
-    const sources = Array.from(new Set(catalog.map((entry) => entry.source))).sort();
-    const filteredCatalog = catalog.filter((entry) => {
-        const isBound = entry.source === block.binding?.source && entry.metric === block.binding?.metric;
-        if (isBound) {
-            return true;
-        }
-        if (sourceFilter !== '' && entry.source !== sourceFilter) {
-            return false;
-        }
-        return (
-            metricFilter === '' ||
-            `${entry.label} ${entry.source} ${entry.metric}`.toLowerCase().includes(metricFilter)
-        );
-    });
     const dimensions = boundEntry?.dimensions ?? [];
 
     // Selectable fields for a `control` (filter) block, so the user picks visually instead
@@ -334,10 +321,6 @@ export function Inspector({
         onChange({ ...block, binding });
     };
     const setFilters = (next: DatasetFilter[]): void => patchBinding({ filters: next });
-    const addFilter = (): void => setFilters([...filters, { dimension: dimensions[0] ?? '', op: 'is', value: '' }]);
-    const updateFilter = (index: number, patch: Partial<DatasetFilter>): void =>
-        setFilters(filters.map((filter, i) => (i === index ? { ...filter, ...patch } : filter)));
-    const removeFilter = (index: number): void => setFilters(filters.filter((_, i) => i !== index));
     const setStyle = (key: string, value: unknown): void => {
         const nextStyle: Record<string, unknown> = { ...block.style, [key]: value };
         if (value === undefined || value === '') {
@@ -348,6 +331,22 @@ export function Inspector({
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-3">
+            {pickerOpen && (
+                <MetricPicker
+                    catalog={catalog}
+                    value={block.binding != null ? { source: block.binding.source, metric: block.binding.metric } : null}
+                    onPick={(entry) =>
+                        onChange({
+                            ...block,
+                            // A different metric invalidates the old measure/breakdown/filters,
+                            // which referenced dimensions that may not exist here.
+                            binding: { source: entry.source, metric: entry.metric, compare: block.binding?.compare },
+                        })
+                    }
+                    onClose={() => setPickerOpen(false)}
+                />
+            )}
+
             {/* Block header: type icon + name */}
             <div className="ir-flex ir-items-center ir-gap-2">
                 <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
@@ -441,160 +440,94 @@ export function Inspector({
                     )}
 
                     {isData && (
-                        <Field label="Métrica">
-                            {block.binding != null && (
-                                <span className="ir-mb-1.5 ir-inline-flex ir-items-center ir-gap-1 ir-rounded ir-bg-primary/10 ir-px-1.5 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-primary">
-                                    {block.binding.source}
-                                </span>
-                            )}
-                            {sources.length > 1 && (
-                                <select
-                                    className={`${selectClass} ir-mb-2`}
-                                    value={sourceFilter}
-                                    onChange={(event) => setSourceFilter(event.target.value)}
-                                    title="Filtrar las métricas por fuente"
-                                >
-                                    <option value="">Todas las fuentes</option>
-                                    {sources.map((source) => (
-                                        <option key={source} value={source}>
-                                            {source}
-                                        </option>
-                                    ))}
-                                </select>
-                            )}
-                            {catalog.length > 6 && (
-                                <Input
-                                    className="ir-mb-2"
-                                    value={metricQuery}
-                                    onChange={(event) => setMetricQuery(event.target.value)}
-                                    placeholder="Buscar métrica…"
-                                />
-                            )}
-                            <select
-                                className={selectClass}
-                                value={block.binding ? `${block.binding.source}|${block.binding.metric}` : ''}
-                                onChange={(event) => {
-                                    const [source, metric] = event.target.value.split('|');
-                                    onChange({
-                                        ...block,
-                                        binding:
-                                            source !== undefined && metric !== undefined
-                                                ? { source, metric, compare: block.binding?.compare, dimension: block.binding?.dimension }
-                                                : null,
-                                    });
-                                }}
+                        <Field label="Dato" hint={boundEntry?.type === 'dataset' ? 'Modelable: se puede filtrar y desglosar.' : undefined}>
+                            <button
+                                type="button"
+                                onClick={() => setPickerOpen(true)}
+                                className="ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-px-2.5 ir-py-2 ir-text-left ir-transition hover:ir-border-primary/50 hover:ir-bg-muted/50"
                             >
-                                <option value="">Vincular métrica…</option>
-                                {filteredCatalog.map((entry) => (
-                                    <option key={entry.key} value={`${entry.source}|${entry.metric}`}>
-                                        {entry.label} ({entry.source})
-                                    </option>
-                                ))}
-                            </select>
-                            {filteredCatalog.length === 0 && (metricFilter !== '' || sourceFilter !== '') && (
-                                <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">Sin métricas que coincidan.</p>
+                                <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
+                                    <Database className="ir-size-3.5" />
+                                </span>
+                                <span className="ir-min-w-0 ir-flex-1">
+                                    {block.binding != null ? (
+                                        <>
+                                            <span className="ir-block ir-truncate ir-text-sm ir-font-medium">
+                                                {boundEntry?.label ?? block.binding.metric}
+                                            </span>
+                                            <span className="ir-block ir-truncate ir-text-[11px] ir-text-muted-foreground">
+                                                {sourceLabel(block.binding.source)}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <span className="ir-block ir-text-sm ir-text-muted-foreground">Elegir un dato…</span>
+                                    )}
+                                </span>
+                                <ChevronRight className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                            </button>
+                            {block.binding != null && (
+                                <button
+                                    type="button"
+                                    onClick={() => onChange({ ...block, binding: null })}
+                                    className="ir-mt-1 ir-self-start ir-text-[11px] ir-text-muted-foreground ir-underline hover:ir-text-foreground"
+                                >
+                                    Quitar el dato
+                                </button>
                             )}
                         </Field>
                     )}
 
                     {isData && !isDataset && dimensions.length > 0 && (
                         <Field label="Desglose (dimensión)">
-                            <select className={selectClass} value={str(block.binding?.dimension)} onChange={(event) => setDimension(event.target.value)}>
+                            <Select value={str(block.binding?.dimension)} onChange={(event) => setDimension(event.target.value)}>
                                 <option value="">Sin desglose</option>
                                 {dimensions.map((dimension) => (
                                     <option key={dimension} value={dimension}>
-                                        {dimension}
+                                        {dimLabel(dimension)}
                                     </option>
                                 ))}
-                            </select>
+                            </Select>
                         </Field>
                     )}
 
                     {isDataset && block.binding != null && (
-                        <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-border-dashed ir-bg-muted/20 ir-p-3">
-                            <p className="ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wide ir-text-muted-foreground">Modelado de datos</p>
-
+                        <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-lg ir-border ir-bg-muted/30 ir-p-3">
                             <Field label="Medida">
-                                <select className={selectClass} value={str(block.binding?.measure)} onChange={(event) => patchBinding({ measure: event.target.value })}>
+                                <Select value={str(block.binding?.measure)} onChange={(event) => patchBinding({ measure: event.target.value })}>
                                     <option value="">Elige una medida…</option>
                                     {measures.map((measure) => (
                                         <option key={measure.key} value={measure.key}>
                                             {measure.label}
                                         </option>
                                     ))}
-                                </select>
+                                </Select>
                             </Field>
 
                             <Field label="Desglosar por">
-                                <select className={selectClass} value={str(block.binding?.breakdown)} onChange={(event) => patchBinding({ breakdown: event.target.value })}>
+                                <Select value={str(block.binding?.breakdown)} onChange={(event) => patchBinding({ breakdown: event.target.value })}>
                                     <option value="">Sin desglose (total)</option>
                                     {dimensions.map((dimension) => (
                                         <option key={dimension} value={dimension}>
                                             {dimLabel(dimension)}
                                         </option>
                                     ))}
-                                </select>
+                                </Select>
                             </Field>
-
-                            <div className="ir-flex ir-flex-col ir-gap-2">
-                                <div className="ir-flex ir-items-center ir-justify-between">
-                                    <span className="ir-text-xs ir-font-medium ir-text-foreground/80">Filtros del bloque</span>
-                                    <button
-                                        type="button"
-                                        onClick={addFilter}
-                                        className="ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1 ir-text-xs ir-font-medium hover:ir-bg-muted"
-                                    >
-                                        + Filtro
-                                    </button>
-                                </div>
-
-                                {filters.map((filter, index) => (
-                                    <div key={index} className="ir-flex ir-items-center ir-gap-1">
-                                        <select
-                                            className="ir-min-w-0 ir-flex-1 ir-rounded-md ir-border ir-bg-background ir-px-2 ir-py-1.5 ir-text-xs"
-                                            value={filter.dimension}
-                                            onChange={(event) => updateFilter(index, { dimension: event.target.value })}
-                                        >
-                                            {dimensions.map((dimension) => (
-                                                <option key={dimension} value={dimension}>
-                                                    {dimLabel(dimension)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            className="ir-shrink-0 ir-rounded-md ir-border ir-bg-background ir-px-1 ir-py-1.5 ir-text-xs"
-                                            value={filter.op}
-                                            onChange={(event) => updateFilter(index, { op: event.target.value })}
-                                        >
-                                            <option value="is">es</option>
-                                            <option value="is_not">no es</option>
-                                            <option value="contains">contiene</option>
-                                            <option value="not_contains">no contiene</option>
-                                        </select>
-                                        <Input
-                                            className="ir-h-8 ir-min-w-0 ir-flex-1 ir-text-xs"
-                                            value={filter.value}
-                                            placeholder="valor"
-                                            onChange={(event) => updateFilter(index, { value: event.target.value })}
-                                        />
-                                        <button
-                                            type="button"
-                                            title="Quitar filtro"
-                                            onClick={() => removeFilter(index)}
-                                            className="ir-shrink-0 ir-rounded-md ir-p-1 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                ))}
-
-                                {filters.length === 0 && (
-                                    <p className="ir-text-[11px] ir-text-muted-foreground">
-                                        Sin filtros — el bloque muestra todo (o lo que filtre la página). Los filtros del bloque mandan sobre los de la página.
-                                    </p>
-                                )}
-                            </div>
                         </div>
+                    )}
+
+                    {isData && block.binding != null && (
+                        <FiltersPanel
+                            filters={filters}
+                            inherited={inheritedFilters}
+                            dimensions={dimensions}
+                            labelOf={dimLabel}
+                            siteId={siteId ?? null}
+                            source={block.binding.source}
+                            metric={block.binding.metric}
+                            supported={isDataset}
+                            onChange={setFilters}
+                        />
                     )}
 
                     {canCompare && block.binding != null && (
@@ -638,12 +571,12 @@ export function Inspector({
 
                     {block.type === 'geo_map' && (
                         <Field label="Visualización">
-                            <select className={selectClass} value={str(block.props?.display) || 'auto'} onChange={(event) => setProp('display', event.target.value)}>
+                            <Select value={str(block.props?.display) || 'auto'} onChange={(event) => setProp('display', event.target.value)}>
                                 <option value="auto">Automática (mapa si son países + lista)</option>
                                 <option value="map">Solo mapa</option>
                                 <option value="list">Solo lista (ranking)</option>
                                 <option value="both">Mapa y lista</option>
-                            </select>
+                            </Select>
                             <p className="ir-mt-1 ir-text-xs ir-text-muted-foreground">
                                 El mapa (coroplético) solo aplica a datos por país; para ciudades o regiones usa la lista.
                             </p>
@@ -656,13 +589,13 @@ export function Inspector({
                                 <Input value={str(block.props?.label)} onChange={(event) => setProp('label', event.target.value)} placeholder="Filtrar por…" />
                             </Field>
                             <Field label="Campo a filtrar">
-                                <select className={selectClass} value={str(block.props?.field) || 'name'} onChange={(event) => setProp('field', event.target.value)}>
+                                <Select value={str(block.props?.field) || 'name'} onChange={(event) => setProp('field', event.target.value)}>
                                     {filterFields.map((field) => (
                                         <option key={field} value={field}>
                                             {field}
                                         </option>
                                     ))}
-                                </select>
+                                </Select>
                             </Field>
                             <p className="ir-text-xs ir-text-muted-foreground">
                                 El filtro acota las filas de las tablas, gráficos y la línea de trabajo de esta página por el campo elegido.
@@ -680,14 +613,13 @@ export function Inspector({
                                 />
                             </Field>
                             <Field label="Modo">
-                                <select
-                                    className={selectClass}
+                                <Select
                                     value={str(block.style?.goal_direction) === 'under' ? 'under' : 'over'}
                                     onChange={(event) => setStyle('goal_direction', event.target.value === 'under' ? 'under' : undefined)}
                                 >
                                     <option value="over">Meta — más es mejor (verde al superar)</option>
                                     <option value="under">Presupuesto — menos es mejor (rojo al pasarse)</option>
-                                </select>
+                                </Select>
                             </Field>
                         </>
                     )}
@@ -740,8 +672,7 @@ export function Inspector({
                                     </p>
                                 </Field>
                                 <Field label="Orden predefinido">
-                                    <select
-                                        className={selectClass}
+                                    <Select
                                         value={str(block.style?.sort_col)}
                                         onChange={(event) => setStyle('sort_col', event.target.value === '' ? undefined : event.target.value)}
                                     >
@@ -751,7 +682,7 @@ export function Inspector({
                                                 {sortLabel(col)}
                                             </option>
                                         ))}
-                                    </select>
+                                    </Select>
                                 </Field>
                                 {str(block.style?.sort_col) !== '' && (
                                     <SegmentedControl

@@ -1183,6 +1183,22 @@ export function useMetricCatalog(siteId: number | null) {
     });
 }
 
+/**
+ * The values a dataset dimension actually holds, so a filter is a picker instead of a
+ * free-text box you can typo into an empty block. Disabled until all three are known.
+ */
+export function useDimensionValues(siteId: number | null, source: string, metric: string, dimension: string) {
+    return useQuery({
+        queryKey: ['dimension-values', siteId, source, metric, dimension],
+        queryFn: () =>
+            get<{ values: string[] }>(
+                `/sites/${siteId}/dimension-values?source=${encodeURIComponent(source)}&metric=${encodeURIComponent(metric)}&dimension=${encodeURIComponent(dimension)}`,
+            ),
+        enabled: siteId !== null && source !== '' && metric !== '' && dimension !== '',
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
 /* ----------------------------- editor: templates --------------------------- */
 
 export function useReportTemplates() {

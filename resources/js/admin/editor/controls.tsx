@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import { type ReactElement, type ReactNode, useState } from 'react';
+import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
 
 import { cn } from '@shared/lib/utils';
 
@@ -15,15 +15,24 @@ export function Section({
     icon,
     action,
     defaultOpen = true,
+    forceOpen,
     children,
 }: {
     title: string;
     icon?: ReactNode;
     action?: ReactNode;
     defaultOpen?: boolean;
+    /** Bump to open this section from outside (the collapsed panel's icon rail). */
+    forceOpen?: number;
     children: ReactNode;
 }): ReactElement {
     const [open, setOpen] = useState(defaultOpen);
+
+    useEffect(() => {
+        if (forceOpen !== undefined && forceOpen > 0) {
+            setOpen(true);
+        }
+    }, [forceOpen]);
 
     return (
         <section className="ir-border-b ir-border-border/60 last:ir-border-b-0">

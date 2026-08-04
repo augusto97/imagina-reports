@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
+use App\Http\Controllers\Api\V1\DimensionValuesController;
 use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
@@ -183,6 +184,9 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::post('sites/{site}/connect/{type}', [ConnectController::class, 'start'])->name('api.sites.connect.start');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
+    // Real values of a dataset dimension, so the editor's filters are a picker
+    // rather than a free-text box you can typo into an empty block.
+    Route::get('sites/{site}/dimension-values', [DimensionValuesController::class, 'show'])->name('api.sites.dimension-values');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->middleware('throttle:ai')->name('api.sites.ai-template');
     Route::post('sites/{site}/ai-section', [AiTemplateController::class, 'section'])->name('api.sites.ai-section');
     Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');

@@ -1,4 +1,4 @@
-import { Copy, GripVertical, Trash2 } from 'lucide-react';
+import { Copy, Filter, GripVertical, Trash2 } from 'lucide-react';
 import { type MouseEvent, type ReactElement } from 'react';
 
 import { BlockRenderer } from '@shared/blocks/BlockRenderer';
@@ -40,6 +40,8 @@ export function CanvasBlock({
         handler();
     };
 
+    const filterCount = block.binding?.filters?.length ?? 0;
+
     const radius = RADIUS[typeof block.style?.radius === 'string' ? block.style.radius : ''] ?? 'ir-rounded-lg';
 
     // A data block whose bound metric has no value for the previewed period. Show an
@@ -69,6 +71,19 @@ export function CanvasBlock({
                 selected ? 'ir-ring-2 ir-ring-primary' : 'hover:ir-ring-1 hover:ir-ring-border',
             )}
         >
+            {/* A filtered block used to look identical to an unfiltered one, so "why is this
+                number lower than the total?" had no answer on screen. This badge is always
+                visible (not hover-only) precisely because it changes what the number means. */}
+            {filterCount > 0 && (
+                <span
+                    className="ir-absolute ir-left-2 ir-top-2 ir-z-10 ir-inline-flex ir-items-center ir-gap-1 ir-rounded-full ir-bg-primary/10 ir-px-1.5 ir-py-0.5 ir-text-[10px] ir-font-medium ir-text-primary"
+                    title={`${filterCount} filtro(s) aplicados a este bloque`}
+                >
+                    <Filter className="ir-size-2.5" />
+                    {filterCount}
+                </span>
+            )}
+
             <div
                 className={cn(
                     'ir-absolute ir-right-2 ir-top-2 ir-z-10 ir-flex ir-gap-0.5 ir-rounded-md ir-border ir-bg-card ir-p-1 ir-shadow-sm ir-transition',
