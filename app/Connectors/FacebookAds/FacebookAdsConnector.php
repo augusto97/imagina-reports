@@ -256,17 +256,31 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
             return null;
         }
 
-        $response = $this->client($source)->get('/me/adaccounts', ['fields' => 'name,account_id', 'limit' => 200]);
+        $client = $this->client($source);
+
+        $response = $client->get('/me/adaccounts', ['fields' => 'name,account_id', 'limit' => 200]);
         if ($response->failed()) {
             return null;
         }
 
+        // Personal edge + every business portfolio's accounts (owned and shared with us):
+        // agencies hold client ad accounts in a Business portfolio, and being an admin of the
+        // business does not put those accounts on /me/adaccounts.
+        $accounts = $this->listOf($response->json('data'));
+        foreach ($this->businessIds($client) as $businessId) {
+            foreach (['owned_ad_accounts', 'client_ad_accounts'] as $edge) {
+                $accounts = array_merge($accounts, $this->adAccountsFrom($client, '/'.$businessId.'/'.$edge));
+            }
+        }
+
         $options = [];
-        foreach ($this->listOf($response->json('data')) as $account) {
+        $seen = [];
+        foreach ($accounts as $account) {
             $id = $this->toStr(Arr::get($account, 'account_id'));
-            if ($id === '') {
+            if ($id === '' || isset($seen[$id])) {
                 continue;
             }
+            $seen[$id] = true;
             $name = $this->toStr(Arr::get($account, 'name'));
             $options[] = ['value' => $id, 'label' => $name !== '' ? "{$name} ({$id})" : $id];
         }
@@ -279,6 +293,50 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
             .'Revisa que tengas acceso a la cuenta en el Administrador Comercial de Meta y que la hayas marcado '
             .'en la pantalla de permisos, luego pulsa «Detectar cuentas».',
         );
+    }
+
+    /**
+     * The business portfolios the token can see. A failure here (usually because
+     * `business_management` wasn't granted) is skipped, not fatal — whatever the personal
+     * edge found still gets offered.
+     *
+     * @return list<string>
+     */
+    private function businessIds(PendingRequest $client): array
+    {
+        try {
+            $response = $client->get('/me/businesses', ['fields' => 'id', 'limit' => 100]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($this->listOf($response->json('data')) as $business) {
+            $id = $this->toStr(Arr::get($business, 'id'));
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return list<array<array-key, mixed>>
+     */
+    private function adAccountsFrom(PendingRequest $client, string $path): array
+    {
+        try {
+            $response = $client->get($path, ['fields' => 'name,account_id', 'limit' => 200]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        return $response->failed() ? [] : $this->listOf($response->json('data'));
     }
 
     /** Meta expects the date window as a JSON-encoded `{since, until}` query value. */

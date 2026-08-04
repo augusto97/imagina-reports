@@ -193,9 +193,13 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
     }
 
     /**
-     * The Instagram business accounts this connected user can access, discovered through
-     * their Facebook Pages (`/me/accounts` → `instagram_business_account`). Lets the client
-     * pick their account after the one-click connect. Best-effort — null on error.
+     * The Instagram business accounts this connected user can reach, discovered through the
+     * Facebook Pages they can reach (`instagram_business_account` on each page).
+     *
+     * Crucially that means BOTH the pages assigned to them personally and the ones held in
+     * their business portfolios — an agency keeps client assets in a Business portfolio and
+     * is frequently an admin of the business without holding a role on each individual page,
+     * so `/me/accounts` alone finds nothing at all for exactly the people this product is for.
      */
     public function connectableResources(DataSource $source): ?ConnectableResources
     {
@@ -203,22 +207,22 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
             return null;
         }
 
-        $response = $this->client($source)->get('/me/accounts', [
-            'fields' => 'name,instagram_business_account{id,username}',
-            'limit' => 200,
-        ]);
+        $client = $this->client($source);
+        $pages = $this->reachablePages($client);
 
-        if ($response->failed()) {
+        if ($pages === null) {
             return null;
         }
 
         $options = [];
-        foreach ($this->listOf($response->json('data')) as $page) {
+        $seen = [];
+        foreach ($pages as $page) {
             $ig = $this->arrayOf(Arr::get($page, 'instagram_business_account'));
             $id = $this->toStr(Arr::get($ig, 'id'));
-            if ($id === '') {
+            if ($id === '' || isset($seen[$id])) {
                 continue;
             }
+            $seen[$id] = true;
             $username = $this->toStr(Arr::get($ig, 'username'));
             $pageName = $this->toStr(Arr::get($page, 'name'));
             $label = $username !== '' ? '@'.$username : $id;
@@ -232,9 +236,84 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
             'La conexión funcionó, pero no encontramos ninguna cuenta de Instagram utilizable. '
             .'Instagram solo expone datos a través de una página de Facebook, así que revisa que: '
             .'(1) la cuenta sea Business o Creator —no personal—, (2) esté vinculada a una página de Facebook, '
-            .'y (3) hayas marcado esa página en la pantalla de permisos de Meta al conectar. '
-            .'Corrige lo que falte y pulsa «Detectar cuentas».',
+            .'y (3) al conectar hayas marcado esa página Y el portafolio comercial en la pantalla de permisos de Meta. '
+            .'Corrige lo que falte y pulsa «Detectar cuentas». '
+            .'Si la conoces, también puedes pegar el ID de la cuenta directamente en «Editar».',
         );
+    }
+
+    /**
+     * Every Facebook page the token can see, from the personal edge and from each business
+     * portfolio (owned + shared-with-us). Returns null only when the personal edge itself
+     * fails — that means the token is bad, which is worth reporting; a business edge that
+     * fails (typically because `business_management` hasn't been granted) is skipped so the
+     * pages we DID find still get offered.
+     *
+     * @return list<array<array-key, mixed>>|null
+     */
+    private function reachablePages(PendingRequest $client): ?array
+    {
+        $response = $client->get('/me/accounts', [
+            'fields' => 'name,instagram_business_account{id,username}',
+            'limit' => 200,
+        ]);
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $pages = $this->listOf($response->json('data'));
+
+        foreach ($this->businessIds($client) as $businessId) {
+            foreach (['owned_pages', 'client_pages'] as $edge) {
+                $pages = array_merge($pages, $this->pagesFrom($client, '/'.$businessId.'/'.$edge));
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function businessIds(PendingRequest $client): array
+    {
+        try {
+            $response = $client->get('/me/businesses', ['fields' => 'id', 'limit' => 100]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($this->listOf($response->json('data')) as $business) {
+            $id = $this->toStr(Arr::get($business, 'id'));
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return list<array<array-key, mixed>>
+     */
+    private function pagesFrom(PendingRequest $client, string $path): array
+    {
+        try {
+            $response = $client->get($path, [
+                'fields' => 'name,instagram_business_account{id,username}',
+                'limit' => 200,
+            ]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        return $response->failed() ? [] : $this->listOf($response->json('data'));
     }
 
     private function client(DataSource $source): PendingRequest

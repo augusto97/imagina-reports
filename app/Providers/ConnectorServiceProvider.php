@@ -92,11 +92,16 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
 
             $meta = new MetaOAuthClient;
             if ($meta->isConfigured()) {
-                $registry->register(new MetaConnect($meta, DataSourceType::FacebookAds->value, ['ads_read']));
+                // business_management is what makes an AGENCY connection work: client pages and
+                // ad accounts live in a Business portfolio, and being an admin of the business
+                // doesn't put them on /me/accounts or /me/adaccounts. Without it we only ever
+                // see assets assigned to the person directly. Discovery degrades gracefully if
+                // Meta hasn't approved it yet (the business edges are skipped, not fatal).
+                $registry->register(new MetaConnect($meta, DataSourceType::FacebookAds->value, ['ads_read', 'business_management']));
                 $registry->register(new MetaConnect(
                     $meta,
                     DataSourceType::Instagram->value,
-                    ['instagram_basic', 'pages_show_list', 'pages_read_engagement', 'instagram_manage_insights'],
+                    ['instagram_basic', 'pages_show_list', 'pages_read_engagement', 'instagram_manage_insights', 'business_management'],
                 ));
             }
 

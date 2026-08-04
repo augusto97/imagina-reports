@@ -93,6 +93,63 @@ class InstagramConnectorTest extends TestCase
         $this->assertStringContainsString('@acme', $resources->options[0]['label']);
     }
 
+    public function test_connectable_resources_also_finds_accounts_held_in_a_business_portfolio(): void
+    {
+        // The agency case: nothing is assigned to the person directly — the client's page
+        // lives in a Business portfolio they administer. /me/accounts alone finds nothing.
+        Http::fake([
+            'graph.facebook.com/*/me/accounts*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['data' => [['id' => 'biz-1']]]),
+            'graph.facebook.com/*/biz-1/owned_pages*' => Http::response([
+                'data' => [['name' => 'Cliente A', 'instagram_business_account' => ['id' => '111', 'username' => 'cliente_a']]],
+            ]),
+            'graph.facebook.com/*/biz-1/client_pages*' => Http::response([
+                'data' => [['name' => 'Cliente B', 'instagram_business_account' => ['id' => '222', 'username' => 'cliente_b']]],
+            ]),
+        ]);
+
+        $resources = (new InstagramConnector)->connectableResources($this->source());
+
+        $this->assertNotNull($resources);
+        $this->assertCount(2, $resources->options);
+        $this->assertSame(['111', '222'], array_column($resources->options, 'value'));
+    }
+
+    public function test_the_same_account_reached_two_ways_is_offered_once(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/me/accounts*' => Http::response([
+                'data' => [['name' => 'Acme', 'instagram_business_account' => ['id' => '111', 'username' => 'acme']]],
+            ]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['data' => [['id' => 'biz-1']]]),
+            'graph.facebook.com/*/biz-1/owned_pages*' => Http::response([
+                'data' => [['name' => 'Acme', 'instagram_business_account' => ['id' => '111', 'username' => 'acme']]],
+            ]),
+            'graph.facebook.com/*/biz-1/client_pages*' => Http::response(['data' => []]),
+        ]);
+
+        $resources = (new InstagramConnector)->connectableResources($this->source());
+
+        $this->assertCount(1, $resources?->options ?? []);
+    }
+
+    public function test_a_denied_business_permission_still_returns_the_personal_pages(): void
+    {
+        // business_management not granted yet: the business edges 403, and that must not
+        // wipe out the pages the personal edge did find.
+        Http::fake([
+            'graph.facebook.com/*/me/accounts*' => Http::response([
+                'data' => [['name' => 'Acme', 'instagram_business_account' => ['id' => '111', 'username' => 'acme']]],
+            ]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['error' => ['message' => 'no permission']], 403),
+        ]);
+
+        $resources = (new InstagramConnector)->connectableResources($this->source());
+
+        $this->assertCount(1, $resources?->options ?? []);
+        $this->assertSame('111', $resources?->options[0]['value']);
+    }
+
     public function test_missing_ig_user_id_fails_cleanly(): void
     {
         $source = DataSource::factory()->make([

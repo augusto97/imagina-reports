@@ -62,6 +62,29 @@ class AdsConnectorsTest extends TestCase
         $this->assertSame('Tienda Acme (123-456-7890)', $resources->options[0]['label']);
     }
 
+    public function test_meta_ad_account_discovery_includes_business_portfolio_accounts(): void
+    {
+        // Agency shape: no ad account assigned to the person, all of them in the portfolio.
+        Http::fake([
+            'graph.facebook.com/*/me/adaccounts*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['data' => [['id' => 'biz-1']]]),
+            'graph.facebook.com/*/biz-1/owned_ad_accounts*' => Http::response([
+                'data' => [['name' => 'Cliente A', 'account_id' => '111']],
+            ]),
+            'graph.facebook.com/*/biz-1/client_ad_accounts*' => Http::response([
+                'data' => [['name' => 'Cliente B', 'account_id' => '222']],
+            ]),
+        ]);
+
+        $resources = (new FacebookAdsConnector)->connectableResources(
+            $this->source(DataSourceType::FacebookAds, [], ['access_token' => 'meta-token']),
+        );
+
+        $this->assertNotNull($resources);
+        $this->assertSame('ad_account_id', $resources->field);
+        $this->assertSame(['111', '222'], array_column($resources->options, 'value'));
+    }
+
     public function test_google_ads_aggregates_totals_series_and_top_campaigns(): void
     {
         Http::fake(function (Request $request) {
