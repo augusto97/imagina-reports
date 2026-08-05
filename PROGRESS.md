@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🩹 TRES DEFECTOS DEL EDITOR TRAS LA REESTRUCTURACIÓN (2026-08-05, commit `8d293a5`):** reportados juntos por el owner sobre v1.24.0.
+- **No se podía deseleccionar.** Nada limpiaba `selectedId`, así que en cuanto elegías un bloque los **ajustes del informe — que solo se
+  mostraban sin selección — quedaban inalcanzables**. Ahora un clic en lienzo vacío deselecciona (`onMouseDown`, para que ocurra *antes* de
+  que el grid inicie un arrastre) excluyendo `[data-block-tile]` **y `.react-grid-item`** — el tirador de redimensionado de react-grid-layout
+  es **hermano** del tile, no hijo, y sin esa segunda condición redimensionar perdía la selección. `Escape` hace lo mismo, sin robarle la
+  tecla a un input ni a Tiptap.
+- **Panel derecho → dos PESTAÑAS** `Bloque` | `Informe`, en espejo del izquierdo. Mostrar uno **u** otro según la selección no dejaba ninguna
+  ruta a filtros/tema/navegación con un bloque seleccionado. `Bloque` se deshabilita sin selección; elegir un bloque sigue abriendo el panel
+  directamente en él (`rightTab`), y el contador de filtros de informe vive ahora en la pestaña `Informe`.
+- **El lienzo «vibraba»** a anchos de viewport concretos. Causa: el `fitScale` se medía sobre el **contenedor con scroll**; una escala menor
+  acortaba el artboard → desaparecía la barra de scroll vertical → `clientWidth` crecía ~15px → crecía la escala → volvía la barra. Justo en
+  ese umbral no convergía nunca. Arreglo: **medir la COLUMNA del lienzo** (su ancho no depende de nada que haga la escala, así que el bucle no
+  puede cerrarse) + `scrollbar-gutter: stable` con un inset fijo (`WORKSPACE_INSET = 48 + 20`) + escala cuantizada a porcentaje entero +
+  ambos `ResizeObserver` agrupados en `requestAnimationFrame` con guarda de no-op.
+> **Lección general:** nunca derives un tamaño de un elemento **cuyo propio tamaño dependa de ese cálculo**. Mide siempre un ancestro estable.
+
 **🧭 EDITOR REESTRUCTURADO POR NATURALEZA DE CADA COSA (2026-08-05, releases v1.23.1 y v1.24.0, commits `d5d2e78`, `c0f043d`,
 `d7896aa`):** el owner reportó que «Generar con IA», «Filtros de página» y «Tema del reporte» estaban al fondo del panel izquierdo y **la
 gente ni sabía que existían**. Diagnóstico: en esa columna de 256px convivían **tres naturalezas distintas** apiladas como si fueran lo
