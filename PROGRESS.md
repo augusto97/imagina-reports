@@ -176,6 +176,12 @@ donde se toma la decisión, y en forma de acción, no de disculpa.
 **Acuerdo operativo con el owner (2026-08-05):** agrupar correcciones pequeñas en un solo release en lugar de publicar una por arreglo, y
 **confirmar siempre el release publicado** (una v1.22.1 salió bien pero no se le comunicó, y lo percibió como demora).
 
+> ### 🚀 NORMA VIGENTE DE PUBLICACIÓN (owner, 2026-08-05: «publica siempre!»)
+> **Ya NO hay que pedir permiso para publicar.** Sustituye a la regla anterior («solo tras confirmación explícita del owner»). Cuando una
+> tanda de cambios esté terminada y **CI en verde**, se dispara el release directamente. Se mantiene lo demás del acuerdo:
+> **agrupar** los arreglos pequeños en un solo release (no uno por arreglo) y **confirmar siempre** al owner el release publicado, con enlace.
+> Sigue aplicando el criterio normal para acciones destructivas o de alcance mayor: esta autorización es solo para publicar releases.
+
 **📊 DATASETS MODELABLES DE CAMPAÑAS Y PUBLICACIONES — ETAPA A.2 PARA META Y GOOGLE ADS (2026-08-04, rama
 `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** un cliente pide reportes con **solo unas campañas concretas**. El owner planteaba
 replicar el constructor de métricas de GA4 en las fuentes; se descartó y se explicó por qué: **ese constructor existe porque GA4 expone
