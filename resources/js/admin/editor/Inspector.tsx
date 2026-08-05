@@ -342,6 +342,7 @@ export function Inspector({
             {pickerOpen && (
                 <MetricPicker
                     catalog={catalog}
+                    blockType={block.type}
                     value={block.binding != null ? { source: block.binding.source, metric: block.binding.metric } : null}
                     onPick={(entry) =>
                         onChange({

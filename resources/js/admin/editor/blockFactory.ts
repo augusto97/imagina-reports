@@ -135,6 +135,32 @@ export function ensureLayouts(blocks: Block[]): Block[] {
 
 export const DATA_BLOCKS: BlockType[] = ['kpi', 'chart', 'table', 'funnel', 'geo_map', 'sales_summary', 'goal', 'control'];
 
+/**
+ * What each block can actually DRAW, so the picker only offers metrics it can render.
+ *
+ * Offering everything to every block meant a map listed campaign names and a KPI listed
+ * page tables — bindings that can only ever come back empty. `dataset` is accepted almost
+ * everywhere because the DatasetEngine reshapes it: aggregated to a single number without a
+ * breakdown, to rows with one.
+ */
+export const BLOCK_METRIC_TYPES: Partial<Record<BlockType, string[]>> = {
+    // Single figures: a scalar, or a dataset aggregated down to one.
+    kpi: ['scalar', 'number', 'dataset'],
+    goal: ['scalar', 'number', 'dataset'],
+    sales_summary: ['scalar', 'number', 'dataset'],
+    // Anything with a shape over time or across categories.
+    chart: ['series', 'table', 'dataset'],
+    table: ['table', 'dataset'],
+    funnel: ['table', 'dataset'],
+    // A map needs a place to put the pins — see GEO_DIMENSIONS below.
+    geo_map: ['table', 'dataset'],
+    // The client-facing filter control reads the values of a dimension.
+    control: ['table', 'dataset'],
+};
+
+/** Dimensions a map can plot. A dataset without one of these has nothing to place. */
+export const GEO_DIMENSIONS = ['country', 'region', 'city'];
+
 export type BlockWidth = 'full' | 'half' | 'third';
 
 /** A block's configured column width (defaults to full). */

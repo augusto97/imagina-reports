@@ -102,6 +102,24 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
         ];
     }
 
+    /**
+     * Campaign × device. A separate dataset rather than another segment on the campaign one:
+     * every extra segment multiplies the rows Google returns, and most blocks only care
+     * about one axis.
+     *
+     * @return array{dimensions: array<string, string>, measures: array<string, array{label: string, unit: string}>}
+     */
+    private function deviceDataset(): array
+    {
+        return [
+            'dimensions' => [
+                'campaign' => 'Campaña',
+                'device' => 'Dispositivo',
+            ],
+            'measures' => $this->campaignDataset()['measures'],
+        ];
+    }
+
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         $dataset = $this->campaignDataset();
@@ -120,6 +138,16 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
                 null,
                 $measures,
                 $dataset['dimensions'],
+            ),
+            new MetricDefinition(
+                'google_ads.by_device',
+                'Anuncios por dispositivo (modelable)',
+                MetricType::Dataset,
+                null,
+                array_keys($this->deviceDataset()['dimensions']),
+                null,
+                $measures,
+                $this->deviceDataset()['dimensions'],
             ),
             new MetricDefinition('google_ads.impressions', 'Impresiones', MetricType::Scalar, 'count'),
             new MetricDefinition('google_ads.clicks', 'Clics', MetricType::Scalar, 'count'),
@@ -194,6 +222,7 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             $this->collectSeries($client, $url, $range, $metrics, $errors);
             $this->collectTopCampaigns($client, $url, $range, $metrics, $errors);
             $this->collectCampaignDataset($client, $url, $range, $metrics, $errors);
+            $this->collectDeviceDataset($client, $url, $range, $metrics, $errors);
 
             return $errors === [] ? MetricSet::ok($metrics) : MetricSet::partial($metrics, implode('; ', $errors));
         } catch (Throwable $e) {
@@ -298,6 +327,40 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             ], $this->listOf($response->json('results')));
         } catch (Throwable $e) {
             $errors[] = 'campaign dataset: '.$e->getMessage();
+        }
+    }
+
+    /**
+     * Campaign × device rows, so a block can be scoped to mobile, desktop or tablet.
+     *
+     * @param  array<string, mixed>  $metrics
+     * @param  list<string>  $errors
+     */
+    private function collectDeviceDataset(PendingRequest $client, string $url, string $range, array &$metrics, array &$errors): void
+    {
+        try {
+            $response = $client->post($url, [
+                'query' => 'SELECT campaign.name, segments.device, metrics.cost_micros, metrics.clicks, '
+                    ."metrics.impressions, metrics.conversions FROM campaign WHERE {$range} "
+                    .'ORDER BY metrics.cost_micros DESC LIMIT '.self::DATASET_ROW_LIMIT,
+            ]);
+
+            if ($response->failed()) {
+                $errors[] = 'device dataset: HTTP '.$response->status();
+
+                return;
+            }
+
+            $metrics['google_ads.by_device'] = array_map(fn (array $row): array => [
+                'campaign' => $this->toStr(Arr::get($row, 'campaign.name')),
+                'device' => $this->toStr(Arr::get($row, 'segments.device')),
+                'cost' => $this->toFloat(Arr::get($row, 'metrics.costMicros')) / self::MICROS,
+                'impressions' => $this->toInt(Arr::get($row, 'metrics.impressions')),
+                'clicks' => $this->toInt(Arr::get($row, 'metrics.clicks')),
+                'conversions' => $this->toFloat(Arr::get($row, 'metrics.conversions')),
+            ], $this->listOf($response->json('results')));
+        } catch (Throwable $e) {
+            $errors[] = 'device dataset: '.$e->getMessage();
         }
     }
 

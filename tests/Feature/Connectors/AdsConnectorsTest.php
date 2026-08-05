@@ -108,6 +108,70 @@ class AdsConnectorsTest extends TestCase
         $this->assertSame(['spend', 'impressions', 'clicks', 'conversions'], array_column($definition->measures, 'key'));
     }
 
+    public function test_meta_exposes_one_dataset_per_breakdown_axis(): void
+    {
+        // Country, device and age+gender can't be combined into one request — Meta refuses
+        // most pairings and rows multiply — so each axis is its own bounded dataset.
+        Http::fake(function (Request $request) {
+            $breakdowns = (string) ($request->data()['breakdowns'] ?? '');
+
+            if ($breakdowns === 'country') {
+                return Http::response(['data' => [
+                    ['campaign_name' => 'Rebajas', 'country' => 'CO', 'spend' => '40.00', 'impressions' => '800', 'clicks' => '12', 'actions' => []],
+                ]]);
+            }
+            if ($breakdowns === 'impression_device') {
+                return Http::response(['data' => [
+                    ['campaign_name' => 'Rebajas', 'impression_device' => 'android_smartphone', 'spend' => '25.00', 'impressions' => '500', 'clicks' => '9', 'actions' => []],
+                ]]);
+            }
+            if ($breakdowns === 'age,gender') {
+                return Http::response(['data' => [
+                    ['campaign_name' => 'Rebajas', 'age' => '25-34', 'gender' => 'female', 'spend' => '15.00', 'impressions' => '300', 'clicks' => '4', 'actions' => []],
+                ]]);
+            }
+
+            return Http::response(['data' => [[]]]);
+        });
+
+        $set = (new FacebookAdsConnector)->fetch(
+            $this->source(DataSourceType::FacebookAds, ['ad_account_id' => '123'], ['access_token' => 'tok']),
+            $this->period(),
+            [],
+        );
+
+        $this->assertSame('CO', $set->get('facebook_ads.by_country')[0]['country'] ?? null);
+        $this->assertSame('android_smartphone', $set->get('facebook_ads.by_device')[0]['device'] ?? null);
+        $this->assertSame('25-34', $set->get('facebook_ads.by_demographics')[0]['age'] ?? null);
+        $this->assertSame('female', $set->get('facebook_ads.by_demographics')[0]['gender'] ?? null);
+    }
+
+    public function test_a_breakdown_meta_refuses_does_not_cost_the_others(): void
+    {
+        Http::fake(function (Request $request) {
+            if ((string) ($request->data()['breakdowns'] ?? '') === 'age,gender') {
+                return Http::response(['error' => ['message' => 'unsupported breakdown']], 400);
+            }
+            if (str_contains((string) ($request->data()['breakdowns'] ?? ''), 'publisher_platform')) {
+                return Http::response(['data' => [
+                    ['campaign_name' => 'Rebajas', 'publisher_platform' => 'instagram', 'spend' => '10.00', 'impressions' => '100', 'clicks' => '2', 'actions' => []],
+                ]]);
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        $set = (new FacebookAdsConnector)->fetch(
+            $this->source(DataSourceType::FacebookAds, ['ad_account_id' => '123'], ['access_token' => 'tok']),
+            $this->period(),
+            [],
+        );
+
+        // Degraded, not lost: the axes that worked are still there.
+        $this->assertTrue($set->isPartial());
+        $this->assertCount(1, $set->get('facebook_ads.campaigns'));
+    }
+
     public function test_meta_ad_account_discovery_includes_business_portfolio_accounts(): void
     {
         // Agency shape: no ad account assigned to the person, all of them in the portfolio.

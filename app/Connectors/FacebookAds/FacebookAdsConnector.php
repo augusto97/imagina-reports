@@ -70,51 +70,89 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
     }
 
     /**
-     * The campaign dataset's shape. Measures are deliberately **additive only** (spend,
-     * impressions, clicks, conversions): the DatasetEngine sums a measure across the rows a
-     * block keeps, and summing a ratio like CTR or CPC — or reach, which Meta de-duplicates
-     * per row — produces a number that looks right and isn't. Those stay account-level
-     * scalars. Compute derived ratios with a calculated metric over these instead.
+     * The modelable datasets, one per breakdown axis.
      *
-     * @return array{dimensions: array<string, string>, measures: array<string, array{label: string, unit: string}>}
+     * Deliberately NOT one dataset with every breakdown at once: Meta multiplies rows per
+     * breakdown (campaign × country × device × age would blow past any sane bound) and its
+     * API rejects most combinations outright. One request per axis keeps each result small,
+     * already aggregated at the source (§3.3), and lets a block filter on whichever axis it
+     * cares about.
+     *
+     * Measures are **additive only** (spend, impressions, clicks, conversions): the
+     * DatasetEngine sums a measure across the rows a block keeps, and summing a ratio like
+     * CTR or CPC — or reach, which Meta de-duplicates per row — produces a number that looks
+     * right and isn't. Those stay account-level scalars; derive ratios with a calculated
+     * metric over these instead.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     breakdowns: string,
+     *     dimensions: array<string, array{label: string, field: string}>,
+     * }>
      */
-    private function campaignDataset(): array
+    private function datasetSpecs(): array
     {
         return [
-            'dimensions' => [
-                'campaign' => 'Campaña',
+            'campaigns' => [
+                'label' => 'Campañas (modelable)',
                 // Instagram ads ARE Meta ads: same account, same Insights API, told apart by
-                // the placement. This dimension is what lets a block say "only Instagram".
-                'platform' => 'Plataforma (Facebook / Instagram)',
+                // the placement. This is what lets a block say "only Instagram".
+                'breakdowns' => 'publisher_platform',
+                'dimensions' => [
+                    'campaign' => ['label' => 'Campaña', 'field' => 'campaign_name'],
+                    'platform' => ['label' => 'Plataforma (Facebook / Instagram)', 'field' => 'publisher_platform'],
+                ],
             ],
-            'measures' => [
-                'spend' => ['label' => 'Inversión', 'unit' => 'currency'],
-                'impressions' => ['label' => 'Impresiones', 'unit' => 'count'],
-                'clicks' => ['label' => 'Clics', 'unit' => 'count'],
-                'conversions' => ['label' => 'Conversiones', 'unit' => 'count'],
+            'by_country' => [
+                'label' => 'Anuncios por país (modelable)',
+                'breakdowns' => 'country',
+                'dimensions' => [
+                    'campaign' => ['label' => 'Campaña', 'field' => 'campaign_name'],
+                    'country' => ['label' => 'País', 'field' => 'country'],
+                ],
             ],
+            'by_device' => [
+                'label' => 'Anuncios por dispositivo (modelable)',
+                'breakdowns' => 'impression_device',
+                'dimensions' => [
+                    'campaign' => ['label' => 'Campaña', 'field' => 'campaign_name'],
+                    'device' => ['label' => 'Dispositivo', 'field' => 'impression_device'],
+                ],
+            ],
+            'by_demographics' => [
+                'label' => 'Anuncios por edad y género (modelable)',
+                // Meta allows age+gender together; most other pairs it refuses.
+                'breakdowns' => 'age,gender',
+                'dimensions' => [
+                    'campaign' => ['label' => 'Campaña', 'field' => 'campaign_name'],
+                    'age' => ['label' => 'Edad', 'field' => 'age'],
+                    'gender' => ['label' => 'Género', 'field' => 'gender'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, array{label: string, unit: string}>
+     */
+    private function datasetMeasures(): array
+    {
+        return [
+            'spend' => ['label' => 'Inversión', 'unit' => 'currency'],
+            'impressions' => ['label' => 'Impresiones', 'unit' => 'count'],
+            'clicks' => ['label' => 'Clics', 'unit' => 'count'],
+            'conversions' => ['label' => 'Conversiones', 'unit' => 'count'],
         ];
     }
 
     public function metricCatalog(DataSource $source): MetricCatalog
     {
-        $dataset = $this->campaignDataset();
         $measures = [];
-        foreach ($dataset['measures'] as $key => $measure) {
+        foreach ($this->datasetMeasures() as $key => $measure) {
             $measures[] = ['key' => $key, 'label' => $measure['label'], 'unit' => $measure['unit']];
         }
 
-        return new MetricCatalog(
-            new MetricDefinition(
-                'facebook_ads.campaigns',
-                'Campañas (modelable)',
-                MetricType::Dataset,
-                null,
-                array_keys($dataset['dimensions']),
-                null,
-                $measures,
-                $dataset['dimensions'],
-            ),
+        $catalog = new MetricCatalog(
             new MetricDefinition('facebook_ads.impressions', 'Impresiones', MetricType::Scalar, 'count'),
             new MetricDefinition('facebook_ads.reach', 'Alcance', MetricType::Scalar, 'count'),
             new MetricDefinition('facebook_ads.clicks', 'Clics', MetricType::Scalar, 'count'),
@@ -129,6 +167,26 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
             new MetricDefinition('facebook_ads.spend_by_date', 'Inversión por día', MetricType::Series, 'currency'),
             new MetricDefinition('facebook_ads.top_campaigns', 'Campañas principales', MetricType::Table),
         );
+
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            $labels = [];
+            foreach ($spec['dimensions'] as $dimensionKey => $dimension) {
+                $labels[$dimensionKey] = $dimension['label'];
+            }
+
+            $catalog = $catalog->with(new MetricDefinition(
+                'facebook_ads.'.$key,
+                $spec['label'],
+                MetricType::Dataset,
+                null,
+                array_keys($spec['dimensions']),
+                null,
+                $measures,
+                $labels,
+            ));
+        }
+
+        return $catalog;
     }
 
     public function testConnection(DataSource $source): ConnectionResult
@@ -267,36 +325,43 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
      */
     private function collectCampaignDataset(PendingRequest $client, string $url, Period $period, array &$metrics, array &$errors): void
     {
-        try {
-            $response = $client->get($url, [
-                'level' => 'campaign',
-                'breakdowns' => 'publisher_platform',
-                'fields' => 'campaign_name,spend,clicks,impressions,actions',
-                'time_range' => $this->timeRange($period),
-                'limit' => self::DATASET_ROW_LIMIT,
-            ]);
+        foreach ($this->datasetSpecs() as $key => $spec) {
+            try {
+                $response = $client->get($url, [
+                    'level' => 'campaign',
+                    'breakdowns' => $spec['breakdowns'],
+                    'fields' => 'campaign_name,spend,clicks,impressions,actions',
+                    'time_range' => $this->timeRange($period),
+                    'limit' => self::DATASET_ROW_LIMIT,
+                ]);
 
-            if ($response->failed()) {
-                $errors[] = 'campaign dataset: HTTP '.$response->status();
+                if ($response->failed()) {
+                    // One refused breakdown must not cost the others: skip and carry on.
+                    $errors[] = $key.' dataset: HTTP '.$response->status();
 
-                return;
+                    continue;
+                }
+
+                $rows = array_map(function (array $row) use ($spec): array {
+                    $entry = [];
+                    foreach ($spec['dimensions'] as $dimensionKey => $dimension) {
+                        $entry[$dimensionKey] = $this->toStr(Arr::get($row, $dimension['field']));
+                    }
+                    $entry['spend'] = $this->toFloat(Arr::get($row, 'spend'));
+                    $entry['impressions'] = $this->toInt(Arr::get($row, 'impressions'));
+                    $entry['clicks'] = $this->toInt(Arr::get($row, 'clicks'));
+                    $entry['conversions'] = $this->sumActions(Arr::get($row, 'actions'));
+
+                    return $entry;
+                }, $this->listOf($response->json('data')));
+
+                // Highest spend first, so a truncated snapshot keeps what matters.
+                usort($rows, static fn (array $a, array $b): int => $b['spend'] <=> $a['spend']);
+
+                $metrics['facebook_ads.'.$key] = $rows;
+            } catch (Throwable $e) {
+                $errors[] = $key.' dataset: '.$e->getMessage();
             }
-
-            $rows = array_map(fn (array $row): array => [
-                'campaign' => $this->toStr(Arr::get($row, 'campaign_name')),
-                'platform' => $this->toStr(Arr::get($row, 'publisher_platform')),
-                'spend' => $this->toFloat(Arr::get($row, 'spend')),
-                'impressions' => $this->toInt(Arr::get($row, 'impressions')),
-                'clicks' => $this->toInt(Arr::get($row, 'clicks')),
-                'conversions' => $this->sumActions(Arr::get($row, 'actions')),
-            ], $this->listOf($response->json('data')));
-
-            // Highest spend first, so a truncated snapshot keeps what matters.
-            usort($rows, static fn (array $a, array $b): int => $b['spend'] <=> $a['spend']);
-
-            $metrics['facebook_ads.campaigns'] = $rows;
-        } catch (Throwable $e) {
-            $errors[] = 'campaign dataset: '.$e->getMessage();
         }
     }
 

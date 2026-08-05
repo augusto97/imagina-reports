@@ -511,6 +511,20 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 ],
                 'limit' => 250,
             ],
+            'ga4.devices' => [
+                'label' => 'Dispositivos',
+                'dimensions' => [
+                    'device' => ['label' => 'Dispositivo', 'api' => 'deviceCategory'],
+                    'browser' => ['label' => 'Navegador', 'api' => 'browser'],
+                    'os' => ['label' => 'Sistema operativo', 'api' => 'operatingSystem'],
+                ],
+                'measures' => [
+                    'sessions' => ['label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'users' => ['label' => 'Usuarios', 'api' => 'totalUsers', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'conversions' => ['label' => 'Conversiones', 'api' => 'conversions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                ],
+                'limit' => 250,
+            ],
             'ga4.pages' => [
                 'label' => 'Páginas',
                 'dimensions' => [

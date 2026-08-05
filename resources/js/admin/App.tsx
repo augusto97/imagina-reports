@@ -294,7 +294,33 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                     >
                         <X className="ir-size-5" />
                     </button>
+                    {/* Collapse toggle (desktop) — lives up here, by the logo, where this
+                        control lives in every editor-style app. It used to sit directly
+                        under "Cerrar sesión" in the footer, and people were logging
+                        themselves out by mis-clicking it. */}
+                    {!iconOnly && (
+                        <button
+                            type="button"
+                            onClick={toggleCollapsed}
+                            title="Colapsar menú"
+                            className="ir-ml-auto ir-hidden ir-rounded-md ir-p-1.5 ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-block"
+                        >
+                            <PanelLeftClose className="ir-size-4" />
+                        </button>
+                    )}
                 </div>
+
+                {/* Collapsed: the toggle needs its own row, since the header is just the logo. */}
+                {iconOnly && (
+                    <button
+                        type="button"
+                        onClick={toggleCollapsed}
+                        title="Expandir menú"
+                        className="ir-mb-2 ir-hidden ir-justify-center ir-rounded-md ir-p-1.5 ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-flex"
+                    >
+                        <PanelLeftOpen className="ir-size-4" />
+                    </button>
+                )}
 
                 <nav className="ir-flex ir-flex-col ir-gap-0.5">
                     {nav.map((item) => {
@@ -346,20 +372,6 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                     >
                         <LogOut className="ir-size-4 ir-shrink-0" />
                         {!iconOnly && "Cerrar sesión"}
-                    </button>
-
-                    {/* Collapse toggle (desktop only) — at the bottom of the footer. */}
-                    <button
-                        type="button"
-                        onClick={toggleCollapsed}
-                        title={collapsed ? "Expandir menú" : "Colapsar menú"}
-                        className={cn(
-                            "ir-mt-1 ir-hidden ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-xs ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground lg:ir-flex",
-                            iconOnly && "lg:ir-justify-center lg:ir-px-0",
-                        )}
-                    >
-                        {iconOnly ? <PanelLeftOpen className="ir-size-4 ir-shrink-0" /> : <PanelLeftClose className="ir-size-4 ir-shrink-0" />}
-                        {!iconOnly && "Colapsar menú"}
                     </button>
 
                     {/* Installed version — plain informational tag (no action, no download

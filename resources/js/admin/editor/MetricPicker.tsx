@@ -3,6 +3,7 @@ import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button, Input } from '../components/ui';
 import type { CatalogEntry } from '../types';
+import { BLOCK_METRIC_TYPES, GEO_DIMENSIONS } from './blockFactory';
 
 /** Human names for the raw source keys the catalog carries (`ga4`, `facebook_ads`…). */
 const SOURCE_LABELS: Record<string, string> = {
@@ -51,16 +52,37 @@ const TYPE_META: Record<string, { label: string; icon: typeof Hash }> = {
  * filtered — the thing nobody could work out from the old UI.
  */
 export function MetricPicker({
-    catalog,
+    catalog: allEntries,
+    blockType,
     value,
     onPick,
     onClose,
 }: {
     catalog: CatalogEntry[];
+    /** Restricts the list to what this block can actually draw. */
+    blockType: string;
     value: { source: string; metric: string } | null;
     onPick: (entry: CatalogEntry) => void;
     onClose: () => void;
 }): ReactElement {
+    // Only offer what the block can render. A map used to list campaign names and a KPI
+    // page tables — bindings guaranteed to come back empty.
+    const catalog = useMemo(() => {
+        const allowed = BLOCK_METRIC_TYPES[blockType as keyof typeof BLOCK_METRIC_TYPES];
+
+        return allEntries.filter((entry) => {
+            if (allowed !== undefined && !allowed.includes(entry.type)) {
+                return false;
+            }
+            // A map needs somewhere to put the pins.
+            if (blockType === 'geo_map') {
+                return entry.dimensions.some((dimension) => GEO_DIMENSIONS.includes(dimension));
+            }
+
+            return true;
+        });
+    }, [allEntries, blockType]);
+
     const [query, setQuery] = useState('');
     // Start on the bound metric's source, so reopening lands where you left off.
     const [source, setSource] = useState<string>(value?.source ?? '');
@@ -164,9 +186,11 @@ export function MetricPicker({
                         {visible.length === 0 ? (
                             <div className="ir-px-3 ir-py-10 ir-text-center">
                                 <p className="ir-text-sm ir-text-muted-foreground">
-                                    {catalog.length === 0
+                                    {allEntries.length === 0
                                         ? 'Este sitio aún no tiene datos. Conecta una fuente y sincroniza un periodo.'
-                                        : 'Ningún dato coincide. Prueba con «Todas las fuentes».'}
+                                        : catalog.length === 0
+                                          ? 'Ninguno de los datos disponibles se puede representar en este bloque.'
+                                          : 'Ningún dato coincide. Prueba con «Todas las fuentes».'}
                                 </p>
                             </div>
                         ) : (
