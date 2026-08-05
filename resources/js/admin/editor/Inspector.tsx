@@ -293,6 +293,14 @@ export function Inspector({
     const dimLabel = (key: string): string => boundEntry?.dimension_labels?.[key] ?? key;
     const filters: DatasetFilter[] = block.binding?.filters ?? [];
 
+    // When a single-value metric is bound and the SAME source also offers a modelable
+    // dataset, point at it — that's the actionable version of "this can't be filtered",
+    // offered where the choice is made instead of as a notice on every block.
+    const datasetAlternative =
+        !isDataset && block.binding != null
+            ? catalog.find((entry) => entry.source === block.binding?.source && entry.type === 'dataset')
+            : undefined;
+
     // Columns a table can be ordered by (the predefined order). Datasets expose their
     // dimensions + measures; simpler tables fall back to label/value.
     const tableSortColumns: string[] = isDataset
@@ -465,6 +473,24 @@ export function Inspector({
                                 </span>
                                 <ChevronRight className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
                             </button>
+                            {datasetAlternative !== undefined && (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        onChange({
+                                            ...block,
+                                            binding: {
+                                                source: datasetAlternative.source,
+                                                metric: datasetAlternative.metric,
+                                                compare: block.binding?.compare,
+                                            },
+                                        })
+                                    }
+                                    className="ir-mt-1.5 ir-rounded-md ir-bg-primary/5 ir-px-2 ir-py-1.5 ir-text-left ir-text-[11px] ir-text-primary ir-transition hover:ir-bg-primary/10"
+                                >
+                                    ¿Filtrar por campaña, país…? Cambia a «{datasetAlternative.label}»
+                                </button>
+                            )}
                             {block.binding != null && (
                                 <button
                                     type="button"
@@ -516,7 +542,7 @@ export function Inspector({
                         </div>
                     )}
 
-                    {isData && block.binding != null && (
+                    {isDataset && block.binding != null && (
                         <FiltersPanel
                             filters={filters}
                             inherited={inheritedFilters}
@@ -525,7 +551,6 @@ export function Inspector({
                             siteId={siteId ?? null}
                             source={block.binding.source}
                             metric={block.binding.metric}
-                            supported={isDataset}
                             onChange={setFilters}
                         />
                     )}

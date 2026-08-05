@@ -110,6 +110,11 @@ function FilterRow({
  * existed for dataset metrics — so people could not find them, and when a block was being
  * cut by a page filter nothing on screen said so. Both now show here, together, with the
  * inherited ones visible and the override rule stated where it applies.
+ *
+ * Rendered ONLY for metrics that can actually be filtered. A first cut showed the section
+ * everywhere with a "this can't be filtered" note, which put a permanent apology on nearly
+ * every block — most metrics are single values. The suggestion to switch to a filterable
+ * equivalent lives next to the data picker instead, where the choice is made.
  */
 export function FiltersPanel({
     filters,
@@ -119,7 +124,6 @@ export function FiltersPanel({
     siteId,
     source,
     metric,
-    supported,
     onChange,
 }: {
     filters: DatasetFilter[];
@@ -129,8 +133,6 @@ export function FiltersPanel({
     siteId: number | null;
     source: string;
     metric: string;
-    /** False when the bound metric isn't a dataset — the reason filters can't apply. */
-    supported: boolean;
     onChange: (next: DatasetFilter[]) => void;
 }): ReactElement {
     const overridden = new Set(filters.map((filter) => filter.dimension));
@@ -147,21 +149,11 @@ export function FiltersPanel({
                     <Filter className="ir-size-3.5 ir-text-muted-foreground" />
                     Filtros
                 </span>
-                {supported && (
-                    <Button variant="ghost" size="sm" onClick={add} disabled={dimensions.length === 0}>
-                        <Plus className="ir-size-3.5" />
-                        Añadir
-                    </Button>
-                )}
+                <Button variant="ghost" size="sm" onClick={add} disabled={dimensions.length === 0}>
+                    <Plus className="ir-size-3.5" />
+                    Añadir
+                </Button>
             </div>
-
-            {/* Say WHY there are no filters instead of showing nothing at all. */}
-            {!supported && (
-                <p className="ir-rounded-md ir-bg-muted/60 ir-px-2.5 ir-py-2 ir-text-[11px] ir-text-muted-foreground">
-                    Este dato es un valor único, así que no se puede filtrar. Para recortar por campaña, país, producto…
-                    vincula un dato <strong>modelable</strong> (aparecen marcados así en el selector).
-                </p>
-            )}
 
             {inherited.length > 0 && (
                 <div className="ir-flex ir-flex-col ir-gap-1 ir-rounded-md ir-bg-muted/50 ir-p-2">
@@ -185,8 +177,7 @@ export function FiltersPanel({
                 </div>
             )}
 
-            {supported &&
-                filters.map((filter, index) => (
+            {filters.map((filter, index) => (
                     <FilterRow
                         key={index}
                         filter={filter}
@@ -196,11 +187,11 @@ export function FiltersPanel({
                         source={source}
                         metric={metric}
                         onChange={(patch) => update(index, patch)}
-                        onRemove={() => remove(index)}
-                    />
-                ))}
+                    onRemove={() => remove(index)}
+                />
+            ))}
 
-            {supported && filters.length === 0 && inherited.length === 0 && (
+            {filters.length === 0 && inherited.length === 0 && (
                 <p className="ir-text-[11px] ir-text-muted-foreground">Sin filtros: el bloque muestra todo.</p>
             )}
         </div>
