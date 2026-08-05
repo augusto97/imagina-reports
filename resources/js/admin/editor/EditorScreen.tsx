@@ -31,6 +31,7 @@ import {
     Wrench,
     Zap,
     Minus,
+    SlidersHorizontal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -47,12 +48,9 @@ import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
 const ARTBOARD_WIDTH = 1024;
 
 /** Left-panel sections, in panel order — also what the collapsed icon rail offers. */
-const LEFT_SECTIONS: { key: string; title: string; icon: LucideIcon }[] = [
+const LEFT_SECTIONS: { key: "blocks" | "layers"; title: string; icon: LucideIcon }[] = [
     { key: "blocks", title: "Insertar bloque", icon: Shapes },
     { key: "layers", title: "Capas", icon: Layers },
-    { key: "ai", title: "Generar con IA", icon: Sparkles },
-    { key: "filters", title: "Filtros de página", icon: Filter },
-    { key: "theme", title: "Tema del reporte", icon: Palette },
 ];
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -218,10 +216,9 @@ export function EditorScreen(): ReactElement {
     const wideViewport =
         typeof window !== "undefined" && window.innerWidth >= 1024;
     const [leftOpen, setLeftOpen] = useState(wideViewport);
-    // Which left-panel section the icon rail should open. Collapsing the panel used to hide
-    // the palette, layers, AI, filters and theme behind a single toggle with no clue they
-    // existed; the rail keeps them one click away and named.
-    const [railTarget, setRailTarget] = useState<string | null>(null);
+    // Which left-panel tab is showing. The collapsed icon rail selects it directly.
+    const [leftTab, setLeftTab] = useState<"blocks" | "layers">("blocks");
+    const [aiOpen, setAiOpen] = useState(false);
     // Starts closed: nothing is selected yet, so the inspector would only be showing
     // "select a block" while eating 288px of canvas.
     const [rightOpen, setRightOpen] = useState(false);
@@ -893,6 +890,18 @@ export function EditorScreen(): ReactElement {
                     Plantillas
                 </Button>
 
+                {/* Beside "Plantillas" on purpose: these are the two ways to START a
+                    report, and someone asking "where do I begin?" should see both. */}
+                <Button
+                    variant="accent"
+                    size="sm"
+                    onClick={() => setAiOpen(true)}
+                    title="Generar el informe (o una sección) con IA"
+                >
+                    <Sparkles className="ir-size-4" />
+                    Generar con IA
+                </Button>
+
                 <Button
                     variant="ghost"
                     size="sm"
@@ -976,22 +985,35 @@ export function EditorScreen(): ReactElement {
                         {editingTemplateId !== null ? "Actualizar" : "Guardar"}
                     </Button>
 
-                    <ToolbarButton
-                        icon={
-                            rightOpen ? (
-                                <PanelRightClose className="ir-size-4" />
-                            ) : (
-                                <PanelRightOpen className="ir-size-4" />
-                            )
-                        }
-                        title={
-                            rightOpen
-                                ? "Ocultar inspector"
-                                : "Mostrar inspector"
-                        }
-                        onClick={() => setRightOpen((open) => !open)}
-                        active={rightOpen}
-                    />
+                    {selectedBlock === null && !rightOpen ? (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setRightOpen(true)}
+                            title="Filtros, tema y navegación de todo el informe"
+                        >
+                            <SlidersHorizontal className="ir-size-4" />
+                            Ajustes del informe
+                            {inheritedFilters.length > 0 && (
+                                <span className="ir-ml-1 ir-rounded-full ir-bg-primary/15 ir-px-1.5 ir-text-[10px] ir-font-medium ir-text-primary">
+                                    {inheritedFilters.length}
+                                </span>
+                            )}
+                        </Button>
+                    ) : (
+                        <ToolbarButton
+                            icon={
+                                rightOpen ? (
+                                    <PanelRightClose className="ir-size-4" />
+                                ) : (
+                                    <PanelRightOpen className="ir-size-4" />
+                                )
+                            }
+                            title={rightOpen ? "Ocultar panel" : "Mostrar panel"}
+                            onClick={() => setRightOpen((open) => !open)}
+                            active={rightOpen}
+                        />
+                    )}
                 </div>
             </header>
 
@@ -1019,7 +1041,7 @@ export function EditorScreen(): ReactElement {
                                 type="button"
                                 title={title}
                                 onClick={() => {
-                                    setRailTarget(key);
+                                    setLeftTab(key);
                                     setLeftOpen(true);
                                 }}
                                 className="ir-rounded-md ir-p-2 ir-text-muted-foreground ir-transition hover:ir-bg-muted hover:ir-text-foreground"
@@ -1032,23 +1054,42 @@ export function EditorScreen(): ReactElement {
 
                 {leftOpen && (
                     <aside className="ir-absolute ir-inset-y-0 ir-left-0 ir-z-20 ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
-                        <Section
-                            title="Insertar bloque"
-                            forceOpen={railTarget === "blocks" ? 1 : 0}
-                            icon={<Shapes className="ir-size-4" />}
-                        >
+                        {/* Two tabs, not five stacked accordions: this column is only for
+                            what you compose WITH. Report-level settings moved to the right
+                            panel and the AI action to the toolbar — buried at the bottom of
+                            a scrolling column, nobody found them. */}
+                        <div className="ir-flex ir-gap-1 ir-border-b ir-p-2">
+                            {([["blocks", "Bloques", Shapes], ["layers", "Capas", Layers]] as const).map(([key, label, TabIcon]) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setLeftTab(key)}
+                                    className={cn(
+                                        "ir-inline-flex ir-flex-1 ir-items-center ir-justify-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-xs ir-font-medium ir-transition-colors",
+                                        leftTab === key
+                                            ? "ir-bg-primary/10 ir-text-primary"
+                                            : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
+                                    )}
+                                >
+                                    <TabIcon className="ir-size-3.5" />
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="ir-min-h-0 ir-flex-1 ir-overflow-y-auto ir-p-3">
+                            {leftTab === "blocks" ? (
+                                <>
                             <BlockPalette
                                 onAdd={addBlock}
                                 onDragType={setDraggingType}
                             />
-                        </Section>
-
-                        <Section
-                            title={`Capas · página ${currentPage + 1}`}
-                            forceOpen={railTarget === "layers" ? 1 : 0}
-                            icon={<Layers className="ir-size-4" />}
-                            defaultOpen={false}
-                        >
+                                </>
+                            ) : (
+                                <>
+                                    <p className="ir-mb-2 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                        Página {currentPage + 1}
+                                    </p>
                             {pageBlocks.length === 0 ? (
                                 <p className="ir-text-[11px] ir-text-muted-foreground">
                                     Sin bloques en esta página.
@@ -1117,210 +1158,9 @@ export function EditorScreen(): ReactElement {
                                     })}
                                 </div>
                             )}
-                        </Section>
-
-                        <Section
-                            title="Generar con IA"
-                            forceOpen={railTarget === "ai" ? 1 : 0}
-                            icon={<Sparkles className="ir-size-4" />}
-                        >
-                            <div className="ir-flex ir-flex-col ir-gap-2.5">
-                                <div className="ir-flex ir-gap-2">
-                                    <Input
-                                        placeholder="Enfoque para la IA…"
-                                        value={aiPrompt}
-                                        onChange={(event) =>
-                                            setAiPrompt(event.target.value)
-                                        }
-                                    />
-                                    <Button
-                                        variant="ghost"
-                                        onClick={generateWithAi}
-                                        disabled={
-                                            siteId === null || ai.isPending
-                                        }
-                                    >
-                                        <Sparkles className="ir-size-4" />
-                                        IA
-                                    </Button>
-                                </div>
-                                {siteId === null && (
-                                    <p className="ir-text-[11px] ir-text-muted-foreground">
-                                        Elige un sitio en la barra superior para
-                                        generar con IA.
-                                    </p>
-                                )}
-                                <div className="ir-border-t ir-border-border ir-pt-2.5">
-                                    <p className="ir-mb-1.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
-                                        Añadir sección al informe actual
-                                    </p>
-                                    <div className="ir-flex ir-gap-2">
-                                        <Input
-                                            placeholder="Ej.: sección de rendimiento de anuncios…"
-                                            value={aiSectionPrompt}
-                                            onChange={(event) =>
-                                                setAiSectionPrompt(
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                        <Button
-                                            variant="ghost"
-                                            onClick={generateSectionWithAi}
-                                            disabled={
-                                                siteId === null ||
-                                                aiSection.isPending ||
-                                                aiSectionPrompt.trim() === ""
-                                            }
-                                        >
-                                            <Sparkles className="ir-size-4" />
-                                            Añadir
-                                        </Button>
-                                    </div>
-                                </div>
-                                <p className="ir-text-[11px] ir-text-muted-foreground">
-                                    ¿Prefieres partir de una plantilla? Pulsa{" "}
-                                    <strong>«Plantillas»</strong> en la barra
-                                    superior.
-                                </p>
-                                {(create.isSuccess || update.isSuccess) && (
-                                    <p className="ir-text-xs ir-text-emerald-600">
-                                        Guardada.
-                                    </p>
-                                )}
-                            </div>
-                        </Section>
-
-                        <Section
-                            title="Filtros de página"
-                            forceOpen={railTarget === "filters" ? 1 : 0}
-                            icon={<Filter className="ir-size-4" />}
-                            defaultOpen={false}
-                        >
-                            <PageFiltersPanel
-                                catalog={catalog}
-                                currentPage={currentPage}
-                                filters={pageFilters}
-                                onChange={setPageFilters}
-                            />
-                        </Section>
-
-                        <Section
-                            title="Tema del reporte"
-                            forceOpen={railTarget === "theme" ? 1 : 0}
-                            icon={<Palette className="ir-size-4" />}
-                            defaultOpen={false}
-                        >
-                            <div className="ir-flex ir-flex-col ir-gap-3">
-                                <Field label="Color de acento">
-                                    <ColorSwatch
-                                        value={theme.accent ?? ""}
-                                        onChange={(value) =>
-                                            setTheme((current) => ({
-                                                ...current,
-                                                accent: value ?? null,
-                                            }))
-                                        }
-                                    />
-                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
-                                        Sin color = usa la marca de la agencia.
-                                    </p>
-                                </Field>
-                                <Field label="Densidad">
-                                    <SegmentedControl
-                                        value={theme.density ?? "normal"}
-                                        onChange={(value) =>
-                                            setTheme((current) => ({
-                                                ...current,
-                                                density: value,
-                                            }))
-                                        }
-                                        options={[
-                                            {
-                                                value: "normal",
-                                                label: "Normal",
-                                            },
-                                            {
-                                                value: "compact",
-                                                label: "Compacta",
-                                            },
-                                        ]}
-                                    />
-                                </Field>
-                                <Field label="Navegación entre páginas">
-                                    <SegmentedControl
-                                        value={theme.nav?.position ?? "tabs"}
-                                        onChange={(value) =>
-                                            setTheme((current) => ({
-                                                ...current,
-                                                nav: {
-                                                    ...current.nav,
-                                                    position: value,
-                                                },
-                                            }))
-                                        }
-                                        options={[
-                                            {
-                                                value: "tabs",
-                                                label: "Pestañas",
-                                            },
-                                            { value: "top", label: "Barra" },
-                                            {
-                                                value: "sidebar",
-                                                label: "Lateral",
-                                            },
-                                            {
-                                                value: "hidden",
-                                                label: "Ninguna",
-                                            },
-                                        ]}
-                                    />
-                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
-                                        Cómo cambia de página el cliente (estilo
-                                        Looker/Power BI).
-                                    </p>
-                                </Field>
-                                <Field label="Estilo del menú">
-                                    <SegmentedControl
-                                        value={theme.nav?.style ?? "pill"}
-                                        onChange={(value) =>
-                                            setTheme((current) => ({
-                                                ...current,
-                                                nav: {
-                                                    ...current.nav,
-                                                    style: value,
-                                                },
-                                            }))
-                                        }
-                                        options={[
-                                            { value: "pill", label: "Píldora" },
-                                            {
-                                                value: "underline",
-                                                label: "Subrayado",
-                                            },
-                                            { value: "solid", label: "Sólido" },
-                                        ]}
-                                    />
-                                </Field>
-                                {theme.nav?.position === "sidebar" && (
-                                    <Toggle
-                                        checked={
-                                            theme.nav?.collapsible ?? false
-                                        }
-                                        onChange={(checked) =>
-                                            setTheme((current) => ({
-                                                ...current,
-                                                nav: {
-                                                    ...current.nav,
-                                                    collapsible: checked,
-                                                },
-                                            }))
-                                        }
-                                        label="Menú lateral colapsable"
-                                    />
-                                )}
-                            </div>
-                        </Section>
+                                </>
+                            )}
+                        </div>
                     </aside>
                 )}
 
@@ -1681,13 +1521,148 @@ export function EditorScreen(): ReactElement {
                 {rightOpen && (
                     <aside className="ir-absolute ir-inset-y-0 ir-right-0 ir-z-20 ir-w-72 ir-shrink-0 ir-overflow-y-auto ir-border-l ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
                         <div className="ir-p-3">
-                            <Inspector
-                                block={selectedBlock}
-                                catalog={fullCatalog}
-                                siteId={siteId}
-                                inheritedFilters={inheritedFilters}
-                                onChange={updateBlock}
+                            {selectedBlock !== null ? (
+                                <Inspector
+                                    block={selectedBlock}
+                                    catalog={fullCatalog}
+                                    siteId={siteId}
+                                    inheritedFilters={inheritedFilters}
+                                    onChange={updateBlock}
+                                />
+                            ) : (
+                                /* Nothing selected → the document's own properties, the
+                                   Figma/Canva pattern. These used to be two accordions at
+                                   the bottom of the left column, where nobody found them. */
+                                <div className="ir-flex ir-flex-col ir-gap-4">
+                                    <div>
+                                        <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">Ajustes del informe</h2>
+                                        <p className="ir-mt-0.5 ir-text-[11px] ir-text-muted-foreground">
+                                            Se aplican a todo el informe. Selecciona un bloque para editarlo por separado.
+                                        </p>
+                                    </div>
+
+                                    <Section title="Filtros de página" icon={<Filter className="ir-size-4" />}>
+                            <PageFiltersPanel
+                                catalog={catalog}
+                                currentPage={currentPage}
+                                filters={pageFilters}
+                                onChange={setPageFilters}
                             />
+                                    </Section>
+
+                                    <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />}>
+                            <div className="ir-flex ir-flex-col ir-gap-3">
+                                <Field label="Color de acento">
+                                    <ColorSwatch
+                                        value={theme.accent ?? ""}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                accent: value ?? null,
+                                            }))
+                                        }
+                                    />
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
+                                        Sin color = usa la marca de la agencia.
+                                    </p>
+                                </Field>
+                                <Field label="Densidad">
+                                    <SegmentedControl
+                                        value={theme.density ?? "normal"}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                density: value,
+                                            }))
+                                        }
+                                        options={[
+                                            {
+                                                value: "normal",
+                                                label: "Normal",
+                                            },
+                                            {
+                                                value: "compact",
+                                                label: "Compacta",
+                                            },
+                                        ]}
+                                    />
+                                </Field>
+                                <Field label="Navegación entre páginas">
+                                    <SegmentedControl
+                                        value={theme.nav?.position ?? "tabs"}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                nav: {
+                                                    ...current.nav,
+                                                    position: value,
+                                                },
+                                            }))
+                                        }
+                                        options={[
+                                            {
+                                                value: "tabs",
+                                                label: "Pestañas",
+                                            },
+                                            { value: "top", label: "Barra" },
+                                            {
+                                                value: "sidebar",
+                                                label: "Lateral",
+                                            },
+                                            {
+                                                value: "hidden",
+                                                label: "Ninguna",
+                                            },
+                                        ]}
+                                    />
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
+                                        Cómo cambia de página el cliente (estilo
+                                        Looker/Power BI).
+                                    </p>
+                                </Field>
+                                <Field label="Estilo del menú">
+                                    <SegmentedControl
+                                        value={theme.nav?.style ?? "pill"}
+                                        onChange={(value) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                nav: {
+                                                    ...current.nav,
+                                                    style: value,
+                                                },
+                                            }))
+                                        }
+                                        options={[
+                                            { value: "pill", label: "Píldora" },
+                                            {
+                                                value: "underline",
+                                                label: "Subrayado",
+                                            },
+                                            { value: "solid", label: "Sólido" },
+                                        ]}
+                                    />
+                                </Field>
+                                {theme.nav?.position === "sidebar" && (
+                                    <Toggle
+                                        checked={
+                                            theme.nav?.collapsible ?? false
+                                        }
+                                        onChange={(checked) =>
+                                            setTheme((current) => ({
+                                                ...current,
+                                                nav: {
+                                                    ...current.nav,
+                                                    collapsible: checked,
+                                                },
+                                            }))
+                                        }
+                                        label="Menú lateral colapsable"
+                                    />
+                                )}
+                            </div>
+                                    </Section>
+                                </div>
+                            )}
                         </div>
                     </aside>
                 )}
@@ -1767,6 +1742,90 @@ export function EditorScreen(): ReactElement {
                         </div>
                     </Card>
                 </Modal>
+            )}
+
+            {aiOpen && (
+                <div className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-items-start ir-justify-center ir-bg-black/40 ir-p-4 ir-pt-[10vh]">
+                    <button type="button" aria-label="Cerrar" onClick={() => setAiOpen(false)} className="ir-fixed ir-inset-0 ir-cursor-default" />
+                    <div className="ir-relative ir-z-10 ir-w-full ir-max-w-lg ir-rounded-xl ir-border ir-bg-card ir-p-5 ir-shadow-ir-lg">
+                        <div className="ir-mb-4 ir-flex ir-items-start ir-justify-between ir-gap-3">
+                            <div>
+                                <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">Generar con IA</h2>
+                                <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">
+                                    Crea el informe completo a partir de los datos conectados, o añade una sección al actual.
+                                </p>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => setAiOpen(false)}>
+                                Cerrar
+                            </Button>
+                        </div>
+                            <div className="ir-flex ir-flex-col ir-gap-2.5">
+                                <div className="ir-flex ir-gap-2">
+                                    <Input
+                                        placeholder="Enfoque para la IA…"
+                                        value={aiPrompt}
+                                        onChange={(event) =>
+                                            setAiPrompt(event.target.value)
+                                        }
+                                    />
+                                    <Button
+                                        variant="ghost"
+                                        onClick={generateWithAi}
+                                        disabled={
+                                            siteId === null || ai.isPending
+                                        }
+                                    >
+                                        <Sparkles className="ir-size-4" />
+                                        IA
+                                    </Button>
+                                </div>
+                                {siteId === null && (
+                                    <p className="ir-text-[11px] ir-text-muted-foreground">
+                                        Elige un sitio en la barra superior para
+                                        generar con IA.
+                                    </p>
+                                )}
+                                <div className="ir-border-t ir-border-border ir-pt-2.5">
+                                    <p className="ir-mb-1.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
+                                        Añadir sección al informe actual
+                                    </p>
+                                    <div className="ir-flex ir-gap-2">
+                                        <Input
+                                            placeholder="Ej.: sección de rendimiento de anuncios…"
+                                            value={aiSectionPrompt}
+                                            onChange={(event) =>
+                                                setAiSectionPrompt(
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                        <Button
+                                            variant="ghost"
+                                            onClick={generateSectionWithAi}
+                                            disabled={
+                                                siteId === null ||
+                                                aiSection.isPending ||
+                                                aiSectionPrompt.trim() === ""
+                                            }
+                                        >
+                                            <Sparkles className="ir-size-4" />
+                                            Añadir
+                                        </Button>
+                                    </div>
+                                </div>
+                                <p className="ir-text-[11px] ir-text-muted-foreground">
+                                    ¿Prefieres partir de una plantilla? Pulsa{" "}
+                                    <strong>«Plantillas»</strong> en la barra
+                                    superior.
+                                </p>
+                                {(create.isSuccess || update.isSuccess) && (
+                                    <p className="ir-text-xs ir-text-emerald-600">
+                                        Guardada.
+                                    </p>
+                                )}
+                            </div>
+                    </div>
+                </div>
             )}
 
             {calcModalOpen && (
