@@ -2473,6 +2473,12 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Open questions / blockers
+- **⏭️ PENDIENTE ACORDADA CON EL OWNER (2026-08-05): `release.yml` no fija `target_commitish`.** Cuando la release se dispara
+  con `workflow_dispatch` desde una rama, **el ZIP se construye desde esa rama pero la etiqueta de git se ancla a `main`** — el
+  bundle publicado es correcto, lo que engaña es el commit al que apunta el tag en GitHub. El owner pidió expresamente
+  **arreglarlo en la siguiente tanda de cambios** («si, en la siguiente cuando te vuelva a pedir algo arreglalo»), es decir: la
+  próxima vez que se toque algo del repo, incluir de paso el `target_commitish` (o crear el tag sobre el SHA construido) antes
+  de publicar. **No requiere que el owner lo vuelva a pedir.**
 - **MainWP v2 REST API contract (validate before production):** `MainWpConnector` assumes
   `GET {dashboard_url}/wp-json/mainwp/v2/sites` returns a list of sites, each with `update_counts.{plugins,themes,wp}`
   (fallback flat `plugin_upgrades`/`theme_upgrades`/`wp_upgrades`), `abandoned_plugins`, and `ssl.expires_at`. Confirm the
