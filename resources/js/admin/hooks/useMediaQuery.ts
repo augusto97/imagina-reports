@@ -26,3 +26,9 @@ export function useMediaQuery(query: string): boolean {
 
 /** Below Tailwind's `lg` — where the editor switches to its one-row bar + bottom sheets. */
 export const COMPACT_QUERY = '(max-width: 1023px)';
+
+/**
+ * Below Tailwind's `xl`. Desktop layout, but not enough width for a toolbar that also
+ * carries the preview cluster (site + period + sync); there it moves into the overflow.
+ */
+export const TIGHT_BAR_QUERY = '(max-width: 1279px)';

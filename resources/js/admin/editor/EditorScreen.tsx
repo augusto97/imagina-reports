@@ -182,7 +182,7 @@ import { apiErrorMessage } from "@shared/lib/api";
 import { SyncStatus } from "./SyncStatus";
 
 import { Button, Card, Field, Input, Modal } from "../components/ui";
-import { COMPACT_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
+import { COMPACT_QUERY, TIGHT_BAR_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import type { CatalogEntry, PageFilters, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
@@ -332,6 +332,10 @@ export function EditorScreen(): ReactElement {
     // the canvas — more than the whole viewport — so below `lg` the bar collapses to one
     // row and everything secondary moves into this overflow sheet.
     const isCompact = useMediaQuery(COMPACT_QUERY);
+    // Between the phone bar and the full one there's a real gap: a 1024–1280px window is
+    // "desktop" but can't hold the preview cluster (site + period + sync ≈ 475px) as well as
+    // everything else. There it moves into "⋯" too, so the bar still fits in one row.
+    const tightBar = useMediaQuery(TIGHT_BAR_QUERY);
     const [moreOpen, setMoreOpen] = useState(false);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
@@ -1058,82 +1062,245 @@ export function EditorScreen(): ReactElement {
     };
     const showNavPreview = pageCount > 1 && navPos !== "hidden";
 
+    /**
+     * What doesn't fit on the bar.
+     *
+     * The same list on every device — only the container changes (a dropdown on a laptop,
+     * a bottom sheet within thumb reach on a phone) — plus the entries a phone has nowhere
+     * else to put, since its bar holds nothing but the title and Save.
+     */
+    const overflowContent = (
+        <div className="ir-flex ir-flex-col ir-gap-3">
+            {tightBar && (
+                <div>
+                    <p className="ir-mb-1.5 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                        Vista previa
+                    </p>
+                    <div className="ir-flex ir-flex-col ir-gap-2">
+                        <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
+                            <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                            <select
+                                value={siteId ?? ""}
+                                onChange={(event) =>
+                                    setSiteId(
+                                        event.target.value === "" ? null : Number(event.target.value),
+                                    )
+                                }
+                                className="ir-min-w-0 ir-flex-1 ir-cursor-pointer ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
+                            >
+                                <option value="">Datos de ejemplo</option>
+                                {sites.map((site) => (
+                                    <option key={site.id} value={site.id}>
+                                        {site.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
+                            <Calendar className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                            <input
+                                type="month"
+                                value={month}
+                                onChange={(event) => setMonth(event.target.value)}
+                                className="ir-min-w-0 ir-flex-1 ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
+                            />
+                        </label>
+                        <p className={cn("ir-text-[11px]", previewStatus.tone)}>{previewStatus.long}</p>
+                        <SyncStatus
+                            siteId={siteId}
+                            period={monthPeriod(month)}
+                            monthLabel={new Date(`${month}-01T00:00:00`).toLocaleDateString("es", {
+                                month: "long",
+                                year: "numeric",
+                            })}
+                            onSynced={refreshPreview}
+                        />
+                    </div>
+                </div>
+            )}
+
+            <div>
+                <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                    Empezar
+                </p>
+                {isCompact && (
+                    <SheetAction
+                        icon={<Sparkles className="ir-size-4" />}
+                        label="Generar con IA"
+                        hint="Crea el informe completo, o una sección"
+                        onClick={() => {
+                            setMoreOpen(false);
+                            setAiOpen(true);
+                        }}
+                    />
+                )}
+                <SheetAction
+                    icon={<LayoutTemplate className="ir-size-4" />}
+                    label="Plantillas"
+                    hint="Partir de un diseño prediseñado"
+                    onClick={() => {
+                        setMoreOpen(false);
+                        setGalleryOpen(true);
+                    }}
+                />
+            </div>
+
+            <div className="ir-border-t ir-pt-2">
+                <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                    Informe
+                </p>
+                <SheetAction
+                    icon={<SlidersHorizontal className="ir-size-4" />}
+                    label="Ajustes del informe"
+                    hint="Filtros, tema y navegación"
+                    badge={inheritedFilters.length}
+                    onClick={() => {
+                        setMoreOpen(false);
+                        setRightTab("report");
+                        setRightOpen(true);
+                    }}
+                />
+                <SheetAction
+                    icon={<FunctionSquare className="ir-size-4" />}
+                    label="Métricas calculadas"
+                    hint="Fórmulas reutilizables"
+                    onClick={() => {
+                        setMoreOpen(false);
+                        setCalcModalOpen(true);
+                    }}
+                />
+                {!hasCover && (
+                    <SheetAction
+                        icon={<BookOpen className="ir-size-4" />}
+                        label="Añadir portada"
+                        onClick={() => {
+                            setMoreOpen(false);
+                            addCoverPage();
+                        }}
+                    />
+                )}
+                {!hasBackCover && (
+                    <SheetAction
+                        icon={<Flag className="ir-size-4" />}
+                        label="Añadir contraportada"
+                        onClick={() => {
+                            setMoreOpen(false);
+                            addBackCoverPage();
+                        }}
+                    />
+                )}
+                {editingTemplateId !== null && (
+                    <SheetAction
+                        icon={<Plus className="ir-size-4" />}
+                        label="Nueva plantilla"
+                        hint="Dejar de editar la actual"
+                        onClick={() => {
+                            setMoreOpen(false);
+                            editTemplate(null);
+                        }}
+                    />
+                )}
+            </div>
+
+            {isCompact && (
+                <div className="ir-border-t ir-pt-2">
+                    <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                        Historial
+                    </p>
+                    <SheetAction
+                        icon={<Undo2 className="ir-size-4" />}
+                        label="Deshacer"
+                        disabled={past.length === 0}
+                        onClick={undo}
+                    />
+                    <SheetAction
+                        icon={<Redo2 className="ir-size-4" />}
+                        label="Rehacer"
+                        disabled={future.length === 0}
+                        onClick={redo}
+                    />
+                </div>
+            )}
+        </div>
+    );
+
+    const overflowButton = (
+        <div className="ir-relative ir-shrink-0">
+            <ToolbarButton
+                icon={<MoreHorizontal className="ir-size-4" />}
+                title="Más opciones"
+                onClick={() => setMoreOpen((open) => !open)}
+                active={moreOpen}
+            />
+            {moreOpen && !isCompact && (
+                <>
+                    <button
+                        type="button"
+                        aria-label="Cerrar"
+                        onClick={() => setMoreOpen(false)}
+                        className="ir-fixed ir-inset-0 ir-z-40 ir-cursor-default"
+                    />
+                    <div className="ir-absolute ir-right-0 ir-top-full ir-z-50 ir-mt-1.5 ir-w-72 ir-rounded-xl ir-border ir-bg-card ir-p-2 ir-shadow-ir-lg">
+                        {overflowContent}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+
     return (
         <div className="ir-flex ir-h-full ir-min-h-0 ir-flex-col ir-bg-background">
             {/* ---- Top toolbar (full width) ----
-                 One row below `lg`. Left to wrap, this bar stacked five rows on a phone and
-                 the page navigator two more, pushing the canvas off the bottom of the screen
-                 before you could see a single block. */}
-            <header className="ir-flex ir-flex-nowrap ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2 lg:ir-flex-wrap">
-                <ToolbarButton
-                    icon={
-                        leftOpen ? (
-                            <PanelLeftClose className="ir-size-4" />
-                        ) : (
-                            <PanelLeftOpen className="ir-size-4" />
-                        )
-                    }
-                    title={leftOpen ? "Ocultar panel" : "Mostrar panel"}
-                    onClick={() => setLeftOpen((open) => !open)}
-                    active={leftOpen}
-                />
+                 ONE row at every size. Wrapping was never a graceful degradation: on a phone
+                 it stacked five rows and pushed the canvas off screen, and on a laptop it
+                 dropped the right-hand cluster onto a second, mostly-empty line. The bar now
+                 has a fixed budget — the title is the only flexible element, so it absorbs
+                 the squeeze — and anything that doesn't fit lives behind "⋯". */}
+            <header className="ir-flex ir-flex-nowrap ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2">
+                <div className="ir-shrink-0">
+                    <ToolbarButton
+                        icon={
+                            leftOpen ? (
+                                <PanelLeftClose className="ir-size-4" />
+                            ) : (
+                                <PanelLeftOpen className="ir-size-4" />
+                            )
+                        }
+                        title={leftOpen ? "Ocultar panel" : "Mostrar panel"}
+                        onClick={() => setLeftOpen((open) => !open)}
+                        active={leftOpen}
+                    />
+                </div>
 
-                {/* Template name as an inline document-style title. */}
+                {/* Template name as an inline document-style title. The one `flex-1` in the
+                    bar: it gives up width before anything else does, and truncates, so no
+                    combination of controls can force a wrap. */}
                 <input
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     placeholder="Plantilla sin título"
-                    className="ir-min-w-0 ir-flex-1 lg:ir-w-52 lg:ir-flex-none ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
+                    className="ir-min-w-[5rem] ir-flex-1 ir-max-w-[16rem] ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
                 />
 
-                {/* Everything from here to the right cluster is desktop-only: on a phone it
-                    lives in the "⋯" sheet, where each item gets a full-width tap target
-                    instead of a 32px chip on its own wrapped line. */}
                 {!isCompact && (
                     <>
-                        <span className="ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
+                        {/* Informational only — the first thing to go when space is tight. */}
+                        <span className="ir-hidden ir-shrink-0 ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground 2xl:ir-inline">
                             {editingTemplateId !== null ? "Editando" : "Borrador"}
                         </span>
-                        {editingTemplateId !== null && (
-                            <button
-                                type="button"
-                                onClick={() => editTemplate(null)}
-                                className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
-                            >
-                                + Nueva
-                            </button>
-                        )}
 
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setGalleryOpen(true)}
-                            title="Elegir una plantilla prediseñada"
-                        >
-                            <LayoutTemplate className="ir-size-4" />
-                            Plantillas
-                        </Button>
-
-                        {/* Beside "Plantillas" on purpose: these are the two ways to START a
-                            report, and someone asking "where do I begin?" should see both. */}
+                        {/* The one creation action that keeps its label at every width: it's
+                            the flagship, and "where do I begin?" should be answered on sight.
+                            Its sibling ("Plantillas") lives in "⋯" with everything else. */}
                         <Button
                             variant="accent"
                             size="sm"
+                            className="ir-shrink-0"
                             onClick={() => setAiOpen(true)}
                             title="Generar el informe (o una sección) con IA"
                         >
                             <Sparkles className="ir-size-4" />
                             Generar con IA
-                        </Button>
-
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCalcModalOpen(true)}
-                            title="Crear métricas calculadas (fórmulas) reutilizables"
-                        >
-                            <FunctionSquare className="ir-size-4" />
-                            Métricas calculadas
                         </Button>
                     </>
                 )}
@@ -1150,18 +1317,15 @@ export function EditorScreen(): ReactElement {
                         >
                             <Save className="ir-size-4" />
                         </Button>
-                        <ToolbarButton
-                            icon={<MoreHorizontal className="ir-size-4" />}
-                            title="Más opciones"
-                            onClick={() => setMoreOpen(true)}
-                            active={moreOpen}
-                        />
+                        {overflowButton}
                     </div>
                 ) : (
-                <div className="ir-ml-auto ir-flex ir-flex-wrap ir-items-center ir-justify-end ir-gap-2">
+                <div className="ir-ml-auto ir-flex ir-shrink-0 ir-flex-nowrap ir-items-center ir-justify-end ir-gap-2">
+                    {!tightBar && (
+                    <>
                     {/* Compact preview-data control — site + period live here (preview only),
                         not as a giant panel widget. */}
-                    <div className="ir-flex ir-h-8 ir-min-w-0 ir-items-center ir-rounded-lg ir-border ir-bg-background ir-pl-2 ir-text-sm">
+                    <div className="ir-flex ir-h-8 ir-min-w-0 ir-shrink-0 ir-items-center ir-rounded-lg ir-border ir-bg-background ir-pl-2 ir-text-sm">
                         <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
                         <select
                             value={siteId ?? ""}
@@ -1173,7 +1337,7 @@ export function EditorScreen(): ReactElement {
                                 )
                             }
                             title="Sitio para la vista previa (los datos reales)"
-                            className="ir-min-w-0 ir-max-w-[7.5rem] sm:ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
+                            className="ir-min-w-0 ir-max-w-[8rem] 2xl:ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
                         >
                             <option value="">Datos de ejemplo</option>
                             {sites.map((site) => (
@@ -1189,12 +1353,16 @@ export function EditorScreen(): ReactElement {
                             value={month}
                             onChange={(event) => setMonth(event.target.value)}
                             title="Periodo de la vista previa"
-                            className="ir-w-[7rem] sm:ir-w-[8.5rem] ir-min-w-0 ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1 ir-pr-2 ir-text-sm focus:ir-outline-none"
+                            className="ir-w-[7.5rem] 2xl:ir-w-[8.5rem] ir-min-w-0 ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1 ir-pr-2 ir-text-sm focus:ir-outline-none"
                         />
                     </div>
 
                     <ToolbarDivider />
+                    </>
+                    )}
 
+                    {/* Undo/redo stay on the bar at every desktop width: two 32px icons are
+                        cheap, and they're the controls you reach for without looking. */}
                     <ToolbarButton
                         icon={<Undo2 className="ir-size-4" />}
                         title="Deshacer (Ctrl+Z)"
@@ -1208,6 +1376,8 @@ export function EditorScreen(): ReactElement {
                         disabled={future.length === 0}
                     />
 
+                    {!tightBar && (
+                    <>
                     <ToolbarDivider />
 
                     <SyncStatus
@@ -1221,7 +1391,10 @@ export function EditorScreen(): ReactElement {
                         })}
                         onSynced={refreshPreview}
                     />
+                    </>
+                    )}
                     <Button
+                        className="ir-shrink-0"
                         onClick={save}
                         disabled={
                             create.isPending || update.isPending || name === ""
@@ -1239,9 +1412,14 @@ export function EditorScreen(): ReactElement {
                             active
                         />
                     ) : (
+                        /* Keeps its label where there's room — an unlabelled icon is what
+                           made report settings undiscoverable in the first place. Below 2xl
+                           it drops to icon + count, and the same entry (labelled) is in "⋯",
+                           so it's never reachable only by guessing. */
                         <Button
                             variant="ghost"
                             size="sm"
+                            className="ir-shrink-0"
                             onClick={() => {
                                 setRightTab("report");
                                 setRightOpen(true);
@@ -1249,7 +1427,7 @@ export function EditorScreen(): ReactElement {
                             title="Filtros, tema y navegación de todo el informe"
                         >
                             <SlidersHorizontal className="ir-size-4" />
-                            Ajustes del informe
+                            <span className="ir-hidden 2xl:ir-inline">Ajustes del informe</span>
                             {inheritedFilters.length > 0 && (
                                 <span className="ir-ml-1 ir-rounded-full ir-bg-primary/15 ir-px-1.5 ir-text-[10px] ir-font-medium ir-text-primary">
                                     {inheritedFilters.length}
@@ -1257,6 +1435,8 @@ export function EditorScreen(): ReactElement {
                             )}
                         </Button>
                     )}
+
+                    {overflowButton}
                 </div>
                 )}
             </header>
@@ -1995,163 +2175,11 @@ export function EditorScreen(): ReactElement {
                 )}
             </div>
 
-            {/* ---- Phone overflow: everything the one-row bar can't hold ---- */}
-            {moreOpen && (
+            {/* The phone's overflow is the same list in a bottom sheet — the laptop gets it
+                as a dropdown anchored to the "⋯" button (see `overflowButton`). */}
+            {moreOpen && isCompact && (
                 <BottomSheet title="Opciones del editor" onClose={() => setMoreOpen(false)}>
-                    <div className="ir-flex ir-flex-col ir-gap-4">
-                        {/* Preview data first: it decides what every number on the canvas
-                            says, and it's the control people go looking for. */}
-                        <div>
-                            <p className="ir-mb-1.5 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
-                                Vista previa
-                            </p>
-                            <div className="ir-flex ir-flex-col ir-gap-2">
-                                <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
-                                    <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
-                                    <select
-                                        value={siteId ?? ""}
-                                        onChange={(event) =>
-                                            setSiteId(
-                                                event.target.value === ""
-                                                    ? null
-                                                    : Number(event.target.value),
-                                            )
-                                        }
-                                        className="ir-min-w-0 ir-flex-1 ir-cursor-pointer ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
-                                    >
-                                        <option value="">Datos de ejemplo</option>
-                                        {sites.map((site) => (
-                                            <option key={site.id} value={site.id}>
-                                                {site.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                                <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
-                                    <Calendar className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
-                                    <input
-                                        type="month"
-                                        value={month}
-                                        onChange={(event) => setMonth(event.target.value)}
-                                        className="ir-min-w-0 ir-flex-1 ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
-                                    />
-                                </label>
-                                <p className={cn("ir-text-[11px]", previewStatus.tone)}>
-                                    {previewStatus.long}
-                                </p>
-                                <SyncStatus
-                                    siteId={siteId}
-                                    period={monthPeriod(month)}
-                                    monthLabel={new Date(
-                                        `${month}-01T00:00:00`,
-                                    ).toLocaleDateString("es", {
-                                        month: "long",
-                                        year: "numeric",
-                                    })}
-                                    onSynced={refreshPreview}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="ir-border-t ir-pt-2">
-                            <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
-                                Empezar
-                            </p>
-                            <SheetAction
-                                icon={<Sparkles className="ir-size-4" />}
-                                label="Generar con IA"
-                                hint="Crea el informe completo, o una sección"
-                                onClick={() => {
-                                    setMoreOpen(false);
-                                    setAiOpen(true);
-                                }}
-                            />
-                            <SheetAction
-                                icon={<LayoutTemplate className="ir-size-4" />}
-                                label="Plantillas"
-                                hint="Partir de un diseño prediseñado"
-                                onClick={() => {
-                                    setMoreOpen(false);
-                                    setGalleryOpen(true);
-                                }}
-                            />
-                        </div>
-
-                        <div className="ir-border-t ir-pt-2">
-                            <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
-                                Informe
-                            </p>
-                            <SheetAction
-                                icon={<SlidersHorizontal className="ir-size-4" />}
-                                label="Ajustes del informe"
-                                hint="Filtros, tema y navegación"
-                                badge={inheritedFilters.length}
-                                onClick={() => {
-                                    setMoreOpen(false);
-                                    setRightTab("report");
-                                    setRightOpen(true);
-                                }}
-                            />
-                            <SheetAction
-                                icon={<FunctionSquare className="ir-size-4" />}
-                                label="Métricas calculadas"
-                                hint="Fórmulas reutilizables"
-                                onClick={() => {
-                                    setMoreOpen(false);
-                                    setCalcModalOpen(true);
-                                }}
-                            />
-                            {!hasCover && (
-                                <SheetAction
-                                    icon={<BookOpen className="ir-size-4" />}
-                                    label="Añadir portada"
-                                    onClick={() => {
-                                        setMoreOpen(false);
-                                        addCoverPage();
-                                    }}
-                                />
-                            )}
-                            {!hasBackCover && (
-                                <SheetAction
-                                    icon={<Flag className="ir-size-4" />}
-                                    label="Añadir contraportada"
-                                    onClick={() => {
-                                        setMoreOpen(false);
-                                        addBackCoverPage();
-                                    }}
-                                />
-                            )}
-                            {editingTemplateId !== null && (
-                                <SheetAction
-                                    icon={<Plus className="ir-size-4" />}
-                                    label="Nueva plantilla"
-                                    hint="Dejar de editar la actual"
-                                    onClick={() => {
-                                        setMoreOpen(false);
-                                        editTemplate(null);
-                                    }}
-                                />
-                            )}
-                        </div>
-
-                        <div className="ir-border-t ir-pt-2">
-                            <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
-                                Historial
-                            </p>
-                            <SheetAction
-                                icon={<Undo2 className="ir-size-4" />}
-                                label="Deshacer"
-                                disabled={past.length === 0}
-                                onClick={undo}
-                            />
-                            <SheetAction
-                                icon={<Redo2 className="ir-size-4" />}
-                                label="Rehacer"
-                                disabled={future.length === 0}
-                                onClick={redo}
-                            />
-                        </div>
-                    </div>
+                    {overflowContent}
                 </BottomSheet>
             )}
 

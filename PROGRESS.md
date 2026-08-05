@@ -7,6 +7,33 @@
 ---
 
 ## Where I left off (read me first)
+**📏 BARRA DEL EDITOR: UNA FILA EN TODOS LOS TAMAÑOS (2026-08-05):** el owner mandó captura en **escritorio** (~1456px): la barra superior
+envolvía a 2 filas y la segunda quedaba alineada a la derecha con un hueco grande a la izquierda — parecía un bug, no un diseño.
+**Diagnóstico:** `flex-wrap` nunca fue una degradación elegante. Con todos los controles etiquetados el contenido pide ~1750px; a 1456 (menos el
+menú principal colapsado) sobran ~380px, así que envolvía. Envolver **no es** una solución: solo mueve el problema a una segunda fila fea.
+**Diseño nuevo — presupuesto fijo + un único elemento flexible + desbordamiento:**
+- La barra es `flex-nowrap` **a todos los tamaños**; todos los hijos son `shrink-0` **salvo el título**, que es el único `flex-1`
+  (`min-w-[5rem]`, `max-w-[16rem]`). Así el título cede ancho antes que nada y **ninguna combinación de controles puede forzar un salto**.
+- **Menú «⋯» también en escritorio** (dropdown anclado al botón; en móvil sigue siendo `BottomSheet`). **Misma lista, distinto contenedor** —
+  `overflowContent` es una sola fuente. A él se mudan «Plantillas», «Métricas calculadas», «Nueva plantilla», portada/contraportada y una
+  entrada etiquetada de «Ajustes del informe».
+- **«Generar con IA» conserva etiqueta siempre** (es la acción estrella; «¿por dónde empiezo?» debe responderse a la vista).
+- **Tres escalones**, no dos: `< 1024` barra de teléfono · `1024–1279` (`TIGHT_BAR_QUERY`) escritorio **sin el clúster de vista previa**
+  (sitio + periodo + Sincronizar ≈ 475px, se van a «⋯») · `≥ 1280` barra completa · `≥ 1536` además etiquetas de «Ajustes del informe» y la
+  insignia Editando/Borrador.
+- **Deshacer/Rehacer nunca salen de la barra en escritorio** (32px cada uno). Estuvieron un momento dentro del bloque `!tightBar` y eso los
+  dejaba **inalcanzables entre 1024 y 1280** — corregido antes de commit; ojo con ese error al agrupar controles bajo un condicional.
+**⚠️ Verificado con typecheck/ESLint/vitest/build; presupuesto de anchos calculado a mano (1024, 1280, 1456, 1920), NO medido en navegador.**
+
+**🚫 DECISIÓN (2026-08-05): NO se implementa conector de Google Sheets.** Se analizó a fondo (el owner preguntó por memoria/almacenamiento):
+técnicamente era barato — la app OAuth de Google **ya existe y está aprobada** (un scope más, `spreadsheets.readonly`), `MetricType::Dataset` +
+`DatasetEngine` ya consumen exactamente la forma de una hoja, y el tope de filas se aplica **en el rango de la petición**, así que el pico de
+memoria queda acotado *antes* de entrar en PHP (más seguro que el `DatabaseConnector` que ya existe: ~200 KB por snapshot, del mismo orden que
+un dataset de Meta). **El motivo del rechazo NO es técnico sino de soporte:** las hojas las mantienen personas y se rompen en silencio
+(columna renombrada, `"1.200,50 €"` como texto por el `valueRenderOption` por defecto, fechas como número de serie), y eso genera tickets
+recurrentes. **No reabrir sin un motivo nuevo.** Nota: el `EndpointConnector` ya lee CSV desde una URL, así que una hoja *publicada* se puede
+leer hoy sin código — con la salvedad de que publicarla la hace **pública**.
+
 **🛡️ PANEL DE PLATAFORMA: MISMA APP, DIRECCIONES REALES (2026-08-05):** el owner reportó tres cosas juntas — la interfaz del superadmin «no
 se siente premium, se ve muy pobre», las pestañas no cambian la URL, y al salir de una agencia impersonada la URL se queda con la de la agencia.
 **Diagnóstico:** las tres tenían la misma raíz estructural. El panel era una **página suelta** (top bar mínima + `max-w-6xl` + fila de píldoras)
