@@ -337,6 +337,7 @@ export function EditorScreen(): ReactElement {
     // everything else. There it moves into "⋯" too, so the bar still fits in one row.
     const tightBar = useMediaQuery(TIGHT_BAR_QUERY);
     const [moreOpen, setMoreOpen] = useState(false);
+    const [periodOpen, setPeriodOpen] = useState(false);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
     // Undo/redo history — snapshots of the blocks array.
@@ -864,7 +865,20 @@ export function EditorScreen(): ReactElement {
 
     const hasRealData = siteId !== null && preview_ !== null;
 
-    /** Where the previewed numbers come from, in one word and in one sentence. */
+    const monthLabel =
+        month === ""
+            ? ""
+            : new Date(`${month}-01T00:00:00`).toLocaleDateString("es", {
+                  month: "long",
+                  year: "numeric",
+              });
+
+    /**
+     * Where the previewed numbers come from, in one word and in one sentence.
+     *
+     * The long form names the period too: site and period are icon-sized on the bar now,
+     * so this line is where you read which month you're actually looking at.
+     */
     const previewStatus: { short: string; long: string; tone: string } =
         siteId === null
             ? {
@@ -875,13 +889,13 @@ export function EditorScreen(): ReactElement {
             : hasRealData && !preview_.has_data
               ? {
                     short: "Sin datos",
-                    long: "Sin datos para este periodo · usa «Sincronizar».",
+                    long: `Sin datos de ${monthLabel} · usa «Sincronizar».`,
                     tone: "ir-text-amber-600",
                 }
               : hasRealData
                 ? {
                       short: "Reales",
-                      long: `Datos reales · ${preview_.sources_with_data.length} fuente(s).`,
+                      long: `Datos reales · ${monthLabel} · ${preview_.sources_with_data.length} fuente(s).`,
                       tone: "ir-text-emerald-600",
                   }
                 : preview.isError
@@ -1062,6 +1076,91 @@ export function EditorScreen(): ReactElement {
     };
     const showNavPreview = pageCount > 1 && navPos !== "hidden";
 
+    /* ---- Preview context: site + period, icon-sized ----
+       Two 32px controls instead of a ~300px field cluster. The exception is when one of
+       them isn't chosen yet: previewing sample data is not a neutral state — it's the one
+       thing to fix before anything on the canvas means anything — so an unset control turns
+       accent-coloured and, where there's room, says what it wants. */
+    const siteChosen = siteId !== null;
+    const periodChosen = month !== "";
+    const previewChipClass = (chosen: boolean): string =>
+        cn(
+            "ir-flex ir-h-8 ir-items-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-text-xs ir-font-medium ir-transition",
+            chosen
+                ? "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                : "ir-bg-accent/10 ir-text-accent ir-ring-1 ir-ring-inset ir-ring-accent/40",
+        );
+
+    const previewSiteControl = (
+        <div className="ir-relative ir-shrink-0">
+            <div className={previewChipClass(siteChosen)}>
+                <Globe className="ir-size-4 ir-shrink-0" />
+                {!siteChosen && !isCompact && (
+                    <span className="ir-whitespace-nowrap">Elige un sitio</span>
+                )}
+            </div>
+            {/* The real <select>, invisible on top of the chip: one tap still opens the
+                native dropdown, so nothing about keyboard or mobile behaviour changes. */}
+            <select
+                value={siteId ?? ""}
+                onChange={(event) =>
+                    setSiteId(event.target.value === "" ? null : Number(event.target.value))
+                }
+                aria-label="Sitio para la vista previa"
+                title={
+                    siteChosen
+                        ? `Vista previa de: ${sites.find((site) => site.id === siteId)?.name ?? ""}`
+                        : "Elige un sitio para ver datos reales"
+                }
+                className="ir-absolute ir-inset-0 ir-h-full ir-w-full ir-cursor-pointer ir-opacity-0"
+            >
+                <option value="">Datos de ejemplo</option>
+                {sites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                        {site.name}
+                    </option>
+                ))}
+            </select>
+        </div>
+    );
+
+    const previewPeriodControl = (
+        <div className="ir-relative ir-shrink-0">
+            <button
+                type="button"
+                onClick={() => setPeriodOpen((open) => !open)}
+                aria-label="Periodo de la vista previa"
+                title={periodChosen ? `Periodo: ${monthLabel}` : "Elige el periodo a previsualizar"}
+                className={previewChipClass(periodChosen)}
+            >
+                <Calendar className="ir-size-4 ir-shrink-0" />
+                {!periodChosen && !isCompact && (
+                    <span className="ir-whitespace-nowrap">Elige un periodo</span>
+                )}
+            </button>
+            {periodOpen && (
+                <>
+                    <button
+                        type="button"
+                        aria-label="Cerrar"
+                        onClick={() => setPeriodOpen(false)}
+                        className="ir-fixed ir-inset-0 ir-z-40 ir-cursor-default"
+                    />
+                    <div className="ir-absolute ir-right-0 ir-top-full ir-z-50 ir-mt-1.5 ir-w-56 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-ir-lg">
+                        <Field label="Periodo de la vista previa">
+                            <Input
+                                autoFocus
+                                type="month"
+                                value={month}
+                                onChange={(event) => setMonth(event.target.value)}
+                            />
+                        </Field>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+
     /**
      * What doesn't fit on the bar.
      *
@@ -1071,59 +1170,32 @@ export function EditorScreen(): ReactElement {
      */
     const overflowContent = (
         <div className="ir-flex ir-flex-col ir-gap-3">
+            {/* Site and period are always on the bar now, so this section carries only what
+                the bar had to give up at this width: the sync action and the long-form
+                status line (the short one on the bar is a coloured word). */}
             {tightBar && (
                 <div>
                     <p className="ir-mb-1.5 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
                         Vista previa
                     </p>
                     <div className="ir-flex ir-flex-col ir-gap-2">
-                        <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
-                            <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
-                            <select
-                                value={siteId ?? ""}
-                                onChange={(event) =>
-                                    setSiteId(
-                                        event.target.value === "" ? null : Number(event.target.value),
-                                    )
-                                }
-                                className="ir-min-w-0 ir-flex-1 ir-cursor-pointer ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
-                            >
-                                <option value="">Datos de ejemplo</option>
-                                {sites.map((site) => (
-                                    <option key={site.id} value={site.id}>
-                                        {site.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
-                            <Calendar className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
-                            <input
-                                type="month"
-                                value={month}
-                                onChange={(event) => setMonth(event.target.value)}
-                                className="ir-min-w-0 ir-flex-1 ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
-                            />
-                        </label>
                         <p className={cn("ir-text-[11px]", previewStatus.tone)}>{previewStatus.long}</p>
                         <SyncStatus
                             siteId={siteId}
                             period={monthPeriod(month)}
-                            monthLabel={new Date(`${month}-01T00:00:00`).toLocaleDateString("es", {
-                                month: "long",
-                                year: "numeric",
-                            })}
+                            monthLabel={monthLabel}
                             onSynced={refreshPreview}
                         />
                     </div>
                 </div>
             )}
 
-            <div>
-                <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
-                    Empezar
-                </p>
-                {isCompact && (
+            {/* Both of these sit on the desktop bar; only a phone needs them here. */}
+            {isCompact && (
+                <div>
+                    <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                        Empezar
+                    </p>
                     <SheetAction
                         icon={<Sparkles className="ir-size-4" />}
                         label="Generar con IA"
@@ -1133,17 +1205,17 @@ export function EditorScreen(): ReactElement {
                             setAiOpen(true);
                         }}
                     />
-                )}
-                <SheetAction
-                    icon={<LayoutTemplate className="ir-size-4" />}
-                    label="Plantillas"
-                    hint="Partir de un diseño prediseñado"
-                    onClick={() => {
-                        setMoreOpen(false);
-                        setGalleryOpen(true);
-                    }}
-                />
-            </div>
+                    <SheetAction
+                        icon={<LayoutTemplate className="ir-size-4" />}
+                        label="Plantillas"
+                        hint="Partir de un diseño prediseñado"
+                        onClick={() => {
+                            setMoreOpen(false);
+                            setGalleryOpen(true);
+                        }}
+                    />
+                </div>
+            )}
 
             <div className="ir-border-t ir-pt-2">
                 <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
@@ -1289,18 +1361,30 @@ export function EditorScreen(): ReactElement {
                             {editingTemplateId !== null ? "Editando" : "Borrador"}
                         </span>
 
-                        {/* The one creation action that keeps its label at every width: it's
-                            the flagship, and "where do I begin?" should be answered on sight.
-                            Its sibling ("Plantillas") lives in "⋯" with everything else. */}
+                        {/* The two ways to START a report, side by side. Both plain ghost
+                            buttons: the AI one used to be accent-filled and shouted at
+                            people who don't want AI in their workflow — being an option is
+                            not the same as being the recommended one. */}
                         <Button
-                            variant="accent"
+                            variant="ghost"
                             size="sm"
                             className="ir-shrink-0"
                             onClick={() => setAiOpen(true)}
                             title="Generar el informe (o una sección) con IA"
                         >
                             <Sparkles className="ir-size-4" />
-                            Generar con IA
+                            IA
+                        </Button>
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ir-shrink-0"
+                            onClick={() => setGalleryOpen(true)}
+                            title="Elegir una plantilla prediseñada"
+                        >
+                            <LayoutTemplate className="ir-size-4" />
+                            Plantillas
                         </Button>
                     </>
                 )}
@@ -1309,6 +1393,11 @@ export function EditorScreen(): ReactElement {
                     /* Save stays on the bar — it's the one action you must never have to
                        go looking for. Everything else is one tap behind "⋯". */
                     <div className="ir-ml-auto ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                        {/* Site and period ride the phone bar too: at 32px they cost almost
+                            nothing, and "you're looking at sample data" is the last thing
+                            that should be hidden behind a menu. */}
+                        {previewSiteControl}
+                        {previewPeriodControl}
                         <Button
                             onClick={save}
                             size="sm"
@@ -1321,45 +1410,10 @@ export function EditorScreen(): ReactElement {
                     </div>
                 ) : (
                 <div className="ir-ml-auto ir-flex ir-shrink-0 ir-flex-nowrap ir-items-center ir-justify-end ir-gap-2">
-                    {!tightBar && (
-                    <>
-                    {/* Compact preview-data control — site + period live here (preview only),
-                        not as a giant panel widget. */}
-                    <div className="ir-flex ir-h-8 ir-min-w-0 ir-shrink-0 ir-items-center ir-rounded-lg ir-border ir-bg-background ir-pl-2 ir-text-sm">
-                        <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
-                        <select
-                            value={siteId ?? ""}
-                            onChange={(event) =>
-                                setSiteId(
-                                    event.target.value === ""
-                                        ? null
-                                        : Number(event.target.value),
-                                )
-                            }
-                            title="Sitio para la vista previa (los datos reales)"
-                            className="ir-min-w-0 ir-max-w-[8rem] 2xl:ir-max-w-[10rem] ir-cursor-pointer ir-truncate ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1.5 ir-pr-1 ir-text-sm focus:ir-outline-none"
-                        >
-                            <option value="">Datos de ejemplo</option>
-                            {sites.map((site) => (
-                                <option key={site.id} value={site.id}>
-                                    {site.name}
-                                </option>
-                            ))}
-                        </select>
-                        <span className="ir-h-5 ir-w-px ir-bg-border" />
-                        <Calendar className="ir-ml-1.5 ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
-                        <input
-                            type="month"
-                            value={month}
-                            onChange={(event) => setMonth(event.target.value)}
-                            title="Periodo de la vista previa"
-                            className="ir-w-[7.5rem] 2xl:ir-w-[8.5rem] ir-min-w-0 ir-border-0 ir-bg-transparent ir-py-1 ir-pl-1 ir-pr-2 ir-text-sm focus:ir-outline-none"
-                        />
-                    </div>
+                    {previewSiteControl}
+                    {previewPeriodControl}
 
                     <ToolbarDivider />
-                    </>
-                    )}
 
                     {/* Undo/redo stay on the bar at every desktop width: two 32px icons are
                         cheap, and they're the controls you reach for without looking. */}
@@ -1383,12 +1437,7 @@ export function EditorScreen(): ReactElement {
                     <SyncStatus
                         siteId={siteId}
                         period={monthPeriod(month)}
-                        monthLabel={new Date(
-                            `${month}-01T00:00:00`,
-                        ).toLocaleDateString("es", {
-                            month: "long",
-                            year: "numeric",
-                        })}
+                        monthLabel={monthLabel}
                         onSynced={refreshPreview}
                     />
                     </>

@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🎚️ BARRA DEL EDITOR, SEGUNDA PASADA — JERARQUÍA (2026-08-05):** cuatro peticiones del owner sobre la barra ya arreglada.
+- **«Generar con IA» → «IA», y fuera el azul.** Era `variant="accent"` (relleno azul) y *«resalta demasiado para los usuarios que no quieren
+  usar IA»*. Ahora es un `ghost` normal con la etiqueta corta. **Ser una opción no es lo mismo que ser la opción recomendada**, y el color de
+  acento estaba diciendo lo segundo.
+- **«Plantillas» vuelve a la barra**, al lado de IA: el owner lo considera «súper importante y útil». Son las dos formas de EMPEZAR un
+  informe y ahora tienen el mismo peso visual. Sale del menú «⋯» en escritorio (sigue en él en móvil).
+- **Sitio y periodo → controles de 32px** en vez del clúster de campos (~300px). El sitio usa el truco del `<select>` nativo superpuesto con
+  `opacity-0` sobre el chip: un clic sigue abriendo el desplegable nativo, sin popover propio ni cambios de comportamiento en teclado/móvil.
+  El periodo sí abre un popover pequeño (un `input type="month"` colapsado a icono no es posible; su render lo controla el navegador).
+- **Si falta elegir, el control se realza** (fondo + anillo de acento, y etiqueta «Elige un sitio» donde hay sitio para ella). Previsualizar
+  con datos de ejemplo **no es un estado neutro**: es lo único que hay que arreglar antes de que nada del lienzo signifique algo. Ahora el
+  elemento llamativo de la barra es ese, no la IA — que es exactamente la jerarquía que pedía el owner.
+- Efecto colateral: al encoger sitio/periodo a iconos **se perdía de vista el mes**. Se recuperó metiéndolo en la línea de estado del
+  navegador de páginas («Datos reales · agosto de 2026 · 3 fuente(s)»), que ya existía.
+- `tightBar` (1024–1279) ya solo esconde `SyncStatus`; sitio y periodo se quedan **siempre** en la barra, incluida la de teléfono.
+
 **📏 BARRA DEL EDITOR: UNA FILA EN TODOS LOS TAMAÑOS (2026-08-05):** el owner mandó captura en **escritorio** (~1456px): la barra superior
 envolvía a 2 filas y la segunda quedaba alineada a la derecha con un hueco grande a la izquierda — parecía un bug, no un diseño.
 **Diagnóstico:** `flex-wrap` nunca fue una degradación elegante. Con todos los controles etiquetados el contenido pide ~1750px; a 1456 (menos el
