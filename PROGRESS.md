@@ -7,6 +7,28 @@
 ---
 
 ## Where I left off (read me first)
+**🧭 EDITOR REESTRUCTURADO POR NATURALEZA DE CADA COSA (2026-08-05, releases v1.23.1 y v1.24.0, commits `d5d2e78`, `c0f043d`,
+`d7896aa`):** el owner reportó que «Generar con IA», «Filtros de página» y «Tema del reporte» estaban al fondo del panel izquierdo y **la
+gente ni sabía que existían**. Diagnóstico: en esa columna de 256px convivían **tres naturalezas distintas** apiladas como si fueran lo
+mismo — lo que usas mientras compones (paleta, capas), una **acción** puntual (IA), y **ajustes de todo el informe** (filtros, tema). Las dos
+últimas caían bajo la línea de scroll de una columna cuyo inicio es una paleta, así que parecían «más paleta».
+**Reestructuración aplicada (principio: izquierda = con qué construyes · arriba = acciones sobre el informe · derecha = propiedades de lo
+seleccionado):**
+- **Izquierda → dos PESTAÑAS** (petición explícita del owner): `Bloques` | `Capas`, ambas sin scroll. `leftTab` sustituye a `railTarget`;
+  el rail de iconos del panel colapsado ofrece esas dos.
+- **IA → barra superior**, junto a «Plantillas» (son las dos formas de EMPEZAR un informe), abriendo un diálogo con los dos modos.
+- **Ajustes del informe → panel derecho cuando NO hay bloque seleccionado** (patrón de propiedades de documento de Figma/Canva): filtros de
+  página + tema/navegación.
+- El toggle derecho pasa a botón etiquetado **«Ajustes del informe»** sin selección (un icono suelto los dejaría igual de escondidos) y
+  **muestra el número de filtros de informe activos** — un informe recortado en silencio a «solo Colombia» es lo que hace que los números
+  parezcan mal.
+**Además (v1.23.1 y c0f043d):** al entrar al Editor **se colapsa el menú principal** (se restaura al salir, sin sobrescribir la preferencia
+guardada) y **el inspector sigue a la selección** (abre al elegir bloque, cierra sin selección o al cambiar de página/sección; cerrarlo a mano
+con un bloque seleccionado se respeta hasta elegir otro).
+**Nota de implementación para el futuro:** al extraer las `<Section>` del panel izquierdo con scripts, cuidado — el `<Section>` abre en
+varias líneas y un `icon={<X />}` confunde cualquier heurística de «primera línea que acaba en `>`»; quedaron `</Section>` huérfanos que
+tsc detectó. Verificar siempre con `npm run typecheck` tras mover JSX a mano.
+
 **🎯 EJES DE FILTRADO NUEVOS + SELECTOR CONSCIENTE DEL BLOQUE + BOTÓN DE COLAPSAR (2026-08-05, release v1.23.0, commit `e687b99`):**
 tres cosas reportadas juntas por el owner.
 **(1) «¿Solo sirve con campañas?»** — para tráfico/SEO ya había país/ciudad/dispositivo (GA4 `geo`, GSC `search`), pero en **publicidad** sí
