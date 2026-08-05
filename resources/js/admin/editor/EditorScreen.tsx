@@ -222,7 +222,9 @@ export function EditorScreen(): ReactElement {
     // the palette, layers, AI, filters and theme behind a single toggle with no clue they
     // existed; the rail keeps them one click away and named.
     const [railTarget, setRailTarget] = useState<string | null>(null);
-    const [rightOpen, setRightOpen] = useState(wideViewport);
+    // Starts closed: nothing is selected yet, so the inspector would only be showing
+    // "select a block" while eating 288px of canvas.
+    const [rightOpen, setRightOpen] = useState(false);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
     // Undo/redo history — snapshots of the blocks array.
@@ -795,6 +797,16 @@ export function EditorScreen(): ReactElement {
     }, [currentPage, blocks.length]);
 
     const scale = zoom === "fit" ? fitScale : zoom;
+
+    // The inspector follows the selection: it opens when you pick a block and closes when
+    // nothing is selected — including after switching page or section, which clears the
+    // selection. An inspector with nothing to inspect is just lost canvas width.
+    //
+    // Keyed on the selection alone, so closing it by hand while a block is selected sticks
+    // until you select a different one.
+    useEffect(() => {
+        setRightOpen(selectedId !== null);
+    }, [selectedId]);
 
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
 
