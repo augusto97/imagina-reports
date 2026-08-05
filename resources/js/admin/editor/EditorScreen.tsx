@@ -30,7 +30,9 @@ import {
     Wrench,
     Zap,
     Minus,
+    MoreHorizontal,
     SlidersHorizontal,
+    X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -47,12 +49,105 @@ import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
 const ARTBOARD_WIDTH = 1024;
 
 /**
- * Horizontal space the workspace consumes around the artboard: its `p-6` padding (48) plus
- * the scrollbar gutter it always reserves (`scrollbar-gutter: stable`). A fixed reserve —
+ * Horizontal space the workspace consumes around the artboard: its padding plus the
+ * scrollbar gutter it always reserves (`scrollbar-gutter: stable`). A fixed reserve —
  * generous enough for any platform's scrollbar — is deliberate: deriving it from a live
  * measurement is what let the fit scale feed back into itself (see the fit-scale effect).
+ * Phones get tighter padding (`p-3`), where 48px of margin is a fifth of the screen.
  */
-const WORKSPACE_INSET = 48 + 20;
+function workspaceInset(compact: boolean): number {
+    return (compact ? 24 : 48) + 20;
+}
+
+/**
+ * A sheet that slides up from the bottom edge — the phone equivalent of a side panel.
+ *
+ * Bottom, not top or side, because that's where the thumb is; the editor's controls are
+ * used one-handed on a phone and a top-anchored dialog puts every target out of reach.
+ */
+function BottomSheet({
+    title,
+    onClose,
+    children,
+}: {
+    title: string;
+    onClose: () => void;
+    children: ReactElement | ReactElement[];
+}): ReactElement {
+    return (
+        <div className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-flex-col ir-justify-end">
+            <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={onClose}
+                className="ir-absolute ir-inset-0 ir-cursor-default ir-bg-black/40"
+            />
+            <div className="ir-relative ir-flex ir-max-h-[85vh] ir-flex-col ir-rounded-t-2xl ir-border-t ir-bg-card ir-shadow-ir-lg">
+                <div className="ir-mx-auto ir-mt-2 ir-h-1 ir-w-10 ir-shrink-0 ir-rounded-full ir-bg-border" />
+                <div className="ir-flex ir-shrink-0 ir-items-center ir-justify-between ir-gap-2 ir-px-4 ir-py-2.5">
+                    <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">{title}</h2>
+                    <button
+                        type="button"
+                        aria-label="Cerrar"
+                        onClick={onClose}
+                        className="ir-rounded-md ir-p-1.5 ir-text-muted-foreground ir-transition hover:ir-bg-muted hover:ir-text-foreground"
+                    >
+                        <X className="ir-size-4" />
+                    </button>
+                </div>
+                <div
+                    className="ir-min-h-0 ir-flex-1 ir-overflow-y-auto ir-px-4 ir-pt-1"
+                    style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+                >
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** A full-width tap target for the overflow sheet — phone rows, not toolbar chips. */
+function SheetAction({
+    icon,
+    label,
+    hint,
+    onClick,
+    disabled = false,
+    badge,
+}: {
+    icon: ReactElement;
+    label: string;
+    hint?: string;
+    onClick: () => void;
+    disabled?: boolean;
+    badge?: number;
+}): ReactElement {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className="ir-flex ir-w-full ir-items-center ir-gap-3 ir-rounded-lg ir-px-2 ir-py-3 ir-text-left ir-transition hover:ir-bg-muted disabled:ir-opacity-40"
+        >
+            <span className="ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-muted ir-text-muted-foreground">
+                {icon}
+            </span>
+            <span className="ir-min-w-0 ir-flex-1">
+                <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{label}</span>
+                {hint !== undefined && (
+                    <span className="ir-block ir-truncate ir-text-[11px] ir-text-muted-foreground">
+                        {hint}
+                    </span>
+                )}
+            </span>
+            {badge !== undefined && badge > 0 && (
+                <span className="ir-shrink-0 ir-rounded-full ir-bg-primary/15 ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-primary">
+                    {badge}
+                </span>
+            )}
+        </button>
+    );
+}
 
 /** Left-panel sections, in panel order — also what the collapsed icon rail offers. */
 const LEFT_SECTIONS: { key: "blocks" | "layers"; title: string; icon: LucideIcon }[] = [
@@ -87,6 +182,7 @@ import { apiErrorMessage } from "@shared/lib/api";
 import { SyncStatus } from "./SyncStatus";
 
 import { Button, Card, Field, Input, Modal } from "../components/ui";
+import { COMPACT_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import type { CatalogEntry, PageFilters, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
@@ -231,6 +327,12 @@ export function EditorScreen(): ReactElement {
     const [rightOpen, setRightOpen] = useState(false);
     // Which right-panel tab is showing: the selected block's settings, or the report's own.
     const [rightTab, setRightTab] = useState<"block" | "report">("report");
+
+    // Phone/tablet layout. A wrapping desktop toolbar stacked seven rows of chrome above
+    // the canvas — more than the whole viewport — so below `lg` the bar collapses to one
+    // row and everything secondary moves into this overflow sheet.
+    const isCompact = useMediaQuery(COMPACT_QUERY);
+    const [moreOpen, setMoreOpen] = useState(false);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
     // Undo/redo history — snapshots of the blocks array.
@@ -519,6 +621,11 @@ export function EditorScreen(): ReactElement {
         const block = { ...makeBlock(type), page: currentPage };
         commit([...blocks, block]);
         setSelectedId(block.id);
+        // On a phone the palette is a sheet covering the canvas: leaving it up would hide
+        // the block that was just added (and the inspector that opens for it).
+        if (isCompact) {
+            setLeftOpen(false);
+        }
     };
 
     /** Drop a palette tile onto the grid at the released position (drag-to-canvas). */
@@ -752,6 +859,39 @@ export function EditorScreen(): ReactElement {
     }, [siteId, blocks, month, pageFilters, runPreview]);
 
     const hasRealData = siteId !== null && preview_ !== null;
+
+    /** Where the previewed numbers come from, in one word and in one sentence. */
+    const previewStatus: { short: string; long: string; tone: string } =
+        siteId === null
+            ? {
+                  short: "Ejemplo",
+                  long: "Datos de ejemplo · elige un sitio para datos reales.",
+                  tone: "ir-text-amber-600",
+              }
+            : hasRealData && !preview_.has_data
+              ? {
+                    short: "Sin datos",
+                    long: "Sin datos para este periodo · usa «Sincronizar».",
+                    tone: "ir-text-amber-600",
+                }
+              : hasRealData
+                ? {
+                      short: "Reales",
+                      long: `Datos reales · ${preview_.sources_with_data.length} fuente(s).`,
+                      tone: "ir-text-emerald-600",
+                  }
+                : preview.isError
+                  ? {
+                        short: "Error",
+                        long: "No se pudieron cargar los datos del sitio.",
+                        tone: "ir-text-danger",
+                    }
+                  : {
+                        short: "Cargando",
+                        long: "Cargando datos…",
+                        tone: "ir-text-muted-foreground",
+                    };
+
     const renderData: Record<string, unknown> = {};
     if (hasRealData) {
         // Real preview: show exactly what the site has. Empty blocks render an honest
@@ -785,7 +925,7 @@ export function EditorScreen(): ReactElement {
         const measure = (): void => {
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(() => {
-                const available = node.clientWidth - WORKSPACE_INSET;
+                const available = node.clientWidth - workspaceInset(isCompact);
                 // Quantised to whole percent so sub-pixel width churn can't restyle anything.
                 const next =
                     Math.round(Math.min(1, Math.max(0.35, available / ARTBOARD_WIDTH)) * 100) / 100;
@@ -801,7 +941,7 @@ export function EditorScreen(): ReactElement {
             cancelAnimationFrame(frame);
             observer.disconnect();
         };
-    }, []);
+    }, [isCompact]);
 
     // The artboard's natural height, so the scaled wrapper can reserve exactly the space
     // the scaled render occupies — transforms don't change layout height.
@@ -920,8 +1060,11 @@ export function EditorScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-h-full ir-min-h-0 ir-flex-col ir-bg-background">
-            {/* ---- Top toolbar (full width) ---- */}
-            <header className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2">
+            {/* ---- Top toolbar (full width) ----
+                 One row below `lg`. Left to wrap, this bar stacked five rows on a phone and
+                 the page navigator two more, pushing the canvas off the bottom of the screen
+                 before you could see a single block. */}
+            <header className="ir-flex ir-flex-nowrap ir-items-center ir-gap-2 ir-border-b ir-bg-card ir-px-3 ir-py-2 lg:ir-flex-wrap">
                 <ToolbarButton
                     icon={
                         leftOpen ? (
@@ -940,53 +1083,81 @@ export function EditorScreen(): ReactElement {
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     placeholder="Plantilla sin título"
-                    className="ir-w-28 ir-min-w-0 sm:ir-w-52 ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
+                    className="ir-min-w-0 ir-flex-1 lg:ir-w-52 lg:ir-flex-none ir-rounded-md ir-border ir-border-transparent ir-bg-transparent ir-px-2 ir-py-1 ir-text-sm ir-font-semibold ir-text-foreground ir-transition placeholder:ir-font-normal placeholder:ir-text-muted-foreground hover:ir-border-border focus:ir-border-border focus:ir-bg-background focus:ir-outline-none"
                 />
-                <span className="ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
-                    {editingTemplateId !== null ? "Editando" : "Borrador"}
-                </span>
-                {editingTemplateId !== null && (
-                    <button
-                        type="button"
-                        onClick={() => editTemplate(null)}
-                        className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
-                    >
-                        + Nueva
-                    </button>
+
+                {/* Everything from here to the right cluster is desktop-only: on a phone it
+                    lives in the "⋯" sheet, where each item gets a full-width tap target
+                    instead of a 32px chip on its own wrapped line. */}
+                {!isCompact && (
+                    <>
+                        <span className="ir-rounded-full ir-bg-muted ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
+                            {editingTemplateId !== null ? "Editando" : "Borrador"}
+                        </span>
+                        {editingTemplateId !== null && (
+                            <button
+                                type="button"
+                                onClick={() => editTemplate(null)}
+                                className="ir-text-xs ir-text-muted-foreground hover:ir-text-foreground"
+                            >
+                                + Nueva
+                            </button>
+                        )}
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setGalleryOpen(true)}
+                            title="Elegir una plantilla prediseñada"
+                        >
+                            <LayoutTemplate className="ir-size-4" />
+                            Plantillas
+                        </Button>
+
+                        {/* Beside "Plantillas" on purpose: these are the two ways to START a
+                            report, and someone asking "where do I begin?" should see both. */}
+                        <Button
+                            variant="accent"
+                            size="sm"
+                            onClick={() => setAiOpen(true)}
+                            title="Generar el informe (o una sección) con IA"
+                        >
+                            <Sparkles className="ir-size-4" />
+                            Generar con IA
+                        </Button>
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCalcModalOpen(true)}
+                            title="Crear métricas calculadas (fórmulas) reutilizables"
+                        >
+                            <FunctionSquare className="ir-size-4" />
+                            Métricas calculadas
+                        </Button>
+                    </>
                 )}
 
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setGalleryOpen(true)}
-                    title="Elegir una plantilla prediseñada"
-                >
-                    <LayoutTemplate className="ir-size-4" />
-                    Plantillas
-                </Button>
-
-                {/* Beside "Plantillas" on purpose: these are the two ways to START a
-                    report, and someone asking "where do I begin?" should see both. */}
-                <Button
-                    variant="accent"
-                    size="sm"
-                    onClick={() => setAiOpen(true)}
-                    title="Generar el informe (o una sección) con IA"
-                >
-                    <Sparkles className="ir-size-4" />
-                    Generar con IA
-                </Button>
-
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCalcModalOpen(true)}
-                    title="Crear métricas calculadas (fórmulas) reutilizables"
-                >
-                    <FunctionSquare className="ir-size-4" />
-                    Métricas calculadas
-                </Button>
-
+                {isCompact ? (
+                    /* Save stays on the bar — it's the one action you must never have to
+                       go looking for. Everything else is one tap behind "⋯". */
+                    <div className="ir-ml-auto ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                        <Button
+                            onClick={save}
+                            size="sm"
+                            disabled={create.isPending || update.isPending || name === ""}
+                            title={editingTemplateId !== null ? "Actualizar" : "Guardar"}
+                        >
+                            <Save className="ir-size-4" />
+                        </Button>
+                        <ToolbarButton
+                            icon={<MoreHorizontal className="ir-size-4" />}
+                            title="Más opciones"
+                            onClick={() => setMoreOpen(true)}
+                            active={moreOpen}
+                        />
+                    </div>
+                ) : (
                 <div className="ir-ml-auto ir-flex ir-flex-wrap ir-items-center ir-justify-end ir-gap-2">
                     {/* Compact preview-data control — site + period live here (preview only),
                         not as a giant panel widget. */}
@@ -1087,6 +1258,7 @@ export function EditorScreen(): ReactElement {
                         </Button>
                     )}
                 </div>
+                )}
             </header>
 
             {/* ---- Body: left panel · canvas · inspector ---- */}
@@ -1124,8 +1296,12 @@ export function EditorScreen(): ReactElement {
                     </div>
                 )}
 
+                {/* Below `lg` the left panel is a bottom SHEET, not a side drawer: the editor
+                    is used one-handed on a phone and a full-height side panel puts every
+                    control at the top of the screen, out of thumb reach. */}
                 {leftOpen && (
-                    <aside className="ir-absolute ir-inset-y-0 ir-left-0 ir-z-20 ir-flex ir-w-64 ir-shrink-0 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
+                    <aside className="ir-absolute ir-inset-x-0 ir-bottom-0 ir-z-20 ir-flex ir-max-h-[70vh] ir-w-full ir-shrink-0 ir-flex-col ir-rounded-t-2xl ir-border-t ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-max-h-none lg:ir-w-64 lg:ir-rounded-none lg:ir-border-r lg:ir-border-t-0 lg:ir-shadow-none">
+                        <div className="ir-mx-auto ir-mt-2 ir-h-1 ir-w-10 ir-shrink-0 ir-rounded-full ir-bg-border lg:ir-hidden" />
                         {/* Two tabs, not five stacked accordions: this column is only for
                             what you compose WITH. Report-level settings moved to the right
                             panel and the AI action to the toolbar — buried at the bottom of
@@ -1241,15 +1417,17 @@ export function EditorScreen(): ReactElement {
                     ref={canvasColumnRef}
                     className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-bg-muted/40"
                 >
-                    {/* Page navigator + preview-data status */}
-                    <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-x-4 ir-gap-y-2 ir-border-b ir-bg-background/70 ir-px-4 ir-py-2">
+                    {/* Page navigator + preview-data status. `flex-wrap` only from `lg`:
+                        on a phone this row must stay a single line — the tabs scroll
+                        sideways instead of stacking. */}
+                    <div className="ir-flex ir-flex-nowrap ir-items-center ir-justify-between ir-gap-x-3 ir-gap-y-2 ir-border-b ir-bg-background/70 ir-px-3 ir-py-2 lg:ir-flex-wrap lg:ir-gap-x-4 lg:ir-px-4">
                         {/* min-w-0 + scroll: with several pages the tabs used to overflow the
                             canvas column and run underneath the inspector. */}
                         <div className="ir-flex ir-min-w-0 ir-flex-1 ir-items-center ir-gap-1 ir-overflow-x-auto">
                             {Array.from({ length: pageCount }, (_, index) => (
                                 <div
                                     key={index}
-                                    className="ir-group ir-relative"
+                                    className="ir-group ir-relative ir-shrink-0"
                                 >
                                     {renamingPage === index ? (
                                         <input
@@ -1284,11 +1462,15 @@ export function EditorScreen(): ReactElement {
                                                 setRenamingPage(index)
                                             }
                                             title="Doble clic para renombrar"
-                                            className={
+                                            className={cn(
+                                                // whitespace-nowrap: "Tráfico y SEO" was
+                                                // breaking inside its own chip, making the
+                                                // whole navigator two rows tall on a phone.
+                                                "ir-whitespace-nowrap ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm",
                                                 index === currentPage
-                                                    ? "ir-rounded-md ir-border ir-border-primary ir-bg-primary/5 ir-px-3 ir-py-1 ir-text-sm ir-font-medium"
-                                                    : "ir-rounded-md ir-border ir-px-3 ir-py-1 ir-text-sm ir-text-muted-foreground hover:ir-border-primary/60"
-                                            }
+                                                    ? "ir-border-primary ir-bg-primary/5 ir-font-medium"
+                                                    : "ir-text-muted-foreground hover:ir-border-primary/60",
+                                            )}
                                         >
                                             {pageNames[index]?.trim()
                                                 ? pageNames[index]
@@ -1314,38 +1496,47 @@ export function EditorScreen(): ReactElement {
                                 variant="ghost"
                                 onClick={addPage}
                                 title="Añadir página"
+                                className="ir-shrink-0"
                             >
                                 <Plus className="ir-size-4" />
                             </Button>
-                            <span className="ir-mx-1 ir-h-5 ir-w-px ir-bg-border" />
-                            {!hasCover && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={addCoverPage}
-                                    title="Añadir una página de portada al inicio"
-                                >
-                                    <BookOpen className="ir-size-4" />
-                                    Portada
-                                </Button>
-                            )}
-                            {!hasBackCover && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={addBackCoverPage}
-                                    title="Añadir una página de contraportada al final"
-                                >
-                                    <Flag className="ir-size-4" />
-                                    Contraportada
-                                </Button>
+                            {/* Cover/back-cover are once-per-report actions — on a phone they
+                                sit in the "⋯" sheet rather than eat the navigator. */}
+                            {!isCompact && (
+                                <>
+                                    <span className="ir-mx-1 ir-h-5 ir-w-px ir-shrink-0 ir-bg-border" />
+                                    {!hasCover && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={addCoverPage}
+                                            title="Añadir una página de portada al inicio"
+                                            className="ir-shrink-0"
+                                        >
+                                            <BookOpen className="ir-size-4" />
+                                            Portada
+                                        </Button>
+                                    )}
+                                    {!hasBackCover && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={addBackCoverPage}
+                                            title="Añadir una página de contraportada al final"
+                                            className="ir-shrink-0"
+                                        >
+                                            <Flag className="ir-size-4" />
+                                            Contraportada
+                                        </Button>
+                                    )}
+                                </>
                             )}
                         </div>
 
-                        <div className="ir-flex ir-items-center ir-gap-3">
+                        <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-2 lg:ir-gap-3">
                             {/* Zoom: "Ajustar" is the default because it's what makes the
                                 report look like itself on a laptop. */}
-                            <div className="ir-flex ir-items-center ir-gap-0.5 ir-rounded-md ir-border ir-bg-background ir-p-0.5">
+                            <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-0.5 ir-rounded-md ir-border ir-bg-background ir-p-0.5">
                                 <button
                                     type="button"
                                     title="Reducir"
@@ -1377,32 +1568,25 @@ export function EditorScreen(): ReactElement {
                                 </button>
                             </div>
 
-                            <div className="ir-text-xs">
-                            {siteId === null ? (
-                                <span className="ir-text-amber-600">
-                                    Datos de ejemplo · elige un sitio para datos
-                                    reales.
-                                </span>
-                            ) : hasRealData && !preview_.has_data ? (
-                                <span className="ir-text-amber-600">
-                                    Sin datos para este periodo · usa
-                                    «Sincronizar».
-                                </span>
-                            ) : hasRealData ? (
-                                <span className="ir-text-emerald-600">
-                                    Datos reales ·{" "}
-                                    {preview_.sources_with_data.length}{" "}
-                                    fuente(s).
-                                </span>
-                            ) : preview.isError ? (
-                                <span className="ir-text-danger">
-                                    No se pudieron cargar los datos del sitio.
-                                </span>
-                            ) : (
-                                <span className="ir-text-muted-foreground">
-                                    Cargando datos…
-                                </span>
-                            )}
+                            {/* Same state, two lengths: the full sentence on a laptop, a
+                                colour-coded word on a phone (where the sentence alone was
+                                wrapping the whole row). The long form stays available in
+                                the "⋯" sheet. */}
+                            <div className="ir-shrink-0 ir-text-xs">
+                                {isCompact ? (
+                                    <span
+                                        title={previewStatus.long}
+                                        className={cn(
+                                            "ir-inline-flex ir-items-center ir-gap-1.5 ir-whitespace-nowrap",
+                                            previewStatus.tone,
+                                        )}
+                                    >
+                                        <span className="ir-size-1.5 ir-rounded-full ir-bg-current" />
+                                        {previewStatus.short}
+                                    </span>
+                                ) : (
+                                    <span className={previewStatus.tone}>{previewStatus.long}</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1459,7 +1643,7 @@ export function EditorScreen(): ReactElement {
                             }
                             setSelectedId(null);
                         }}
-                        className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6"
+                        className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-3 lg:ir-p-6"
                         style={{ scrollbarGutter: "stable" }}
                     >
                         {/* The artboard renders at its natural width and is SCALED to fit,
@@ -1616,7 +1800,8 @@ export function EditorScreen(): ReactElement {
 
                 {/* ---- Right panel (collapsible): block settings · report settings ---- */}
                 {rightOpen && (
-                    <aside className="ir-absolute ir-inset-y-0 ir-right-0 ir-z-20 ir-flex ir-w-72 ir-shrink-0 ir-flex-col ir-border-l ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
+                    <aside className="ir-absolute ir-inset-x-0 ir-bottom-0 ir-z-20 ir-flex ir-max-h-[70vh] ir-w-full ir-shrink-0 ir-flex-col ir-rounded-t-2xl ir-border-t ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-max-h-none lg:ir-w-72 lg:ir-rounded-none lg:ir-border-l lg:ir-border-t-0 lg:ir-shadow-none">
+                        <div className="ir-mx-auto ir-mt-2 ir-h-1 ir-w-10 ir-shrink-0 ir-rounded-full ir-bg-border lg:ir-hidden" />
                         {/* Two tabs, mirroring the left panel. Showing one OR the other purely
                             by selection left no way to reach the report's settings while a
                             block was selected. */}
@@ -1809,6 +1994,166 @@ export function EditorScreen(): ReactElement {
                     </aside>
                 )}
             </div>
+
+            {/* ---- Phone overflow: everything the one-row bar can't hold ---- */}
+            {moreOpen && (
+                <BottomSheet title="Opciones del editor" onClose={() => setMoreOpen(false)}>
+                    <div className="ir-flex ir-flex-col ir-gap-4">
+                        {/* Preview data first: it decides what every number on the canvas
+                            says, and it's the control people go looking for. */}
+                        <div>
+                            <p className="ir-mb-1.5 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                Vista previa
+                            </p>
+                            <div className="ir-flex ir-flex-col ir-gap-2">
+                                <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
+                                    <Globe className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                                    <select
+                                        value={siteId ?? ""}
+                                        onChange={(event) =>
+                                            setSiteId(
+                                                event.target.value === ""
+                                                    ? null
+                                                    : Number(event.target.value),
+                                            )
+                                        }
+                                        className="ir-min-w-0 ir-flex-1 ir-cursor-pointer ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
+                                    >
+                                        <option value="">Datos de ejemplo</option>
+                                        {sites.map((site) => (
+                                            <option key={site.id} value={site.id}>
+                                                {site.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="ir-flex ir-h-11 ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-bg-background ir-px-3">
+                                    <Calendar className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                                    <input
+                                        type="month"
+                                        value={month}
+                                        onChange={(event) => setMonth(event.target.value)}
+                                        className="ir-min-w-0 ir-flex-1 ir-border-0 ir-bg-transparent ir-text-sm focus:ir-outline-none"
+                                    />
+                                </label>
+                                <p className={cn("ir-text-[11px]", previewStatus.tone)}>
+                                    {previewStatus.long}
+                                </p>
+                                <SyncStatus
+                                    siteId={siteId}
+                                    period={monthPeriod(month)}
+                                    monthLabel={new Date(
+                                        `${month}-01T00:00:00`,
+                                    ).toLocaleDateString("es", {
+                                        month: "long",
+                                        year: "numeric",
+                                    })}
+                                    onSynced={refreshPreview}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="ir-border-t ir-pt-2">
+                            <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                Empezar
+                            </p>
+                            <SheetAction
+                                icon={<Sparkles className="ir-size-4" />}
+                                label="Generar con IA"
+                                hint="Crea el informe completo, o una sección"
+                                onClick={() => {
+                                    setMoreOpen(false);
+                                    setAiOpen(true);
+                                }}
+                            />
+                            <SheetAction
+                                icon={<LayoutTemplate className="ir-size-4" />}
+                                label="Plantillas"
+                                hint="Partir de un diseño prediseñado"
+                                onClick={() => {
+                                    setMoreOpen(false);
+                                    setGalleryOpen(true);
+                                }}
+                            />
+                        </div>
+
+                        <div className="ir-border-t ir-pt-2">
+                            <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                Informe
+                            </p>
+                            <SheetAction
+                                icon={<SlidersHorizontal className="ir-size-4" />}
+                                label="Ajustes del informe"
+                                hint="Filtros, tema y navegación"
+                                badge={inheritedFilters.length}
+                                onClick={() => {
+                                    setMoreOpen(false);
+                                    setRightTab("report");
+                                    setRightOpen(true);
+                                }}
+                            />
+                            <SheetAction
+                                icon={<FunctionSquare className="ir-size-4" />}
+                                label="Métricas calculadas"
+                                hint="Fórmulas reutilizables"
+                                onClick={() => {
+                                    setMoreOpen(false);
+                                    setCalcModalOpen(true);
+                                }}
+                            />
+                            {!hasCover && (
+                                <SheetAction
+                                    icon={<BookOpen className="ir-size-4" />}
+                                    label="Añadir portada"
+                                    onClick={() => {
+                                        setMoreOpen(false);
+                                        addCoverPage();
+                                    }}
+                                />
+                            )}
+                            {!hasBackCover && (
+                                <SheetAction
+                                    icon={<Flag className="ir-size-4" />}
+                                    label="Añadir contraportada"
+                                    onClick={() => {
+                                        setMoreOpen(false);
+                                        addBackCoverPage();
+                                    }}
+                                />
+                            )}
+                            {editingTemplateId !== null && (
+                                <SheetAction
+                                    icon={<Plus className="ir-size-4" />}
+                                    label="Nueva plantilla"
+                                    hint="Dejar de editar la actual"
+                                    onClick={() => {
+                                        setMoreOpen(false);
+                                        editTemplate(null);
+                                    }}
+                                />
+                            )}
+                        </div>
+
+                        <div className="ir-border-t ir-pt-2">
+                            <p className="ir-mb-1 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                                Historial
+                            </p>
+                            <SheetAction
+                                icon={<Undo2 className="ir-size-4" />}
+                                label="Deshacer"
+                                disabled={past.length === 0}
+                                onClick={undo}
+                            />
+                            <SheetAction
+                                icon={<Redo2 className="ir-size-4" />}
+                                label="Rehacer"
+                                disabled={future.length === 0}
+                                onClick={redo}
+                            />
+                        </div>
+                    </div>
+                </BottomSheet>
+            )}
 
             {galleryOpen && (
                 <Modal

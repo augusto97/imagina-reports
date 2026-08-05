@@ -7,6 +7,27 @@
 ---
 
 ## Where I left off (read me first)
+**📱 EDITOR REPENSADO PARA MÓVIL (2026-08-05):** el owner mandó captura del editor en un teléfono: **7 filas de cromo** (barra superior
+envuelta en 5 + navegador de páginas en 2) antes de ver un solo bloque, y el lienzo al ~34% ilegible.
+**Diagnóstico:** la barra era `flex-wrap` con controles de tamaño escritorio; en 390px cada uno caía a su propia fila. Además los chips de
+página rompían el texto **dentro** del chip («Tráfico y SEO» en dos líneas). Y los paneles laterales, como cajones de altura completa, dejan
+todos los controles arriba — **fuera del alcance del pulgar**.
+**Reestructuración (breakpoint único `lg`, hook compartido `admin/hooks/useMediaQuery.ts` — extraído de `App.tsx`, ahora lo usan ambos):**
+- **Barra superior → UNA fila** en compacto: `[panel] [título] [Guardar] [⋯]`. Guardar se queda porque es la acción que nunca debe buscarse.
+- **Hoja de desbordamiento «⋯»** (`BottomSheet` + `SheetAction`, filas de 44px) con: vista previa (sitio + periodo + estado + Sincronizar),
+  Empezar (IA · Plantillas), Informe (ajustes · métricas calculadas · portada/contraportada · nueva plantilla), Historial (deshacer/rehacer).
+- **Navegador de páginas → una fila**: chips `whitespace-nowrap` con scroll horizontal + `[+]` + zoom + **estado como punto de color**
+  («Ejemplo/Reales/Sin datos») en vez de la frase larga, que era la que envolvía la fila.
+- **Paneles izquierdo y derecho → BOTTOM SHEETS bajo `lg`** (`inset-x-0 bottom-0 max-h-[70vh] rounded-t-2xl` + tirador), en lugar de cajones
+  laterales. Al añadir un bloque desde la paleta en móvil, la hoja **se cierra sola** (si no, tapa el bloque recién creado y su inspector).
+- Lienzo con `p-3` en móvil (48px de margen eran 1/5 de la pantalla) → `workspaceInset(compact)`, y el efecto de escala depende de `isCompact`.
+**Resultado: de ~7 filas de cromo a 2.**
+**⚠️ VERIFICACIÓN:** typecheck, ESLint, vitest y build pasan. **NO se pudo verificar visualmente en un navegador real** — este contenedor no
+puede instalar dependencias PHP (composer no autentica contra github.com por el proxy), así que no hay backend con el que arrancar la SPA.
+Conviene que el owner lo confirme en su teléfono.
+**Además:** arreglado el `target_commitish` de `release.yml` (deuda que el owner pidió incluir «en la siguiente tanda»): la etiqueta de git ya
+se ancla al commit desde el que se construyó el ZIP, no a `main`.
+
 **🩹 TRES DEFECTOS DEL EDITOR TRAS LA REESTRUCTURACIÓN (2026-08-05, commit `8d293a5`):** reportados juntos por el owner sobre v1.24.0.
 - **No se podía deseleccionar.** Nada limpiaba `selectedId`, así que en cuanto elegías un bloque los **ajustes del informe — que solo se
   mostraban sin selección — quedaban inalcanzables**. Ahora un clic en lienzo vacío deselecciona (`onMouseDown`, para que ocurra *antes* de
@@ -2473,12 +2494,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Open questions / blockers
-- **⏭️ PENDIENTE ACORDADA CON EL OWNER (2026-08-05): `release.yml` no fija `target_commitish`.** Cuando la release se dispara
-  con `workflow_dispatch` desde una rama, **el ZIP se construye desde esa rama pero la etiqueta de git se ancla a `main`** — el
-  bundle publicado es correcto, lo que engaña es el commit al que apunta el tag en GitHub. El owner pidió expresamente
-  **arreglarlo en la siguiente tanda de cambios** («si, en la siguiente cuando te vuelva a pedir algo arreglalo»), es decir: la
-  próxima vez que se toque algo del repo, incluir de paso el `target_commitish` (o crear el tag sobre el SHA construido) antes
-  de publicar. **No requiere que el owner lo vuelva a pedir.**
+- ~~`release.yml` no fija `target_commitish`~~ **RESUELTO (2026-08-05):** la etiqueta ya se ancla a `github.sha` (el commit desde el
+  que se construye el ZIP), no a `main`. Se incluyó en la tanda del rediseño móvil del editor, como el owner pidió.
 - **MainWP v2 REST API contract (validate before production):** `MainWpConnector` assumes
   `GET {dashboard_url}/wp-json/mainwp/v2/sites` returns a list of sites, each with `update_counts.{plugins,themes,wp}`
   (fallback flat `plugin_upgrades`/`theme_upgrades`/`wp_upgrades`), `abandoned_plugins`, and `ssl.expires_at`. Confirm the

@@ -25,6 +25,7 @@ import { cn } from "@shared/lib/utils";
 
 import { useAgency, useAuthUser, useLogout, useStopImpersonating } from "./api";
 import { EditorScreen } from "./editor/EditorScreen";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import { AlertsScreen } from "./screens/AlertsScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { PlatformScreen } from "./screens/PlatformScreen";
@@ -148,24 +149,6 @@ function PlatformShell({ email }: { email: string }): ReactElement {
             </main>
         </div>
     );
-}
-
-/** Reactive viewport match (no extra deps) — true while the media query holds. */
-function useMediaQuery(query: string): boolean {
-    const [matches, setMatches] = useState(() =>
-        typeof window !== "undefined" ? window.matchMedia(query).matches : false,
-    );
-
-    useEffect(() => {
-        const mql = window.matchMedia(query);
-        const handler = (event: MediaQueryListEvent): void => setMatches(event.matches);
-        setMatches(mql.matches);
-        mql.addEventListener("change", handler);
-
-        return () => mql.removeEventListener("change", handler);
-    }, [query]);
-
-    return matches;
 }
 
 function AuthenticatedApp({ email, version, impersonating, role }: { email: string; version?: string; impersonating?: number | null; role?: string }): ReactElement {
