@@ -18,7 +18,7 @@ import {
     X,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactElement, useEffect, useState } from "react";
+import { type ReactElement, useEffect, useRef, useState } from "react";
 
 import { setApiErrorHandlers } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
@@ -199,6 +199,29 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
             return next;
         });
     const iconOnly = isDesktop && collapsed;
+
+    // The editor is where screen width buys the most: the canvas competes with a block
+    // palette and an inspector. Entering it collapses the app nav automatically — people
+    // kept forgetting to — and leaving restores whatever they had, so this never
+    // overwrites their saved preference. Expanding it while inside still works: the effect
+    // only fires when the view changes, not on every render.
+    const restoreSidebar = useRef<boolean | null>(null);
+    useEffect(() => {
+        if (view === 'editor') {
+            setCollapsed((current) => {
+                restoreSidebar.current = current;
+
+                return true;
+            });
+
+            return;
+        }
+
+        if (restoreSidebar.current !== null) {
+            setCollapsed(restoreSidebar.current);
+            restoreSidebar.current = null;
+        }
+    }, [view]);
 
     // Keep the URL hash in sync with the active section so reloading restores it
     // (and the section is linkable). replaceState avoids spamming history; the hash
