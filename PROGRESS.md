@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**🎯 EJES DE FILTRADO NUEVOS + SELECTOR CONSCIENTE DEL BLOQUE + BOTÓN DE COLAPSAR (2026-08-05, release v1.23.0, commit `e687b99`):**
+tres cosas reportadas juntas por el owner.
+**(1) «¿Solo sirve con campañas?»** — para tráfico/SEO ya había país/ciudad/dispositivo (GA4 `geo`, GSC `search`), pero en **publicidad** sí
+estaba limitado a campaña+plataforma. Añadido **un dataset por eje**, porque Meta **rechaza la mayoría de combinaciones de `breakdowns`** y
+cada eje multiplica filas: `facebook_ads.by_country`, `by_device` (`impression_device`), `by_demographics` (`age,gender` — el único par que
+Meta admite), `google_ads.by_device` (`segments.device`) y `ga4.devices` (deviceCategory/browser/OS). Un eje rechazado por la API **degrada
+solo ese eje**; el resto llega igual. **Deliberadamente FUERA: geografía de Google Ads** — su API devuelve identificadores numéricos de
+ubicación que exigen una segunda resolución contra `geo_target_constant`; es una tanda propia.
+**(2) El selector ofrecía todo a todos los bloques** → un mapa listaba nombres de campaña y un KPI listaba tablas de páginas, vínculos que
+solo podían venir vacíos. Nuevo **`BLOCK_METRIC_TYPES`** en `blockFactory.ts` (kpi/goal/sales_summary → scalar+dataset; chart →
+series/table/dataset; table/funnel/control → table/dataset; geo_map → table/dataset **y además** exige una dimensión de `GEO_DIMENSIONS` =
+country/region/city). El `MetricPicker` recibe `blockType` y filtra; si no queda nada representable lo dice.
+**(3) «Colapsar menú» estaba pegado debajo de «Cerrar sesión»** en el pie del sidebar, mismo tamaño y estilo → la gente cerraba sesión por
+error. Movido **arriba, junto al logo**, como botón de icono, lejos de acciones destructivas; colapsado ocupa su propia fila bajo el logo.
+**PENDIENTE DE OPERACIÓN:** resincronizar Facebook Ads, Google Ads, Instagram y GA4 para que los periodos guardados incluyan los datasets
+nuevos (y para que los desplegables de valores de filtro tengan contenido).
+
 **🎛️ REDISEÑO DEL EDITOR: SELECTOR DE DATOS, FILTROS UNIFICADOS Y LIENZO ESCALADO (2026-08-04, rama
 `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** el owner reportó que la interfaz del editor no se sentía premium, se veía mal en
 pantallas medianas y confundía al elegir métricas y filtrar («hasta yo me he confundido en encontrar opciones»). Análisis con evidencia y
