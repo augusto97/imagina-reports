@@ -206,7 +206,9 @@ export function EditorScreen(): ReactElement {
     // squeezed into a narrow column and looking broken.
     const [zoom, setZoom] = useState<number | "fit">("fit");
     const [fitScale, setFitScale] = useState(1);
+    const [artboardHeight, setArtboardHeight] = useState(0);
     const workspaceRef = useRef<HTMLDivElement>(null);
+    const artboardRef = useRef<HTMLDivElement>(null);
     // Named pages (§11 — Looker/Power-BI parity): the label of each page in the nav menu,
     // indexed by page. Empty string falls back to "Página N". Editing index for inline rename.
     const [pageNames, setPageNames] = useState<string[]>([]);
@@ -777,6 +779,21 @@ export function EditorScreen(): ReactElement {
         return () => observer.disconnect();
     }, []);
 
+    // The artboard's natural height, so the scaled wrapper can reserve exactly the space
+    // the scaled render occupies — transforms don't change layout height.
+    useEffect(() => {
+        const node = artboardRef.current;
+        if (node === null) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() => setArtboardHeight(node.offsetHeight));
+        observer.observe(node);
+        setArtboardHeight(node.offsetHeight);
+
+        return () => observer.disconnect();
+    }, [currentPage, blocks.length]);
+
     const scale = zoom === "fit" ? fitScale : zoom;
 
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
@@ -1299,7 +1316,9 @@ export function EditorScreen(): ReactElement {
                 <div className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-bg-muted/40">
                     {/* Page navigator + preview-data status */}
                     <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-x-4 ir-gap-y-2 ir-border-b ir-bg-background/70 ir-px-4 ir-py-2">
-                        <div className="ir-flex ir-items-center ir-gap-1">
+                        {/* min-w-0 + scroll: with several pages the tabs used to overflow the
+                            canvas column and run underneath the inspector. */}
+                        <div className="ir-flex ir-min-w-0 ir-flex-1 ir-items-center ir-gap-1 ir-overflow-x-auto">
                             {Array.from({ length: pageCount }, (_, index) => (
                                 <div
                                     key={index}
@@ -1497,15 +1516,23 @@ export function EditorScreen(): ReactElement {
                         {/* The artboard renders at its natural width and is SCALED to fit,
                             so the report keeps the proportions the client will see instead
                             of reflowing into whatever narrow column the panels leave. */}
+                        {/* Outer box reserves the SCALED footprint so `mx-auto` centres the
+                            real thing; the inner artboard keeps its natural width and is
+                            scaled from its top-LEFT corner. Scaling from the centre made a
+                            1024px box inside a narrower column hang off to the right. */}
                         <div
-                            className="ir-mx-auto ir-flex ir-items-start ir-justify-center ir-gap-5"
-                            style={{
-                                width: ARTBOARD_WIDTH,
-                                transform: `scale(${scale})`,
-                                transformOrigin: "top center",
-                                marginBottom: `calc((${scale} - 1) * 100%)`,
-                            }}
+                            className="ir-mx-auto"
+                            style={{ width: ARTBOARD_WIDTH * scale, height: artboardHeight * scale }}
                         >
+                            <div
+                                ref={artboardRef}
+                                className="ir-flex ir-items-start ir-justify-center ir-gap-5"
+                                style={{
+                                    width: ARTBOARD_WIDTH,
+                                    transform: `scale(${scale})`,
+                                    transformOrigin: "top left",
+                                }}
+                            >
                             {showNavPreview && navPos === "sidebar" && (
                                 <aside
                                     className="ir-sticky ir-top-0 ir-w-44 ir-shrink-0 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-sm"
@@ -1632,6 +1659,7 @@ export function EditorScreen(): ReactElement {
                                         </div>
                                     )}
                                 </div>
+                            </div>
                             </div>
                         </div>
                     </div>

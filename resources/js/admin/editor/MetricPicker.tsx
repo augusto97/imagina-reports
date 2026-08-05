@@ -1,4 +1,4 @@
-import { BarChart3, Check, Hash, Search, Table2, Layers3 } from 'lucide-react';
+import { BarChart3, Check, Hash, Layers3, Search, Table2 } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button, Input } from '../components/ui';
@@ -21,7 +21,7 @@ const SOURCE_LABELS: Record<string, string> = {
     betteruptime: 'Disponibilidad',
     site_agent: 'Agente del sitio',
     database: 'Base de datos',
-    calc: 'Calculadas',
+    calc: 'Métricas calculadas',
     worklog: 'Trabajo realizado',
 };
 
@@ -39,13 +39,16 @@ const TYPE_META: Record<string, { label: string; icon: typeof Hash }> = {
 };
 
 /**
- * The data picker: one dialog that replaces the four stacked selects the inspector used to
- * show (source chip, source filter, search box, metric select — three of which only appeared
- * under certain conditions, so the panel changed shape depending on the data).
+ * The data picker.
  *
- * Everything is always in the same place: type to search, metrics grouped under the human
- * name of their source, each labelled with what it produces. "Modelable" is called out
- * because those are the only ones that can be filtered — the thing people could not work out.
+ * Choosing a source is the FIRST decision — "where does this number come from?" — so it is
+ * an explicit, always-visible column here rather than something implied by group headings.
+ * (The first version of this dialog only grouped by source and offered no way to narrow to
+ * one, which left people unable to tell which source they were even looking at.)
+ *
+ * Everything else is one list: type to search across all sources, each entry labelled with
+ * what it produces. "Modelable" is called out because those are the only ones that can be
+ * filtered — the thing nobody could work out from the old UI.
  */
 export function MetricPicker({
     catalog,
@@ -59,6 +62,8 @@ export function MetricPicker({
     onClose: () => void;
 }): ReactElement {
     const [query, setQuery] = useState('');
+    // Start on the bound metric's source, so reopening lands where you left off.
+    const [source, setSource] = useState<string>(value?.source ?? '');
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -71,9 +76,21 @@ export function MetricPicker({
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
-    const groups = useMemo(() => {
+    /** Every source in the catalog with how many metrics it offers. */
+    const sources = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const entry of catalog) {
+            counts.set(entry.source, (counts.get(entry.source) ?? 0) + 1);
+        }
+
+        return [...counts.entries()].sort((a, b) => sourceLabel(a[0]).localeCompare(sourceLabel(b[0])));
+    }, [catalog]);
+
+    const visible = useMemo(() => {
         const term = query.trim().toLowerCase();
-        const matches = catalog.filter((entry) => {
+
+        return catalog.filter((entry) => {
+            if (source !== '' && entry.source !== source) return false;
             if (term === '') return true;
 
             return (
@@ -82,24 +99,43 @@ export function MetricPicker({
                 sourceLabel(entry.source).toLowerCase().includes(term)
             );
         });
+    }, [catalog, query, source]);
 
+    /** Only group when showing several sources — inside one source it's just noise. */
+    const groups = useMemo(() => {
         const bySource = new Map<string, CatalogEntry[]>();
-        for (const entry of matches) {
+        for (const entry of visible) {
             const list = bySource.get(entry.source) ?? [];
             list.push(entry);
             bySource.set(entry.source, list);
         }
 
         return [...bySource.entries()].sort((a, b) => sourceLabel(a[0]).localeCompare(sourceLabel(b[0])));
-    }, [catalog, query]);
+    }, [visible]);
 
-    const total = groups.reduce((sum, [, entries]) => sum + entries.length, 0);
+    const sourceButton = (key: string, label: string, count: number): ReactElement => {
+        const active = source === key;
+
+        return (
+            <button
+                key={key === '' ? '__all' : key}
+                type="button"
+                onClick={() => setSource(key)}
+                className={`ir-flex ir-w-full ir-shrink-0 ir-items-center ir-justify-between ir-gap-2 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-transition ${
+                    active ? 'ir-bg-primary/10 ir-font-medium ir-text-primary' : 'ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground'
+                }`}
+            >
+                <span className="ir-truncate">{label}</span>
+                <span className="ir-shrink-0 ir-tabular-nums ir-text-[10px] ir-opacity-70">{count}</span>
+            </button>
+        );
+    };
 
     return (
         <div className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-items-start ir-justify-center ir-bg-black/40 ir-p-4 ir-pt-[8vh]">
             <button type="button" aria-label="Cerrar" onClick={onClose} className="ir-fixed ir-inset-0 ir-cursor-default" />
 
-            <div className="ir-relative ir-z-10 ir-flex ir-max-h-[70vh] ir-w-full ir-max-w-xl ir-flex-col ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-lg">
+            <div className="ir-relative ir-z-10 ir-flex ir-max-h-[72vh] ir-w-full ir-max-w-2xl ir-flex-col ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-lg">
                 <div className="ir-flex ir-items-center ir-gap-2 ir-border-b ir-px-3 ir-py-2.5">
                     <Search className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
                     <Input
@@ -109,58 +145,73 @@ export function MetricPicker({
                         placeholder="Busca un dato: visitas, inversión, campañas…"
                         className="ir-h-8 ir-border-0 ir-bg-transparent ir-px-0 ir-shadow-none focus:ir-ring-0"
                     />
-                    <span className="ir-shrink-0 ir-text-[11px] ir-text-muted-foreground">{total}</span>
                 </div>
 
-                <div className="ir-min-h-0 ir-flex-1 ir-overflow-y-auto ir-p-2">
-                    {total === 0 ? (
-                        <div className="ir-px-3 ir-py-10 ir-text-center">
-                            <p className="ir-text-sm ir-text-muted-foreground">
-                                {catalog.length === 0
-                                    ? 'Este sitio aún no tiene datos. Conecta una fuente y sincroniza un periodo.'
-                                    : 'Ningún dato coincide con la búsqueda.'}
-                            </p>
+                <div className="ir-flex ir-min-h-0 ir-flex-1 ir-flex-col sm:ir-flex-row">
+                    {/* Source column — the first decision, always on screen. Becomes a
+                        horizontal strip on narrow viewports rather than disappearing. */}
+                    <div className="ir-flex ir-shrink-0 ir-gap-1 ir-overflow-x-auto ir-border-b ir-p-2 sm:ir-w-48 sm:ir-flex-col sm:ir-overflow-y-auto sm:ir-border-b-0 sm:ir-border-r">
+                        <p className="ir-hidden ir-px-2 ir-pb-1 ir-text-[10px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground/70 sm:ir-block">
+                            Fuente
+                        </p>
+                        <div className="ir-flex ir-gap-1 sm:ir-w-full sm:ir-flex-col">
+                            {sourceButton('', 'Todas las fuentes', catalog.length)}
+                            {sources.map(([key, count]) => sourceButton(key, sourceLabel(key), count))}
                         </div>
-                    ) : (
-                        groups.map(([source, entries]) => (
-                            <div key={source} className="ir-mb-2 last:ir-mb-0">
-                                <p className="ir-px-2 ir-py-1 ir-text-[10px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground/70">
-                                    {sourceLabel(source)}
-                                </p>
-                                {entries.map((entry) => {
-                                    const meta = TYPE_META[entry.type] ?? TYPE_META.scalar;
-                                    const TypeIcon = meta?.icon ?? Hash;
-                                    const selected = value?.source === entry.source && value.metric === entry.metric;
+                    </div>
 
-                                    return (
-                                        <button
-                                            key={entry.key}
-                                            type="button"
-                                            onClick={() => {
-                                                onPick(entry);
-                                                onClose();
-                                            }}
-                                            className={`ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-md ir-px-2 ir-py-2 ir-text-left ir-transition ${
-                                                selected ? 'ir-bg-primary/10' : 'hover:ir-bg-muted'
-                                            }`}
-                                        >
-                                            <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
-                                                <TypeIcon className="ir-size-3.5" />
-                                            </span>
-                                            <span className="ir-min-w-0 ir-flex-1">
-                                                <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{entry.label}</span>
-                                                <span className="ir-block ir-truncate ir-text-[11px] ir-text-muted-foreground">
-                                                    {meta?.label}
-                                                    {entry.type === 'dataset' && ' · se puede filtrar y desglosar'}
-                                                </span>
-                                            </span>
-                                            {selected && <Check className="ir-size-4 ir-shrink-0 ir-text-primary" />}
-                                        </button>
-                                    );
-                                })}
+                    <div className="ir-min-h-0 ir-flex-1 ir-overflow-y-auto ir-p-2">
+                        {visible.length === 0 ? (
+                            <div className="ir-px-3 ir-py-10 ir-text-center">
+                                <p className="ir-text-sm ir-text-muted-foreground">
+                                    {catalog.length === 0
+                                        ? 'Este sitio aún no tiene datos. Conecta una fuente y sincroniza un periodo.'
+                                        : 'Ningún dato coincide. Prueba con «Todas las fuentes».'}
+                                </p>
                             </div>
-                        ))
-                    )}
+                        ) : (
+                            groups.map(([groupSource, entries]) => (
+                                <div key={groupSource} className="ir-mb-2 last:ir-mb-0">
+                                    {source === '' && (
+                                        <p className="ir-px-2 ir-py-1 ir-text-[10px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground/70">
+                                            {sourceLabel(groupSource)}
+                                        </p>
+                                    )}
+                                    {entries.map((entry) => {
+                                        const meta = TYPE_META[entry.type] ?? TYPE_META.scalar;
+                                        const TypeIcon = meta?.icon ?? Hash;
+                                        const selected = value?.source === entry.source && value.metric === entry.metric;
+
+                                        return (
+                                            <button
+                                                key={entry.key}
+                                                type="button"
+                                                onClick={() => {
+                                                    onPick(entry);
+                                                    onClose();
+                                                }}
+                                                className={`ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-md ir-px-2 ir-py-2 ir-text-left ir-transition ${
+                                                    selected ? 'ir-bg-primary/10' : 'hover:ir-bg-muted'
+                                                }`}
+                                            >
+                                                <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
+                                                    <TypeIcon className="ir-size-3.5" />
+                                                </span>
+                                                <span className="ir-min-w-0 ir-flex-1">
+                                                    <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{entry.label}</span>
+                                                    <span className="ir-block ir-truncate ir-text-[11px] ir-text-muted-foreground">
+                                                        {sourceLabel(entry.source)} · {meta?.label}
+                                                        {entry.type === 'dataset' && ' · se puede filtrar'}
+                                                    </span>
+                                                </span>
+                                                {selected && <Check className="ir-size-4 ir-shrink-0 ir-text-primary" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
 
                 <div className="ir-flex ir-items-center ir-justify-between ir-gap-3 ir-border-t ir-px-3 ir-py-2">
