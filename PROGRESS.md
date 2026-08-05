@@ -7,6 +7,27 @@
 ---
 
 ## Where I left off (read me first)
+**🛡️ PANEL DE PLATAFORMA: MISMA APP, DIRECCIONES REALES (2026-08-05):** el owner reportó tres cosas juntas — la interfaz del superadmin «no
+se siente premium, se ve muy pobre», las pestañas no cambian la URL, y al salir de una agencia impersonada la URL se queda con la de la agencia.
+**Diagnóstico:** las tres tenían la misma raíz estructural. El panel era una **página suelta** (top bar mínima + `max-w-6xl` + fila de píldoras)
+mientras la app de agencia tiene sidebar, bloque de marca, estados activos y footer. Por eso «parecía otra app»: sus secciones eran un *widget
+dentro de una página*, no la *navegación de una app*. Y al no tener ruta propia, no había nada que sobrescribiera el hash que dejaba la agencia.
+**Cambios:**
+- **`PlatformShell` = shell completo**: sidebar (Resumen · Agencias · Planes · Facturación · Integraciones · Sistema) con los mismos tokens y
+  estados activos que la agencia, bloque de marca con insignia «Plataforma» (escudo, fondo `foreground`), drawer móvil, footer con email +
+  cerrar sesión. La `PlatformScreen` ya no dibuja pestañas: recibe `tab`/`onTab` y **solo** renderiza contenido.
+- **Rutas `#/platform/<tab>`** (`platformTabFromHash` / `platformHash` en `store.ts`), namespace separado del de agencia a propósito: ningún
+  parser reclama la dirección del otro, así que **la shell que monta corrige el hash** — que es exactamente lo que arregla el bug de la URL
+  pegada tras la impersonación. Cubierto por `store.test.ts` (5 casos).
+- **`useHashRoute`** (`hooks/useHashRoute.ts`), usado por las dos shells: escribe con `pushState` (antes era `replaceState`, por eso **el botón
+  Atrás nunca recorría las secciones** — se salía de la app) salvo en el primer sync de cada montaje, que usa `replaceState` para corregir una
+  dirección heredada sin inventar historial; y lee de vuelta con `hashchange` **y** `popstate` (un `pushState` entre dos hashes solo dispara el
+  segundo).
+- **«Entrar» en una agencia resetea la vista a `clients`**, si no entrabas a la agencia B en la pantalla en la que dejaste la A.
+- **`SectionHeader`** común a las 6 pestañas (icono + título + descripción + slot de acción primaria): antes cada pestaña abría directa en sus
+  widgets bajo un único «Plataforma» genérico, sin nada que dijera dónde estabas.
+**⚠️ Igual que el rediseño móvil: verificado con typecheck/ESLint/vitest/build, NO en un navegador real** (sin dependencias PHP no hay backend).
+
 **📱 EDITOR REPENSADO PARA MÓVIL (2026-08-05):** el owner mandó captura del editor en un teléfono: **7 filas de cromo** (barra superior
 envuelta en 5 + navegador de páginas en 2) antes de ver un solo bloque, y el lienzo al ~34% ilegible.
 **Diagnóstico:** la barra era `flex-wrap` con controles de tamaño escritorio; en 390px cada uno caía a su propia fila. Además los chips de

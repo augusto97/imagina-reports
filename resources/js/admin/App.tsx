@@ -1,6 +1,11 @@
 import {
+    Building2,
     Clock,
+    CreditCard,
     DownloadCloud,
+    Gauge,
+    LayoutGrid,
+    Plug,
     FileBarChart,
     LayoutDashboard,
     LayoutTemplate,
@@ -12,6 +17,7 @@ import {
     PanelLeftOpen,
     PencilRuler,
     Settings,
+    ShieldCheck,
     TrendingUp,
     UserCog,
     Users,
@@ -38,7 +44,16 @@ import { TrendsScreen } from "./screens/TrendsScreen";
 import { UpsellScreen } from "./screens/UpsellScreen";
 import { WorkLogsScreen } from "./screens/WorkLogsScreen";
 import { WorkspaceScreen } from "./screens/WorkspaceScreen";
-import { type AdminView, useAdminUi, viewFromHash } from "./store";
+import { useHashRoute } from "./hooks/useHashRoute";
+import {
+    type AdminView,
+    type PlatformTab,
+    platformHash,
+    platformTabFromHash,
+    useAdminUi,
+    viewFromHash,
+    viewHash,
+} from "./store";
 
 const NAV: { view: AdminView; label: string; icon: typeof Users; privileged?: boolean }[] = [
     { view: "clients", label: "Clientes", icon: Users },
@@ -123,30 +138,151 @@ export function App(): ReactElement {
     return <AuthenticatedApp email={user.email} version={user.app_version} impersonating={user.impersonating ?? null} role={user.role} />;
 }
 
-/** Minimal shell for the platform super-admin panel (no agency nav). */
+const PLATFORM_NAV: { tab: PlatformTab; label: string; icon: typeof Users }[] = [
+    { tab: "overview", label: "Resumen", icon: Gauge },
+    { tab: "agencies", label: "Agencias", icon: Building2 },
+    { tab: "plans", label: "Planes", icon: LayoutGrid },
+    { tab: "billing", label: "Facturación", icon: CreditCard },
+    { tab: "integrations", label: "Integraciones", icon: Plug },
+    { tab: "system", label: "Sistema", icon: DownloadCloud },
+];
+
+/**
+ * The super-admin panel, in the same shell as the rest of the product.
+ *
+ * It used to be a bare top bar over a centred page with a row of pill tabs — no sidebar,
+ * no chrome, nothing the agency app has. That's why it read as a different, cheaper
+ * application: the sections were a widget inside a page rather than the navigation of an
+ * app. Same sidebar, same brand block, same footer, same active states; a "Plataforma"
+ * badge is what says you're on the other side of the product.
+ */
 function PlatformShell({ email }: { email: string }): ReactElement {
     const logout = useLogout();
+    const [tab, setTab] = useState<PlatformTab>(() => platformTabFromHash() ?? "overview");
+    const [mobileOpen, setMobileOpen] = useState(false);
+
+    // Its own `#/platform/…` addresses: linkable, reloadable, walkable with Back — and,
+    // just as importantly, they overwrite whatever hash an impersonated agency left behind.
+    useHashRoute(tab, platformHash, platformTabFromHash, setTab);
+
+    const go = (next: PlatformTab): void => {
+        setTab(next);
+        setMobileOpen(false);
+    };
 
     return (
-        <div className="ir-flex ir-min-h-screen ir-flex-col ir-bg-background ir-text-foreground">
-            <header className="ir-flex ir-items-center ir-justify-between ir-border-b ir-bg-card ir-px-5 ir-py-3">
-                <span className="ir-flex ir-items-center ir-gap-2.5">
-                    <span className="ir-flex ir-size-7 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary ir-text-primary-foreground">
-                        <LayoutDashboard className="ir-size-4" />
-                    </span>
-                    <span className="ir-text-sm ir-font-semibold">Imagina Reports · Plataforma</span>
-                </span>
-                <div className="ir-flex ir-items-center ir-gap-3 ir-text-xs ir-text-muted-foreground">
-                    <span className="ir-hidden sm:ir-inline">{email}</span>
-                    <button type="button" onClick={() => logout.mutate()} className="ir-inline-flex ir-items-center ir-gap-1.5 hover:ir-text-danger">
-                        <LogOut className="ir-size-4" />
-                        Cerrar sesión
-                    </button>
+        <div className="ir-flex ir-h-screen ir-flex-col ir-overflow-hidden ir-bg-background ir-text-foreground">
+            <div className="ir-flex ir-min-h-0 ir-flex-1 ir-overflow-hidden">
+                {mobileOpen && (
+                    <button
+                        type="button"
+                        aria-label="Cerrar menú"
+                        onClick={() => setMobileOpen(false)}
+                        className="ir-fixed ir-inset-0 ir-z-30 ir-bg-black/40 lg:ir-hidden"
+                    />
+                )}
+
+                <aside
+                    className={cn(
+                        "ir-z-40 ir-flex ir-w-64 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-px-3 ir-py-4 ir-shadow-xl ir-transition-transform ir-duration-200",
+                        "ir-fixed ir-inset-y-0 ir-left-0",
+                        mobileOpen ? "ir-translate-x-0" : "-ir-translate-x-full",
+                        "lg:ir-static lg:ir-w-56 lg:ir-translate-x-0 lg:ir-shrink-0 lg:ir-shadow-none",
+                    )}
+                >
+                    <div className="ir-mb-5 ir-flex ir-items-center ir-gap-2.5 ir-px-2">
+                        <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-foreground ir-text-background ir-shadow-ir-sm">
+                            <ShieldCheck className="ir-size-4" />
+                        </span>
+                        <span className="ir-min-w-0">
+                            <span className="ir-block ir-truncate ir-text-sm ir-font-semibold ir-tracking-tight">
+                                Imagina Reports
+                            </span>
+                            <span className="ir-block ir-text-[11px] ir-font-medium ir-text-muted-foreground">
+                                Plataforma
+                            </span>
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setMobileOpen(false)}
+                            title="Cerrar menú"
+                            className="ir-ml-auto ir-text-muted-foreground hover:ir-text-foreground lg:ir-hidden"
+                        >
+                            <X className="ir-size-5" />
+                        </button>
+                    </div>
+
+                    <nav className="ir-flex ir-flex-col ir-gap-0.5">
+                        {PLATFORM_NAV.map((item) => {
+                            const active = tab === item.tab;
+
+                            return (
+                                <button
+                                    key={item.tab}
+                                    type="button"
+                                    onClick={() => go(item.tab)}
+                                    className={cn(
+                                        "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-md ir-px-2.5 ir-py-2 ir-text-left ir-text-sm ir-transition-colors",
+                                        active
+                                            ? "ir-bg-accent/10 ir-font-medium ir-text-accent"
+                                            : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
+                                    )}
+                                >
+                                    <item.icon
+                                        className={cn(
+                                            "ir-size-4 ir-shrink-0",
+                                            active
+                                                ? "ir-text-accent"
+                                                : "ir-text-muted-foreground group-hover:ir-text-foreground",
+                                        )}
+                                    />
+                                    {item.label}
+                                </button>
+                            );
+                        })}
+                    </nav>
+
+                    <div className="ir-mt-auto ir-flex ir-flex-col ir-gap-1 ir-border-t ir-pt-3 ir-text-xs ir-text-muted-foreground">
+                        <p className="ir-mb-0.5 ir-truncate ir-px-1" title={email}>
+                            {email}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => logout.mutate()}
+                            disabled={logout.isPending}
+                            className="ir-flex ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-left ir-text-sm ir-text-muted-foreground ir-transition-colors hover:ir-bg-danger/10 hover:ir-text-danger"
+                        >
+                            <LogOut className="ir-size-4 ir-shrink-0" />
+                            Cerrar sesión
+                        </button>
+                    </div>
+                </aside>
+
+                <div className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-overflow-hidden">
+                    <header className="ir-flex ir-items-center ir-gap-3 ir-border-b ir-bg-card ir-px-4 ir-py-2.5 lg:ir-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setMobileOpen(true)}
+                            title="Abrir menú"
+                            className="ir-text-muted-foreground hover:ir-text-foreground"
+                        >
+                            <Menu className="ir-size-5" />
+                        </button>
+                        <span className="ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-foreground ir-text-background">
+                            <ShieldCheck className="ir-size-3.5" />
+                        </span>
+                        <span className="ir-truncate ir-text-sm ir-font-semibold ir-tracking-tight">
+                            Plataforma
+                        </span>
+                    </header>
+
+                    <main className="ir-min-w-0 ir-flex-1 ir-overflow-y-auto">
+                        <div className="ir-mx-auto ir-max-w-6xl ir-p-4 sm:ir-p-6 lg:ir-p-8">
+                            <PlatformScreen tab={tab} onTab={setTab} />
+                        </div>
+                    </main>
                 </div>
-            </header>
-            <main className="ir-mx-auto ir-w-full ir-max-w-6xl ir-flex-1 ir-p-4 sm:ir-p-6 lg:ir-p-8">
-                <PlatformScreen />
-            </main>
+            </div>
         </div>
     );
 }
@@ -206,28 +342,8 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
         }
     }, [view]);
 
-    // Keep the URL hash in sync with the active section so reloading restores it
-    // (and the section is linkable). replaceState avoids spamming history; the hash
-    // is read back into the store on the next load.
-    useEffect(() => {
-        const target = `#/${view}`;
-        if (window.location.hash !== target) {
-            window.history.replaceState(null, '', target);
-        }
-    }, [view]);
-
-    // Honor manual hash edits and browser back/forward.
-    useEffect(() => {
-        const onHashChange = (): void => {
-            const next = viewFromHash();
-            if (next !== null) {
-                setView(next);
-            }
-        };
-        window.addEventListener('hashchange', onHashChange);
-
-        return () => window.removeEventListener('hashchange', onHashChange);
-    }, [setView]);
+    // Every section is a real address: linkable, reloadable, and walkable with Back.
+    useHashRoute(view, viewHash, viewFromHash, setView);
 
     // Navigating from the drawer also closes it (mobile only).
     const go = (next: AdminView): void => {

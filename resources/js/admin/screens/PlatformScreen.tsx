@@ -49,6 +49,7 @@ import {
     useUpdatePlatformUser,
 } from '../api';
 import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
+import { type PlatformTab, useAdminUi } from '../store';
 import type { Plan, PlatformAgency, PlatformAgencyUser } from '../types';
 
 // Currencies MercadoPago (local) + PayPal (USD) commonly support in the region.
@@ -188,20 +189,27 @@ function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactE
     const { data, isLoading } = usePlatformOverview();
 
     if (isLoading || data === undefined) {
-        return <p className="ir-text-sm ir-text-muted-foreground">Cargando el estado de la plataforma…</p>;
+        return (
+            <>
+                <SectionHeader tab="overview" />
+                <p className="ir-text-sm ir-text-muted-foreground">Cargando el estado de la plataforma…</p>
+            </>
+        );
     }
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
+            <SectionHeader
+                tab="overview"
+                action={
+                    <Button variant="ghost" onClick={onOpenAgencies}>
+                        <Building2 className="ir-size-4" />
+                        Gestionar agencias
+                    </Button>
+                }
+            />
             <div className="ir-flex ir-flex-col ir-gap-2.5">
-                <GroupHeading
-                    title="Agencias y personas"
-                    action={
-                        <Button variant="ghost" size="sm" onClick={onOpenAgencies}>
-                            Gestionar agencias
-                        </Button>
-                    }
-                />
+                <GroupHeading title="Agencias y personas" />
                 <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
                     <Stat icon={Building2} label="Agencias" value={numberFmt.format(data.agencies.total)} hint={`${data.agencies.active} activas · ${data.agencies.suspended} suspendidas`} />
                     <Stat icon={Activity} label="Nuevas (30 días)" value={numberFmt.format(data.agencies.new_this_month)} hint="Altas recientes" />
@@ -457,6 +465,7 @@ function AgencyDetailModal({ agencyId, plans, onClose }: { agencyId: number; pla
     const update = useUpdatePlatformAgency();
     const remove = useDeletePlatformAgency();
     const impersonate = useImpersonateAgency();
+    const setView = useAdminUi((state) => state.setView);
     const [addingUser, setAddingUser] = useState(false);
 
     const suspended = agency?.status === 'suspended';
@@ -468,7 +477,15 @@ function AgencyDetailModal({ agencyId, plans, onClose }: { agencyId: number; pla
                 description={agency !== undefined ? `/${agency.slug} · alta ${agency.created_at?.slice(0, 10) ?? '—'}` : undefined}
                 actions={
                     <>
-                        <Button variant="accent" size="sm" disabled={impersonate.isPending} onClick={() => impersonate.mutate(agencyId)}>
+                        <Button
+                            variant="accent"
+                            size="sm"
+                            disabled={impersonate.isPending}
+                            // Always land on the same section of the agency. The store keeps
+                            // whatever view was last open, so without this you'd enter agency
+                            // B on whatever screen you happened to leave agency A.
+                            onClick={() => impersonate.mutate(agencyId, { onSuccess: () => setView('clients') })}
+                        >
                             <LogIn className="ir-size-3.5" />
                             Entrar
                         </Button>
@@ -585,6 +602,15 @@ function AgenciesTab(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
+            <SectionHeader
+                tab="agencies"
+                action={
+                    <Button onClick={() => setCreating(true)}>
+                        <Plus className="ir-size-4" />
+                        Nueva agencia
+                    </Button>
+                }
+            />
             <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
                 <div className="ir-relative ir-min-w-[14rem] ir-flex-1">
                     <Search className="ir-pointer-events-none ir-absolute ir-left-2.5 ir-top-1/2 ir-size-4 -ir-translate-y-1/2 ir-text-muted-foreground" />
@@ -595,10 +621,6 @@ function AgenciesTab(): ReactElement {
                     <option value="active">Activas</option>
                     <option value="suspended">Suspendidas</option>
                 </Select>
-                <Button onClick={() => setCreating(true)}>
-                    <Plus className="ir-size-4" />
-                    Nueva agencia
-                </Button>
             </div>
 
             {/* Plain surface rather than <Card>: the table owns its own edge-to-edge padding. */}
@@ -768,13 +790,15 @@ function PlansTab(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
-            <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
-                <p className="ir-text-sm ir-text-muted-foreground">Los planes definen los límites y las funciones que cada agencia puede usar.</p>
-                <Button onClick={() => setCreating(true)}>
-                    <Plus className="ir-size-4" />
-                    Nuevo plan
-                </Button>
-            </div>
+            <SectionHeader
+                tab="plans"
+                action={
+                    <Button onClick={() => setCreating(true)}>
+                        <Plus className="ir-size-4" />
+                        Nuevo plan
+                    </Button>
+                }
+            />
             {isLoading ? (
                 <p className="ir-text-sm ir-text-muted-foreground">Cargando…</p>
             ) : plans.length === 0 ? (
@@ -851,6 +875,7 @@ function BillingTab(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
+            <SectionHeader tab="billing" />
             <Card
                 title="MercadoPago"
                 description="Cobros recurrentes en la moneda local de cada plan. Pega tu Access Token (se guarda cifrado)."
@@ -958,6 +983,7 @@ function IntegrationsTab(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-4">
+            <SectionHeader tab="integrations" />
             <p className="ir-text-sm ir-text-muted-foreground">
                 Credenciales de las apps OAuth para la conexión de un clic. Se guardan cifradas y tienen prioridad sobre las
                 variables del <code className="ir-rounded ir-bg-muted ir-px-1">.env</code>. El botón «Conectar con…» aparece en cuanto quedan «listo».
@@ -1136,47 +1162,86 @@ function MailSettingsCard(): ReactElement {
 
 /* ---------------------------------- Screen --------------------------------- */
 
-type Tab = 'overview' | 'agencies' | 'plans' | 'billing' | 'integrations' | 'system';
+/**
+ * What each section is for, in one line.
+ *
+ * Every tab used to open straight into its widgets under a single generic "Plataforma"
+ * heading, so nothing on screen said where you were or what the section was for. One
+ * header component used by all six is most of what makes them read as one product.
+ */
+const SECTIONS: Record<PlatformTab, { title: string; description: string; icon: typeof Building2 }> = {
+    overview: {
+        title: 'Resumen',
+        description: 'El estado de toda la instalación de un vistazo: agencias, uso y facturación.',
+        icon: Gauge,
+    },
+    agencies: {
+        title: 'Agencias',
+        description: 'Alta, plan, suspensión y borrado de cada agencia, y de las personas que la usan.',
+        icon: Building2,
+    },
+    plans: {
+        title: 'Planes',
+        description: 'Los límites y las funciones que cada agencia puede usar según lo que paga.',
+        icon: LayoutGrid,
+    },
+    billing: {
+        title: 'Facturación',
+        description: 'Pasarelas de cobro de la plataforma. Las credenciales se guardan cifradas.',
+        icon: CreditCard,
+    },
+    integrations: {
+        title: 'Integraciones',
+        description: 'Credenciales de las APIs que comparten todas las agencias de esta instalación.',
+        icon: Plug,
+    },
+    system: {
+        title: 'Sistema',
+        description: 'Versión instalada, actualizaciones y vuelta atrás.',
+        icon: DownloadCloud,
+    },
+};
 
-const TABS: { key: Tab; label: string; icon: typeof Building2 }[] = [
-    { key: 'overview', label: 'Resumen', icon: Gauge },
-    { key: 'agencies', label: 'Agencias', icon: Building2 },
-    { key: 'plans', label: 'Planes', icon: LayoutGrid },
-    { key: 'billing', label: 'Facturación', icon: CreditCard },
-    { key: 'integrations', label: 'Integraciones', icon: Plug },
-    { key: 'system', label: 'Sistema', icon: DownloadCloud },
-];
-
-export function PlatformScreen(): ReactElement {
-    const [tab, setTab] = useState<Tab>('overview');
+function SectionHeader({ tab, action }: { tab: PlatformTab; action?: ReactNode }): ReactElement {
+    const section = SECTIONS[tab];
+    const Icon = section.icon;
 
     return (
-        <div className="ir-flex ir-flex-col ir-gap-5">
-            <div>
-                <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Plataforma</h1>
-                <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">
-                    Control total de la instalación: agencias y sus usuarios, planes, cobros, integraciones y actualizaciones.
-                </p>
+        <div className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-pb-4">
+            <div className="ir-flex ir-min-w-0 ir-items-start ir-gap-3">
+                <span className="ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-muted ir-text-muted-foreground">
+                    <Icon className="ir-size-4" />
+                </span>
+                <div className="ir-min-w-0">
+                    <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">{section.title}</h1>
+                    <p className="ir-mt-0.5 ir-text-sm ir-text-muted-foreground">{section.description}</p>
+                </div>
             </div>
-            <div className="ir-flex ir-flex-wrap ir-gap-1 ir-self-start ir-rounded-lg ir-bg-muted ir-p-1">
-                {TABS.map(({ key, label, icon: Icon }) => (
-                    <button
-                        key={key}
-                        type="button"
-                        onClick={() => setTab(key)}
-                        className={`ir-inline-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-px-3 ir-py-1.5 ir-text-sm ir-font-medium ir-transition-colors ${tab === key ? 'ir-bg-card ir-text-foreground ir-shadow-ir-xs' : 'ir-text-muted-foreground hover:ir-text-foreground'}`}
-                    >
-                        <Icon className="ir-size-4" />
-                        {label}
-                    </button>
-                ))}
-            </div>
-            {tab === 'overview' && <OverviewTab onOpenAgencies={() => setTab('agencies')} />}
+            {action !== undefined && <div className="ir-shrink-0">{action}</div>}
+        </div>
+    );
+}
+
+export function PlatformScreen({
+    tab,
+    onTab,
+}: {
+    tab: PlatformTab;
+    onTab: (tab: PlatformTab) => void;
+}): ReactElement {
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-6">
+            {tab === 'overview' && <OverviewTab onOpenAgencies={() => onTab('agencies')} />}
             {tab === 'agencies' && <AgenciesTab />}
             {tab === 'plans' && <PlansTab />}
             {tab === 'billing' && <BillingTab />}
             {tab === 'integrations' && <IntegrationsTab />}
-            {tab === 'system' && <SystemUpdatePanel />}
+            {tab === 'system' && (
+                <>
+                    <SectionHeader tab="system" />
+                    <SystemUpdatePanel />
+                </>
+            )}
         </div>
     );
 }

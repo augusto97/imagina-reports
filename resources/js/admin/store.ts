@@ -11,6 +11,37 @@ export function viewFromHash(): AdminView | null {
     return VIEWS.includes(raw) ? raw : null;
 }
 
+export function viewHash(view: AdminView): string {
+    return `#/${view}`;
+}
+
+/* ----------------------- Platform (super-admin) routes ---------------------- */
+
+export type PlatformTab = 'overview' | 'agencies' | 'plans' | 'billing' | 'integrations' | 'system';
+
+const PLATFORM_TABS: PlatformTab[] = ['overview', 'agencies', 'plans', 'billing', 'integrations', 'system'];
+
+/**
+ * The platform panel lives under its own `#/platform/…` namespace.
+ *
+ * It has one deliberately: its sections used to have no URL at all, so they were neither
+ * linkable nor reloadable — and, worse, leaving an impersonated agency left that agency's
+ * hash (`#/reports`) in the address bar while the super-admin panel was on screen.
+ */
+export function platformTabFromHash(): PlatformTab | null {
+    const raw = window.location.hash.replace(/^#\/?/, '').split('?')[0] ?? '';
+    if (!raw.startsWith('platform/')) {
+        return null;
+    }
+    const tab = raw.slice('platform/'.length) as PlatformTab;
+
+    return PLATFORM_TABS.includes(tab) ? tab : null;
+}
+
+export function platformHash(tab: PlatformTab): string {
+    return `#/platform/${tab}`;
+}
+
 function persistedId(key: string): number | null {
     const raw = window.localStorage.getItem(key);
 
