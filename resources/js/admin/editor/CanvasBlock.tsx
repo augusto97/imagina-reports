@@ -65,6 +65,9 @@ export function CanvasBlock({
     return (
         <div
             onClick={onSelect}
+            // Marks this subtree as "a block". The canvas uses it to tell a click on a block
+            // from a click on empty space (which deselects).
+            data-block-tile=""
             className={cn(
                 'ir-group ir-relative ir-h-full ir-cursor-pointer ir-overflow-hidden ir-transition',
                 radius,

@@ -14,7 +14,6 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     PanelRightClose,
-    PanelRightOpen,
     Palette,
     Plus,
     Redo2,
@@ -46,6 +45,14 @@ import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
 
 /** The artboard's natural width in px (matches the report's intended layout). */
 const ARTBOARD_WIDTH = 1024;
+
+/**
+ * Horizontal space the workspace consumes around the artboard: its `p-6` padding (48) plus
+ * the scrollbar gutter it always reserves (`scrollbar-gutter: stable`). A fixed reserve —
+ * generous enough for any platform's scrollbar — is deliberate: deriving it from a live
+ * measurement is what let the fit scale feed back into itself (see the fit-scale effect).
+ */
+const WORKSPACE_INSET = 48 + 20;
 
 /** Left-panel sections, in panel order — also what the collapsed icon rail offers. */
 const LEFT_SECTIONS: { key: "blocks" | "layers"; title: string; icon: LucideIcon }[] = [
@@ -205,7 +212,7 @@ export function EditorScreen(): ReactElement {
     const [zoom, setZoom] = useState<number | "fit">("fit");
     const [fitScale, setFitScale] = useState(1);
     const [artboardHeight, setArtboardHeight] = useState(0);
-    const workspaceRef = useRef<HTMLDivElement>(null);
+    const canvasColumnRef = useRef<HTMLDivElement>(null);
     const artboardRef = useRef<HTMLDivElement>(null);
     // Named pages (§11 — Looker/Power-BI parity): the label of each page in the nav menu,
     // indexed by page. Empty string falls back to "Página N". Editing index for inline rename.
@@ -222,6 +229,8 @@ export function EditorScreen(): ReactElement {
     // Starts closed: nothing is selected yet, so the inspector would only be showing
     // "select a block" while eating 288px of canvas.
     const [rightOpen, setRightOpen] = useState(false);
+    // Which right-panel tab is showing: the selected block's settings, or the report's own.
+    const [rightTab, setRightTab] = useState<"block" | "report">("report");
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
     // Undo/redo history — snapshots of the blocks array.
@@ -759,23 +768,39 @@ export function EditorScreen(): ReactElement {
 
     // Keep the fit scale in step with the space actually available: toggling a panel or
     // resizing the window changes it, and the artboard must follow without a reload.
+    //
+    // Measured on the canvas COLUMN, never on the scrolling workspace inside it. Measuring
+    // the scroller closed a feedback loop: a smaller scale made the artboard shorter, the
+    // vertical scrollbar disappeared, `clientWidth` grew by its width, the scale grew, the
+    // scrollbar came back — at the handful of viewport widths that sit right on that
+    // threshold it never settled, and the canvas visibly vibrated. The column's width can't
+    // be changed by anything the scale does, so the loop can't close.
     useEffect(() => {
-        const node = workspaceRef.current;
+        const node = canvasColumnRef.current;
         if (node === null) {
             return;
         }
 
+        let frame = 0;
         const measure = (): void => {
-            // The artboard's natural width, minus the workspace padding.
-            const available = node.clientWidth - 48;
-            setFitScale(Math.min(1, Math.max(0.35, available / ARTBOARD_WIDTH)));
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                const available = node.clientWidth - WORKSPACE_INSET;
+                // Quantised to whole percent so sub-pixel width churn can't restyle anything.
+                const next =
+                    Math.round(Math.min(1, Math.max(0.35, available / ARTBOARD_WIDTH)) * 100) / 100;
+                setFitScale((current) => (current === next ? current : next));
+            });
         };
 
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(node);
 
-        return () => observer.disconnect();
+        return () => {
+            cancelAnimationFrame(frame);
+            observer.disconnect();
+        };
     }, []);
 
     // The artboard's natural height, so the scaled wrapper can reserve exactly the space
@@ -786,23 +811,73 @@ export function EditorScreen(): ReactElement {
             return;
         }
 
-        const observer = new ResizeObserver(() => setArtboardHeight(node.offsetHeight));
-        observer.observe(node);
-        setArtboardHeight(node.offsetHeight);
+        let frame = 0;
+        const measure = (): void => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                const height = node.offsetHeight;
+                // The wrapper's reserved height derives from this, so sub-pixel jitter here
+                // would keep re-laying out the workspace for no visible gain.
+                setArtboardHeight((current) =>
+                    Math.abs(current - height) < 1 ? current : height,
+                );
+            });
+        };
 
-        return () => observer.disconnect();
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(node);
+
+        return () => {
+            cancelAnimationFrame(frame);
+            observer.disconnect();
+        };
     }, [currentPage, blocks.length]);
 
     const scale = zoom === "fit" ? fitScale : zoom;
 
-    // The inspector follows the selection: it opens when you pick a block and closes when
-    // nothing is selected — including after switching page or section, which clears the
-    // selection. An inspector with nothing to inspect is just lost canvas width.
+    // The inspector follows the selection: it opens on the block's tab when you pick one,
+    // and closes when nothing is selected — including after switching page or section. An
+    // inspector with nothing to inspect is just lost canvas width; the report's own settings
+    // stay one click away in the toolbar (and on this panel's second tab).
     //
-    // Keyed on the selection alone, so closing it by hand while a block is selected sticks
-    // until you select a different one.
+    // Keyed on the selection alone, so opening the report tab by hand — or closing the panel
+    // while a block is selected — sticks until the selection changes.
     useEffect(() => {
-        setRightOpen(selectedId !== null);
+        if (selectedId !== null) {
+            setRightTab("block");
+            setRightOpen(true);
+
+            return;
+        }
+        setRightTab("report");
+        setRightOpen(false);
+    }, [selectedId]);
+
+    // Escape deselects, the same as clicking empty canvas — without stealing the key from a
+    // text field or the rich-text editor, which use it for their own dismissals.
+    useEffect(() => {
+        if (selectedId === null) {
+            return;
+        }
+
+        const onKey = (event: KeyboardEvent): void => {
+            if (event.key !== "Escape") {
+                return;
+            }
+            const target = event.target;
+            if (
+                target instanceof HTMLElement &&
+                (target.isContentEditable ||
+                    target.closest('input, textarea, [contenteditable="true"]') !== null)
+            ) {
+                return;
+            }
+            setSelectedId(null);
+        };
+        window.addEventListener("keydown", onKey);
+
+        return () => window.removeEventListener("keydown", onKey);
     }, [selectedId]);
 
     const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
@@ -985,11 +1060,21 @@ export function EditorScreen(): ReactElement {
                         {editingTemplateId !== null ? "Actualizar" : "Guardar"}
                     </Button>
 
-                    {selectedBlock === null && !rightOpen ? (
+                    {rightOpen ? (
+                        <ToolbarButton
+                            icon={<PanelRightClose className="ir-size-4" />}
+                            title="Ocultar panel"
+                            onClick={() => setRightOpen(false)}
+                            active
+                        />
+                    ) : (
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setRightOpen(true)}
+                            onClick={() => {
+                                setRightTab("report");
+                                setRightOpen(true);
+                            }}
                             title="Filtros, tema y navegación de todo el informe"
                         >
                             <SlidersHorizontal className="ir-size-4" />
@@ -1000,19 +1085,6 @@ export function EditorScreen(): ReactElement {
                                 </span>
                             )}
                         </Button>
-                    ) : (
-                        <ToolbarButton
-                            icon={
-                                rightOpen ? (
-                                    <PanelRightClose className="ir-size-4" />
-                                ) : (
-                                    <PanelRightOpen className="ir-size-4" />
-                                )
-                            }
-                            title={rightOpen ? "Ocultar panel" : "Mostrar panel"}
-                            onClick={() => setRightOpen((open) => !open)}
-                            active={rightOpen}
-                        />
                     )}
                 </div>
             </header>
@@ -1165,7 +1237,10 @@ export function EditorScreen(): ReactElement {
                 )}
 
                 {/* ---- Center: the WYSIWYG canvas (a centered artboard on a gray workspace) ---- */}
-                <div className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-bg-muted/40">
+                <div
+                    ref={canvasColumnRef}
+                    className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-bg-muted/40"
+                >
                     {/* Page navigator + preview-data status */}
                     <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-x-4 ir-gap-y-2 ir-border-b ir-bg-background/70 ir-px-4 ir-py-2">
                         {/* min-w-0 + scroll: with several pages the tabs used to overflow the
@@ -1364,7 +1439,29 @@ export function EditorScreen(): ReactElement {
                         The sidebar preview is a real column to the LEFT of the artboard (it
                         mirrors the viewer's fixed left rail) — laid out in flow so it never
                         overlaps the report. It stays put on scroll (sticky). */}
-                    <div ref={workspaceRef} className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6">
+                    {/* mousedown, not click: it fires before the grid starts a drag, and a
+                        click on empty canvas is the standard way out of a selection (there
+                        was no way to deselect at all, so the report's settings — which show
+                        when nothing is selected — were unreachable once you'd picked a block).
+                        `scrollbar-gutter: stable` keeps the scrollbar from changing the
+                        available width, the other half of the vibration fix. */}
+                    <div
+                        onMouseDown={(event) => {
+                            const target = event.target;
+                            if (
+                                target instanceof HTMLElement &&
+                                // `.react-grid-item` covers the grid's own resize handle,
+                                // which is a sibling of the tile rather than inside it —
+                                // resizing must not drop the selection.
+                                target.closest("[data-block-tile], .react-grid-item") !== null
+                            ) {
+                                return;
+                            }
+                            setSelectedId(null);
+                        }}
+                        className="ir-min-h-0 ir-flex-1 ir-overflow-auto ir-p-6"
+                        style={{ scrollbarGutter: "stable" }}
+                    >
                         {/* The artboard renders at its natural width and is SCALED to fit,
                             so the report keeps the proportions the client will see instead
                             of reflowing into whatever narrow column the panels leave. */}
@@ -1517,11 +1614,56 @@ export function EditorScreen(): ReactElement {
                     </div>
                 </div>
 
-                {/* ---- Right panel (collapsible): inspector for the selected block ---- */}
+                {/* ---- Right panel (collapsible): block settings · report settings ---- */}
                 {rightOpen && (
-                    <aside className="ir-absolute ir-inset-y-0 ir-right-0 ir-z-20 ir-w-72 ir-shrink-0 ir-overflow-y-auto ir-border-l ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
-                        <div className="ir-p-3">
-                            {selectedBlock !== null ? (
+                    <aside className="ir-absolute ir-inset-y-0 ir-right-0 ir-z-20 ir-flex ir-w-72 ir-shrink-0 ir-flex-col ir-border-l ir-bg-card ir-shadow-xl lg:ir-static lg:ir-z-auto lg:ir-shadow-none">
+                        {/* Two tabs, mirroring the left panel. Showing one OR the other purely
+                            by selection left no way to reach the report's settings while a
+                            block was selected. */}
+                        <div className="ir-flex ir-gap-1 ir-border-b ir-p-2">
+                            {(
+                                [
+                                    ["block", "Bloque", Shapes],
+                                    ["report", "Informe", SlidersHorizontal],
+                                ] as const
+                            ).map(([key, label, TabIcon]) => {
+                                const disabled = key === "block" && selectedBlock === null;
+
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        disabled={disabled}
+                                        onClick={() => setRightTab(key)}
+                                        title={
+                                            disabled
+                                                ? "Selecciona un bloque del lienzo"
+                                                : undefined
+                                        }
+                                        className={cn(
+                                            "ir-inline-flex ir-flex-1 ir-items-center ir-justify-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-xs ir-font-medium ir-transition-colors",
+                                            disabled
+                                                ? "ir-cursor-not-allowed ir-text-muted-foreground/40"
+                                                : rightTab === key
+                                                  ? "ir-bg-primary/10 ir-text-primary"
+                                                  : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
+                                        )}
+                                    >
+                                        <TabIcon className="ir-size-3.5" />
+                                        {label}
+                                        {key === "report" &&
+                                            inheritedFilters.length > 0 && (
+                                                <span className="ir-rounded-full ir-bg-primary/15 ir-px-1.5 ir-text-[10px] ir-font-medium ir-text-primary">
+                                                    {inheritedFilters.length}
+                                                </span>
+                                            )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="ir-min-h-0 ir-flex-1 ir-overflow-y-auto ir-p-3">
+                            {rightTab === "block" && selectedBlock !== null ? (
                                 <Inspector
                                     block={selectedBlock}
                                     catalog={fullCatalog}
@@ -1530,14 +1672,14 @@ export function EditorScreen(): ReactElement {
                                     onChange={updateBlock}
                                 />
                             ) : (
-                                /* Nothing selected → the document's own properties, the
-                                   Figma/Canva pattern. These used to be two accordions at
-                                   the bottom of the left column, where nobody found them. */
+                                /* The document's own properties, the Figma/Canva pattern.
+                                   These used to be two accordions at the bottom of the left
+                                   column, where nobody found them. */
                                 <div className="ir-flex ir-flex-col ir-gap-4">
                                     <div>
                                         <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">Ajustes del informe</h2>
                                         <p className="ir-mt-0.5 ir-text-[11px] ir-text-muted-foreground">
-                                            Se aplican a todo el informe. Selecciona un bloque para editarlo por separado.
+                                            Se aplican a todo el informe, en todas sus páginas.
                                         </p>
                                     </div>
 
