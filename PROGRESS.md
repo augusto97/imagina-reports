@@ -31,7 +31,26 @@ para un artboard de 1024 → el reporte se dibujaba al 45% y parecía roto. Ahor
 iconos Lucide, y las claves técnicas de dimensión se traducen en **los dos** caminos del código (antes solo en el de datasets).
 Tests: `tests/Feature/Api/DimensionValuesApiTest.php` (5 casos, incluye aislamiento por tenant). **CI verde** (run 30960217910, commit
 `016952f`). Un run previo falló por PHPStan: `$request->validate()` devuelve `mixed` — **misma trampa que ya mordió en los endpoints de
-plataforma**; la solución en este repo es siempre FormRequest + accesores tipados. **PENDIENTE:** release (v1.22.0).
+plataforma**; la solución en este repo es siempre FormRequest + accesores tipados. **Publicado como v1.22.0.**
+
+**🔁 CORRECCIONES SOBRE EL REDISEÑO, REPORTADAS AL PROBARLO (releases v1.22.1 y v1.22.2, commits `8e38b22` y `d114437`):**
+(a) **El selector no dejaba filtrar por fuente ni indicaba cuál estabas viendo.** Al sustituir los 4 controles por búsqueda + agrupación me
+pasé de simplificar: **elegir la fuente es la PRIMERA decisión**. Ahora `MetricPicker` tiene una **columna de fuentes siempre visible**
+(«Todas las fuentes» + cada una con su recuento), que se convierte en tira horizontal en móvil; arranca en la fuente del dato ya vinculado, y
+cada entrada nombra su fuente. Los títulos de grupo solo salen en «Todas» (dentro de una fuente eran ruido).
+(b) **El artboard se iba a la derecha — bug mío del escalado:** usaba `transform-origin: top center` sobre una caja de 1024px dentro de una
+columna más estrecha, así que el ancla caía fuera del área visible. Ahora hay un contenedor dimensionado al **footprint ya escalado** (ancho
+y alto, este último medido con `ResizeObserver` porque un `transform` no altera el layout), centrado normal, y el artboard escala desde
+`top left`.
+(c) **Las pestañas de página se desbordaban** bajo el inspector con varias páginas → `min-w-0` + scroll horizontal en esa fila.
+(d) **El aviso «este dato no se puede filtrar» salía en casi todos los bloques** (la mayoría de métricas son escalares), lo que hacía parecer
+rota la función. `FiltersPanel` ahora **solo se renderiza cuando el dato es filtrable**; en su lugar, junto al selector, aparece un atajo
+accionable *solo si la misma fuente ofrece un dataset* («¿Filtrar por campaña, país…? Cambia a «Campañas»»), que cambia el binding al pulsarlo.
+Si no hay alternativa, no se muestra nada.
+**Lección para futuras sesiones:** explicar una ausencia está bien, pero **no con un aviso permanente en cada bloque** — la información útil va
+donde se toma la decisión, y en forma de acción, no de disculpa.
+**Acuerdo operativo con el owner (2026-08-05):** agrupar correcciones pequeñas en un solo release en lugar de publicar una por arreglo, y
+**confirmar siempre el release publicado** (una v1.22.1 salió bien pero no se le comunicó, y lo percibió como demora).
 
 **📊 DATASETS MODELABLES DE CAMPAÑAS Y PUBLICACIONES — ETAPA A.2 PARA META Y GOOGLE ADS (2026-08-04, rama
 `claude/github-app-analysis-a7b2bd`, SIN RELEASE AÚN):** un cliente pide reportes con **solo unas campañas concretas**. El owner planteaba
