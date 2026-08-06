@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**📅 SELECTOR DE MES PROPIO (2026-08-06):** regresión mía de v1.27.0 — al meter el `input type="month"` dentro del popover, elegir mes pasó a
+costar **tres interacciones**: clic en el chip → el input muestra solo texto → clic en *su* indicador de calendario → navegar → elegir. El
+owner lo reportó como «más complicado».
+**Causa:** un `input type="month"` no se puede colapsar a icono ni abrir de golpe; su render y su picker **los controla el navegador**
+(y Safari ni siquiera soporta el tipo: cae a caja de texto). `showPicker()` no es fiable porque exige activación de usuario transitoria.
+**Solución:** `editor/MonthPicker.tsx` propio — paso de año (`‹ 2026 ›`) + rejilla 3×4 de meses. **Un clic en el chip, un clic en el mes.**
+Menos que antes de la regresión, e idéntico en todos los navegadores. El mes actual se marca; el seleccionado va en color de acento; el popover
+abre en el año del valor seleccionado, no en el actual. Además el chip muestra «ago 2026» desde `2xl` (vía `Intl`, no una tabla propia).
+Cubierto por `MonthPicker.test.tsx` (3 casos, incluido «un solo clic»). Se extrajo a su propio archivo justamente para poder testearlo sin
+exportar nada más desde `EditorScreen.tsx`.
+> **Regla que se confirma:** un control nativo dentro de un popover **no** equivale al mismo control en línea — el popover añade un clic previo
+> que el control nativo no compensa. Si el valor es de dominio cerrado (12 meses), hacer el control propio sale más barato en interacciones.
+
 **🎚️ BARRA DEL EDITOR, SEGUNDA PASADA — JERARQUÍA (2026-08-05):** cuatro peticiones del owner sobre la barra ya arreglada.
 - **«Generar con IA» → «IA», y fuera el azul.** Era `variant="accent"` (relleno azul) y *«resalta demasiado para los usuarios que no quieren
   usar IA»*. Ahora es un `ghost` normal con la etiqueta corta. **Ser una opción no es lo mismo que ser la opción recomendada**, y el color de

@@ -186,6 +186,7 @@ import { COMPACT_QUERY, TIGHT_BAR_QUERY, useMediaQuery } from "../hooks/useMedia
 import type { CatalogEntry, PageFilters, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
 import { CanvasBlock } from "./CanvasBlock";
+import { MonthPicker } from "./MonthPicker";
 import {
     defaultSize,
     ensureLayouts,
@@ -872,6 +873,14 @@ export function EditorScreen(): ReactElement {
                   month: "long",
                   year: "numeric",
               });
+    /** "ago 2026" — the toolbar chip's version, where the long form wouldn't fit. */
+    const shortMonthLabel =
+        month === ""
+            ? ""
+            : new Date(`${month}-01T00:00:00`).toLocaleDateString("es", {
+                  month: "short",
+                  year: "numeric",
+              });
 
     /**
      * Where the previewed numbers come from, in one word and in one sentence.
@@ -1134,8 +1143,14 @@ export function EditorScreen(): ReactElement {
                 className={previewChipClass(periodChosen)}
             >
                 <Calendar className="ir-size-4 ir-shrink-0" />
-                {!periodChosen && !isCompact && (
-                    <span className="ir-whitespace-nowrap">Elige un periodo</span>
+                {periodChosen ? (
+                    /* Where there's room, say which month you're looking at rather than
+                       making people hover for it. */
+                    <span className="ir-hidden ir-whitespace-nowrap ir-tabular-nums 2xl:ir-inline">
+                        {shortMonthLabel}
+                    </span>
+                ) : (
+                    !isCompact && <span className="ir-whitespace-nowrap">Elige un periodo</span>
                 )}
             </button>
             {periodOpen && (
@@ -1147,14 +1162,16 @@ export function EditorScreen(): ReactElement {
                         className="ir-fixed ir-inset-0 ir-z-40 ir-cursor-default"
                     />
                     <div className="ir-absolute ir-right-0 ir-top-full ir-z-50 ir-mt-1.5 ir-w-56 ir-rounded-xl ir-border ir-bg-card ir-p-3 ir-shadow-ir-lg">
-                        <Field label="Periodo de la vista previa">
-                            <Input
-                                autoFocus
-                                type="month"
-                                value={month}
-                                onChange={(event) => setMonth(event.target.value)}
-                            />
-                        </Field>
+                        <p className="ir-mb-2 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">
+                            Periodo
+                        </p>
+                        <MonthPicker
+                            value={month}
+                            onPick={(picked) => {
+                                setMonth(picked);
+                                setPeriodOpen(false);
+                            }}
+                        />
                     </div>
                 </>
             )}
