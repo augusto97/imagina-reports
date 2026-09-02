@@ -341,10 +341,6 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
         $client = $this->client($source);
         $pages = $this->reachablePages($client);
 
-        if ($pages === null) {
-            return null;
-        }
-
         $options = [];
         $seen = [];
         foreach ($pages as $page) {
@@ -375,14 +371,14 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
 
     /**
      * Every Facebook page the token can see, from the personal edge and from each business
-     * portfolio (owned + shared-with-us). Returns null only when the personal edge itself
-     * fails — that means the token is bad, which is worth reporting; a business edge that
+     * portfolio (owned + shared-with-us). Throws only when the personal edge itself fails —
+     * that means the token is bad, which is worth reporting verbatim; a business edge that
      * fails (typically because `business_management` hasn't been granted) is skipped so the
      * pages we DID find still get offered.
      *
-     * @return list<array<array-key, mixed>>|null
+     * @return list<array<array-key, mixed>>
      */
-    private function reachablePages(PendingRequest $client): ?array
+    private function reachablePages(PendingRequest $client): array
     {
         $response = $client->get('/me/accounts', [
             'fields' => 'name,instagram_business_account{id,username}',
