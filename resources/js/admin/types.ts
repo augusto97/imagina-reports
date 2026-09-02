@@ -162,6 +162,8 @@ export interface Connector {
     config_schema: ConfigFieldDef[];
     guide?: ConnectorGuide | null;
     connect?: ConnectorConnect | null;
+    /** The connector can list the accounts/projects its credentials reach ("Detectar cuentas"). */
+    lists_resources?: boolean;
 }
 
 export interface DataSourceDto {

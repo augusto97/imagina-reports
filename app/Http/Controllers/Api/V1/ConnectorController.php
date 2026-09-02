@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Connectors\ConfigField;
 use App\Connectors\Connect\ConnectRegistry;
 use App\Connectors\ConnectorRegistry;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -55,6 +56,11 @@ final class ConnectorController extends Controller
                         $provider->startFields(),
                     ),
                 ],
+                // Whether "Detectar cuentas" applies. It used to be inferred from `connect`,
+                // which tied discovery to OAuth — but a connector with a plain API key can
+                // list its accounts too, and typing an id by hand is exactly the friction
+                // discovery exists to remove.
+                'lists_resources' => $connector instanceof ListsConnectableResources,
             ];
         }, array_values($available));
 

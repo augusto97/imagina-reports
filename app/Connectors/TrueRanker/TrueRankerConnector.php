@@ -6,9 +6,12 @@ namespace App\Connectors\TrueRanker;
 
 use App\Connectors\ConfigField;
 use App\Connectors\ConfigFieldType;
+use App\Connectors\Connect\ConnectableResources;
 use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
+use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
+use App\Connectors\Exceptions\DiscoveryFailed;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
@@ -36,7 +39,7 @@ use Throwable;
  * project caps it), not millions of raw rows, so it respects the §3.3 performance rule.
  * Returns a normalized `trueranker.*` bag; catches its own errors (§7).
  */
-final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGuide
+final class TrueRankerConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
     use DescribesApiErrors;
     use ParsesValues;
@@ -100,23 +103,8 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
             return ConnectionResult::failure('Falta la API Key de TrueRanker.');
         }
 
-        $project = $this->project($source);
-
-        if ($project === '') {
-            return ConnectionResult::failure('Falta el ID del proyecto de TrueRanker.');
-        }
-
-        // Test the endpoint this source actually reads, with its real project: a green tick
-        // then means the key AND the project both work, which is what the operator needs to
-        // know. (The previous test hit an undocumented /projects/list that doesn't exist —
-        // TrueRanker served its web app's HTML for it, and we blamed the API key.)
         try {
-            $response = $this->client()->get(self::API_BASE.'/project/keyword/list', [
-                'key' => $apiKey,
-                'project' => $project,
-                'start' => now()->subDays(7)->format('Ymd'),
-                'end' => now()->format('Ymd'),
-            ]);
+            $response = $this->projectList($apiKey);
         } catch (Throwable $e) {
             return ConnectionResult::failure('No se pudo contactar TrueRanker: '.$e->getMessage());
         }
@@ -128,17 +116,94 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
         $json = $this->arrayOf($response->json());
 
         if (($json['ok'] ?? null) !== true) {
-            $detail = $this->providerError($json);
-
-            // Only TrueRanker can tell us a key is wrong. A 200 whose body we don't recognise
-            // is an UNKNOWN SHAPE, not proof of a bad key — claiming otherwise sent people off
-            // to regenerate a key that was fine. Show what actually came back instead.
-            return ConnectionResult::failure($detail !== ''
-                ? 'TrueRanker: '.$detail
-                : 'TrueRanker respondió HTTP '.$response->status().': '.$this->bodyExcerpt($response, $apiKey));
+            return ConnectionResult::failure($this->explain($response, $json, $apiKey));
         }
 
         return ConnectionResult::success('TrueRanker conectado.');
+    }
+
+    /**
+     * The documented projects endpoint. Needs only the key, so it doubles as the connection
+     * test (key + plan) and as the source of the project picker.
+     */
+    private function projectList(string $apiKey): Response
+    {
+        return $this->client()->get(self::API_BASE.'/project/list', ['key' => $apiKey]);
+    }
+
+    /**
+     * Say why a non-`ok` response isn't usable, in TrueRanker's own words where it gave any.
+     *
+     * Never concludes "the key is invalid": that was an inference with nothing behind it,
+     * and it sent the operator off to regenerate a key that was fine. The plan note is from
+     * the official docs — API access starts at the Agency plan — so a plan refusal points at
+     * the actual thing to change.
+     *
+     * @param  array<array-key, mixed>  $json
+     */
+    private function explain(Response $response, array $json, string $apiKey): string
+    {
+        $detail = $this->providerError($json);
+
+        if ($detail === '') {
+            return 'TrueRanker respondió HTTP '.$response->status().': '.$this->bodyExcerpt($response, $apiKey);
+        }
+
+        $message = 'TrueRanker: '.$detail;
+
+        if (str_contains(mb_strtolower($detail), 'plan')) {
+            $message .= ' (la API de TrueRanker requiere el plan Agency o superior; la clave puede existir sin que el plan la habilite).';
+        }
+
+        return $message;
+    }
+
+    /**
+     * The account's projects, so the client picks one instead of hunting for a numeric id.
+     * Documented shape: `data.projects[] = {id, project_name, domain, num_keywords}`.
+     */
+    public function connectableResources(DataSource $source): ?ConnectableResources
+    {
+        $apiKey = $this->apiKey($source);
+
+        if ($apiKey === '') {
+            throw DiscoveryFailed::because('Falta la API Key de TrueRanker.');
+        }
+
+        $response = $this->projectList($apiKey);
+
+        if ($response->failed()) {
+            throw $this->discoveryFailed('TrueRanker', $response);
+        }
+
+        $json = $this->arrayOf($response->json());
+
+        if (($json['ok'] ?? null) !== true) {
+            throw DiscoveryFailed::because($this->explain($response, $json, $apiKey));
+        }
+
+        $options = [];
+
+        foreach ($this->listOf(Arr::get($json, 'data.projects')) as $project) {
+            $id = $this->toStr(Arr::get($project, 'id'));
+
+            if ($id === '') {
+                continue;
+            }
+
+            $name = $this->toStr(Arr::get($project, 'project_name'));
+            $domain = $this->toStr(Arr::get($project, 'domain'));
+            $label = trim($name !== '' ? $name : $domain);
+
+            $options[] = ['value' => $id, 'label' => $label === '' ? $id : "{$label} ({$id})"];
+        }
+
+        return new ConnectableResources(
+            'project',
+            'el proyecto de TrueRanker',
+            $options,
+            'La API respondió correctamente pero esta cuenta no tiene ningún proyecto.',
+        );
     }
 
     public function fetch(DataSource $source, Period $period, array $requestedMetrics): MetricSet
@@ -168,11 +233,7 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
         $json = $this->arrayOf($response->json());
 
         if (($json['ok'] ?? null) !== true) {
-            $detail = $this->providerError($json);
-
-            return MetricSet::failed($detail !== ''
-                ? 'TrueRanker: '.$detail
-                : 'TrueRanker: HTTP '.$response->status().': '.$this->bodyExcerpt($response, $apiKey));
+            return MetricSet::failed($this->explain($response, $json, $apiKey));
         }
 
         $keywords = $this->listOf(Arr::get($json, 'data.keywords'));

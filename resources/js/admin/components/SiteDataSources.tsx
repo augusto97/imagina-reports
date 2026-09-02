@@ -547,8 +547,10 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
             <ul className="ir-flex ir-flex-col ir-gap-2">
                 {sources.map((source) => {
                     const detail = results[source.id] ?? source.last_error ?? source.status;
-                    // Only one-click connectors have accounts to re-detect.
-                    const canDiscover = connectors.find((item) => item.key === source.type)?.connect != null;
+                    // Anything that can list its accounts, not just the OAuth ones: a plain
+                    // API key reaches an account list too, and picking from a dropdown beats
+                    // hunting for a numeric id in the provider's UI.
+                    const canDiscover = connectors.find((item) => item.key === source.type)?.lists_resources === true;
 
                     return (
                         <li key={source.id} className="ir-rounded-lg ir-border ir-bg-card ir-px-3 ir-py-2.5 ir-transition-colors hover:ir-border-foreground/15">

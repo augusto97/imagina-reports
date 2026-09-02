@@ -159,7 +159,10 @@ class TrueRankerConnectorTest extends TestCase
 
     public function test_test_connection_succeeds_when_the_key_is_valid(): void
     {
-        Http::fake(['app.trueranker.com/data/project/keyword/list*' => Http::response($this->payload())]);
+        Http::fake(['app.trueranker.com/data/project/list*' => Http::response([
+            'ok' => true,
+            'data' => ['projects' => [['id' => 12345, 'project_name' => 'Acme', 'domain' => 'acme.com']]],
+        ])]);
 
         $this->assertTrue((new TrueRankerConnector)->testConnection($this->source())->successful);
     }
@@ -185,6 +188,37 @@ class TrueRankerConnectorTest extends TestCase
         $this->assertFalse($result->successful);
         $this->assertStringNotContainsString('inválida', $result->message);
         $this->assertStringContainsString('plan required', $result->message);
+    }
+
+    public function test_a_plan_refusal_points_at_the_plan_not_the_key(): void
+    {
+        // TrueRanker's own words, plus the documented fact that the API starts at the Agency
+        // plan — because "I have an API key" and "my plan enables the API" are not the same.
+        Http::fake(['*' => Http::response(['ok' => false, 'error' => 'Not Access available to API in your current plan'])]);
+
+        $result = (new TrueRankerConnector)->testConnection($this->source());
+
+        $this->assertFalse($result->successful);
+        $this->assertStringContainsString('Not Access available to API', $result->message);
+        $this->assertStringContainsString('Agency', $result->message);
+    }
+
+    public function test_projects_are_offered_as_a_picker(): void
+    {
+        Http::fake(['app.trueranker.com/data/project/list*' => Http::response([
+            'ok' => true,
+            'data' => ['projects' => [
+                ['id' => 94698, 'project_name' => 'Ahrefs', 'domain' => 'ahrefs.com'],
+                ['id' => 12350, 'project_name' => 'TrueRanker', 'domain' => 'trueranker.com'],
+            ]],
+        ])]);
+
+        $resources = (new TrueRankerConnector)->connectableResources($this->source());
+
+        $this->assertSame('project', $resources?->field);
+        $this->assertCount(2, $resources?->options ?? []);
+        $this->assertSame('94698', $resources?->options[0]['value']);
+        $this->assertStringContainsString('Ahrefs', (string) $resources?->options[0]['label']);
     }
 
     public function test_an_html_page_is_named_as_such_not_dumped(): void
