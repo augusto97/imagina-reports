@@ -92,7 +92,7 @@ class TrueRankerConnectorTest extends TestCase
 
     public function test_fetch_aggregates_the_keyword_rankings(): void
     {
-        Http::fake(['app.trueranker.com/data/project/keywords*' => Http::response($this->payload())]);
+        Http::fake(['app.trueranker.com/data/project/keyword/list*' => Http::response($this->payload())]);
 
         $set = (new TrueRankerConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
 
@@ -128,7 +128,10 @@ class TrueRankerConnectorTest extends TestCase
         (new TrueRankerConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
 
         Http::assertSent(function ($request): bool {
-            return str_contains($request->url(), 'key=tr-api-key')
+            // The documented path. It used to be an invented `/project/keywords`, which
+            // TrueRanker answered with its web app's HTML — and we blamed the API key.
+            return str_contains($request->url(), '/data/project/keyword/list')
+                && str_contains($request->url(), 'key=tr-api-key')
                 && str_contains($request->url(), 'project=12345')
                 && str_contains($request->url(), 'start=20260601')
                 && str_contains($request->url(), 'end=20260630');
@@ -156,7 +159,7 @@ class TrueRankerConnectorTest extends TestCase
 
     public function test_test_connection_succeeds_when_the_key_is_valid(): void
     {
-        Http::fake(['app.trueranker.com/data/projects/list*' => Http::response(['ok' => true, 'data' => ['projects' => []]])]);
+        Http::fake(['app.trueranker.com/data/project/keyword/list*' => Http::response($this->payload())]);
 
         $this->assertTrue((new TrueRankerConnector)->testConnection($this->source())->successful);
     }
@@ -182,6 +185,19 @@ class TrueRankerConnectorTest extends TestCase
         $this->assertFalse($result->successful);
         $this->assertStringNotContainsString('inválida', $result->message);
         $this->assertStringContainsString('plan required', $result->message);
+    }
+
+    public function test_an_html_page_is_named_as_such_not_dumped(): void
+    {
+        // What the owner actually saw: a 200 carrying the web app, because the URL wasn't
+        // the API. Markup in the error tells the reader nothing; naming the cause does.
+        Http::fake(['*' => Http::response('<!DOCTYPE html><html lang="es"><head>…</head></html>', 200)]);
+
+        $result = (new TrueRankerConnector)->testConnection($this->source());
+
+        $this->assertFalse($result->successful);
+        $this->assertStringContainsString('no JSON', $result->message);
+        $this->assertStringNotContainsString('<!DOCTYPE', $result->message);
     }
 
     public function test_the_api_key_is_never_echoed_back_into_the_error(): void

@@ -100,8 +100,23 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
             return ConnectionResult::failure('Falta la API Key de TrueRanker.');
         }
 
+        $project = $this->project($source);
+
+        if ($project === '') {
+            return ConnectionResult::failure('Falta el ID del proyecto de TrueRanker.');
+        }
+
+        // Test the endpoint this source actually reads, with its real project: a green tick
+        // then means the key AND the project both work, which is what the operator needs to
+        // know. (The previous test hit an undocumented /projects/list that doesn't exist —
+        // TrueRanker served its web app's HTML for it, and we blamed the API key.)
         try {
-            $response = $this->client()->get(self::API_BASE.'/projects/list', ['key' => $apiKey]);
+            $response = $this->client()->get(self::API_BASE.'/project/keyword/list', [
+                'key' => $apiKey,
+                'project' => $project,
+                'start' => now()->subDays(7)->format('Ymd'),
+                'end' => now()->format('Ymd'),
+            ]);
         } catch (Throwable $e) {
             return ConnectionResult::failure('No se pudo contactar TrueRanker: '.$e->getMessage());
         }
@@ -120,7 +135,7 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
             // to regenerate a key that was fine. Show what actually came back instead.
             return ConnectionResult::failure($detail !== ''
                 ? 'TrueRanker: '.$detail
-                : 'TrueRanker respondió HTTP '.$response->status().' con un formato inesperado: '.$this->bodyExcerpt($response, $apiKey));
+                : 'TrueRanker respondió HTTP '.$response->status().': '.$this->bodyExcerpt($response, $apiKey));
         }
 
         return ConnectionResult::success('TrueRanker conectado.');
@@ -136,7 +151,7 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
         }
 
         try {
-            $response = $this->client()->get(self::API_BASE.'/project/keywords', [
+            $response = $this->client()->get(self::API_BASE.'/project/keyword/list', [
                 'key' => $apiKey,
                 'project' => $project,
                 'start' => $period->start->format('Ymd'),
@@ -157,7 +172,7 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
 
             return MetricSet::failed($detail !== ''
                 ? 'TrueRanker: '.$detail
-                : 'TrueRanker: formato inesperado: '.$this->bodyExcerpt($response, $apiKey));
+                : 'TrueRanker: HTTP '.$response->status().': '.$this->bodyExcerpt($response, $apiKey));
         }
 
         $keywords = $this->listOf(Arr::get($json, 'data.keywords'));
@@ -362,10 +377,20 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
     {
         $body = trim($response->body());
 
+        if ($body === '') {
+            return '(respuesta vacía)';
+        }
+
+        // A web page instead of JSON means we asked for a URL the API doesn't serve — worth
+        // naming outright, since dumping markup tells the reader nothing.
+        if (Str::startsWith($body, ['<!DOCTYPE', '<!doctype', '<html', '<HTML'])) {
+            return 'devolvió una página web, no JSON (la URL no corresponde a la API).';
+        }
+
         if ($apiKey !== '') {
             $body = str_replace($apiKey, '***', $body);
         }
 
-        return $body === '' ? '(respuesta vacía)' : Str::limit($body, 200);
+        return Str::limit($body, 200);
     }
 }
