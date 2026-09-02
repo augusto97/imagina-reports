@@ -17,6 +17,7 @@ use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Connectors\SetupGuide;
+use App\Connectors\Support\DescribesApiErrors;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -38,6 +39,7 @@ use Throwable;
  */
 final class FacebookAdsConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
+    use DescribesApiErrors;
     use ParsesValues;
 
     /** Bump when moving to a newer Graph API version. */
@@ -420,7 +422,7 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
 
         $response = $client->get('/me/adaccounts', ['fields' => 'name,account_id', 'limit' => 200]);
         if ($response->failed()) {
-            return null;
+            throw $this->discoveryFailed('Meta', $response);
         }
 
         // Personal edge + every business portfolio's accounts (owned and shared with us):

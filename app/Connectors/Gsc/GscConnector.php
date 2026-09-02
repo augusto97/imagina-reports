@@ -12,6 +12,7 @@ use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
 use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
+use App\Connectors\Exceptions\DiscoveryFailed;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
@@ -19,6 +20,7 @@ use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Connectors\SetupGuide;
+use App\Connectors\Support\DescribesApiErrors;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Http\Client\Response;
@@ -34,6 +36,8 @@ use Throwable;
  */
 final class GscConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
+    use DescribesApiErrors;
+
     private const API_BASE = 'https://searchconsole.googleapis.com/webmasters/v3';
 
     private const SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
@@ -478,12 +482,12 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
 
         $token = $this->token($source);
         if ($token === '') {
-            return null;
+            throw DiscoveryFailed::because('Google no aceptó el permiso guardado (token caducado o revocado). Reconecta la fuente.');
         }
 
         $response = Http::withToken($token)->acceptJson()->get(self::API_BASE.'/sites');
         if ($response->failed()) {
-            return null;
+            throw $this->discoveryFailed('Search Console', $response);
         }
 
         $options = [];

@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -54,15 +55,38 @@ class ResourceDiscoveryTest extends TestCase
         $this->assertSame($error, $source->refresh()->last_error);
     }
 
-    public function test_an_unreachable_provider_says_so_instead_of_staying_quiet(): void
+    public function test_a_rejecting_provider_is_quoted_verbatim(): void
     {
-        Http::fake(['graph.facebook.com/*' => Http::response(null, 500)]);
+        // The difference between "no funciona" and knowing the token has to be renewed:
+        // the panel shows what the provider itself answered, status included.
+        Http::fake(['graph.facebook.com/*' => Http::response(
+            ['error' => ['message' => 'Error validating access token: Session has expired.']],
+            401,
+        )]);
+        $source = $this->instagramSource();
+
+        $error = app(ResourceDiscovery::class)->discover($source);
+
+        $this->assertNotNull($error);
+        $this->assertStringContainsString('401', $error);
+        $this->assertStringContainsString('Session has expired', $error);
+        $this->assertSame($error, $source->refresh()->last_error);
+    }
+
+    public function test_an_unexplained_failure_still_says_so_instead_of_staying_quiet(): void
+    {
+        // Anything that isn't the provider answering (DNS, TLS, a bug): the client gets the
+        // actionable fallback, and the technical detail goes to the log, not to the panel.
+        Http::fake(function (): never {
+            throw new RuntimeException('socket exploded');
+        });
         $source = $this->instagramSource();
 
         $error = app(ResourceDiscovery::class)->discover($source);
 
         $this->assertNotNull($error);
         $this->assertStringContainsString('Detectar cuentas', (string) $source->refresh()->last_error);
+        $this->assertStringNotContainsString('socket exploded', (string) $error);
     }
 
     public function test_a_single_account_is_selected_automatically(): void

@@ -7,6 +7,25 @@
 ---
 
 ## Where I left off (read me first)
+**🔎 EL DESCUBRIMIENTO DE CUENTAS YA DICE POR QUÉ FALLA (2026-08-06):** el owner reporta que conecta la cuenta pero «escanear cuentas» y
+«probar» fallan. **Revisadas todas las rutas (ConnectController::callback, ResourceDiscovery, connectableResources de los 5 conectores,
+GoogleOAuthClient, withQuery) y NO se encontró una regresión introducida** — el último cambio de backend fue `e687b99` (datasets), que no toca
+descubrimiento; desde entonces todo ha sido frontend, y `withQuery` sí pone la query **antes** del fragmento, así que el enrutado por hash no
+puede pisarla.
+**Lo que sí es un defecto real y se ha corregido: el sistema no podía decir qué fallaba.** Los **cinco** conectores devolvían `null` a secas
+ante una respuesta de error del proveedor, y `ResourceDiscovery` capturaba `Throwable` y lo **descartaba**. Resultado: la misma frase genérica
+tanto si el token caducó, como si faltaba un scope, como si la app de Meta seguía en modo desarrollo o se agotó una cuota.
+- Nuevos `App\Connectors\Exceptions\DiscoveryFailed` + trait `App\Connectors\Support\DescribesApiErrors` (`providerError()` lee
+  `error.message` de Google/Meta, `error_description`/`error` de OAuth2 y `message` de REST; `discoveryFailed()` compone «Proveedor respondió
+  HTTP 401: …»).
+- GA4, GSC, Google Ads, Facebook Ads e Instagram **lanzan** esa excepción en vez de `return null`; los de Google además distinguen «token
+  caducado o revocado» cuando el refresh no mintea access token.
+- `ResourceDiscovery` usa ese mensaje como `last_error` (la UI ya lo pinta en la fila) y **registra** con `Log::warning` clase + motivo, nunca
+  credenciales. Un fallo no explicado (DNS/TLS/bug) conserva el mensaje accionable y el detalle va solo al log.
+- Tests: `test_a_rejecting_provider_is_quoted_verbatim` y `test_an_unexplained_failure_still_says_so_instead_of_staying_quiet`.
+**PENDIENTE DEL OWNER (bloquea el diagnóstico real):** el texto exacto que muestra «Probar» —que **ya** incluía el mensaje del proveedor— y/o
+`storage/logs/laravel.log`. Sin eso no se puede saber la causa; con esto ya no hará falta pedirlo dos veces.
+
 **📅 SELECTOR DE MES PROPIO (2026-08-06):** regresión mía de v1.27.0 — al meter el `input type="month"` dentro del popover, elegir mes pasó a
 costar **tres interacciones**: clic en el chip → el input muestra solo texto → clic en *su* indicador de calendario → navegar → elegir. El
 owner lo reportó como «más complicado».

@@ -11,12 +11,14 @@ use App\Connectors\ConnectionResult;
 use App\Connectors\Contracts\DataSourceConnector;
 use App\Connectors\Contracts\ListsConnectableResources;
 use App\Connectors\Contracts\ProvidesSetupGuide;
+use App\Connectors\Exceptions\DiscoveryFailed;
 use App\Connectors\MetricCatalog;
 use App\Connectors\MetricDefinition;
 use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Connectors\SetupGuide;
+use App\Connectors\Support\DescribesApiErrors;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -40,6 +42,7 @@ use Throwable;
  */
 final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
+    use DescribesApiErrors;
     use ParsesValues;
 
     /** Bump when moving to a newer Google Ads API version (endpoint path segment). */
@@ -453,14 +456,14 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
 
         $token = $this->accessToken($source);
         if ($token === null) {
-            return null;
+            throw DiscoveryFailed::because('Google no aceptó el permiso guardado (token caducado o revocado). Reconecta la fuente.');
         }
 
         $response = $this->apiClient($source, $token)
             ->get(self::API_BASE.'/'.self::API_VERSION.'/customers:listAccessibleCustomers');
 
         if ($response->failed()) {
-            return null;
+            throw $this->discoveryFailed('Google Ads', $response);
         }
 
         $names = $response->json('resourceNames');

@@ -6,7 +6,9 @@ namespace App\Connectors\Connect;
 
 use App\Connectors\ConnectorRegistry;
 use App\Connectors\Contracts\ListsConnectableResources;
+use App\Connectors\Exceptions\DiscoveryFailed;
 use App\Models\DataSource;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -39,14 +41,20 @@ final class ResourceDiscovery
 
         try {
             $resources = $connector->connectableResources($source);
-        } catch (Throwable) {
+        } catch (DiscoveryFailed $e) {
+            // The connector knows exactly what went wrong — say that, not a generic apology.
+            $this->log($source, $e);
+
+            return $this->fail($source, $e->getMessage());
+        } catch (Throwable $e) {
+            $this->log($source, $e);
             $resources = null;
         }
 
         if ($resources === null) {
             return $this->fail($source, 'No pudimos consultar a qué cuentas tiene acceso esta conexión. '
                 .'Puede ser un problema temporal del proveedor o un token caducado: vuelve a pulsar «Detectar cuentas», '
-                .'y si sigue fallando reconecta la fuente.');
+                .'y si sigue fallando reconecta la fuente. El detalle técnico queda en el registro del servidor.');
         }
 
         if ($resources->options === []) {
@@ -75,6 +83,20 @@ final class ResourceDiscovery
         ])->save();
 
         return null;
+    }
+
+    /**
+     * Record why discovery failed. The exception's own message only: never the request,
+     * which carries the token (§6 — credentials are never logged).
+     */
+    private function log(DataSource $source, Throwable $e): void
+    {
+        Log::warning('Account discovery failed for a data source.', [
+            'data_source_id' => $source->id,
+            'type' => $source->type->value,
+            'exception' => $e::class,
+            'reason' => $e->getMessage(),
+        ]);
     }
 
     private function fail(DataSource $source, string $message): string

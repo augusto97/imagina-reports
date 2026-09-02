@@ -17,6 +17,7 @@ use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Connectors\SetupGuide;
+use App\Connectors\Support\DescribesApiErrors;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
@@ -37,6 +38,7 @@ use Throwable;
  */
 final class InstagramConnector implements DataSourceConnector, ListsConnectableResources, ProvidesSetupGuide
 {
+    use DescribesApiErrors;
     use ParsesValues;
 
     /** Bump when moving to a newer Graph API version. */
@@ -388,7 +390,7 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
         ]);
 
         if ($response->failed()) {
-            return null;
+            throw $this->discoveryFailed('Meta', $response);
         }
 
         $pages = $this->listOf($response->json('data'));
