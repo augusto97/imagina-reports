@@ -47,12 +47,12 @@ class ResourceDiscoveryTest extends TestCase
         Http::fake(['graph.facebook.com/*/me/accounts*' => Http::response(['data' => []])]);
         $source = $this->instagramSource();
 
-        $error = app(ResourceDiscovery::class)->discover($source);
+        $outcome = app(ResourceDiscovery::class)->discover($source);
 
-        $this->assertNotNull($error);
-        $this->assertStringContainsString('Business o Creator', $error);
+        $this->assertNotNull($outcome->error);
+        $this->assertStringContainsString('Business o Creator', $outcome->error);
         // …and it's recorded, so the row says it without pressing anything.
-        $this->assertSame($error, $source->refresh()->last_error);
+        $this->assertSame($outcome->error, $source->refresh()->last_error);
     }
 
     public function test_a_rejecting_provider_is_quoted_verbatim(): void
@@ -65,12 +65,12 @@ class ResourceDiscoveryTest extends TestCase
         )]);
         $source = $this->instagramSource();
 
-        $error = app(ResourceDiscovery::class)->discover($source);
+        $outcome = app(ResourceDiscovery::class)->discover($source);
 
-        $this->assertNotNull($error);
-        $this->assertStringContainsString('401', $error);
-        $this->assertStringContainsString('Session has expired', $error);
-        $this->assertSame($error, $source->refresh()->last_error);
+        $this->assertNotNull($outcome->error);
+        $this->assertStringContainsString('401', $outcome->error);
+        $this->assertStringContainsString('Session has expired', $outcome->error);
+        $this->assertSame($outcome->error, $source->refresh()->last_error);
     }
 
     public function test_an_unexplained_failure_still_says_so_instead_of_staying_quiet(): void
@@ -82,11 +82,11 @@ class ResourceDiscoveryTest extends TestCase
         });
         $source = $this->instagramSource();
 
-        $error = app(ResourceDiscovery::class)->discover($source);
+        $outcome = app(ResourceDiscovery::class)->discover($source);
 
-        $this->assertNotNull($error);
+        $this->assertNotNull($outcome->error);
         $this->assertStringContainsString('Detectar cuentas', (string) $source->refresh()->last_error);
-        $this->assertStringNotContainsString('socket exploded', (string) $error);
+        $this->assertStringNotContainsString('socket exploded', $outcome->message);
     }
 
     public function test_a_single_account_is_selected_automatically(): void
@@ -96,7 +96,12 @@ class ResourceDiscoveryTest extends TestCase
         ])]);
         $source = $this->instagramSource();
 
-        $this->assertNull(app(ResourceDiscovery::class)->discover($source));
+        $outcome = app(ResourceDiscovery::class)->discover($source);
+
+        // Naming the account is the point: with a single option there is no dropdown, so
+        // this message is the only evidence the client gets that anything happened.
+        $this->assertNull($outcome->error);
+        $this->assertStringContainsString('acme', $outcome->message);
 
         $source->refresh();
         $this->assertSame('178414', $source->config['ig_user_id'] ?? null);
@@ -113,7 +118,10 @@ class ResourceDiscoveryTest extends TestCase
         ])]);
         $source = $this->instagramSource();
 
-        $this->assertNull(app(ResourceDiscovery::class)->discover($source));
+        $outcome = app(ResourceDiscovery::class)->discover($source);
+
+        $this->assertNull($outcome->error);
+        $this->assertStringContainsString('2', $outcome->message);
 
         $options = $source->refresh()->meta['connect_options'] ?? null;
         $this->assertIsArray($options);

@@ -170,4 +170,29 @@ class TrueRankerConnectorTest extends TestCase
         $this->assertFalse($result->successful);
         $this->assertStringContainsString('Invalid API Key', $result->message);
     }
+
+    public function test_an_unrecognised_body_is_not_blamed_on_the_key(): void
+    {
+        // A 200 we can't interpret says nothing about the key. Blaming it sent people off to
+        // regenerate a key that was fine; the body is what tells us (and the operator) why.
+        Http::fake(['*' => Http::response(['status' => 'error', 'detail' => 'plan required'], 200)]);
+
+        $result = (new TrueRankerConnector)->testConnection($this->source());
+
+        $this->assertFalse($result->successful);
+        $this->assertStringNotContainsString('inválida', $result->message);
+        $this->assertStringContainsString('plan required', $result->message);
+    }
+
+    public function test_the_api_key_is_never_echoed_back_into_the_error(): void
+    {
+        // The excerpt is a diagnostic, not a place to leak a credential (§6).
+        Http::fake(['*' => Http::response('unexpected tr-api-key text', 200)]);
+
+        $result = (new TrueRankerConnector)->testConnection($this->source());
+
+        $this->assertFalse($result->successful);
+        $this->assertStringNotContainsString('tr-api-key', $result->message);
+        $this->assertStringContainsString('***', $result->message);
+    }
 }

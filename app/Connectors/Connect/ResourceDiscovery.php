@@ -28,15 +28,16 @@ final class ResourceDiscovery
     /**
      * Run discovery against the source's stored token.
      *
-     * @return string|null null when a resource is set or a picker is ready; otherwise the
-     *                     reason, already stored on the source's last_error.
+     * The outcome always says what happened — which account was picked, how many are left
+     * to choose from, or why it failed — because "success" alone is indistinguishable from
+     * "nothing happened" to the person looking at the row.
      */
-    public function discover(DataSource $source): ?string
+    public function discover(DataSource $source): DiscoveryOutcome
     {
         $connector = $this->connectors->for($source);
 
         if (! $connector instanceof ListsConnectableResources) {
-            return null;
+            return DiscoveryOutcome::notApplicable();
         }
 
         try {
@@ -45,21 +46,21 @@ final class ResourceDiscovery
             // The connector knows exactly what went wrong — say that, not a generic apology.
             $this->log($source, $e);
 
-            return $this->fail($source, $e->getMessage());
+            return DiscoveryOutcome::failed($this->fail($source, $e->getMessage()));
         } catch (Throwable $e) {
             $this->log($source, $e);
             $resources = null;
         }
 
         if ($resources === null) {
-            return $this->fail($source, 'No pudimos consultar a qué cuentas tiene acceso esta conexión. '
+            return DiscoveryOutcome::failed($this->fail($source, 'No pudimos consultar a qué cuentas tiene acceso esta conexión. '
                 .'Puede ser un problema temporal del proveedor o un token caducado: vuelve a pulsar «Detectar cuentas», '
-                .'y si sigue fallando reconecta la fuente. El detalle técnico queda en el registro del servidor.');
+                .'y si sigue fallando reconecta la fuente. El detalle técnico queda en el registro del servidor.'));
         }
 
         if ($resources->options === []) {
-            return $this->fail($source, $resources->emptyHint
-                ?? 'La cuenta conectada no expone ningún recurso que podamos leer.');
+            return DiscoveryOutcome::failed($this->fail($source, $resources->emptyHint
+                ?? 'La cuenta conectada no expone ningún recurso que podamos leer.'));
         }
 
         // Exactly one: pick it for them — a dropdown with a single choice is just friction.
@@ -74,7 +75,7 @@ final class ResourceDiscovery
                 'last_error' => null,
             ])->save();
 
-            return null;
+            return DiscoveryOutcome::selected($only['label']);
         }
 
         $source->forceFill([
@@ -82,7 +83,7 @@ final class ResourceDiscovery
             'last_error' => null,
         ])->save();
 
-        return null;
+        return DiscoveryOutcome::choices(count($resources->options), $resources->label);
     }
 
     /**

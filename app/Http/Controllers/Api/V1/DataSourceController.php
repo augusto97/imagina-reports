@@ -290,11 +290,11 @@ final class DataSourceController extends Controller
      */
     public function discover(DataSource $dataSource, ResourceDiscovery $discovery): JsonResponse
     {
-        $error = $discovery->discover($dataSource);
+        $outcome = $discovery->discover($dataSource);
 
         return response()->json([
-            'successful' => $error === null,
-            'message' => $error ?? 'Listo. Si hay varias cuentas, elígela en el desplegable.',
+            'successful' => $outcome->error === null,
+            'message' => $outcome->message,
             'data_source' => new DataSourceResource($dataSource->refresh()),
         ]);
     }

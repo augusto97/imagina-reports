@@ -268,6 +268,40 @@ function DataSourceEditForm({
 }
 
 /**
+ * What this source actually points at.
+ *
+ * A source whose account was auto-selected (the single-option case) showed nothing at all:
+ * no dropdown, because there was nothing to choose, and no trace of what had been chosen —
+ * so "detected one property and used it" and "detected nothing" looked identical. This puts
+ * the configured, non-secret identifiers on the row, where they stay after a reload.
+ */
+function ConfiguredAccount({ source, connector }: { source: DataSourceDto; connector?: Connector }): ReactElement | null {
+    const config = source.config;
+    if (connector === undefined || config === null) {
+        return null;
+    }
+
+    const shown = connector.config_schema
+        .filter((field) => !field.secret)
+        .map((field) => ({ label: field.label, value: config[field.key] }))
+        .filter((entry): entry is { label: string; value: string } => typeof entry.value === 'string' && entry.value !== '');
+
+    if (shown.length === 0) {
+        return null;
+    }
+
+    return (
+        <p className="ir-mt-1 ir-flex ir-flex-wrap ir-gap-x-3 ir-gap-y-0.5 ir-text-[11px] ir-text-muted-foreground">
+            {shown.map((entry) => (
+                <span key={entry.label}>
+                    {entry.label}: <span className="ir-font-medium ir-text-foreground">{entry.value}</span>
+                </span>
+            ))}
+        </p>
+    );
+}
+
+/**
  * "Pick your property/account" step shown after a one-click OAuth connect returns multiple
  * resources (GA4 properties, ad accounts…). Saving fills the config field and clears the picker.
  */
@@ -559,6 +593,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                                     </Button>
                                 </div>
                             </div>
+                            <ConfiguredAccount source={source} connector={connectors.find((item) => item.key === source.type)} />
                             <ResourcePicker source={source} siteId={siteId} />
                             <PushInstallPanel source={source} />
                             {editing === source.id && (

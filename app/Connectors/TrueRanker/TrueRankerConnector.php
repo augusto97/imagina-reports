@@ -15,12 +15,15 @@ use App\Connectors\MetricSet;
 use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Connectors\SetupGuide;
+use App\Connectors\Support\DescribesApiErrors;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -35,6 +38,7 @@ use Throwable;
  */
 final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGuide
 {
+    use DescribesApiErrors;
     use ParsesValues;
 
     private const API_BASE = 'https://app.trueranker.com/data';
@@ -109,9 +113,14 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
         $json = $this->arrayOf($response->json());
 
         if (($json['ok'] ?? null) !== true) {
-            $error = $this->toStr(Arr::get($json, 'error'));
+            $detail = $this->providerError($json);
 
-            return ConnectionResult::failure($error !== '' ? 'TrueRanker: '.$error : 'API Key de TrueRanker inválida.');
+            // Only TrueRanker can tell us a key is wrong. A 200 whose body we don't recognise
+            // is an UNKNOWN SHAPE, not proof of a bad key — claiming otherwise sent people off
+            // to regenerate a key that was fine. Show what actually came back instead.
+            return ConnectionResult::failure($detail !== ''
+                ? 'TrueRanker: '.$detail
+                : 'TrueRanker respondió HTTP '.$response->status().' con un formato inesperado: '.$this->bodyExcerpt($response, $apiKey));
         }
 
         return ConnectionResult::success('TrueRanker conectado.');
@@ -144,9 +153,11 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
         $json = $this->arrayOf($response->json());
 
         if (($json['ok'] ?? null) !== true) {
-            $error = $this->toStr(Arr::get($json, 'error'));
+            $detail = $this->providerError($json);
 
-            return MetricSet::failed($error !== '' ? 'TrueRanker: '.$error : 'TrueRanker: respuesta inválida.');
+            return MetricSet::failed($detail !== ''
+                ? 'TrueRanker: '.$detail
+                : 'TrueRanker: formato inesperado: '.$this->bodyExcerpt($response, $apiKey));
         }
 
         $keywords = $this->listOf(Arr::get($json, 'data.keywords'));
@@ -341,4 +352,21 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
     {
         return Http::acceptJson()->timeout(30);
     }
+
+    /**
+     * A short, safe excerpt of a response body, for when we can't interpret it. The API key
+     * is redacted in case the endpoint echoes it back: a diagnostic must never turn into a
+     * credential leak on screen (§6).
+     */
+    private function bodyExcerpt(Response $response, string $apiKey): string
+    {
+        $body = trim($response->body());
+
+        if ($apiKey !== '') {
+            $body = str_replace($apiKey, '***', $body);
+        }
+
+        return $body === '' ? '(respuesta vacía)' : Str::limit($body, 200);
+    }
+
 }

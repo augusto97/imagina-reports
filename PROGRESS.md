@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🗣️ TRES DEFECTOS DE «NO SÉ QUÉ PASÓ» (2026-09-02):** los tres son la misma clase de error — el sistema **concluía** en vez de **informar**.
+1. **GA4 «no detecta cuentas» / «detecta pero no sale el desplegable».** No era un fallo de detección: con **una sola** propiedad se
+   autoselecciona y **no hay desplegable**, pero el endpoint devolvía siempre «Listo. Si hay varias cuentas, elígela en el desplegable» — un
+   mensaje que manda a usar un control inexistente y **nunca dice qué cuenta eligió**. Indistinguible de «no detectó nada».
+   → `DiscoveryOutcome` (`selected` / `choices` / `failed` / `notApplicable`): `discover()` ya no devuelve `?string` sino el resultado, y el
+   mensaje nombra la cuenta elegida o cuántas hay. Además **la fila muestra ahora la configuración no secreta** (`ConfiguredAccount`), así que
+   tras recargar sigues viendo a qué propiedad apunta.
+2. **TrueRanker: «API Key inválida» con una clave correcta.** Un HTTP **200** cuyo cuerpo no traía `ok: true` se reportaba como clave
+   inválida — una conclusión **sin ninguna evidencia**, que manda a regenerar una clave que estaba bien. Ahora usa `providerError()` y, si no
+   reconoce nada, muestra **un extracto del cuerpo real** con la API key redactada (§6). Nunca más se culpa a la clave sin que la API lo diga.
+3. **Descubrimiento ciego** (ver bloque anterior): los cinco conectores devolvían `null` ante un error del proveedor.
+> **Regla:** un mensaje de error **no debe atribuir causa** que no se haya observado. Si no sabemos por qué, se dice qué se recibió.
+
+**⚠️ RUIDO LOCAL, NO TOCAR:** en este contenedor `node_modules` derivó a TypeScript 6 y `tsc` falla por `baseUrl` deprecado. El lockfile fija
+**5.9.3** y CI usa `npm ci`, así que **CI no se ve afectado**. Si aparece ese error en local: `npm ci`.
+
 **🔎 EL DESCUBRIMIENTO DE CUENTAS YA DICE POR QUÉ FALLA (2026-08-06):** el owner reporta que conecta la cuenta pero «escanear cuentas» y
 «probar» fallan. **Revisadas todas las rutas (ConnectController::callback, ResourceDiscovery, connectableResources de los 5 conectores,
 GoogleOAuthClient, withQuery) y NO se encontró una regresión introducida** — el último cambio de backend fue `e687b99` (datasets), que no toca
