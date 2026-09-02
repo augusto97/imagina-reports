@@ -215,10 +215,10 @@ class TrueRankerConnectorTest extends TestCase
 
         $resources = (new TrueRankerConnector)->connectableResources($this->source());
 
-        $this->assertSame('project', $resources?->field);
-        $this->assertCount(2, $resources?->options ?? []);
-        $this->assertSame('94698', $resources?->options[0]['value']);
-        $this->assertStringContainsString('Ahrefs', (string) $resources?->options[0]['label']);
+        $this->assertSame('project', $resources->field);
+        $this->assertCount(2, $resources->options);
+        $this->assertSame('94698', $resources->options[0]['value']);
+        $this->assertStringContainsString('Ahrefs', $resources->options[0]['label']);
     }
 
     public function test_an_html_page_is_named_as_such_not_dumped(): void

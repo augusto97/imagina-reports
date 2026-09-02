@@ -162,7 +162,7 @@ final class TrueRankerConnector implements DataSourceConnector, ListsConnectable
      * The account's projects, so the client picks one instead of hunting for a numeric id.
      * Documented shape: `data.projects[] = {id, project_name, domain, num_keywords}`.
      */
-    public function connectableResources(DataSource $source): ?ConnectableResources
+    public function connectableResources(DataSource $source): ConnectableResources
     {
         $apiKey = $this->apiKey($source);
 
