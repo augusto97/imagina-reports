@@ -368,5 +368,4 @@ final class TrueRankerConnector implements DataSourceConnector, ProvidesSetupGui
 
         return $body === '' ? '(respuesta vacía)' : Str::limit($body, 200);
     }
-
 }
