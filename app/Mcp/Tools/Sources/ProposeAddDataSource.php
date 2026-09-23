@@ -31,7 +31,7 @@ final class ProposeAddDataSource extends ProposalTool
 
     public function description(): string
     {
-        return 'Propone conectar a un sitio una fuente que se configura con campos (claves de API, URLs…), p. ej. TrueRanker, Cloudflare, MainWP. '
+        return 'Propone conectar a un sitio una fuente que se configura con campos (claves de API, URLs…), p. ej. Cloudflare, MainWP, Better Stack. '
             .'Consulta en list_connectors los campos de cada tipo: los marcados como secretos van en «credentials», el resto en «config». '
             .'Para Google, Meta o WooCommerce usa get_connect_link. Al confirmarse con apply_proposal se prueba la conexión.';
     }

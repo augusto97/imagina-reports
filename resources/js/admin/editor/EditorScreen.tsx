@@ -215,7 +215,6 @@ const GALLERY_ICONS: Record<string, LucideIcon> = {
     ga4_web: Globe,
     ga4_ecommerce: TrendingUp,
     seo: Search,
-    trueranker: TrendingUp,
     hourly_support: Clock,
     security: ShieldCheck,
     cloudflare: Zap,

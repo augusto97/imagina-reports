@@ -27,7 +27,6 @@ use App\Connectors\Mailchimp\MailchimpConnector;
 use App\Connectors\MainWp\MainWpConnector;
 use App\Connectors\SiteAgent\SiteAgentConnector;
 use App\Connectors\TikTokAds\TikTokAdsConnector;
-use App\Connectors\TrueRanker\TrueRankerConnector;
 use App\Connectors\Virusdie\VirusdieConnector;
 use App\Connectors\WooCommerce\WooCommerceConnector;
 use App\Enums\DataSourceType;
@@ -60,7 +59,6 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             $registry->register(new BetterUptimeConnector);
             $registry->register(new VirusdieConnector);
             $registry->register(new WooCommerceConnector);
-            $registry->register(new TrueRankerConnector);
             $registry->register(new GoogleAdsConnector);
             $registry->register(new FacebookAdsConnector);
             $registry->register(new TikTokAdsConnector);

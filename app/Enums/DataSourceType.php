@@ -19,7 +19,6 @@ enum DataSourceType: string
     case Virusdie = 'virusdie';
     case BetterUptime = 'betteruptime';
     case WooCommerce = 'woocommerce';
-    case TrueRanker = 'trueranker';
     case GoogleAds = 'google_ads';
     case FacebookAds = 'facebook_ads';
     case Instagram = 'instagram';
@@ -40,7 +39,6 @@ enum DataSourceType: string
             self::Virusdie => 'Virusdie',
             self::BetterUptime => 'Better Stack (Uptime)',
             self::WooCommerce => 'WooCommerce',
-            self::TrueRanker => 'TrueRanker',
             self::GoogleAds => 'Google Ads',
             self::FacebookAds => 'Facebook / Meta Ads',
             self::Instagram => 'Instagram',

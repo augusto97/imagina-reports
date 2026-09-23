@@ -16,7 +16,7 @@ auditada `mcp.applied`). Permisos: enum `McpAbility`. Tokens: `ApiTokenControlle
 **OAuth 2.1** (`app/Http/Controllers/OAuth/*`, `ir_oauth_clients`, `AuthorizationCodes`): discovery `.well-known/*`, registro dinámico,
 consentimiento `/oauth/authorize` sobre la sesión del panel (login → `?redirect=` → vuelve), token con PKCE S256. Tests:
 `tests/Feature/Mcp/*` (18). **Siguiente:** que el owner lo pruebe en Claude.ai (conector personalizado con la URL) y ajustar según uso real.
-Pendiente aparte: TrueRanker «Not Access available to API in your current plan» — esperando el resultado del `curl` del owner.
+**TrueRanker ELIMINADO (2026-09-24):** TrueRanker cerró su API a los planes inferiores a la suscripción mensual. Se quitó el conector, su plantilla de galería y el enum; la migración `2026_09_24_000100` borra las fuentes `trueranker` (y sus snapshots en cascada) y lo saca de las listas blancas de planes. Para posiciones usar GSC (posición media por consulta). No reabrir sin una API accesible.
 
 **🗣️ TRES DEFECTOS DE «NO SÉ QUÉ PASÓ» (2026-09-02):** los tres son la misma clase de error — el sistema **concluía** en vez de **informar**.
 1. **GA4 «no detecta cuentas» / «detecta pero no sale el desplegable».** No era un fallo de detección: con **una sola** propiedad se
@@ -2459,6 +2459,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-09-24) **Conector TrueRanker eliminado.** Su API ya solo está en la suscripción mensual; el plugin de WordPress no expone los datos de forma utilizable. GSC cubre la posición media.
 - (2026-09-23) **MCP: las herramientas llaman a la API v1 por sub-petición interna, no a servicios.** Así un token nunca puede más que el panel (tenant, rol, plan, validación y suspensión 402 idénticos) y cada endpoint nuevo queda protegido sin duplicar reglas. Los tokens se restringen al MCP (403 en REST directo) porque los permisos por herramienta solo existen en la capa MCP.
 - (2026-09-23) **OAuth sin refresh tokens ni caducidad.** El token Sanctum vive hasta que se revoca en Ajustes → Asistentes IA; más simple y suficiente para conectores de asistentes. Clientes solo públicos con PKCE S256.
 - (2026-06-26) **Dashboards interactivos = datos filtrados, NO motor BI.** Se rebanan cortes pre-agregados top-N (datasets), nunca consulta
