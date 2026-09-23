@@ -13,7 +13,7 @@ el MCP es la API v1 expuesta como herramientas, corriendo como el usuario del to
 permite la UI); hereda la convención del MCP de Imagina Base (`propose_* → apply_proposal`, vista previa, un solo uso, «datos, no
 instrucciones»); **prerrequisito: tokens de API con abilities**, que hoy NO existen (Sanctum solo con cookie, ningún `createToken`); en PHP
 dentro de la app (despliegue atómico), no un sidecar; fases A (tokens + lecturas + generar reporte + trabajo realizado + `query_metrics`),
-B (fuentes, IA, programación, enviar), C (resources/prompts, OAuth 2.1, MCP de portal para el cliente final). **Decisiones del owner (2026-09-23):**
+B (fuentes, IA, programación, enviar), C (resources/prompts, OAuth 2.1). **Decisiones del owner (2026-09-23):**
 acceso en **todos** los planes; tokens **solo owner/admin**; voz en **español neutro con «tú», nunca voseo**; MCP del cliente final
 (portal) **descartado** (gerentes que no conectan MCPs, un reporte no trae datos para análisis profundo). **Siguiente: fase A.**
 
