@@ -518,6 +518,47 @@ export function useDeleteTeamMember() {
     });
 }
 
+/* ------------------------------ AI assistants ------------------------------ */
+
+export interface ApiToken {
+    id: number;
+    name: string;
+    abilities: string[];
+    created_by: string | null;
+    last_used_at: string | null;
+    created_at: string | null;
+}
+
+export interface ApiTokensPayload {
+    tokens: ApiToken[];
+    abilities: { value: string; label: string }[];
+    mcp_url: string;
+}
+
+/** Connector tokens for AI assistants (MCP). Owner/admin only. */
+export function useApiTokens(enabled: boolean) {
+    return useQuery({ queryKey: ['api-tokens'], queryFn: () => get<ApiTokensPayload>('/api-tokens'), enabled });
+}
+
+export function useCreateApiToken() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { name: string; abilities: string[] }) =>
+            api.post<{ plain_text_token: string; token: ApiToken }>('/api-tokens', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-tokens'] }),
+    });
+}
+
+export function useRevokeApiToken() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/api-tokens/${id}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-tokens'] }),
+    });
+}
+
 /* --------------------------------- platform -------------------------------- */
 
 export function usePlatformOverview() {

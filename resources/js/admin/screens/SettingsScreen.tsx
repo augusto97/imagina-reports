@@ -1,17 +1,20 @@
-import { Building2, CreditCard, Plug, Plus, Send, ShieldCheck, Trash2, User, Webhook } from 'lucide-react';
+import { Bot, Building2, Check, Copy, CreditCard, Plug, Plus, Send, ShieldCheck, Trash2, User, Webhook } from 'lucide-react';
 import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
 
 import {
     type AgencyUpdate,
     useAgency,
+    useApiTokens,
     useAuditLogs,
     useAuthUser,
     useBilling,
     useCancelSubscription,
     useChangePassword,
     useConfirmTwoFactor,
+    useCreateApiToken,
     useDeleteAgency,
     useDisableTwoFactor,
+    useRevokeApiToken,
     useStartTwoFactor,
     useSubscribe,
     useTestWebhooks,
@@ -671,6 +674,199 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
     );
 }
 
+/* ------------------------------ Asistentes IA ------------------------------ */
+
+/** Checked by default in the new-token form: everything except sending and deleting. */
+const RISKY_ABILITIES = ['reports:send', 'delete'];
+
+function CopyButton({ value }: { value: string }): ReactElement {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+                void navigator.clipboard.writeText(value).then(() => {
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1500);
+                });
+            }}
+        >
+            {copied ? <Check className="ir-size-3.5" /> : <Copy className="ir-size-3.5" />}
+            {copied ? 'Copiado' : 'Copiar'}
+        </Button>
+    );
+}
+
+function CopyField({ value }: { value: string }): ReactElement {
+    return (
+        <div className="ir-flex ir-items-center ir-gap-2">
+            <code className="ir-min-w-0 ir-flex-1 ir-truncate ir-rounded-md ir-border ir-bg-muted ir-px-2.5 ir-py-1.5 ir-text-xs">{value}</code>
+            <CopyButton value={value} />
+        </div>
+    );
+}
+
+function formatDate(value: string | null): string {
+    return value === null ? 'Nunca' : new Date(value).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function AssistantsSection(): ReactElement {
+    const { data: user } = useAuthUser();
+    const privileged = user?.role === 'owner' || user?.role === 'admin';
+    const { data, isLoading } = useApiTokens(privileged);
+    const create = useCreateApiToken();
+    const revoke = useRevokeApiToken();
+    const [name, setName] = useState('');
+    const [selected, setSelected] = useState<string[] | null>(null);
+    const [plain, setPlain] = useState<string | null>(null);
+
+    if (!privileged) {
+        return (
+            <Card title="Asistentes de IA (MCP)">
+                <p className="ir-text-sm ir-text-muted-foreground">
+                    Conecta Claude, ChatGPT u otro asistente a Imagina Reports para pedirle reportes, anotar trabajo o revisar
+                    fuentes con lenguaje natural. Solo un propietario o administrador de la agencia puede conectarlo.
+                </p>
+            </Card>
+        );
+    }
+
+    if (isLoading || data === undefined) {
+        return <p className="ir-text-sm ir-text-muted-foreground">Cargando…</p>;
+    }
+
+    const abilities = selected ?? data.abilities.map((a) => a.value).filter((value) => !RISKY_ABILITIES.includes(value));
+    const toggle = (value: string): void =>
+        setSelected(abilities.includes(value) ? abilities.filter((item) => item !== value) : [...abilities, value]);
+    const labelOf = (value: string): string => data.abilities.find((a) => a.value === value)?.label ?? value;
+
+    const submit = (): void => {
+        create.mutate(
+            { name: name.trim(), abilities },
+            {
+                onSuccess: (result) => {
+                    setPlain(result.plain_text_token);
+                    setName('');
+                    setSelected(null);
+                },
+            },
+        );
+    };
+
+    return (
+        <>
+            <Card
+                title="Conectar un asistente"
+                description="Tu asistente puede consultar datos, preparar reportes y anotar trabajo. Cada cambio te lo muestra como propuesta y solo se aplica si lo confirmas."
+            >
+                <div className="ir-flex ir-flex-col ir-gap-4 ir-text-sm">
+                    <Field label="URL del conector (MCP)">
+                        <CopyField value={data.mcp_url} />
+                    </Field>
+                    <div className="ir-flex ir-flex-col ir-gap-2">
+                        <p className="ir-font-medium">Claude.ai o ChatGPT</p>
+                        <p className="ir-text-muted-foreground">
+                            En Claude: Ajustes → Conectores → «Añadir conector personalizado» y pega la URL. En ChatGPT: activa el
+                            modo desarrollador en los ajustes de conectores y crea uno nuevo con la URL. Te pedirá entrar a Imagina
+                            Reports y elegir qué puede hacer; no necesitas crear un token.
+                        </p>
+                    </div>
+                    <div className="ir-flex ir-flex-col ir-gap-2">
+                        <p className="ir-font-medium">Claude Code, Cursor u otros clientes</p>
+                        <p className="ir-text-muted-foreground">Crea un token abajo y úsalo como cabecera. Por ejemplo, en Claude Code:</p>
+                        <CopyField value={`claude mcp add --transport http imagina-reports ${data.mcp_url} --header "Authorization: Bearer TU_TOKEN"`} />
+                    </div>
+                </div>
+            </Card>
+
+            <Card title="Crear un token" description="Para clientes que no conectan solos. El token solo se muestra una vez.">
+                {plain !== null ? (
+                    <div className="ir-flex ir-flex-col ir-gap-3">
+                        <p className="ir-text-sm">Copia el token ahora: no se volverá a mostrar.</p>
+                        <CopyField value={plain} />
+                        <Button variant="ghost" className="ir-self-start" onClick={() => setPlain(null)}>
+                            Listo
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="ir-flex ir-flex-col ir-gap-4">
+                        <Field label="Nombre">
+                            <Input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} placeholder="Claude Code de Ana" />
+                        </Field>
+                        <Field label="Qué podrá hacer">
+                            <div className="ir-flex ir-flex-col ir-gap-1.5">
+                                {data.abilities.map((ability) => (
+                                    <label key={ability.value} className="ir-flex ir-items-start ir-gap-2 ir-text-sm">
+                                        <input
+                                            type="checkbox"
+                                            className="ir-mt-0.5"
+                                            checked={ability.value === 'read' || abilities.includes(ability.value)}
+                                            disabled={ability.value === 'read'}
+                                            onChange={() => toggle(ability.value)}
+                                        />
+                                        <span>{ability.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </Field>
+                        <div className="ir-flex ir-items-center ir-gap-3">
+                            <Button onClick={submit} disabled={create.isPending || name.trim() === ''}>
+                                {create.isPending ? 'Creando…' : 'Crear token'}
+                            </Button>
+                            {create.isError && <span className="ir-text-xs ir-text-danger">No se pudo crear el token.</span>}
+                        </div>
+                    </div>
+                )}
+            </Card>
+
+            <Card title="Asistentes conectados" description="Desconecta cualquiera en cualquier momento: deja de funcionar al instante.">
+                {data.tokens.length === 0 ? (
+                    <p className="ir-text-sm ir-text-muted-foreground">Todavía no hay asistentes conectados.</p>
+                ) : (
+                    <ul className="ir-flex ir-flex-col ir-divide-y">
+                        {data.tokens.map((token) => (
+                            <li key={token.id} className="ir-flex ir-items-start ir-gap-3 ir-py-3 first:ir-pt-0 last:ir-pb-0">
+                                <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-muted-foreground">
+                                    <Bot className="ir-size-4" />
+                                </span>
+                                <div className="ir-min-w-0 ir-flex-1">
+                                    <p className="ir-truncate ir-text-sm ir-font-medium">{token.name}</p>
+                                    <p className="ir-text-xs ir-text-muted-foreground">
+                                        {token.created_by !== null ? `De ${token.created_by} · ` : ''}Último uso: {formatDate(token.last_used_at)}
+                                    </p>
+                                    <div className="ir-mt-1.5 ir-flex ir-flex-wrap ir-gap-1">
+                                        {token.abilities.map((ability) => (
+                                            <Badge key={ability} tone={RISKY_ABILITIES.includes(ability) ? 'warning' : 'neutral'}>
+                                                {labelOf(ability)}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={revoke.isPending}
+                                    onClick={() => {
+                                        if (window.confirm(`¿Desconectar «${token.name}»? Dejará de funcionar al instante.`)) {
+                                            revoke.mutate(token.id);
+                                        }
+                                    }}
+                                >
+                                    <Trash2 className="ir-size-3.5" />
+                                    Desconectar
+                                </Button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </Card>
+        </>
+    );
+}
+
 /* -------------------------------- Seguridad -------------------------------- */
 
 const AUDIT_LABELS: Record<string, string> = {
@@ -684,6 +880,9 @@ const AUDIT_LABELS: Record<string, string> = {
     'account.two_factor_enabled': 'Activó 2FA',
     'account.two_factor_disabled': 'Desactivó 2FA',
     'agency.deleted': 'Eliminó la agencia',
+    'mcp.applied': 'Un asistente de IA aplicó un cambio',
+    'api_token.created': 'Conectó un asistente de IA',
+    'api_token.revoked': 'Desconectó un asistente de IA',
 };
 
 function AuditLogCard(): ReactElement {
@@ -777,7 +976,7 @@ function DangerZoneCard({ agency }: { agency: AgencySettings }): ReactElement {
 
 /* ---------------------------------- Screen --------------------------------- */
 
-type SectionKey = 'account' | 'agency' | 'billing' | 'integrations' | 'security';
+type SectionKey = 'account' | 'agency' | 'billing' | 'integrations' | 'assistants' | 'security';
 
 /**
  * Settings used to be one long scroll of ten cards, which put the login email and the
@@ -789,6 +988,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof User; heading: st
     { key: 'agency', label: 'Mi agencia', icon: Building2, heading: 'Mi agencia', blurb: 'Cómo se ve tu agencia en los reportes: nombre, idioma, color y logo.' },
     { key: 'billing', label: 'Plan y pagos', icon: CreditCard, heading: 'Plan y pagos', blurb: 'Tu consumo, tu suscripción y el email con el que se te cobra.' },
     { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, webhooks salientes y avisos por Slack.' },
+    { key: 'assistants', label: 'Asistentes IA', icon: Bot, heading: 'Asistentes IA', blurb: 'Conecta Claude, ChatGPT u otro asistente para trabajar con Imagina Reports hablando.' },
     { key: 'security', label: 'Seguridad', icon: ShieldCheck, heading: 'Seguridad', blurb: 'Registro de actividad de tu equipo y eliminación de la cuenta.' },
 ];
 
@@ -823,6 +1023,7 @@ export function SettingsScreen(): ReactElement {
                 <WebhooksCard agency={agency} />
             </>
         ),
+        assistants: <AssistantsSection />,
         security: (
             <>
                 <AuditLogCard />

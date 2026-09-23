@@ -118,7 +118,16 @@ export function App(): ReactElement {
         return () => setApiErrorHandlers({});
     }, [queryClient, setSuspended]);
 
-    if (isLoading) {
+    // Signed in on the way to an assistant's consent screen (OAuth for the MCP connector):
+    // go back there instead of opening the panel. Only same-origin /oauth/authorize paths.
+    const oauthReturn = user !== undefined ? oauthRedirectTarget() : null;
+    useEffect(() => {
+        if (oauthReturn !== null) {
+            window.location.replace(oauthReturn);
+        }
+    }, [oauthReturn]);
+
+    if (isLoading || oauthReturn !== null) {
         return (
             <div className="ir-flex ir-min-h-screen ir-items-center ir-justify-center ir-bg-background ir-text-sm ir-text-muted-foreground">
                 Cargando…
@@ -136,6 +145,12 @@ export function App(): ReactElement {
     }
 
     return <AuthenticatedApp email={user.email} version={user.app_version} impersonating={user.impersonating ?? null} role={user.role} />;
+}
+
+function oauthRedirectTarget(): string | null {
+    const target = new URLSearchParams(window.location.search).get('redirect');
+
+    return target !== null && target.startsWith('/oauth/authorize?') ? target : null;
 }
 
 const PLATFORM_NAV: { tab: PlatformTab; label: string; icon: typeof Users }[] = [

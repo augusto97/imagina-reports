@@ -54,6 +54,13 @@ final class AuditLogger
 
     public const AGENCY_DELETED = 'agency.deleted';
 
+    /** A change confirmed by a person and applied through the MCP connector. */
+    public const MCP_APPLIED = 'mcp.applied';
+
+    public const API_TOKEN_CREATED = 'api_token.created';
+
+    public const API_TOKEN_REVOKED = 'api_token.revoked';
+
     /**
      * @param  array<string, mixed>  $meta
      */

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AnomalyController;
+use App\Http\Controllers\Api\V1\ApiTokenController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BillingController;
@@ -49,6 +50,9 @@ use App\Http\Controllers\Api\V1\TwoFactorController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UpsellController;
 use App\Http\Controllers\Api\V1\WorkLogController;
+use App\Http\Controllers\McpController;
+use App\Http\Controllers\OAuth\OAuthRegistrationController;
+use App\Http\Controllers\OAuth\OAuthTokenController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
@@ -110,6 +114,15 @@ Route::post('/verify-email', [AccountController::class, 'verifyEmail'])
     ->middleware('throttle:12,1')
     ->name('api.account.verify-email');
 
+// MCP connector for AI assistants (docs/mcp-server.md). Authenticates its own way — only an
+// API token, never the panel's cookie — and answers 401 with the OAuth discovery pointer.
+Route::post('/mcp', McpController::class)->middleware('throttle:mcp')->name('api.mcp');
+
+// OAuth 2.1 for MCP clients (Claude, ChatGPT…): client registration and code → token exchange.
+// The consent screen itself is a web route (it needs the panel's session).
+Route::post('/oauth/register', OAuthRegistrationController::class)->middleware('throttle:oauth')->name('api.oauth.register');
+Route::post('/oauth/token', OAuthTokenController::class)->middleware('throttle:oauth')->name('api.oauth.token');
+
 // SPA cookie-session login (CLAUDE.md §2). Stateful via statefulApi(); throttled.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1')->name('api.login');
 
@@ -120,7 +133,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middl
 // Authenticated, tenant-bound routes. `tenant` runs after `auth:sanctum` so the
 // AgencyScope is active for everything inside (CLAUDE.md §5). Resource endpoints
 // are added phase by phase per §8.
-Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(function (): void {
     Route::get('/user', [AuthController::class, 'me'])->name('api.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
     Route::put('/user/profile', [AccountController::class, 'updateProfile'])->name('api.user.profile');
@@ -137,6 +150,11 @@ Route::middleware(['auth:sanctum', 'tenant', 'active'])->group(function (): void
     Route::post('billing/cancel', [BillingController::class, 'cancel'])->name('api.billing.cancel');
 
     Route::get('connectors', [ConnectorController::class, 'index'])->name('api.connectors.index');
+
+    // Connector tokens for AI assistants (MCP). Owner/admin only; see ApiTokenController.
+    Route::get('api-tokens', [ApiTokenController::class, 'index'])->name('api.api-tokens.index');
+    Route::post('api-tokens', [ApiTokenController::class, 'store'])->name('api.api-tokens.store');
+    Route::delete('api-tokens/{token}', [ApiTokenController::class, 'destroy'])->whereNumber('token')->name('api.api-tokens.destroy');
 
     // Team management for the agency (SaaS Fase 1) — privileged users only (in requests).
     Route::get('team', [TeamController::class, 'index'])->name('api.team.index');

@@ -17,15 +17,16 @@
 - Esto es exactamente lo que la decisión «API-first» (CLAUDE.md §2) compró. Si una herramienta
   necesita lógica que no existe en la API, la lógica se añade a la API, no al MCP.
 
-## 2. Prerrequisito: tokens de API (no existen hoy)
+## 2. Tokens de API (implementado 2026-09-23)
 
-Sanctum está instalado pero solo se usa con sesión de cookie. Hace falta:
+Implementado en `app/Mcp/` + `ApiTokenController` + `RestrictApiTokens`:
 
 | Pieza | Detalle |
 |---|---|
 | Tabla | `personal_access_tokens` de Sanctum (prefijo `ir_` vía config). |
-| UI | Ajustes → **Integraciones → Tokens de API**: crear (nombre + permisos), se muestra **una sola vez**, revocar, «último uso». **Solo owner/admin** pueden crear y revocar tokens (decisión del owner). |
-| Permisos (abilities) | `reports:read` `reports:write` `sources:read` `sources:write` `clients:write` `worklogs:write` `schedules:write` `templates:write`. Por defecto un token nace **solo lectura**. |
+| UI | Ajustes → **Asistentes IA**: crear (nombre + permisos), se muestra **una sola vez**, revocar, «último uso». **Solo owner/admin** pueden crear y revocar tokens (decisión del owner). |
+| Permisos (abilities, enum `McpAbility`) | `read` (siempre) `reports:write` `reports:send` `worklogs:write` `clients:write` `sources:write` `templates:write` `schedules:write` `delete`. Por defecto se marcan todos menos `reports:send` y `delete`. |
+| Alcance del token | **Solo funciona vía `/api/v1/mcp`.** Contra la API REST directa responde 403 (`RestrictApiTokens`): cada herramienta llama a la API por una sub-petición interna (`ApiGateway`, allowlist de método+ruta) marcada en el servidor, así que el token hereda exactamente tenant, rol, límites de plan y validaciones del panel. |
 | Fuera siempre | Todo `platform/*`, `system/update/*`, facturación, borrado de agencia, impersonación. Ningún ability los habilita. |
 | Plan | **Disponible en todos los planes** (decisión del owner). Sin feature flag de plan. |
 
@@ -138,3 +139,23 @@ Plataforma/super-admin, actualizaciones del sistema, facturación, equipo (o sol
 2. **Tokens: solo owner/admin** los crean y revocan. Un colaborador no puede.
 3. **MCP para el cliente final (portal): DESCARTADO.** Motivos del owner: los clientes finales son gerentes que no saben conectar un MCP; hacerlo por cada reporte no es eficiente; y un reporte trae datos resumidos, no un GA4 completo, así que no da para análisis profundo. No reabrir sin un motivo nuevo.
 4. **Voz: español neutro con «tú».** Nada de voseo.
+
+## 11. Estado de la implementación (2026-09-23)
+
+Fases **A, B y C implementadas** (el MCP del portal quedó descartado, §10.3).
+
+- **Endpoint:** `POST /api/v1/mcp` — JSON-RPC 2.0, transporte Streamable HTTP (respuestas JSON, sin streams), versiones `2025-06-18`,
+  `2025-03-26`, `2024-11-05`. Rate limit 120/min por token. Sin token → 401 con `WWW-Authenticate: Bearer resource_metadata=…`.
+- **45 herramientas** en `app/Mcp/Tools/*` (registro en `ToolRegistry`), filtradas por los permisos del token; `apply_proposal` solo
+  aparece si el token puede escribir. Propuestas: caché 10 min, un solo uso, ligadas al token; cada `apply` se audita (`mcp.applied`).
+- **Resources:** `imagina-reports://report/{id}` y `imagina-reports://site/{id}` (Markdown). **Prompts:** `cierre_de_mes`,
+  `revision_de_fuentes`, `resumen_semanal`, `anotar_trabajo`.
+- **OAuth 2.1** (para Claude.ai / ChatGPT sin configurar nada):
+  - Descubrimiento: `/.well-known/oauth-protected-resource[/api/v1/mcp]` (RFC 9728) y `/.well-known/oauth-authorization-server` (RFC 8414).
+  - Registro dinámico: `POST /api/v1/oauth/register` (RFC 7591; solo clientes públicos; redirect https, loopback http o esquema propio).
+  - Consentimiento: `GET/POST /oauth/authorize` sobre la sesión del panel (si no hay sesión → `/admin?redirect=…` y vuelve tras el login).
+    Solo owner/admin de una agencia; la persona elige los permisos.
+  - Token: `POST /api/v1/oauth/token` (`authorization_code` + PKCE S256 obligatorio). Emite un token Sanctum «Asistente: {cliente}»
+    con los permisos aprobados; se revoca en Ajustes → Asistentes IA. Sin refresh tokens (el token no caduca; se revoca).
+- **Conectar:** Claude.ai → Ajustes → Conectores → conector personalizado con la URL del MCP. Claude Code →
+  `claude mcp add --transport http imagina-reports <url> --header "Authorization: Bearer <token>"`.

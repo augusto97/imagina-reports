@@ -7,15 +7,16 @@
 ---
 
 ## Where I left off (read me first)
-**🧩 PROPUESTA PENDIENTE — SERVIDOR MCP DE IMAGINA REPORTS (2026-09-20):** el owner quiere que un usuario de agencia pueda pedirle a un
-asistente (Claude/ChatGPT/Cursor) lo que hace a diario en la app. **Diseño completo en `docs/mcp-server.md`; no hay código.** Puntos clave:
-el MCP es la API v1 expuesta como herramientas, corriendo como el usuario del token (mismo tenant, rol y validaciones — nada más de lo que
-permite la UI); hereda la convención del MCP de Imagina Base (`propose_* → apply_proposal`, vista previa, un solo uso, «datos, no
-instrucciones»); **prerrequisito: tokens de API con abilities**, que hoy NO existen (Sanctum solo con cookie, ningún `createToken`); en PHP
-dentro de la app (despliegue atómico), no un sidecar; fases A (tokens + lecturas + generar reporte + trabajo realizado + `query_metrics`),
-B (fuentes, IA, programación, enviar), C (resources/prompts, OAuth 2.1). **Decisiones del owner (2026-09-23):**
-acceso en **todos** los planes; tokens **solo owner/admin**; voz en **español neutro con «tú», nunca voseo**; MCP del cliente final
-(portal) **descartado** (gerentes que no conectan MCPs, un reporte no trae datos para análisis profundo). **Siguiente: fase A.**
+**🤖 SERVIDOR MCP IMPLEMENTADO — fases A, B y C (2026-09-23, v1.28.0):** un owner/admin conecta Claude.ai, ChatGPT, Claude Code o
+Cursor a su agencia. Detalle y estado en `docs/mcp-server.md` §11. Piezas: `POST /api/v1/mcp` (`McpController` → `McpServer`, JSON-RPC,
+45 herramientas en `app/Mcp/Tools/*`, resources y prompts); **cada herramienta llama a la propia API v1 por sub-petición interna**
+(`ApiGateway`, allowlist método+ruta) con el mismo token → mismas reglas que el panel; el token **no sirve contra la API REST directa**
+(`RestrictApiTokens`, alias `token.scope`, 403). Escrituras = `propose_* → apply_proposal` (caché 10 min, un solo uso, ligada al token,
+auditada `mcp.applied`). Permisos: enum `McpAbility`. Tokens: `ApiTokenController` (solo owner/admin) + Ajustes → **Asistentes IA**.
+**OAuth 2.1** (`app/Http/Controllers/OAuth/*`, `ir_oauth_clients`, `AuthorizationCodes`): discovery `.well-known/*`, registro dinámico,
+consentimiento `/oauth/authorize` sobre la sesión del panel (login → `?redirect=` → vuelve), token con PKCE S256. Tests:
+`tests/Feature/Mcp/*` (18). **Siguiente:** que el owner lo pruebe en Claude.ai (conector personalizado con la URL) y ajustar según uso real.
+Pendiente aparte: TrueRanker «Not Access available to API in your current plan» — esperando el resultado del `curl` del owner.
 
 **🗣️ TRES DEFECTOS DE «NO SÉ QUÉ PASÓ» (2026-09-02):** los tres son la misma clase de error — el sistema **concluía** en vez de **informar**.
 1. **GA4 «no detecta cuentas» / «detecta pero no sale el desplegable».** No era un fallo de detección: con **una sola** propiedad se
@@ -2415,6 +2416,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 12. Phase 1 Definition of Done: tests green, PHPStan max clean, end-to-end demo of a manual report.
 
 ## Completed
+- [x] (2026-09-23) **Servidor MCP (fases A+B+C)**: endpoint JSON-RPC, 45 herramientas vía gateway interno, propuestas auditadas, tokens con permisos (solo owner/admin), resources/prompts, OAuth 2.1 (DCR + PKCE) y sección Ajustes → Asistentes IA. 18 tests nuevos; 607 verdes.
 - [x] (2026-06-18) **Phase 1 · Task 1 — Project skeleton & tooling baseline.** Laravel 11 + Sanctum/API v1,
       Horizon, Browsershot, laravel-permission, google/apiclient; PHPStan max + Pint clean; 3 tests green;
       two Vite 5/React 18 SPAs (admin+portal) with the locked stack; CI workflow building both SPAs. — 99135e8
@@ -2457,6 +2459,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-09-23) **MCP: las herramientas llaman a la API v1 por sub-petición interna, no a servicios.** Así un token nunca puede más que el panel (tenant, rol, plan, validación y suspensión 402 idénticos) y cada endpoint nuevo queda protegido sin duplicar reglas. Los tokens se restringen al MCP (403 en REST directo) porque los permisos por herramienta solo existen en la capa MCP.
+- (2026-09-23) **OAuth sin refresh tokens ni caducidad.** El token Sanctum vive hasta que se revoca en Ajustes → Asistentes IA; más simple y suficiente para conectores de asistentes. Clientes solo públicos con PKCE S256.
 - (2026-06-26) **Dashboards interactivos = datos filtrados, NO motor BI.** Se rebanan cortes pre-agregados top-N (datasets), nunca consulta
   cruda en vivo. Motivo: el job del producto es retención por claridad (no análisis ad-hoc), las restricciones (VPS único, "reporte en
   segundos", fuentes que ya agregan) lo hacen impráctico e innecesario, y el moat es amplitud+marca+narrativa+automatización, no profundidad.

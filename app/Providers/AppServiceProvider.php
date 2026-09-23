@@ -111,6 +111,13 @@ class AppServiceProvider extends ServiceProvider
         // Sync/backfill fan out to every connected source and hammer third-party APIs (and
         // their rate limits), so they are capped per agency too.
         RateLimiter::for('heavy', fn (Request $request): Limit => Limit::perMinute(30)->by($this->agencyKey($request)));
+
+        // MCP connector: per token (hashed — never the raw secret as a cache key). An assistant
+        // chaining tool calls is bursty but a person reads between turns; 120/min covers it.
+        RateLimiter::for('mcp', static fn (Request $request): Limit => Limit::perMinute(120)->by('mcp:'.hash('sha256', $request->bearerToken() ?? (string) $request->ip())));
+
+        // OAuth endpoints are unauthenticated by nature: throttle per IP.
+        RateLimiter::for('oauth', static fn (Request $request): Limit => Limit::perMinute(30)->by('oauth:'.$request->ip()));
     }
 
     /** Rate-limit bucket: the caller's agency (falls back to user, then IP). */

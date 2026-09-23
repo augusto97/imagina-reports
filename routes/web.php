@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\EmbedController;
+use App\Http\Controllers\OAuth\OAuthAuthorizeController;
+use App\Http\Controllers\OAuth\OAuthMetadataController;
 use App\Models\Report;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -44,3 +46,11 @@ Route::get('/portal/{token}', static fn (string $token): View => view('portal', 
 // dashboard token; explorable by date range, always current from the latest snapshots.
 Route::get('/dashboard/{token}', static fn (string $token): View => view('dashboard', ['token' => $token]))
     ->name('dashboard');
+
+// OAuth discovery for MCP clients (RFC 9728 / RFC 8414) and the consent screen, which runs on
+// the panel's session so only a logged-in owner/admin can connect an assistant.
+Route::get('/.well-known/oauth-protected-resource', [OAuthMetadataController::class, 'protectedResource']);
+Route::get('/.well-known/oauth-protected-resource/api/v1/mcp', [OAuthMetadataController::class, 'protectedResource']);
+Route::get('/.well-known/oauth-authorization-server', [OAuthMetadataController::class, 'authorizationServer']);
+Route::get('/oauth/authorize', [OAuthAuthorizeController::class, 'show'])->name('oauth.authorize');
+Route::post('/oauth/authorize', [OAuthAuthorizeController::class, 'decide'])->middleware('throttle:oauth')->name('oauth.authorize.decide');
