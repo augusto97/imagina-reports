@@ -2459,7 +2459,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
-- (2026-09-24) **Conector TrueRanker eliminado.** Su API ya solo está en la suscripción mensual; el plugin de WordPress no expone los datos de forma utilizable. GSC cubre la posición media.
+- (2026-09-24) **Conector TrueRanker eliminado.** Su API ya solo está en la suscripción mensual; no hay forma documentada de leer sus datos desde el plugin de WordPress. GSC cubre la posición media.
 - (2026-09-23) **MCP: las herramientas llaman a la API v1 por sub-petición interna, no a servicios.** Así un token nunca puede más que el panel (tenant, rol, plan, validación y suspensión 402 idénticos) y cada endpoint nuevo queda protegido sin duplicar reglas. Los tokens se restringen al MCP (403 en REST directo) porque los permisos por herramienta solo existen en la capa MCP.
 - (2026-09-23) **OAuth sin refresh tokens ni caducidad.** El token Sanctum vive hasta que se revoca en Ajustes → Asistentes IA; más simple y suficiente para conectores de asistentes. Clientes solo públicos con PKCE S256.
 - (2026-06-26) **Dashboards interactivos = datos filtrados, NO motor BI.** Se rebanan cortes pre-agregados top-N (datasets), nunca consulta
