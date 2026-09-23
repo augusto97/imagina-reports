@@ -126,15 +126,15 @@ Plataforma/super-admin, actualizaciones del sistema, facturación, equipo (o sol
 |---|---|---|
 | **A** | Tokens de API + `get_context` + lecturas (§5.1–5.2, `list/get_reports`) + `propose_generate_report` + `propose_add_work_logs` + `query_metrics`. | Máximo valor, mínimo riesgo: generar y anotar trabajo son el 80 % del uso diario. Casi todo es lectura. |
 | **B** | Fuentes (§5.5), plantillas con IA, programación, clientes/sitios, enviar/aprobar. | Escrituras con consecuencias; llegan con la convención de propuestas ya rodada. |
-| **C** | Resources + prompts, OAuth 2.1 (conectores de Claude.ai), **MCP de portal para el cliente final** (solo lectura, con su `public_token`: *«pregúntale a tu reporte»*). | Diferenciación comercial. |
+| **C** | Resources + prompts, OAuth 2.1 (conectores de Claude.ai). | Diferenciación comercial. |
 
 ## 9. Ángulo comercial
 
-«Conecta tu agencia a Claude / ChatGPT / Cursor» como feature de plan. Y la fase C abre lo mismo al **cliente final** de la agencia, que es donde el producto ya gana: retención por claridad.
+«Conecta tu agencia a Claude / ChatGPT / Cursor», incluido en todos los planes.
 
 ## 10. Decisiones del owner (2026-09-23)
 
 1. **Acceso MCP: en todos los planes.**
 2. **Tokens: solo owner/admin** los crean y revocan. Un colaborador no puede.
-3. **MCP para el cliente final (portal): pendiente.** Se le explicó al owner; no bloquea las fases A y B.
+3. **MCP para el cliente final (portal): DESCARTADO.** Motivos del owner: los clientes finales son gerentes que no saben conectar un MCP; hacerlo por cada reporte no es eficiente; y un reporte trae datos resumidos, no un GA4 completo, así que no da para análisis profundo. No reabrir sin un motivo nuevo.
 4. **Voz: español neutro con «tú».** Nada de voseo.
