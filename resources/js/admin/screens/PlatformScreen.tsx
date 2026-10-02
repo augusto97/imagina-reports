@@ -29,6 +29,7 @@ import {
     useUpdatePlatformIntegrations,
     useUpdatePlatformMailSettings,
 } from '../api';
+import { GoogleAdsSetupGuide, GoogleSetupGuide, MetaSetupGuide } from '../components/OAuthSetupGuide';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
@@ -987,7 +988,7 @@ function IntegrationsTab(): ReactElement {
             <p className="ir-text-sm ir-text-muted-foreground">
                 Credenciales de las apps OAuth para la conexión de un clic. Se guardan cifradas y tienen prioridad sobre las
                 variables del <code className="ir-rounded ir-bg-muted ir-px-1">.env</code>. El botón «Conectar con…» aparece en cuanto quedan «listo».
-                Consulta <strong>docs/oauth-connect-setup.md</strong> para obtenerlas.
+                Cada tarjeta tiene la guía completa, con las URLs de esta instalación listas para copiar.
             </p>
 
             <Card
@@ -1007,6 +1008,7 @@ function IntegrationsTab(): ReactElement {
                     <Button className="ir-self-start" onClick={() => save({ google_oauth_client_id: gId, ...(gSecret !== '' ? { google_oauth_client_secret: gSecret } : {}) })} disabled={update.isPending || (gId === '' && gSecret === '')}>
                         Guardar Google
                     </Button>
+                    {settings !== undefined && <GoogleSetupGuide setup={settings.setup} />}
                     <div className="ir-mt-1 ir-border-t ir-pt-3">
                         <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
                             <span className="ir-text-xs ir-text-muted-foreground">Solo para <strong>Google Ads</strong>: developer token</span>
@@ -1023,6 +1025,9 @@ function IntegrationsTab(): ReactElement {
                         <Button variant="ghost" className="ir-mt-2 ir-self-start" onClick={() => save({ google_ads_login_customer_id: gMcc, ...(gDev !== '' ? { google_ads_developer_token: gDev } : {}) })} disabled={update.isPending || (gDev === '' && gMcc === '')}>
                             Guardar Google Ads
                         </Button>
+                        <div className="ir-mt-3">
+                            <GoogleAdsSetupGuide />
+                        </div>
                     </div>
                 </div>
             </Card>
@@ -1044,6 +1049,7 @@ function IntegrationsTab(): ReactElement {
                     <Button className="ir-self-start" onClick={() => save({ meta_oauth_app_id: mId, ...(mSecret !== '' ? { meta_oauth_app_secret: mSecret } : {}) })} disabled={update.isPending || (mId === '' && mSecret === '')}>
                         Guardar Meta
                     </Button>
+                    {settings !== undefined && <MetaSetupGuide setup={settings.setup} />}
                 </div>
             </Card>
             {update.isSuccess && <p className="ir-text-xs ir-text-success">Guardado.</p>}

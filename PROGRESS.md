@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🔑 CONEXIÓN CON GOOGLE/META COMPLETA Y HONESTA (2026-10-02, v1.29.0):** el owner veía «app no segura» al conectar Google y la guía
+estaba incompleta (no decía publicar la app, ni verificarla, ni que hacía falta política de privacidad). Cambios:
+1. **Guía paso a paso dentro del panel** (super-admin → Plataforma → Integraciones, `components/OAuthSetupGuide.tsx`): APIs a activar,
+   Branding, Audience (**«Publish app»**: en Testing las conexiones caducan a los 7 días), scopes, cliente Web + redirect URIs,
+   verificación del dominio, Verification Center (justificaciones por scope en inglés listas para copiar + vídeo), y lo mismo para Meta y
+   el developer token de Ads. Las URLs salen del backend (`PlatformIntegrationsController::setup()`), así que no se desalinean del código.
+2. **Páginas públicas** que Google/Meta exigen: `/` (inicio en español), `/privacidad` (con la declaración *Limited Use* de Google y la
+   mención a Anthropic para el resumen IA) y `/terminos`. Contacto = remitente de correo de la plataforma. **El texto legal lo debe revisar
+   el owner.**
+3. **Errores reales al conectar:** antes el panel ignoraba `?connect_error=` y el servidor convertía cualquier rechazo en un genérico.
+   Ahora `ConnectFailed` lleva la causa (consentimiento cancelado / usuario no de prueba, **casilla de permiso sin marcar** — Google
+   muestra cada scope como casilla —, `redirect_uri_mismatch` con la URL exacta, `invalid_client`…) y `SiteDataSources` la muestra.
+4. El botón «Conectar con Google» de **Google Ads exige developer token** (antes conectaba y luego todo fallaba).
+
 **🤖 SERVIDOR MCP IMPLEMENTADO — fases A, B y C (2026-09-23, v1.28.0):** un owner/admin conecta Claude.ai, ChatGPT, Claude Code o
 Cursor a su agencia. Detalle y estado en `docs/mcp-server.md` §11. Piezas: `POST /api/v1/mcp` (`McpController` → `McpServer`, JSON-RPC,
 45 herramientas en `app/Mcp/Tools/*`, resources y prompts); **cada herramienta llama a la propia API v1 por sub-petición interna**
@@ -2416,6 +2430,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 12. Phase 1 Definition of Done: tests green, PHPStan max clean, end-to-end demo of a manual report.
 
 ## Completed
+- [x] (2026-10-02) Guía completa de Google/Meta en el panel, páginas de privacidad/términos/inicio, errores reales de conexión visibles, Ads exige developer token.
 - [x] (2026-09-23) **Servidor MCP (fases A+B+C)**: endpoint JSON-RPC, 45 herramientas vía gateway interno, propuestas auditadas, tokens con permisos (solo owner/admin), resources/prompts, OAuth 2.1 (DCR + PKCE) y sección Ajustes → Asistentes IA. 18 tests nuevos; 607 verdes.
 - [x] (2026-06-18) **Phase 1 · Task 1 — Project skeleton & tooling baseline.** Laravel 11 + Sanctum/API v1,
       Horizon, Browsershot, laravel-permission, google/apiclient; PHPStan max + Pint clean; 3 tests green;

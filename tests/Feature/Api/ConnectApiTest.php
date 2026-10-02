@@ -219,4 +219,85 @@ class ConnectApiTest extends TestCase
         $this->assertStringContainsString('connect_error=', (string) $response->headers->get('Location'));
         $this->assertSame(0, DataSource::withoutGlobalScopes()->where('site_id', $site->id)->count());
     }
+
+    /**
+     * Start a GA4 connect and return the `state` Google would echo back.
+     */
+    private function startGa4(Site $site): string
+    {
+        $url = $this->postJson("/api/v1/sites/{$site->id}/connect/ga4", ['return_url' => config('app.url').'/panel'])->json('redirect_url');
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+        return (string) $query['state'];
+    }
+
+    private function connectError(string $location): string
+    {
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
+
+        return (string) ($query['connect_error'] ?? '');
+    }
+
+    public function test_google_callback_explains_a_denied_consent(): void
+    {
+        $this->enableGoogleOAuth();
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+        $state = $this->startGa4($this->site($agency));
+
+        $location = (string) $this->get("/api/v1/connect/callback/ga4?error=access_denied&state={$state}")->headers->get('Location');
+
+        $this->assertStringContainsString('usuario de prueba', $this->connectError($location));
+    }
+
+    public function test_google_callback_reports_an_unchecked_permission(): void
+    {
+        $this->enableGoogleOAuth();
+        // Granular consent: the person only granted the basic profile scope, not Analytics.
+        Http::fake(['oauth2.googleapis.com/token' => Http::response(['access_token' => 'at', 'refresh_token' => 'rt', 'scope' => 'openid'])]);
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+        $site = $this->site($agency);
+        $state = $this->startGa4($site);
+
+        $location = (string) $this->get("/api/v1/connect/callback/ga4?code=c&state={$state}")->headers->get('Location');
+
+        $this->assertStringContainsString('casilla', $this->connectError($location));
+        $this->assertSame(0, DataSource::withoutGlobalScopes()->where('site_id', $site->id)->count());
+    }
+
+    public function test_google_callback_names_the_redirect_uri_to_register(): void
+    {
+        $this->enableGoogleOAuth();
+        Http::fake(['oauth2.googleapis.com/token' => Http::response(['error' => 'redirect_uri_mismatch'], 400)]);
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+        $state = $this->startGa4($this->site($agency));
+
+        $location = (string) $this->get("/api/v1/connect/callback/ga4?code=c&state={$state}")->headers->get('Location');
+
+        $this->assertStringContainsString(route('api.connect.callback', ['type' => 'ga4']), $this->connectError($location));
+    }
+
+    public function test_google_ads_connect_needs_the_developer_token(): void
+    {
+        $this->enableGoogleOAuth();
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+        $site = $this->site($agency);
+
+        // Without it the connection would "work" and every sync would then fail.
+        $this->postJson("/api/v1/sites/{$site->id}/connect/google_ads", [])->assertNotFound();
+    }
+
+    public function test_google_ads_connect_is_offered_with_the_developer_token(): void
+    {
+        config(['services.google_oauth.ads_developer_token' => 'devtok']);
+        $this->enableGoogleOAuth();
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id]));
+        $site = $this->site($agency);
+
+        $this->postJson("/api/v1/sites/{$site->id}/connect/google_ads", [])->assertOk();
+    }
 }

@@ -87,6 +87,16 @@ export interface PlatformIntegrationsSettings {
     meta_connect_ready: boolean;
     google_from_env: boolean;
     meta_from_env: boolean;
+    setup: {
+        app_url: string;
+        https: boolean;
+        domain: string;
+        homepage_url: string;
+        privacy_url: string;
+        terms_url: string;
+        google_redirect_uris: string[];
+        meta_redirect_uris: string[];
+    };
 }
 
 export interface PlatformMailSettings {

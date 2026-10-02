@@ -382,6 +382,28 @@ function AgentVersion({ source }: { source: DataSourceDto }): ReactElement | nul
 }
 
 /**
+ * What the provider's redirect brought back (`?connected=` / `?connect_error=`), read once and
+ * then removed from the address bar so a reload doesn't show it again. Before this the panel
+ * ignored both, so a failed «Conectar con Google» just landed silently on the same page.
+ */
+function takeConnectResult(): { ok: boolean; message: string; type: string } | null {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('connect_error');
+    const connected = params.get('connected');
+    if (error === null && connected === null) {
+        return null;
+    }
+
+    params.delete('connect_error');
+    params.delete('connected');
+    params.delete('source');
+    const query = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${query !== '' ? `?${query}` : ''}${window.location.hash}`);
+
+    return error !== null ? { ok: false, message: error, type: '' } : { ok: true, message: '', type: connected ?? '' };
+}
+
+/**
  * Self-contained data-sources manager for a single site: lists the configured connectors
  * with test/edit/delete, and an "add source" panel driven by each connector's
  * configSchema. Extracted so the workspace (master-detail) can embed it directly.
@@ -404,6 +426,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     // When a connector supports one-click connect, the manual form is hidden behind a toggle
     // ("usar mis propios accesos") so the client can still bring their own tokens if they prefer.
     const [manualOpen, setManualOpen] = useState(false);
+    const [connectResult, setConnectResult] = useState(takeConnectResult);
 
     const connector = connectors.find((item) => item.key === type);
     const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? sourceType;
@@ -461,6 +484,23 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-3">
+            {connectResult !== null && (
+                <div
+                    role="status"
+                    className={`ir-flex ir-items-start ir-justify-between ir-gap-3 ir-rounded-md ir-p-3 ir-text-sm ${
+                        connectResult.ok ? 'ir-bg-success/10 ir-text-success' : 'ir-bg-danger/10 ir-text-danger'
+                    }`}
+                >
+                    <p>
+                        {connectResult.ok
+                            ? `${labelFor(connectResult.type)} quedó conectado. Revisa abajo qué cuenta se eligió o elígela en el desplegable, y pulsa «Probar».`
+                            : `No se pudo conectar: ${connectResult.message}`}
+                    </p>
+                    <button type="button" className="ir-shrink-0 ir-text-xs ir-underline" onClick={() => setConnectResult(null)}>
+                        Cerrar
+                    </button>
+                </div>
+            )}
             <div className="ir-flex ir-items-center ir-justify-between">
                 <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
                     Fuentes de datos

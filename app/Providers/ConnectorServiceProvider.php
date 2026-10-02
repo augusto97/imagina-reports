@@ -30,6 +30,7 @@ use App\Connectors\TikTokAds\TikTokAdsConnector;
 use App\Connectors\Virusdie\VirusdieConnector;
 use App\Connectors\WooCommerce\WooCommerceConnector;
 use App\Enums\DataSourceType;
+use App\Services\Platform\OAuthCredentials;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
@@ -85,7 +86,11 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             if ($google->isConfigured()) {
                 $registry->register(new GoogleConnect($google, DataSourceType::Ga4->value, 'Conectar con Google', ['https://www.googleapis.com/auth/analytics.readonly']));
                 $registry->register(new GoogleConnect($google, DataSourceType::Gsc->value, 'Conectar con Google', ['https://www.googleapis.com/auth/webmasters.readonly']));
-                $registry->register(new GoogleConnect($google, DataSourceType::GoogleAds->value, 'Conectar con Google', ['https://www.googleapis.com/auth/adwords']));
+                // Ads also needs the platform developer token: without it the connection would
+                // "succeed" and then every call would fail.
+                if ((new OAuthCredentials)->googleAdsDeveloperToken() !== '') {
+                    $registry->register(new GoogleConnect($google, DataSourceType::GoogleAds->value, 'Conectar con Google', ['https://www.googleapis.com/auth/adwords']));
+                }
             }
 
             $meta = new MetaOAuthClient;

@@ -52,7 +52,8 @@ interface ConnectProvider
     /**
      * Translate the provider's callback request into a normalized {@see ConnectCallback},
      * or null when the request isn't a valid/authorized completion (so the controller can
-     * reject it). Providers must NOT persist anything here.
+     * reject it). Throws {@see ConnectFailed} with the reason when the provider refused.
+     * Providers must NOT persist anything here.
      *
      * @param  string  $callbackUrl  The exact redirect URI used to start the flow (OAuth
      *                               token exchange must echo it back identically).

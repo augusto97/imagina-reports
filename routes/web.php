@@ -6,11 +6,17 @@ use App\Http\Controllers\EmbedController;
 use App\Http\Controllers\OAuth\OAuthAuthorizeController;
 use App\Http\Controllers\OAuth\OAuthMetadataController;
 use App\Models\Report;
+use App\Support\LegalPage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
-Route::get('/', static fn (): View => view('welcome'));
+Route::get('/', static fn (): View => view('welcome', LegalPage::data()))->name('home');
+
+// Public legal pages: Google's OAuth verification (and Meta's App Review) require a homepage,
+// a privacy policy and terms on the app's own domain.
+Route::get('/privacidad', static fn (): View => view('legal.privacy', LegalPage::data()))->name('legal.privacy');
+Route::get('/terminos', static fn (): View => view('legal.terms', LegalPage::data()))->name('legal.terms');
 
 // Public report page (CLAUDE.md §10.7/§11.2): rendered by the shared BlockRenderer,
 // served to clients and printed to PDF by Browsershot via this same URL. A valid `print`

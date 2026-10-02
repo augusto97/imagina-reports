@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Platform;
 
+use App\Enums\DataSourceType;
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
 use App\Services\Platform\OAuthCredentials;
@@ -87,6 +88,37 @@ final class PlatformIntegrationsController extends Controller
             // Whether the effective value currently comes from .env (so the panel can say so).
             'google_from_env' => $googleConfigured && ! ($settings->get(OAuthCredentials::GOOGLE_CLIENT_ID) && $settings->hasSecret(OAuthCredentials::GOOGLE_CLIENT_SECRET)),
             'meta_from_env' => $metaConfigured && ! ($settings->get(OAuthCredentials::META_APP_ID) && $settings->hasSecret(OAuthCredentials::META_APP_SECRET)),
+            // Everything the operator must paste into Google Cloud / Meta, built from this
+            // install's real URLs so the guide in the panel can't drift from the code.
+            'setup' => self::setup(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function setup(): array
+    {
+        $callback = static fn (DataSourceType $type): string => route('api.connect.callback', ['type' => $type->value]);
+        $host = parse_url(url('/'), PHP_URL_HOST);
+        $host = is_string($host) ? $host : '';
+
+        return [
+            'app_url' => url('/'),
+            'https' => str_starts_with(url('/'), 'https://'),
+            'domain' => $host,
+            'homepage_url' => route('home'),
+            'privacy_url' => route('legal.privacy'),
+            'terms_url' => route('legal.terms'),
+            'google_redirect_uris' => [
+                $callback(DataSourceType::Ga4),
+                $callback(DataSourceType::Gsc),
+                $callback(DataSourceType::GoogleAds),
+            ],
+            'meta_redirect_uris' => [
+                $callback(DataSourceType::FacebookAds),
+                $callback(DataSourceType::Instagram),
+            ],
         ];
     }
 

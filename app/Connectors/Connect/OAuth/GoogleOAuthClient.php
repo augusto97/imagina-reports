@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Connectors\Connect\OAuth;
 
+use App\Connectors\Connect\ConnectFailed;
 use App\Services\Platform\OAuthCredentials;
 use Illuminate\Support\Facades\Http;
 
@@ -50,10 +51,17 @@ final class GoogleOAuthClient
     }
 
     /**
-     * Exchange the authorization code for tokens. Returns the refresh token (the durable
-     * credential we store) or null if Google didn't return one.
+     * Exchange the authorization code for the refresh token we store.
+     *
+     * Throws with the actual cause when Google refuses — a wrong client secret, a redirect URI
+     * that isn't registered, or a consent where the person left a permission unchecked (Google
+     * shows each scope as its own checkbox, and the connection is useless without it).
+     *
+     * @param  list<string>  $requiredScopes
+     *
+     * @throws ConnectFailed
      */
-    public function exchangeCode(string $code, string $redirectUri): ?string
+    public function exchangeCode(string $code, string $redirectUri, array $requiredScopes = []): string
     {
         $response = Http::asForm()->post(self::TOKEN_URL, [
             'code' => $code,
@@ -64,12 +72,58 @@ final class GoogleOAuthClient
         ]);
 
         if ($response->failed()) {
-            return null;
+            $error = $response->json('error');
+            $description = $response->json('error_description');
+
+            throw new ConnectFailed(self::tokenError(
+                is_string($error) ? $error : '',
+                is_string($description) ? $description : '',
+                $redirectUri,
+            ));
+        }
+
+        $granted = $response->json('scope');
+        if (is_string($granted)) {
+            $grantedScopes = preg_split('/\s+/', trim($granted)) ?: [];
+            foreach ($requiredScopes as $scope) {
+                if (! in_array($scope, $grantedScopes, true)) {
+                    throw new ConnectFailed('En la pantalla de Google no quedó marcada la casilla del permiso de lectura que necesita esta fuente. '
+                        .'Vuelve a pulsar «Conectar con Google» y marca todas las casillas antes de continuar.');
+                }
+            }
         }
 
         $refresh = $response->json('refresh_token');
+        if (! is_string($refresh) || $refresh === '') {
+            throw new ConnectFailed('Google no entregó un acceso permanente. Quita la app en myaccount.google.com/permissions y vuelve a conectar.');
+        }
 
-        return is_string($refresh) && $refresh !== '' ? $refresh : null;
+        return $refresh;
+    }
+
+    /**
+     * Google's answer when the person comes back without a code (`?error=` on the callback).
+     */
+    public static function authorizationError(string $error): string
+    {
+        return match ($error) {
+            'access_denied' => 'Cancelaste la autorización en Google, o tu app de Google está en modo de prueba y esta cuenta no figura como usuario de prueba. '
+                .'Vuelve a pulsar «Conectar con Google» y acepta el acceso de solo lectura.',
+            'admin_policy_enforced' => 'El administrador de Google Workspace de esa cuenta no permite conectar aplicaciones externas.',
+            'org_internal' => 'La app de Google está configurada como «Interna» y solo admite cuentas de su propia organización. Cámbiala a «External» en Google Auth Platform → Audience.',
+            default => "Google no completó la autorización (error «{$error}»).",
+        };
+    }
+
+    private static function tokenError(string $error, string $description, string $redirectUri): string
+    {
+        return match ($error) {
+            'redirect_uri_mismatch' => "La URL de retorno no está registrada en el cliente OAuth de Google. Añade {$redirectUri} en Google Auth Platform → Clients → Authorized redirect URIs.",
+            'invalid_client', 'unauthorized_client' => 'Google rechazó el Client ID o el Client secret. Revisa que ambos sean del mismo cliente OAuth (tipo «Web application») en Plataforma → Integraciones.',
+            'invalid_grant' => 'El código de Google caducó o ya se usó. Vuelve a pulsar «Conectar con Google».',
+            '' => 'Google no respondió al canjear la autorización. Vuelve a intentarlo en un momento.',
+            default => trim("Google rechazó la conexión ({$error}). {$description}"),
+        };
     }
 
     /** Mint a short-lived access token from a stored refresh token (used by the connectors). */

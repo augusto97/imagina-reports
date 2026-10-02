@@ -59,6 +59,13 @@ final class MetaConnect implements ConnectProvider
 
     public function parseCallback(Request $request, string $callbackUrl): ?ConnectCallback
     {
+        $error = $request->query('error');
+        if (is_string($error) && $error !== '') {
+            throw new ConnectFailed($error === 'access_denied'
+                ? 'Cancelaste la autorización en Facebook. Vuelve a pulsar el botón y acepta los permisos de lectura.'
+                : "Meta no completó la autorización (error «{$error}»).");
+        }
+
         $code = $request->query('code');
         $state = $this->nonceFromCallback($request);
 
@@ -66,16 +73,10 @@ final class MetaConnect implements ConnectProvider
             return null;
         }
 
-        $token = $this->oauth->exchangeCode($code, $callbackUrl);
-
-        if ($token === null) {
-            return null;
-        }
-
         return new ConnectCallback(
             nonce: $state,
             config: [],
-            credentials: ['access_token' => $token],
+            credentials: ['access_token' => $this->oauth->exchangeCode($code, $callbackUrl)],
         );
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Connectors\Connect\ConnectFailed;
 use App\Connectors\Connect\ConnectRegistry;
 use App\Connectors\Connect\ResourceDiscovery;
 use App\Enums\DataSourceStatus;
@@ -93,7 +94,11 @@ final class ConnectController extends Controller
             return $this->fail($isBrowser, $returnUrl, 'La solicitud de conexión expiró o no es válida. Vuelve a intentarlo.');
         }
 
-        $callback = $provider->parseCallback($request, $this->callbackUrl($type));
+        try {
+            $callback = $provider->parseCallback($request, $this->callbackUrl($type));
+        } catch (ConnectFailed $failure) {
+            return $this->fail($isBrowser, $returnUrl, $failure->getMessage());
+        }
         if ($callback === null) {
             return $this->fail($isBrowser, $returnUrl, 'La conexión no se completó o no otorgó acceso de lectura.');
         }

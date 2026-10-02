@@ -1,5 +1,8 @@
 # Conexión de un clic — configuración de Google y Meta
 
+> **La guía completa, con las URLs exactas de tu instalación para copiar, está en el panel:**
+> super-admin → Plataforma → Integraciones → «Guía paso a paso» en cada tarjeta.
+
 Esta guía es para **el operador de la plataforma** (tú, Imagina). Se hace **una sola vez**.
 Después, cada cliente conecta su cuenta pulsando un botón, sin pegar JSON ni tokens.
 
@@ -44,9 +47,12 @@ Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoin
    - **Google Analytics Data API** y **Google Analytics Admin API** (para GA4 + el selector de propiedad).
    - **Google Search Console API** (para GSC).
    - **Google Ads API** (para Google Ads).
-3. **Google Auth Platform → Audience**: tipo de usuario **External**. Mientras la app no esté
-   verificada, añade tu propio correo como **usuario de prueba** para poder conectar.
-4. **Google Auth Platform → Branding**: rellena nombre de la app, logo y dominio.
+3. **Google Auth Platform → Audience**: tipo de usuario **External** y **«Publish app»** para pasarla
+   a **In production**. En modo *Testing* solo conectan los usuarios de prueba y Google **caduca las
+   conexiones a los 7 días**.
+4. **Google Auth Platform → Branding**: nombre, email de asistencia, **página principal** (`/`),
+   **política de privacidad** (`/privacidad`) y **condiciones** (`/terminos`) — la app ya las sirve —
+   y el **dominio autorizado**. Verifica ese dominio en Google Search Console.
 5. **Google Auth Platform → Data Access → "Add or remove scopes"**: añade solo los de lectura que
    uses. Analytics y Search Console aparecen al buscar; **el de Google Ads normalmente NO aparece
    en el buscador**, así que pégalo en la caja *"Manually add scopes"*:
@@ -92,8 +98,8 @@ y el redirect URI `.../callback/google_ads`). Lo específico es el **developer t
   Access"; falta que aprueben el Basic Access (paso 4).
 - `USER_PERMISSION_DENIED` → el Google que autorizó el cliente no tiene acceso a esa cuenta, o
   falta el `login_customer_id` correcto si vas por MCC.
-- El botón "Conectar con Google" no aparece en Google Ads → falta `GOOGLE_ADS_DEVELOPER_TOKEN` o
-  las variables OAuth en el `.env` (recuerda `php artisan config:cache`).
+- El botón "Conectar con Google" no aparece en Google Ads → falta el developer token (Plataforma →
+  Integraciones) o el Client ID/secret de Google. Desde 2026-10 el botón de Ads exige el developer token.
 
 ### 1.4 Variables de entorno
 ```dotenv
@@ -116,9 +122,9 @@ GOOGLE_ADS_LOGIN_CUSTOMER_ID=1234567890   # opcional (MCC), sin guiones
 5. **App Review**: solicita los permisos que uses. Meta exige **verificación de negocio** y una
    revisión (screencast del flujo). Mientras tanto, los **roles de la app** (tú y tus testers)
    pueden conectar en modo desarrollo.
-   - **Facebook/Instagram Ads:** `ads_read`.
+   - **Facebook/Instagram Ads:** `ads_read`, `business_management`.
    - **Instagram (perfil/insights):** `instagram_basic`, `instagram_manage_insights`,
-     `pages_show_list`, `pages_read_engagement`. La cuenta de Instagram debe ser **Business o
+     `pages_show_list`, `pages_read_engagement`, `business_management`. La cuenta de Instagram debe ser **Business o
      Creator** y estar **vinculada a una página de Facebook** (así aparece en el selector).
 
 ### 2.1 Variables de entorno
@@ -146,10 +152,12 @@ META_OAUTH_APP_SECRET=xxxxx
 
 - `start` (autenticado) guarda un **intent** de un solo uso (nonce, TTL 15 min) y devuelve la
   URL de consentimiento del proveedor.
-- El proveedor redirige al **callback público** (`/connect/callback/{type}`) con un `code`;
+- El proveedor redirige al **callback público** (`/api/v1/connect/callback/{type}`) con un `code`;
   lo canjeamos por un **refresh token** (Google) o **token de larga duración** (Meta), que se
-  guarda **cifrado** como credencial de la fuente. La app OAuth (client_id/secret) es tuya y
-  vive en el `.env`, nunca por cliente.
+  guarda **cifrado** como credencial de la fuente. La app OAuth (client_id/secret) es tuya: se
+  configura en Plataforma → Integraciones (con el `.env` como respaldo), nunca por cliente.
+- Si el proveedor rechaza la conexión, el panel muestra la causa real (`?connect_error=`):
+  permiso sin marcar en la pantalla de Google, URL de retorno sin registrar, client secret erróneo…
 - Tras conectar, listamos las propiedades/cuentas accesibles del cliente para el selector.
 - Los conectores GA4/GSC aceptan **tanto** el token OAuth como el JSON de cuenta de servicio;
   Google Ads y Meta usan el token guardado. Nada del modo manual cambió.

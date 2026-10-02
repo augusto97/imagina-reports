@@ -59,6 +59,11 @@ final class GoogleConnect implements ConnectProvider
 
     public function parseCallback(Request $request, string $callbackUrl): ?ConnectCallback
     {
+        $error = $request->query('error');
+        if (is_string($error) && $error !== '') {
+            throw new ConnectFailed(GoogleOAuthClient::authorizationError($error));
+        }
+
         $code = $request->query('code');
         $state = $this->nonceFromCallback($request);
 
@@ -66,16 +71,10 @@ final class GoogleConnect implements ConnectProvider
             return null;
         }
 
-        $refresh = $this->oauth->exchangeCode($code, $callbackUrl);
-
-        if ($refresh === null) {
-            return null;
-        }
-
         return new ConnectCallback(
             nonce: $state,
             config: [],
-            credentials: ['oauth_refresh_token' => $refresh],
+            credentials: ['oauth_refresh_token' => $this->oauth->exchangeCode($code, $callbackUrl, $this->scopes)],
         );
     }
 

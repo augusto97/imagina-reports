@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Connectors\Connect\OAuth;
 
+use App\Connectors\Connect\ConnectFailed;
 use App\Services\Platform\OAuthCredentials;
 use Illuminate\Support\Facades\Http;
 
@@ -47,7 +48,10 @@ final class MetaOAuthClient
      * Exchange the code for a token, then upgrade it to a long-lived token so it survives
      * ~60 days instead of ~1-2 hours. Returns the long-lived token, or null on failure.
      */
-    public function exchangeCode(string $code, string $redirectUri): ?string
+    /**
+     * @throws ConnectFailed
+     */
+    public function exchangeCode(string $code, string $redirectUri): string
     {
         $short = Http::get('https://graph.facebook.com/'.self::GRAPH_VERSION.'/oauth/access_token', [
             'client_id' => $this->appId(),
@@ -59,7 +63,11 @@ final class MetaOAuthClient
         $shortToken = $short->successful() ? $short->json('access_token') : null;
 
         if (! is_string($shortToken) || $shortToken === '') {
-            return null;
+            $message = $short->json('error.message');
+
+            throw new ConnectFailed(is_string($message) && $message !== ''
+                ? "Meta rechazó la conexión: {$message} Revisa el App ID, el App Secret y que {$redirectUri} esté en Facebook Login → URIs de redireccionamiento de OAuth válidos."
+                : 'Meta no respondió al canjear la autorización. Vuelve a intentarlo en un momento.');
         }
 
         // Exchange the short-lived token for a long-lived one (best effort — fall back to
