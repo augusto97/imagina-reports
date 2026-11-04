@@ -24,6 +24,7 @@ use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use App\Services\Platform\OAuthCredentials;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -45,10 +46,12 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
     use DescribesApiErrors;
     use ParsesValues;
 
-    /** Bump when moving to a newer Google Ads API version (endpoint path segment). */
-    // Bump when Google sunsets a version (~14-month support window). An outdated version
-    // makes EVERY endpoint return HTTP 404, including customers:listAccessibleCustomers.
-    private const API_VERSION = 'v21';
+    /**
+     * Google Ads API version (endpoint path segment). Google sunsets each version about a
+     * year after release, and a retired version makes EVERY endpoint answer HTTP 404 — v18
+     * went in 2026-07, v21 by 2026-11. GOOGLE_ADS_API_VERSION overrides it without a release.
+     */
+    private const DEFAULT_API_VERSION = 'v26';
 
     private const OAUTH_URL = 'https://oauth2.googleapis.com/token';
 
@@ -183,7 +186,7 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
 
             return $response->successful()
                 ? ConnectionResult::success('Google Ads reachable.')
-                : ConnectionResult::failure('Google Ads respondió HTTP '.$response->status().' '.$this->apiError($response->json()));
+                : ConnectionResult::failure($this->retiredVersion($response) ?? 'Google Ads respondió HTTP '.$response->status().' '.$this->apiError($response->json()));
         } catch (Throwable $e) {
             return ConnectionResult::failure('No se pudo conectar con Google Ads: '.$e->getMessage());
         }
@@ -206,7 +209,7 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             ]);
 
             if ($totals->failed()) {
-                return MetricSet::failed('Google Ads request failed: HTTP '.$totals->status().' '.$this->apiError($totals->json()));
+                return MetricSet::failed($this->retiredVersion($totals) ?? 'Google Ads request failed: HTTP '.$totals->status().' '.$this->apiError($totals->json()));
             }
 
             $m = $this->arrayOf(Arr::get($this->listOf($totals->json('results'))[0] ?? [], 'metrics'));
@@ -460,10 +463,11 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
         }
 
         $response = $this->apiClient($source, $token)
-            ->get(self::API_BASE.'/'.self::API_VERSION.'/customers:listAccessibleCustomers');
+            ->get(self::API_BASE.'/'.$this->apiVersion().'/customers:listAccessibleCustomers');
 
         if ($response->failed()) {
-            throw $this->discoveryFailed('Google Ads', $response);
+            $retired = $this->retiredVersion($response);
+            throw $retired !== null ? DiscoveryFailed::because($retired) : $this->discoveryFailed('Google Ads', $response);
         }
 
         $names = $response->json('resourceNames');
@@ -512,7 +516,7 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
 
         try {
             $response = $this->apiClient($source, $token)->post(
-                self::API_BASE.'/'.self::API_VERSION.'/customers/'.$rootCustomerId.'/googleAds:search',
+                self::API_BASE.'/'.$this->apiVersion().'/customers/'.$rootCustomerId.'/googleAds:search',
                 ['query' => 'SELECT customer_client.id, customer_client.descriptive_name FROM customer_client'],
             );
 
@@ -547,7 +551,28 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
         // (the '/googleAds' segment is required; without it the API returns HTTP 404).
         $customer = $this->toStr(Arr::get($source->config ?? [], 'customer_id'));
 
-        return self::API_BASE.'/'.self::API_VERSION.'/customers/'.$customer.'/googleAds:search';
+        return self::API_BASE.'/'.$this->apiVersion().'/customers/'.$customer.'/googleAds:search';
+    }
+
+    private function apiVersion(): string
+    {
+        $configured = config('services.google_oauth.ads_api_version');
+
+        return is_string($configured) && preg_match('/^v\d+$/', $configured) === 1 ? $configured : self::DEFAULT_API_VERSION;
+    }
+
+    /**
+     * A 404 whose body isn't a Google Ads JSON error means the API version itself is gone —
+     * say that, instead of a bare "HTTP 404" that reads like a wrong account or a broken app.
+     */
+    private function retiredVersion(Response $response): ?string
+    {
+        if ($response->status() !== 404 || is_array($response->json('error'))) {
+            return null;
+        }
+
+        return 'Google Ads ya no reconoce la versión '.$this->apiVersion().' de su API (Google la retiró). '
+            .'Actualiza Imagina Reports a la última versión, o define GOOGLE_ADS_API_VERSION con una versión vigente.';
     }
 
     private function apiError(mixed $json): string

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Connectors;
 
+use App\Connectors\Exceptions\DiscoveryFailed;
 use App\Connectors\FacebookAds\FacebookAdsConnector;
 use App\Connectors\GoogleAds\GoogleAdsConnector;
 use App\Connectors\MetricType;
@@ -34,6 +35,44 @@ class AdsConnectorsTest extends TestCase
     private function period(): Period
     {
         return Period::make('2026-06-01', '2026-06-30');
+    }
+
+    public function test_google_ads_explains_a_retired_api_version(): void
+    {
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), 'oauth2.googleapis.com')) {
+                return Http::response(['access_token' => 'ya29-fake']);
+            }
+
+            // A sunset version answers a plain HTML 404, not a Google Ads JSON error.
+            return Http::response('<html>404. That’s an error.</html>', 404);
+        });
+
+        $source = $this->source(DataSourceType::GoogleAds, ['client_id' => 'cid'], ['developer_token' => 'd', 'client_secret' => 's', 'refresh_token' => 'r']);
+
+        try {
+            (new GoogleAdsConnector)->connectableResources($source);
+            $this->fail('Expected the discovery to fail.');
+        } catch (DiscoveryFailed $failure) {
+            $this->assertStringContainsString('ya no reconoce la versión', $failure->getMessage());
+        }
+    }
+
+    public function test_google_ads_uses_a_current_api_version(): void
+    {
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), 'oauth2.googleapis.com')) {
+                return Http::response(['access_token' => 'ya29-fake']);
+            }
+
+            return Http::response(['resourceNames' => []]);
+        });
+
+        (new GoogleAdsConnector)->connectableResources(
+            $this->source(DataSourceType::GoogleAds, ['client_id' => 'cid'], ['developer_token' => 'd', 'client_secret' => 's', 'refresh_token' => 'r']),
+        );
+
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'googleads.googleapis.com/v26/'));
     }
 
     public function test_google_ads_connectable_resources_include_the_account_name(): void

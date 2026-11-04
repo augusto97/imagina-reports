@@ -58,6 +58,8 @@ return [
         'client_secret' => env('GOOGLE_OAUTH_CLIENT_SECRET'),
         'ads_developer_token' => env('GOOGLE_ADS_DEVELOPER_TOKEN'),
         'ads_login_customer_id' => env('GOOGLE_ADS_LOGIN_CUSTOMER_ID'),
+        // Only to move to a newer Google Ads API version before an app update ships it.
+        'ads_api_version' => env('GOOGLE_ADS_API_VERSION'),
     ],
 
     // One-click "Connect with Facebook" (§9): a Meta app with ads_read (App Review).

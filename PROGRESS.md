@@ -7,6 +7,13 @@
 ---
 
 ## Where I left off (read me first)
+**📈 GOOGLE ADS v26 + VENTANAS DE REPORTE (2026-11-04, v1.30.1):** Google retiró la API de Google Ads v21 (las vigentes son v23–v26):
+todo respondía 404 («HTTP 404 al listar las cuentas»). Pasado a **v26** (`DEFAULT_API_VERSION`), sobreescribible sin release con
+`GOOGLE_ADS_API_VERSION`, y un 404 sin JSON de Google ahora dice «Google ya no reconoce la versión vX… actualiza». Próximo retiro: v26 en
+nov-2027 (revisar developers.google.com/google-ads/api/docs/sunset-dates). Ventanas rediseñadas: **Generar** (tarjetas de los 6 últimos
+meses con «Con datos / Ya generado / Sin datos», otro rango aparte, sincronizar si falta) y **Herramientas** (estado + «Siguiente paso» con
+Aprobar/Enviar, Ver/PDF, pestañas Resumen · Diagnóstico · Comentarios · Ideas de la IA · Envíos).
+
 **🎨 REDISEÑO DE LA INTERFAZ (2026-11-04, v1.30.0):** revisión visual completa en escritorio y celular con datos de ejemplo
 (capturas antes/después). Cambios:
 - **Navegación agrupada** (Inicio · Día a día · Diseño · Cuenta) con menú de usuario (avatar) abajo; «Sistema» desaparece del menú (el
