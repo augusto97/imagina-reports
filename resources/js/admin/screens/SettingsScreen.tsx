@@ -995,7 +995,17 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof User; heading: st
 
 export function SettingsScreen(): ReactElement {
     const { data: agency, isLoading } = useAgency();
-    const [section, setSection] = useState<SectionKey>('account');
+    // Another screen (the account menu) can ask to open a given section.
+    const [section, setSection] = useState<SectionKey>(() => {
+        try {
+            const requested = sessionStorage.getItem('ir-settings-section');
+            sessionStorage.removeItem('ir-settings-section');
+
+            return SECTIONS.some((item) => item.key === requested) ? (requested as SectionKey) : 'account';
+        } catch {
+            return 'account';
+        }
+    });
 
     if (isLoading || agency === undefined) {
         return <p className="ir-text-sm ir-text-muted-foreground">Cargando ajustes…</p>;

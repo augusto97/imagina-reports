@@ -1,7 +1,6 @@
 import {
     ChevronsUpDown,
     Home,
-    Info,
     Building2,
     Clock,
     CreditCard,
@@ -384,6 +383,17 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
     // Every section is a real address: linkable, reloadable, and walkable with Back.
     useHashRoute(view, viewHash, viewFromHash, setView);
 
+    const openSettings = (section: string): void => {
+        try {
+            sessionStorage.setItem("ir-settings-section", section);
+        } catch {
+            // Private mode: it just opens on the first section.
+        }
+        // Re-mount Settings even when it is already open, so it reads the requested section.
+        setView("home");
+        window.setTimeout(() => go("settings"), 0);
+    };
+
     // Navigating from the drawer also closes it (mobile only).
     const go = (next: AdminView): void => {
         setView(next);
@@ -537,22 +547,32 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                 <div className={cn("ir-mt-auto ir-border-t ir-pt-3", iconOnly && "lg:ir-flex lg:ir-justify-center")}>
                     <ActionMenu
                         align="left"
-                        label="Tu cuenta"
+                        block={!iconOnly}
+                        label="Tu cuenta: ajustes y cerrar sesión"
+                        header={
+                            <div className="ir-min-w-0">
+                                <p className="ir-truncate ir-text-sm ir-font-medium">{userName !== "" ? userName : email}</p>
+                                <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{email}</p>
+                                <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">
+                                    {ROLE_LABELS[role ?? ""] ?? ""} · {brandName} · v{(version ?? "—").replace(/^v/, "")}
+                                </p>
+                            </div>
+                        }
                         trigger={
                             <span className={cn("ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-lg ir-p-1.5 ir-text-left ir-transition-colors hover:ir-bg-card", iconOnly && "lg:ir-justify-center")}>
                                 <Avatar name={userName !== "" ? userName : email} />
                                 {!iconOnly && (
                                     <span className="ir-min-w-0 ir-flex-1">
                                         <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{userName !== "" ? userName : email}</span>
-                                        <span className="ir-block ir-truncate ir-text-xs ir-text-muted-foreground">{ROLE_LABELS[role ?? ""] ?? email}</span>
+                                        <span className="ir-block ir-truncate ir-text-xs ir-text-muted-foreground">Mi cuenta</span>
                                     </span>
                                 )}
                                 {!iconOnly && <ChevronsUpDown className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />}
                             </span>
                         }
                         items={[
-                            { label: "Ajustes de la cuenta", icon: Settings, onSelect: () => go("settings"), hint: email },
-                            { label: `Versión v${(version ?? "—").replace(/^v/, "")}`, icon: Info, onSelect: () => undefined, disabled: true },
+                            { label: "Mi perfil y contraseña", icon: UserCog, onSelect: () => openSettings("account") },
+                            privileged && { label: "Ajustes de la agencia", icon: Settings, onSelect: () => openSettings("agency") },
                             { label: "Cerrar sesión", icon: LogOut, onSelect: () => logout.mutate(), danger: true },
                         ]}
                     />

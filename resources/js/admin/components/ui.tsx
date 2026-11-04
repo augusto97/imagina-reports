@@ -381,14 +381,20 @@ export function ActionMenu({
     label = 'Más acciones',
     trigger,
     align = 'right',
+    header,
+    block = false,
 }: {
     items: (MenuItem | null | false)[];
     label?: string;
     trigger?: ReactNode;
     align?: 'left' | 'right';
+    /** Optional non-clickable top section (e.g. who is signed in). */
+    header?: ReactNode;
+    /** Stretch the trigger to its container's width. */
+    block?: boolean;
 }): ReactElement {
     const [open, setOpen] = useState(false);
-    const [position, setPosition] = useState<{ top: number; left?: number; right?: number } | null>(null);
+    const [position, setPosition] = useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -423,7 +429,7 @@ export function ActionMenu({
     const visible = items.filter((item): item is MenuItem => item !== null && item !== false);
 
     return (
-        <div ref={ref} className="ir-relative ir-inline-flex">
+        <div ref={ref} className={cn('ir-relative', block ? 'ir-flex ir-w-full' : 'ir-inline-flex')}>
             <button
                 type="button"
                 aria-label={label}
@@ -434,16 +440,20 @@ export function ActionMenu({
                     // Fixed positioning, measured from the trigger: the menu floats above any
                     // scrolling/clipping container (a list with its own scroll used to cut it off).
                     const rect = event.currentTarget.getBoundingClientRect();
+                    // Open upwards when the trigger sits near the bottom of the screen (the
+                    // account menu at the foot of the sidebar used to open off-screen).
+                    const estimated = 48 * items.length + (header !== undefined ? 56 : 0) + 16;
+                    const vertical = rect.bottom + estimated > window.innerHeight - 8 ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 };
                     setPosition(
                         align === 'right'
-                            ? { top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) }
-                            : { top: rect.bottom + 4, left: Math.max(8, rect.left) },
+                            ? { ...vertical, right: Math.max(8, window.innerWidth - rect.right) }
+                            : { ...vertical, left: Math.max(8, rect.left) },
                     );
                     setOpen((current) => !current);
                 }}
                 className={
                     trigger !== undefined
-                        ? undefined
+                        ? (block ? 'ir-w-full' : undefined)
                         : 'ir-flex ir-size-8 ir-items-center ir-justify-center ir-rounded-lg ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted hover:ir-text-foreground'
                 }
             >
@@ -452,9 +462,10 @@ export function ActionMenu({
             {open && position !== null && (
                 <div
                     role="menu"
-                    style={{ position: 'fixed', top: position.top, left: position.left, right: position.right }}
+                    style={{ position: 'fixed', top: position.top, bottom: position.bottom, left: position.left, right: position.right }}
                     className="ir-z-[60] ir-min-w-48 ir-max-w-[calc(100vw-1rem)] ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-p-1 ir-shadow-ir-lg ir-animate-in ir-fade-in-0 ir-zoom-in-95"
                 >
+                    {header !== undefined && <div className="ir-mb-1 ir-border-b ir-px-2.5 ir-pb-2 ir-pt-1.5">{header}</div>}
                     {visible.map((item) => {
                         const Icon = item.icon;
 
