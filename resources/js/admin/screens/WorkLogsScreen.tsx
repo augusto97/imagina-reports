@@ -16,10 +16,12 @@ import {
     Wrench,
     X,
 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { type FormEvent, type ReactElement, useMemo, useRef, useState } from 'react';
 
 import { useCreateSiteWorkLog, useDeleteWorkLog, useSiteWorkLogs, useSites, useUpdateWorkLog } from '../api';
-import { Badge, Button, Card, Field, Input, Select } from '../components/ui';
+import { Badge, Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
+import { useAdminUi } from '../store';
 import type { WorkLog, WorkLogStatus } from '../types';
 
 /** Predefined task categories — each with an icon + colour, so the log reads at a glance.
@@ -72,7 +74,6 @@ const STATUSES: StatusMeta[] = [
 ];
 const statusMeta = (value: string): StatusMeta => STATUSES.find((entry) => entry.value === value) ?? { value: 'done', label: 'Hecho', tone: 'success', dot: 'ir-bg-emerald-500' };
 
-const selectClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
 
 function currentMonth(): string {
     const now = new Date();
@@ -92,7 +93,7 @@ function today(): string {
 }
 
 function formatHours(minutes: number): string {
-    return (minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    return (minutes / 60).toLocaleString('es', { maximumFractionDigits: 1 });
 }
 
 function formatDay(iso: string): string {
@@ -118,9 +119,38 @@ const emptyDraft = (): Draft => ({ description: '', status: 'done', category: ''
  * optional time + proof screenshot. The header proves the hourly service paid off; the
  * timeline groups the month's work by day. Only "done" tasks reach the client report.
  */
+const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** "‹ octubre 2026 ›" — Spanish, one click per month (the native month input showed English). */
+function MonthStepper({ value, onChange }: { value: string; onChange: (month: string) => void }): ReactElement {
+    const [year, month] = value.split('-').map(Number);
+    const shift = (delta: number): void => {
+        const date = new Date((year ?? 2026), (month ?? 1) - 1 + delta, 1);
+        onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+    };
+
+    return (
+        <div className="ir-inline-flex ir-h-9 ir-items-center ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-xs">
+            <button type="button" onClick={() => shift(-1)} className="ir-flex ir-h-full ir-w-8 ir-items-center ir-justify-center ir-text-muted-foreground hover:ir-text-foreground" title="Mes anterior">
+                <ChevronLeft className="ir-size-4" />
+            </button>
+            <span className="ir-min-w-[8.5rem] ir-text-center ir-text-sm ir-font-medium ir-capitalize">
+                {MONTH_NAMES[(month ?? 1) - 1]} {year}
+            </span>
+            <button type="button" onClick={() => shift(1)} className="ir-flex ir-h-full ir-w-8 ir-items-center ir-justify-center ir-text-muted-foreground hover:ir-text-foreground" title="Mes siguiente">
+                <ChevronRight className="ir-size-4" />
+            </button>
+        </div>
+    );
+}
+
 export function WorkLogsScreen(): ReactElement {
     const { data: sites = [] } = useSites();
-    const [siteId, setSiteId] = useState<number | null>(null);
+    // Start on the site the agency was just looking at (or the first one) instead of an
+    // empty "pick a site" screen — logging work should be one step, not two.
+    const rememberedSite = useAdminUi((state) => state.selectedSiteId);
+    const [chosenSite, setSiteId] = useState<number | null>(null);
+    const siteId = chosenSite ?? (sites.some((site) => site.id === rememberedSite) ? rememberedSite : (sites[0]?.id ?? null));
     const [month, setMonth] = useState(currentMonth());
 
     const range = monthRange(month);
@@ -218,30 +248,24 @@ export function WorkLogsScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
-            {/* Header + scope */}
-            <div className="ir-flex ir-flex-wrap ir-items-end ir-justify-between ir-gap-3">
-                <div>
-                    <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Registrar trabajo</h1>
-                    <p className="ir-mt-1 ir-max-w-2xl ir-text-sm ir-text-muted-foreground">
-                        Deja constancia de todo lo que haces en cada sitio. Es lo que justifica el plan de soporte ante el cliente — y solo lo marcado como «Hecho» aparece en su reporte.
-                    </p>
-                </div>
-                <div className="ir-flex ir-items-end ir-gap-2">
-                    <Field label="Sitio">
-                        <select className={`${selectClass} ir-min-w-[12rem]`} value={siteId ?? ''} onChange={(event) => setSiteId(event.target.value === '' ? null : Number(event.target.value))}>
-                            <option value="">Selecciona…</option>
+            <PageHeader
+                className="ir-mb-1"
+                title="Trabajo realizado"
+                description="Anota lo que haces en cada sitio. Es lo que justifica el plan de soporte ante el cliente: lo marcado como «Hecho» aparece en su reporte del mes."
+                actions={
+                    <>
+                        <Select className="ir-w-auto ir-min-w-[13rem]" value={siteId ?? ''} onChange={(event) => setSiteId(event.target.value === '' ? null : Number(event.target.value))} aria-label="Sitio">
+                            {siteId === null && <option value="">Elige un sitio…</option>}
                             {sites.map((candidate) => (
                                 <option key={candidate.id} value={candidate.id}>
                                     {candidate.name}
                                 </option>
                             ))}
-                        </select>
-                    </Field>
-                    <Field label="Mes">
-                        <Input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="ir-w-40" />
-                    </Field>
-                </div>
-            </div>
+                        </Select>
+                        <MonthStepper value={month} onChange={setMonth} />
+                    </>
+                }
+            />
 
             {siteId === null ? (
                 <div className="ir-flex ir-flex-col ir-items-center ir-gap-2 ir-rounded-lg ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">

@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**🎨 REDISEÑO DE LA INTERFAZ (2026-11-04, v1.30.0):** revisión visual completa en escritorio y celular con datos de ejemplo
+(capturas antes/después). Cambios:
+- **Navegación agrupada** (Inicio · Día a día · Diseño · Cuenta) con menú de usuario (avatar) abajo; «Sistema» desaparece del menú (el
+  plugin del agente vive en Ajustes → Integraciones); **Análisis** une Tendencias/Oportunidades/Alertas en pestañas (con contador de alertas).
+- **Inicio** (`HomeScreen`, nuevo endpoint `GET /api/v1/overview` → `OverviewController`): pendientes ordenados (fuentes con error, reportes
+  del mes sin generar, por revisar, listos para enviar), primeros pasos guiados, atajos y salud de la cartera.
+- **Clientes:** filtros (todos / con error / sin fuentes), puntos de estado y salud por sitio en el árbol, **cartera en tarjetas** cuando no hay
+  sitio elegido, ficha de sitio con anillo de salud y acciones; fuentes con icono, estado en palabras y acciones en «⋯»; selector de
+  conector visual por categorías (`lib/sources.ts`). En el celular lista y ficha se turnan.
+- **Reportes:** filtros por estado + búsqueda, una sola acción principal por fila (Aprobar → Enviar), resto en «⋯», historial plegado.
+- **Renderer compartido (lo ve el cliente):** cabecera ya no recorta el subtítulo (`ensureHeaderRoom`), los huecos de bloques ocultos/vacíos
+  se cierran (`reflowGaps` en `shared/blocks/layout.ts`), encabezados de tabla en español, fechas «10 oct 2026», números en formato es.
+- **Editor:** datos de ejemplo creíbles (99,9 % y no 1.234 %), resumen de ejemplo, aviso honesto en el celular, nombre legible del dato.
+- **Plantillas** en galería con miniatura del diseño; **Equipo** con avatares y formulario plegado; **Trabajo** arranca en el último sitio y
+  con selector de mes en español; **Login** a dos columnas. Componentes base nuevos en `components/ui.tsx` (PageHeader, Tabs, Segmented,
+  StatCard, EmptyState, Avatar, ActionMenu, StatusDot).
+
 **🔑 CONEXIÓN CON GOOGLE/META COMPLETA Y HONESTA (2026-10-02, v1.29.0):** el owner veía «app no segura» al conectar Google y la guía
 estaba incompleta (no decía publicar la app, ni verificarla, ni que hacía falta política de privacidad). Cambios:
 1. **Guía paso a paso dentro del panel** (super-admin → Plataforma → Integraciones, `components/OAuthSetupGuide.tsx`): APIs a activar,
@@ -2430,6 +2447,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 12. Phase 1 Definition of Done: tests green, PHPStan max clean, end-to-end demo of a manual report.
 
 ## Completed
+- [x] (2026-11-04) Rediseño de la interfaz: navegación, Inicio, Clientes, Reportes, Análisis, Plantillas, Equipo, Trabajo, Login; arreglos del renderer (cabecera, huecos, formatos).
 - [x] (2026-10-02) Guía completa de Google/Meta en el panel, páginas de privacidad/términos/inicio, errores reales de conexión visibles, Ads exige developer token.
 - [x] (2026-09-23) **Servidor MCP (fases A+B+C)**: endpoint JSON-RPC, 45 herramientas vía gateway interno, propuestas auditadas, tokens con permisos (solo owner/admin), resources/prompts, OAuth 2.1 (DCR + PKCE) y sección Ajustes → Asistentes IA. 18 tests nuevos; 607 verdes.
 - [x] (2026-06-18) **Phase 1 · Task 1 — Project skeleton & tooling baseline.** Laravel 11 + Sanctum/API v1,
@@ -2474,6 +2492,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Decisions log
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
+- (2026-11-04) **El renderer cierra los huecos de bloques ocultos** (`reflowGaps`): una fila que pierde bloques se estira si nada la cruza y las filas vacías se eliminan. Prioriza que el cliente nunca vea huecos sobre el «WYSIWYG estricto» en reportes con datos faltantes.
 - (2026-09-24) **Conector TrueRanker eliminado.** Su API ya solo está en la suscripción mensual; no hay forma documentada de leer sus datos desde el plugin de WordPress. GSC cubre la posición media.
 - (2026-09-23) **MCP: las herramientas llaman a la API v1 por sub-petición interna, no a servicios.** Así un token nunca puede más que el panel (tenant, rol, plan, validación y suspensión 402 idénticos) y cada endpoint nuevo queda protegido sin duplicar reglas. Los tokens se restringen al MCP (403 en REST directo) porque los permisos por herramienta solo existen en la capa MCP.
 - (2026-09-23) **OAuth sin refresh tokens ni caducidad.** El token Sanctum vive hasta que se revoca en Ajustes → Asistentes IA; más simple y suficiente para conectores de asistentes. Clientes solo públicos con PKCE S256.

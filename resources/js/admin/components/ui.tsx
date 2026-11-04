@@ -178,14 +178,17 @@ export function PageHeader({
     description,
     actions,
     eyebrow,
+    className,
 }: {
     title: string;
     description?: ReactNode;
     actions?: ReactNode;
     eyebrow?: ReactNode;
+    /** Inside a container that already spaces its children, pass `ir-mb-0`. */
+    className?: string;
 }): ReactElement {
     return (
-        <div className="ir-mb-6 ir-flex ir-flex-col ir-gap-3 sm:ir-flex-row sm:ir-items-end sm:ir-justify-between">
+        <div className={cn('ir-mb-6 ir-flex ir-flex-col ir-gap-3 sm:ir-flex-row sm:ir-items-end sm:ir-justify-between', className)}>
             <div className="ir-min-w-0">
                 {eyebrow !== undefined && <div className="ir-mb-1.5 ir-text-xs ir-font-medium ir-text-muted-foreground">{eyebrow}</div>}
                 <h1 className="ir-text-[22px] ir-font-semibold ir-leading-tight ir-tracking-tight">{title}</h1>

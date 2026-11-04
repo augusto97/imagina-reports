@@ -4,11 +4,9 @@ import { type FormEvent, type ReactElement, useState } from 'react';
 import { apiErrorMessage } from '@shared/lib/api';
 
 import { useCreateTeamMember, useDeleteTeamMember, useTeam, useUpdateTeamMember } from '../api';
-import { Badge, Button, Card, Field, Input, Select } from '../components/ui';
+import { ActionMenu, Avatar, Badge, Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
 import type { TeamMember } from '../types';
 
-const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', collaborator: 'Colaborador' };
-const ROLE_TONE: Record<string, 'accent' | 'info' | 'neutral'> = { owner: 'accent', admin: 'info', collaborator: 'neutral' };
 
 /**
  * Agency team management (SaaS Fase 1): invite teammates, change their role, remove them.
@@ -21,6 +19,7 @@ export function TeamScreen(): ReactElement {
     const update = useUpdateTeamMember();
     const remove = useDeleteTeamMember();
 
+    const [inviteOpen, setInviteOpen] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'collaborator' });
     const set = (key: keyof typeof form, value: string): void => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -38,7 +37,12 @@ export function TeamScreen(): ReactElement {
         event.preventDefault();
         create.mutate(
             { name: form.name.trim(), email: form.email.trim(), password: form.password, role: form.role },
-            { onSuccess: () => setForm({ name: '', email: '', password: '', role: 'collaborator' }) },
+            {
+                onSuccess: () => {
+                    setForm({ name: '', email: '', password: '', role: 'collaborator' });
+                    setInviteOpen(false);
+                },
+            },
         );
     };
 
@@ -47,14 +51,30 @@ export function TeamScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
-            <div>
-                <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Equipo</h1>
-                <p className="ir-mt-1 ir-max-w-2xl ir-text-sm ir-text-muted-foreground">
-                    Las personas de tu agencia que pueden iniciar sesión. Propietario y administrador gestionan todo; el colaborador trabaja pero no administra el equipo ni la facturación.
-                </p>
-            </div>
+            <PageHeader
+                className="ir-mb-1"
+                title="Equipo"
+                description="Las personas de tu agencia que pueden entrar. Propietario y administrador gestionan todo; el colaborador trabaja pero no administra el equipo ni la facturación."
+                actions={
+                    !inviteOpen ? (
+                        <Button onClick={() => setInviteOpen(true)}>
+                            <UserPlus className="ir-size-4" />
+                            Añadir miembro
+                        </Button>
+                    ) : undefined
+                }
+            />
 
-            <Card title="Invitar a un miembro" description="Crea su cuenta con estas credenciales y compártele el acceso.">
+            {inviteOpen && (
+            <Card
+                title="Añadir a un miembro"
+                description="Crea su cuenta con estas credenciales y compártele el acceso."
+                actions={
+                    <Button variant="quiet" size="sm" onClick={() => setInviteOpen(false)}>
+                        Cerrar
+                    </Button>
+                }
+            >
                 <form onSubmit={submit} className="ir-flex ir-flex-col ir-gap-3">
                     <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                         <Field label="Nombre">
@@ -85,6 +105,7 @@ export function TeamScreen(): ReactElement {
                     </div>
                 </form>
             </Card>
+            )}
 
             <Card title={`Miembros (${members.length})`}>
                 {isLoading ? (
@@ -94,41 +115,48 @@ export function TeamScreen(): ReactElement {
                         {members.map((member) => (
                             <li key={member.id} className="ir-flex ir-flex-col ir-gap-2 ir-py-3 ir-text-sm">
                                 <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">
+                                    <Avatar name={member.name} />
                                     <div className="ir-min-w-0 ir-flex-1">
                                         <p className="ir-flex ir-items-center ir-gap-2 ir-font-medium">
                                             {member.name}
                                             {member.is_self && <Badge tone="neutral">Tú</Badge>}
                                         </p>
-                                        <p className="ir-text-xs ir-text-muted-foreground">{member.email}</p>
+                                        <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{member.email}</p>
                                     </div>
                                     <Select
                                         className="ir-h-8 ir-w-40 ir-text-xs"
                                         value={member.role}
                                         disabled={member.role === 'owner' && owners <= 1}
                                         onChange={(e) => update.mutate({ id: member.id, role: e.target.value })}
+                                        aria-label={`Rol de ${member.name}`}
                                     >
                                         <option value="collaborator">Colaborador</option>
                                         <option value="admin">Administrador</option>
                                         <option value="owner">Propietario</option>
                                     </Select>
-                                    <Badge tone={ROLE_TONE[member.role] ?? 'neutral'}>{ROLE_LABEL[member.role] ?? member.role}</Badge>
-                                    <button
-                                        type="button"
-                                        className={`ir-rounded ir-p-1 hover:ir-bg-muted ${pwFor === member.id ? 'ir-text-primary' : 'ir-text-muted-foreground'}`}
-                                        title="Cambiar contraseña"
-                                        onClick={() => { setPwFor((cur) => (cur === member.id ? null : member.id)); setPwValue(''); }}
-                                    >
-                                        <KeyRound className="ir-size-4" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="ir-rounded ir-p-1 ir-text-muted-foreground enabled:hover:ir-bg-danger/10 enabled:hover:ir-text-danger disabled:ir-opacity-30"
-                                        title={canRemove(member) ? 'Eliminar' : 'No se puede eliminar'}
-                                        disabled={!canRemove(member)}
-                                        onClick={() => { if (window.confirm(`¿Eliminar a ${member.name}? Esta acción no se puede deshacer.`)) remove.mutate(member.id); }}
-                                    >
-                                        <Trash2 className="ir-size-4" />
-                                    </button>
+                                    <ActionMenu
+                                        label={`Acciones de ${member.name}`}
+                                        items={[
+                                            {
+                                                label: 'Cambiar contraseña',
+                                                icon: KeyRound,
+                                                onSelect: () => {
+                                                    setPwFor((cur) => (cur === member.id ? null : member.id));
+                                                    setPwValue('');
+                                                },
+                                            },
+                                            {
+                                                label: 'Eliminar del equipo',
+                                                icon: Trash2,
+                                                danger: true,
+                                                disabled: !canRemove(member),
+                                                hint: canRemove(member) ? undefined : 'No se puede eliminar al único propietario ni a ti',
+                                                onSelect: () => {
+                                                    if (window.confirm(`¿Eliminar a ${member.name}? Esta acción no se puede deshacer.`)) remove.mutate(member.id);
+                                                },
+                                            },
+                                        ]}
+                                    />
                                 </div>
                                 {pwFor === member.id && (
                                     <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-rounded-md ir-bg-muted/40 ir-p-2">

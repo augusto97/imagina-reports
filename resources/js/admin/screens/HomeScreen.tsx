@@ -176,6 +176,7 @@ export function HomeScreen(): ReactElement {
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
             <PageHeader
+                className="ir-mb-1"
                 eyebrow={new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}
                 title={`${greeting()}${firstName !== '' ? `, ${firstName}` : ''}`}
                 description="Esto es lo que necesita tu atención. Cada tarea te lleva directo a donde se resuelve."
