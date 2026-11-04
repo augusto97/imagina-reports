@@ -106,7 +106,7 @@ export function TemplatesScreen(): ReactElement {
                     }
                 />
             ) : (
-                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2 xl:ir-grid-cols-3">
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2 xl:ir-grid-cols-3 2xl:ir-grid-cols-4 min-[1800px]:ir-grid-cols-5">
                     {templates.map((template) => {
                         const blocks = template.blocks as Block[];
                         const pages = Math.max(1, ...blocks.map((block) => (block.page ?? 0) + 1));

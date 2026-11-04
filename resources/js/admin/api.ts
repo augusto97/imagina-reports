@@ -156,6 +156,9 @@ export interface AgencyUpdate {
     webhook_urls?: string[];
     webhook_secret?: string;
     slack_webhook_url?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    website?: string;
 }
 
 /** Send a `ping` test event to the configured webhook endpoints (§8). */

@@ -110,7 +110,16 @@ final readonly class BlockResolver
             $compare = $binding['compare'] ?? null;
 
             if ($compare === 'prev_period' && is_numeric($value)) {
-                return $this->withComparison($value, $previousBags[$source][$key] ?? null);
+                $resolved = $this->withComparison($value, $previousBags[$source][$key] ?? null);
+
+                // The day-by-day series behind the number, when the source has one: the KPI
+                // card draws it as a sparkline (a number + a mini visual, §11.5).
+                $series = $this->sparkline($bags[$source]["{$key}_by_date"] ?? null);
+                if ($series !== null) {
+                    $resolved['series'] = $series;
+                }
+
+                return $resolved;
             }
 
             return $value;
@@ -189,6 +198,47 @@ final readonly class BlockResolver
         }
 
         return $out === [] ? null : $out;
+    }
+
+    /**
+     * A KPI's sparkline: the series' values in date order, averaged down to at most 31
+     * points so a long range stays a light payload. Null when there's no usable series.
+     *
+     * @return list<float>|null
+     */
+    private function sparkline(mixed $series): ?array
+    {
+        if (! is_array($series) || count($series) < 2) {
+            return null;
+        }
+
+        $points = [];
+        foreach ($series as $row) {
+            if (! is_array($row) || ! is_numeric($row['value'] ?? null)) {
+                continue;
+            }
+            $date = $row['date'] ?? $row['label'] ?? $row['name'] ?? '';
+            $points[] = ['at' => is_scalar($date) ? (string) $date : '', 'value' => (float) $row['value']];
+        }
+        if (count($points) < 2) {
+            return null;
+        }
+        usort($points, static fn (array $a, array $b): int => strcmp($a['at'], $b['at']));
+        $values = array_column($points, 'value');
+
+        $max = 31;
+        if (count($values) <= $max) {
+            return $values;
+        }
+
+        $out = [];
+        $size = count($values) / $max;
+        for ($i = 0; $i < $max; $i++) {
+            $chunk = array_slice($values, (int) floor($i * $size), max(1, (int) floor(($i + 1) * $size) - (int) floor($i * $size)));
+            $out[] = round(array_sum($chunk) / count($chunk), 2);
+        }
+
+        return $out;
     }
 
     /**

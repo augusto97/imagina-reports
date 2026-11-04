@@ -1,7 +1,9 @@
 import {
     Activity,
     AlertTriangle,
+    ArrowRight,
     Building2,
+    Check,
     CreditCard,
     Database,
     DownloadCloud,
@@ -49,7 +51,7 @@ import {
     useUpdatePlatformAgency,
     useUpdatePlatformUser,
 } from '../api';
-import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
+import { ActionMenu, Avatar, Badge, Button, Card, Field, Input, Modal, PageHeader, Select, StatCard, StatusDot } from '../components/ui';
 import { type PlatformTab, useAdminUi } from '../store';
 import type { Plan, PlatformAgency, PlatformAgencyUser } from '../types';
 
@@ -86,12 +88,12 @@ function formatBytes(bytes: number): string {
 
 /* ------------------------------- Primitives -------------------------------- */
 
-/** A single headline number. The overview is built entirely from these. */
+/** A single headline number — the same card the agency app uses. */
 function Stat({
     label,
     value,
     hint,
-    icon: Icon,
+    icon,
     tone = 'neutral',
 }: {
     label: string;
@@ -100,18 +102,7 @@ function Stat({
     icon: typeof Building2;
     tone?: 'neutral' | 'danger' | 'success';
 }): ReactElement {
-    const toneClass = tone === 'danger' ? 'ir-text-danger' : tone === 'success' ? 'ir-text-success' : 'ir-text-foreground';
-
-    return (
-        <div className="ir-rounded-lg ir-border ir-bg-card ir-p-4 ir-shadow-ir-xs">
-            <div className="ir-flex ir-items-center ir-gap-2 ir-text-xs ir-font-medium ir-text-muted-foreground">
-                <Icon className="ir-size-3.5" />
-                {label}
-            </div>
-            <p className={`ir-mt-2 ir-text-2xl ir-font-semibold ir-tabular-nums ir-tracking-tight ${toneClass}`}>{value}</p>
-            {hint !== undefined && <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{hint}</p>}
-        </div>
-    );
+    return <StatCard label={label} value={value} hint={hint} icon={icon} tone={tone} />;
 }
 
 /** A used/limit progress bar (null limit = ilimitado). */
@@ -167,7 +158,7 @@ function ConfirmByName({
 function DetailSection({ title, description, children }: { title: string; description?: string; children: ReactNode }): ReactElement {
     return (
         <section className="ir-border-t ir-px-5 ir-py-4 first:ir-border-t-0">
-            <h3 className="ir-text-xs ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground">{title}</h3>
+            <h3 className="ir-text-sm ir-font-semibold ir-tracking-tight">{title}</h3>
             {description !== undefined && <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{description}</p>}
             <div className="ir-mt-3">{children}</div>
         </section>
@@ -180,7 +171,7 @@ function DetailSection({ title, description, children }: { title: string; descri
 function GroupHeading({ title, action }: { title: string; action?: ReactNode }): ReactElement {
     return (
         <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
-            <h2 className="ir-text-xs ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground">{title}</h2>
+            <h2 className="ir-text-[13px] ir-font-semibold ir-text-foreground">{title}</h2>
             {action}
         </div>
     );
@@ -188,6 +179,9 @@ function GroupHeading({ title, action }: { title: string; action?: ReactNode }):
 
 function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactElement {
     const { data, isLoading } = usePlatformOverview();
+    const { data: agencies = [] } = usePlatformAgencies();
+    // The busiest agencies first: who to look after.
+    const busiest = [...agencies].sort((a, b) => b.usage.reports_this_month - a.usage.reports_this_month || b.usage.sites - a.usage.sites).slice(0, 6);
 
     if (isLoading || data === undefined) {
         return (
@@ -211,7 +205,7 @@ function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactE
             />
             <div className="ir-flex ir-flex-col ir-gap-2.5">
                 <GroupHeading title="Agencias y personas" />
-                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
+                <div className="ir-grid ir-grid-cols-2 ir-gap-3 lg:ir-grid-cols-4">
                     <Stat icon={Building2} label="Agencias" value={numberFmt.format(data.agencies.total)} hint={`${data.agencies.active} activas · ${data.agencies.suspended} suspendidas`} />
                     <Stat icon={Activity} label="Nuevas (30 días)" value={numberFmt.format(data.agencies.new_this_month)} hint="Altas recientes" />
                     <Stat icon={Users} label="Usuarios" value={numberFmt.format(data.users.total)} hint={`${data.users.with_two_factor} con 2FA activo`} />
@@ -227,7 +221,7 @@ function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactE
 
             <div className="ir-flex ir-flex-col ir-gap-2.5">
                 <GroupHeading title="Carga de trabajo" />
-                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
+                <div className="ir-grid ir-grid-cols-2 ir-gap-3 lg:ir-grid-cols-4">
                     <Stat icon={Users} label="Clientes" value={numberFmt.format(data.workload.clients)} />
                     <Stat icon={Gauge} label="Sitios" value={numberFmt.format(data.workload.sites)} />
                     <Stat icon={Plug} label="Fuentes de datos" value={numberFmt.format(data.workload.data_sources)} />
@@ -237,7 +231,7 @@ function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactE
 
             <div className="ir-flex ir-flex-col ir-gap-2.5">
                 <GroupHeading title="Almacenamiento y cobros" />
-                <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 lg:ir-grid-cols-4">
+                <div className="ir-grid ir-grid-cols-2 ir-gap-3 lg:ir-grid-cols-4">
                     <Stat icon={Database} label="Snapshots" value={numberFmt.format(data.health.snapshots)} hint="Datos ya agregados por los conectores" />
                     <Stat icon={Database} label="Tamaño de los datos" value={formatBytes(data.health.storage_bytes)} />
                     <Stat icon={CreditCard} label="Suscripciones activas" value={numberFmt.format(data.billing.active_subscriptions)} tone={data.billing.active_subscriptions > 0 ? 'success' : 'neutral'} />
@@ -250,6 +244,34 @@ function OverviewTab({ onOpenAgencies }: { onOpenAgencies: () => void }): ReactE
                     />
                 </div>
             </div>
+
+            {busiest.length > 0 && (
+                <Card
+                    title="Agencias más activas"
+                    description="Por reportes generados este mes."
+                    actions={
+                        <Button variant="quiet" size="sm" onClick={onOpenAgencies}>
+                            Ver todas
+                            <ArrowRight className="ir-size-3.5" />
+                        </Button>
+                    }
+                >
+                    <div className="ir-flex ir-flex-col ir-divide-y">
+                        {busiest.map((agency) => (
+                            <div key={agency.id} className="ir-flex ir-items-center ir-gap-3 ir-py-2.5">
+                                <Avatar name={agency.name} />
+                                <div className="ir-min-w-0 ir-flex-1">
+                                    <p className="ir-truncate ir-text-sm ir-font-medium">{agency.name}</p>
+                                    <p className="ir-truncate ir-text-xs ir-text-muted-foreground">
+                                        {agency.plan?.name ?? 'Sin plan'} · {agency.usage.sites} sitios · {agency.usage.reports_this_month} reportes este mes
+                                    </p>
+                                </div>
+                                <Badge tone={agency.status === 'suspended' ? 'danger' : 'success'}>{agency.status === 'suspended' ? 'Suspendida' : 'Activa'}</Badge>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
         </div>
     );
 }
@@ -584,6 +606,8 @@ function AgencyDetailModal({ agencyId, plans, onClose }: { agencyId: number; pla
 
 function AgenciesTab(): ReactElement {
     const { data: agencies = [], isLoading } = usePlatformAgencies();
+    const impersonate = useImpersonateAgency();
+    const setView = useAdminUi((state) => state.setView);
     const { data: plans = [] } = usePlatformPlans();
     const [creating, setCreating] = useState(false);
     const [openId, setOpenId] = useState<number | null>(null);
@@ -625,15 +649,16 @@ function AgenciesTab(): ReactElement {
             </div>
 
             {/* Plain surface rather than <Card>: the table owns its own edge-to-edge padding. */}
-            <div className="ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm">
+            <div className="ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-xs">
                 <div className="ir-overflow-x-auto">
                     <table className="ir-w-full ir-border-collapse ir-text-left ir-text-sm">
                         <thead>
-                            <tr className="ir-border-b">
+                            <tr className="ir-border-b ir-bg-muted/40">
                                 {['Agencia', 'Plan', 'Estado', 'Uso', ''].map((header, index) => (
                                     <th
                                         key={header === '' ? `col-${index}` : header}
-                                        className="ir-whitespace-nowrap ir-px-3 ir-py-2.5 ir-text-xs ir-font-semibold ir-uppercase ir-tracking-wide ir-text-muted-foreground first:ir-pl-5 last:ir-pr-5"
+                                        // On a phone: agency, status and actions; plan from sm, usage from lg.
+                                        className={`ir-whitespace-nowrap ir-px-3 ir-py-2.5 ir-text-xs ir-font-medium ir-text-muted-foreground first:ir-pl-5 last:ir-pr-5 ${header === 'Plan' ? 'ir-hidden sm:ir-table-cell' : header === 'Uso' ? 'ir-hidden lg:ir-table-cell' : ''}`}
                                     >
                                         {header}
                                     </th>
@@ -648,26 +673,39 @@ function AgenciesTab(): ReactElement {
                                     onClick={() => setOpenId(agency.id)}
                                 >
                                     <td className="ir-px-3 ir-py-3 first:ir-pl-5">
-                                        <p className="ir-font-medium">{agency.name}</p>
-                                        <p className="ir-text-xs ir-text-muted-foreground">/{agency.slug}</p>
+                                        <div className="ir-flex ir-items-center ir-gap-3">
+                                            <Avatar name={agency.name} />
+                                            <div className="ir-min-w-0">
+                                                <p className="ir-truncate ir-font-medium">{agency.name}</p>
+                                                <p className="ir-truncate ir-text-xs ir-text-muted-foreground">/{agency.slug}</p>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td className="ir-px-3 ir-py-3">
+                                    <td className="ir-hidden ir-px-3 ir-py-3 sm:ir-table-cell">
                                         {agency.plan !== null ? <Badge tone="accent">{agency.plan.name}</Badge> : <span className="ir-text-xs ir-text-muted-foreground">Sin plan</span>}
                                     </td>
                                     <td className="ir-px-3 ir-py-3">
                                         <Badge tone={agency.status === 'suspended' ? 'danger' : 'success'}>{agency.status === 'suspended' ? 'Suspendida' : 'Activa'}</Badge>
                                     </td>
-                                    <td className="ir-w-72 ir-px-3 ir-py-3">
+                                    <td className="ir-hidden ir-w-72 ir-px-3 ir-py-3 lg:ir-table-cell">
                                         <div className="ir-grid ir-grid-cols-2 ir-gap-x-4 ir-gap-y-1.5">
                                             <UsageBar label="Sitios" used={agency.usage.sites} limit={agency.limits.max_sites} />
                                             <UsageBar label="Reportes/mes" used={agency.usage.reports_this_month} limit={agency.limits.max_reports_per_month} />
                                         </div>
                                     </td>
-                                    <td className="ir-px-3 ir-py-3 last:ir-pr-5">
-                                        <Button variant="ghost" size="sm" onClick={() => setOpenId(agency.id)}>
-                                            <Pencil className="ir-size-3.5" />
-                                            Gestionar
-                                        </Button>
+                                    <td className="ir-px-3 ir-py-3 last:ir-pr-5" onClick={(event) => event.stopPropagation()}>
+                                        <div className="ir-flex ir-items-center ir-justify-end ir-gap-1">
+                                            <Button variant="ghost" size="sm" onClick={() => setOpenId(agency.id)}>
+                                                Gestionar
+                                            </Button>
+                                            <ActionMenu
+                                                label={`Acciones de ${agency.name}`}
+                                                items={[
+                                                    { label: 'Entrar como esta agencia', icon: LogIn, onSelect: () => impersonate.mutate(agency.id, { onSuccess: () => setView('clients') }) },
+                                                    { label: 'Gestionar plan y usuarios', icon: Pencil, onSelect: () => setOpenId(agency.id) },
+                                                ]}
+                                            />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -785,6 +823,7 @@ function PlanModal({ plan, onClose }: { plan: Plan | null; onClose: () => void }
 
 function PlansTab(): ReactElement {
     const { data: plans = [], isLoading } = usePlatformPlans();
+    const { data: agencies = [] } = usePlatformAgencies();
     const remove = useDeletePlan();
     const [editing, setEditing] = useState<Plan | null>(null);
     const [creating, setCreating] = useState(false);
@@ -807,45 +846,67 @@ function PlansTab(): ReactElement {
                     <p className="ir-text-sm ir-text-muted-foreground">Aún no hay planes. Crea el primero para poder asignarlo a las agencias.</p>
                 </Card>
             ) : (
-                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2 lg:ir-grid-cols-3">
-                    {plans.map((plan) => (
-                        <Card
-                            key={plan.id}
-                            title={plan.name}
-                            description={plan.monthly_price != null ? `${plan.monthly_price} ${plan.currency}/mes` : 'Sin precio'}
-                            actions={
-                                <>
-                                    <Button variant="ghost" size="sm" title="Editar" onClick={() => setEditing(plan)}>
-                                        <Pencil className="ir-size-3.5" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        title="Eliminar"
-                                        onClick={() => {
-                                            if (window.confirm(`¿Eliminar el plan «${plan.name}»? Las agencias que lo usan quedarán sin plan.`)) remove.mutate(plan.id);
-                                        }}
-                                    >
-                                        <Trash2 className="ir-size-3.5 ir-text-danger" />
-                                    </Button>
-                                </>
-                            }
-                        >
-                            <dl className="ir-flex ir-flex-col ir-gap-1 ir-text-xs">
-                                {NUM_FIELDS.map((f) => (
-                                    <div key={f.key} className="ir-flex ir-justify-between ir-gap-3">
-                                        <dt className="ir-text-muted-foreground">{f.label}</dt>
-                                        <dd className="ir-tabular-nums ir-font-medium">{plan[f.key] ?? '∞'}</dd>
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2 xl:ir-grid-cols-3 min-[1700px]:ir-grid-cols-4">
+                    {plans.map((plan) => {
+                        const using = agencies.filter((agency) => agency.plan?.name === plan.name).length;
+
+                        return (
+                            <section key={plan.id} className="ir-flex ir-flex-col ir-rounded-xl ir-border ir-bg-card ir-p-5 ir-shadow-ir-xs">
+                                <div className="ir-flex ir-items-start ir-justify-between ir-gap-3">
+                                    <div className="ir-min-w-0">
+                                        <h2 className="ir-text-[15px] ir-font-semibold ir-tracking-tight">{plan.name}</h2>
+                                        <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">
+                                            {using === 1 ? '1 agencia lo usa' : `${using} agencias lo usan`}
+                                        </p>
                                     </div>
-                                ))}
-                            </dl>
-                            <div className="ir-mt-3 ir-flex ir-flex-wrap ir-gap-1">
-                                {FEATURES.filter((f) => plan.features?.[f.key]).map((f) => (
-                                    <Badge key={f.key} tone="accent">{f.label}</Badge>
-                                ))}
-                            </div>
-                        </Card>
-                    ))}
+                                    <ActionMenu
+                                        label={`Acciones del plan ${plan.name}`}
+                                        items={[
+                                            { label: 'Editar plan', icon: Pencil, onSelect: () => setEditing(plan) },
+                                            {
+                                                label: 'Eliminar plan',
+                                                icon: Trash2,
+                                                danger: true,
+                                                onSelect: () => {
+                                                    if (window.confirm(`¿Eliminar el plan «${plan.name}»? Las agencias que lo usan quedarán sin plan.`)) remove.mutate(plan.id);
+                                                },
+                                            },
+                                        ]}
+                                    />
+                                </div>
+                                <p className="ir-mt-4 ir-flex ir-items-baseline ir-gap-1">
+                                    {plan.monthly_price != null ? (
+                                        <>
+                                            <span className="ir-text-3xl ir-font-bold ir-tracking-tight ir-tabular-nums">{numberFmt.format(plan.monthly_price)}</span>
+                                            <span className="ir-text-sm ir-text-muted-foreground">{plan.currency} / mes</span>
+                                        </>
+                                    ) : (
+                                        <span className="ir-text-sm ir-text-muted-foreground">Sin precio</span>
+                                    )}
+                                </p>
+                                <dl className="ir-mt-4 ir-grid ir-grid-cols-2 ir-gap-x-4 ir-gap-y-2 ir-border-t ir-pt-4 ir-text-[13px]">
+                                    {NUM_FIELDS.map((f) => (
+                                        <div key={f.key} className="ir-flex ir-items-baseline ir-justify-between ir-gap-2">
+                                            <dt className="ir-text-muted-foreground">{f.label}</dt>
+                                            <dd className="ir-font-medium ir-tabular-nums">{plan[f.key] ?? '∞'}</dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                                <ul className="ir-mt-4 ir-flex ir-flex-col ir-gap-1.5 ir-border-t ir-pt-4 ir-text-[13px]">
+                                    {FEATURES.map((f) => {
+                                        const included = plan.features?.[f.key] === true;
+
+                                        return (
+                                            <li key={f.key} className={`ir-flex ir-items-center ir-gap-2 ${included ? '' : 'ir-text-muted-foreground/60'}`}>
+                                                {included ? <Check className="ir-size-3.5 ir-text-success" /> : <span className="ir-inline-block ir-size-3.5 ir-text-center ir-leading-none">–</span>}
+                                                {f.label}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </section>
+                        );
+                    })}
                 </div>
             )}
             {creating && <PlanModal plan={null} onClose={() => setCreating(false)} />}
@@ -857,8 +918,45 @@ function PlansTab(): ReactElement {
 /* --------------------------------- Billing --------------------------------- */
 
 /** «configurado ✓» / «sin configurar», the same chip everywhere in this panel. */
-function ConfigChip({ ready, note }: { ready: boolean; note?: string }): ReactElement {
-    return ready ? <Badge tone="success">configurado ✓{note !== undefined ? ` ${note}` : ''}</Badge> : <Badge tone="warning">sin configurar</Badge>;
+function ConfigChip({ ready, label, note }: { ready: boolean; label?: string; note?: string }): ReactElement {
+    const state = ready ? `listo${note !== undefined ? ` ${note}` : ''}` : 'sin configurar';
+    const text = label !== undefined ? `${label}: ${state}` : state.charAt(0).toUpperCase() + state.slice(1);
+
+    return (
+        <span className={`ir-inline-flex ir-items-center ir-gap-1.5 ir-rounded-full ir-border ir-bg-card ir-px-2.5 ir-py-1 ir-text-xs ir-font-medium ${ready ? 'ir-text-success' : 'ir-text-warning'}`}>
+            <StatusDot tone={ready ? 'success' : 'warning'} />
+            {text}
+        </span>
+    );
+}
+
+/**
+ * One provider's settings, Stripe/Vercel style: what it is and its status on the left, the
+ * form on the right — instead of a stack of full-width cards with a save button per field.
+ */
+function SettingsRow({ title, description, status, children }: { title: string; description: ReactNode; status?: ReactNode; children: ReactNode }): ReactElement {
+    return (
+        <section className="ir-grid ir-gap-4 ir-border-t ir-pt-6 first:ir-border-t-0 first:ir-pt-0 lg:ir-grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:ir-gap-10">
+            <div>
+                <h2 className="ir-text-[15px] ir-font-semibold ir-tracking-tight">{title}</h2>
+                <div className="ir-mt-1 ir-text-[13px] ir-leading-relaxed ir-text-muted-foreground">{description}</div>
+                {status !== undefined && <div className="ir-mt-3">{status}</div>}
+            </div>
+            <div className="ir-min-w-0 ir-rounded-xl ir-border ir-bg-card ir-p-5 ir-shadow-ir-xs">{children}</div>
+        </section>
+    );
+}
+
+/** The footer of a settings form: the save button + what happened. */
+function SaveBar({ onSave, disabled, busy, saved, label = 'Guardar cambios' }: { onSave: () => void; disabled: boolean; busy: boolean; saved: boolean; label?: string }): ReactElement {
+    return (
+        <div className="ir-mt-1 ir-flex ir-items-center ir-gap-3 ir-border-t ir-pt-4">
+            <Button onClick={onSave} disabled={disabled || busy}>
+                {busy ? 'Guardando…' : label}
+            </Button>
+            {saved && <span className="ir-text-xs ir-text-success">Guardado.</span>}
+        </div>
+    );
 }
 
 function BillingTab(): ReactElement {
@@ -869,93 +967,89 @@ function BillingTab(): ReactElement {
     const [ppId, setPpId] = useState('');
     const [ppSecret, setPpSecret] = useState('');
     const [ppHook, setPpHook] = useState('');
+    const [savedWhat, setSavedWhat] = useState<'mp' | 'pp' | null>(null);
 
-    const save = (payload: { mercadopago_access_token?: string; mercadopago_webhook_secret?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean }): void => {
-        update.mutate(payload, { onSuccess: () => { setMp(''); setMpHook(''); setPpId(''); setPpSecret(''); setPpHook(''); } });
+    type BillingPayload = { mercadopago_access_token?: string; mercadopago_webhook_secret?: string; paypal_client_id?: string; paypal_secret?: string; paypal_webhook_id?: string; billing_sandbox?: boolean };
+    const save = (payload: BillingPayload, what: 'mp' | 'pp' | null): void => {
+        update.mutate(payload, {
+            onSuccess: () => {
+                setMp('');
+                setMpHook('');
+                setPpId('');
+                setPpSecret('');
+                setPpHook('');
+                setSavedWhat(what);
+            },
+        });
     };
 
+    // Only what was typed is sent: an empty secret field means "keep the current one".
+    const saveMp = (): void => save({ ...(mp !== '' ? { mercadopago_access_token: mp } : {}), ...(mpHook !== '' ? { mercadopago_webhook_secret: mpHook } : {}) }, 'mp');
+    const ppPairIncomplete = (ppId === '') !== (ppSecret === '');
+    const savePp = (): void => save({ ...(ppId !== '' && ppSecret !== '' ? { paypal_client_id: ppId, paypal_secret: ppSecret } : {}), ...(ppHook !== '' ? { paypal_webhook_id: ppHook } : {}) }, 'pp');
+
     return (
-        <div className="ir-flex ir-flex-col ir-gap-4">
+        <div className="ir-flex ir-flex-col ir-gap-6">
             <SectionHeader tab="billing" />
-            <Card
-                title="MercadoPago"
-                description="Cobros recurrentes en la moneda local de cada plan. Pega tu Access Token (se guarda cifrado)."
-                actions={<ConfigChip ready={settings?.mercadopago_configured ?? false} />}
-            >
-                <div className="ir-flex ir-flex-col ir-gap-3">
-                    <Field label="Access Token" hint="El token decide el entorno: uno TEST-… cobra en pruebas, uno APP_USR-… cobra de verdad. La casilla «sandbox» de abajo no afecta a MercadoPago.">
-                        <Input type="password" autoComplete="off" value={mp} onChange={(e) => setMp(e.target.value)} placeholder={settings?.mercadopago_configured ? '•••••••• (deja en blanco para conservar)' : 'APP_USR-…'} />
-                    </Field>
-                    <Button className="ir-self-start" onClick={() => save({ mercadopago_access_token: mp })} disabled={update.isPending || mp === ''}>
-                        Guardar
-                    </Button>
-                    <div className="ir-mt-1 ir-border-t ir-pt-3">
-                        <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
-                            <span className="ir-text-xs ir-text-muted-foreground">Clave secreta del webhook</span>
-                            <ConfigChip ready={settings?.mercadopago_webhook_configured ?? false} />
+            <div className="ir-flex ir-max-w-5xl ir-flex-col ir-gap-6">
+                <SettingsRow
+                    title="MercadoPago"
+                    description="Cobros recurrentes en la moneda local de cada plan. El token decide el entorno: TEST-… cobra en pruebas, APP_USR-… cobra de verdad."
+                    status={
+                        <div className="ir-flex ir-flex-wrap ir-gap-2">
+                            <ConfigChip ready={settings?.mercadopago_configured ?? false} />
+                            <ConfigChip ready={settings?.mercadopago_webhook_configured ?? false} label="Firma" />
                         </div>
+                    }
+                >
+                    <div className="ir-flex ir-flex-col ir-gap-4">
+                        <Field label="Access Token">
+                            <Input type="password" autoComplete="off" value={mp} onChange={(e) => setMp(e.target.value)} placeholder={settings?.mercadopago_configured ? '•••••••• (déjalo vacío para conservarlo)' : 'APP_USR-…'} />
+                        </Field>
                         <Field
-                            label="Clave secreta (opcional)"
-                            hint="En MercadoPago → Tus integraciones → Webhooks. Con ella se valida la firma de cada aviso. Sin ella el cobro sigue siendo seguro (el estado siempre se consulta a MercadoPago), pero se acepta tráfico sin firmar."
+                            label="Clave secreta del webhook (opcional)"
+                            hint="MercadoPago → Tus integraciones → Webhooks. Valida la firma de cada aviso; sin ella el cobro sigue siendo seguro porque el estado siempre se consulta a MercadoPago."
                         >
-                            <div className="ir-flex ir-gap-2">
-                                <Input type="password" autoComplete="off" value={mpHook} onChange={(e) => setMpHook(e.target.value)} placeholder={settings?.mercadopago_webhook_configured ? '••••••••' : 'clave del webhook'} />
-                                <Button variant="ghost" onClick={() => save({ mercadopago_webhook_secret: mpHook })} disabled={update.isPending || mpHook === ''}>
-                                    Guardar
-                                </Button>
-                            </div>
+                            <Input type="password" autoComplete="off" value={mpHook} onChange={(e) => setMpHook(e.target.value)} placeholder={settings?.mercadopago_webhook_configured ? '••••••••' : 'clave del webhook'} />
                         </Field>
+                        <SaveBar onSave={saveMp} disabled={mp === '' && mpHook === ''} busy={update.isPending} saved={savedWhat === 'mp'} />
                     </div>
-                </div>
-            </Card>
+                </SettingsRow>
 
-            <Card
-                title="PayPal"
-                description="Suscripciones recurrentes. Client ID + Secret de tu app REST de PayPal."
-                actions={<ConfigChip ready={settings?.paypal_configured ?? false} />}
-            >
-                <div className="ir-flex ir-flex-col ir-gap-3">
-                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
-                        <Field label="Client ID">
-                            <Input type="password" autoComplete="off" value={ppId} onChange={(e) => setPpId(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'AY…'} />
-                        </Field>
-                        <Field label="Secret">
-                            <Input type="password" autoComplete="off" value={ppSecret} onChange={(e) => setPpSecret(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'EL…'} />
-                        </Field>
-                    </div>
-                    <Button className="ir-self-start" onClick={() => save({ paypal_client_id: ppId, paypal_secret: ppSecret })} disabled={update.isPending || ppId === '' || ppSecret === ''}>
-                        Guardar
-                    </Button>
-                    <div className="ir-mt-1 ir-border-t ir-pt-3">
-                        <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
-                            <span className="ir-text-xs ir-text-muted-foreground">Webhook ID</span>
-                            <ConfigChip ready={settings?.paypal_webhook_configured ?? false} />
+                <SettingsRow
+                    title="PayPal"
+                    description="Suscripciones recurrentes en USD. Usa el Client ID y el Secret de tu app REST de PayPal."
+                    status={
+                        <div className="ir-flex ir-flex-wrap ir-gap-2">
+                            <ConfigChip ready={settings?.paypal_configured ?? false} />
+                            <ConfigChip ready={settings?.paypal_webhook_configured ?? false} label="Webhook" />
                         </div>
-                        {settings?.paypal_webhook_configured === false && (
-                            <p className="ir-mb-2 ir-text-xs ir-text-warning">Sin esto, los webhooks de PayPal se rechazan y las suscripciones no se actualizan.</p>
-                        )}
-                        <Field label="Webhook ID" hint="En tu app de PayPal → Webhooks. Se usa para verificar la firma de cada webhook (obligatorio).">
-                            <div className="ir-flex ir-gap-2">
-                                <Input type="password" autoComplete="off" value={ppHook} onChange={(e) => setPpHook(e.target.value)} placeholder={settings?.paypal_webhook_configured ? '••••••••' : 'WH-…'} />
-                                <Button variant="ghost" onClick={() => save({ paypal_webhook_id: ppHook })} disabled={update.isPending || ppHook === ''}>
-                                    Guardar
-                                </Button>
-                            </div>
+                    }
+                >
+                    <div className="ir-flex ir-flex-col ir-gap-4">
+                        <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                            <Field label="Client ID">
+                                <Input type="password" autoComplete="off" value={ppId} onChange={(e) => setPpId(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'AY…'} />
+                            </Field>
+                            <Field label="Secret">
+                                <Input type="password" autoComplete="off" value={ppSecret} onChange={(e) => setPpSecret(e.target.value)} placeholder={settings?.paypal_configured ? '••••••••' : 'EL…'} />
+                            </Field>
+                        </div>
+                        {ppPairIncomplete && <p className="ir-text-xs ir-text-warning">El Client ID y el Secret se guardan juntos: completa los dos.</p>}
+                        <Field label="Webhook ID" hint="Tu app de PayPal → Webhooks. Obligatorio: sin él, PayPal no puede avisar de renovaciones ni cancelaciones.">
+                            <Input type="password" autoComplete="off" value={ppHook} onChange={(e) => setPpHook(e.target.value)} placeholder={settings?.paypal_webhook_configured ? '••••••••' : 'WH-…'} />
                         </Field>
+                        <label className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-lg ir-bg-muted/50 ir-p-3 ir-text-sm">
+                            <input type="checkbox" className="ir-mt-0.5" checked={settings?.billing_sandbox ?? true} onChange={(e) => save({ billing_sandbox: e.target.checked }, null)} />
+                            <span>
+                                <span className="ir-font-medium">Modo pruebas (sandbox)</span>
+                                <span className="ir-block ir-text-xs ir-text-muted-foreground">Desactívalo solo con credenciales de producción. Se guarda al marcarlo.</span>
+                            </span>
+                        </label>
+                        <SaveBar onSave={savePp} disabled={ppPairIncomplete || (ppId === '' && ppHook === '')} busy={update.isPending} saved={savedWhat === 'pp'} />
                     </div>
-                </div>
-            </Card>
-
-            <Card title="Entorno de PayPal">
-                <label className="ir-flex ir-items-center ir-gap-2 ir-text-sm">
-                    <input type="checkbox" checked={settings?.billing_sandbox ?? true} onChange={(e) => save({ billing_sandbox: e.target.checked })} />
-                    Modo sandbox (pruebas). Desactívalo solo cuando uses credenciales de producción.
-                </label>
-                <p className="ir-mt-2 ir-text-xs ir-text-muted-foreground">
-                    Solo afecta a PayPal. En MercadoPago el entorno lo decide el token que pegues arriba.
-                </p>
-                {update.isSuccess && <p className="ir-mt-2 ir-text-xs ir-text-success">Guardado.</p>}
-            </Card>
+                </SettingsRow>
+            </div>
         </div>
     );
 }
@@ -971,90 +1065,92 @@ function IntegrationsTab(): ReactElement {
     const [gMcc, setGMcc] = useState('');
     const [mId, setMId] = useState('');
     const [mSecret, setMSecret] = useState('');
+    const [savedWhat, setSavedWhat] = useState<'google' | 'meta' | null>(null);
 
-    const save = (payload: Record<string, string>): void => {
+    const save = (payload: Record<string, string>, what: 'google' | 'meta'): void => {
         update.mutate(payload, {
             onSuccess: () => {
+                setGId('');
                 setGSecret('');
                 setGDev('');
+                setGMcc('');
+                setMId('');
                 setMSecret('');
+                setSavedWhat(what);
             },
         });
     };
 
-    return (
-        <div className="ir-flex ir-flex-col ir-gap-4">
-            <SectionHeader tab="integrations" />
-            <p className="ir-text-sm ir-text-muted-foreground">
-                Credenciales de las apps OAuth para la conexión de un clic. Se guardan cifradas y tienen prioridad sobre las
-                variables del <code className="ir-rounded ir-bg-muted ir-px-1">.env</code>. El botón «Conectar con…» aparece en cuanto quedan «listo».
-                Cada tarjeta tiene la guía completa, con las URLs de esta instalación listas para copiar.
-            </p>
+    // Only the fields that were typed: empty means "keep what's saved".
+    const pick = (fields: Record<string, string>): Record<string, string> => Object.fromEntries(Object.entries(fields).filter(([, value]) => value.trim() !== ''));
+    const googlePayload = pick({ google_oauth_client_id: gId, google_oauth_client_secret: gSecret, google_ads_developer_token: gDev, google_ads_login_customer_id: gMcc });
+    const metaPayload = pick({ meta_oauth_app_id: mId, meta_oauth_app_secret: mSecret });
 
-            <Card
-                title="Google (GA4, Search Console, Google Ads)"
-                description="Una sola app OAuth de Google Cloud cubre las tres fuentes."
-                actions={<ConfigChip ready={settings?.google_connect_ready ?? false} note={settings?.google_from_env === true ? '(por .env)' : undefined} />}
-            >
-                <div className="ir-flex ir-flex-col ir-gap-3">
-                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
-                        <Field label="OAuth Client ID">
-                            <Input autoComplete="off" value={gId} onChange={(e) => setGId(e.target.value)} placeholder={settings?.google_oauth_client_id || '…apps.googleusercontent.com'} />
-                        </Field>
-                        <Field label="OAuth Client Secret">
-                            <Input type="password" autoComplete="off" value={gSecret} onChange={(e) => setGSecret(e.target.value)} placeholder={settings?.google_oauth_client_secret_set ? '•••••••• (deja en blanco para conservar)' : 'GOCSPX-…'} />
-                        </Field>
-                    </div>
-                    <Button className="ir-self-start" onClick={() => save({ google_oauth_client_id: gId, ...(gSecret !== '' ? { google_oauth_client_secret: gSecret } : {}) })} disabled={update.isPending || (gId === '' && gSecret === '')}>
-                        Guardar Google
-                    </Button>
-                    {settings !== undefined && <GoogleSetupGuide setup={settings.setup} />}
-                    <div className="ir-mt-1 ir-border-t ir-pt-3">
-                        <div className="ir-mb-2 ir-flex ir-items-center ir-gap-2">
-                            <span className="ir-text-xs ir-text-muted-foreground">Solo para <strong>Google Ads</strong>: developer token</span>
-                            <ConfigChip ready={settings?.google_ads_developer_token_set ?? false} />
+    return (
+        <div className="ir-flex ir-flex-col ir-gap-6">
+            <SectionHeader tab="integrations" />
+            <p className="ir-max-w-5xl ir-text-[13px] ir-leading-relaxed ir-text-muted-foreground">
+                Las apps OAuth de la conexión de un clic. Se guardan cifradas y tienen prioridad sobre el <code className="ir-rounded ir-bg-muted ir-px-1">.env</code>; el botón «Conectar con…»
+                aparece en cuanto quedan listas. Cada una trae su guía con las URLs de esta instalación para copiar.
+            </p>
+            <div className="ir-flex ir-max-w-5xl ir-flex-col ir-gap-6">
+                <SettingsRow
+                    title="Google"
+                    description="Una sola app de Google Cloud cubre Analytics 4, Search Console y Google Ads."
+                    status={
+                        <div className="ir-flex ir-flex-wrap ir-gap-2">
+                            <ConfigChip ready={settings?.google_connect_ready ?? false} note={settings?.google_from_env === true ? '(por .env)' : undefined} />
+                            <ConfigChip ready={settings?.google_ads_developer_token_set ?? false} label="Google Ads" />
                         </div>
-                        <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
-                            <Field label="Developer token">
-                                <Input type="password" autoComplete="off" value={gDev} onChange={(e) => setGDev(e.target.value)} placeholder={settings?.google_ads_developer_token_set ? '••••••••' : 'del API Center'} />
+                    }
+                >
+                    <div className="ir-flex ir-flex-col ir-gap-4">
+                        <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                            <Field label="OAuth Client ID">
+                                <Input autoComplete="off" value={gId} onChange={(e) => setGId(e.target.value)} placeholder={settings?.google_oauth_client_id || '…apps.googleusercontent.com'} />
                             </Field>
-                            <Field label="Login Customer ID (MCC)" hint="Opcional, solo si usas una cuenta administradora. 10 dígitos, sin guiones.">
-                                <Input autoComplete="off" value={gMcc} onChange={(e) => setGMcc(e.target.value)} placeholder={settings?.google_ads_login_customer_id || 'vacío si no aplica'} />
+                            <Field label="OAuth Client Secret">
+                                <Input type="password" autoComplete="off" value={gSecret} onChange={(e) => setGSecret(e.target.value)} placeholder={settings?.google_oauth_client_secret_set ? '•••••••• (déjalo vacío para conservarlo)' : 'GOCSPX-…'} />
                             </Field>
                         </div>
-                        <Button variant="ghost" className="ir-mt-2 ir-self-start" onClick={() => save({ google_ads_login_customer_id: gMcc, ...(gDev !== '' ? { google_ads_developer_token: gDev } : {}) })} disabled={update.isPending || (gDev === '' && gMcc === '')}>
-                            Guardar Google Ads
-                        </Button>
-                        <div className="ir-mt-3">
+                        {settings !== undefined && <GoogleSetupGuide setup={settings.setup} />}
+                        <div className="ir-flex ir-flex-col ir-gap-4 ir-border-t ir-pt-4">
+                            <p className="ir-text-xs ir-font-medium ir-text-muted-foreground">Solo para Google Ads</p>
+                            <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                                <Field label="Developer token">
+                                    <Input type="password" autoComplete="off" value={gDev} onChange={(e) => setGDev(e.target.value)} placeholder={settings?.google_ads_developer_token_set ? '••••••••' : 'del API Center'} />
+                                </Field>
+                                <Field label="Login Customer ID (MCC)" hint="Opcional: solo con cuenta administradora. 10 dígitos, sin guiones.">
+                                    <Input autoComplete="off" value={gMcc} onChange={(e) => setGMcc(e.target.value)} placeholder={settings?.google_ads_login_customer_id || 'vacío si no aplica'} />
+                                </Field>
+                            </div>
                             <GoogleAdsSetupGuide />
                         </div>
+                        <SaveBar onSave={() => save(googlePayload, 'google')} disabled={Object.keys(googlePayload).length === 0} busy={update.isPending} saved={savedWhat === 'google'} />
                     </div>
-                </div>
-            </Card>
+                </SettingsRow>
 
-            <Card
-                title="Meta (Facebook / Instagram)"
-                description="Una app de Meta cubre Facebook Ads e Instagram."
-                actions={<ConfigChip ready={settings?.meta_connect_ready ?? false} note={settings?.meta_from_env === true ? '(por .env)' : undefined} />}
-            >
-                <div className="ir-flex ir-flex-col ir-gap-3">
-                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
-                        <Field label="App ID">
-                            <Input autoComplete="off" value={mId} onChange={(e) => setMId(e.target.value)} placeholder={settings?.meta_oauth_app_id || 'App ID de Meta'} />
-                        </Field>
-                        <Field label="App Secret">
-                            <Input type="password" autoComplete="off" value={mSecret} onChange={(e) => setMSecret(e.target.value)} placeholder={settings?.meta_oauth_app_secret_set ? '•••••••• (deja en blanco para conservar)' : 'App Secret'} />
-                        </Field>
+                <SettingsRow
+                    title="Meta"
+                    description="Una app de Meta cubre Facebook Ads e Instagram."
+                    status={<ConfigChip ready={settings?.meta_connect_ready ?? false} note={settings?.meta_from_env === true ? '(por .env)' : undefined} />}
+                >
+                    <div className="ir-flex ir-flex-col ir-gap-4">
+                        <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                            <Field label="App ID">
+                                <Input autoComplete="off" value={mId} onChange={(e) => setMId(e.target.value)} placeholder={settings?.meta_oauth_app_id || 'App ID de Meta'} />
+                            </Field>
+                            <Field label="App Secret">
+                                <Input type="password" autoComplete="off" value={mSecret} onChange={(e) => setMSecret(e.target.value)} placeholder={settings?.meta_oauth_app_secret_set ? '•••••••• (déjalo vacío para conservarlo)' : 'App Secret'} />
+                            </Field>
+                        </div>
+                        {settings !== undefined && <MetaSetupGuide setup={settings.setup} />}
+                        <SaveBar onSave={() => save(metaPayload, 'meta')} disabled={Object.keys(metaPayload).length === 0} busy={update.isPending} saved={savedWhat === 'meta'} />
                     </div>
-                    <Button className="ir-self-start" onClick={() => save({ meta_oauth_app_id: mId, ...(mSecret !== '' ? { meta_oauth_app_secret: mSecret } : {}) })} disabled={update.isPending || (mId === '' && mSecret === '')}>
-                        Guardar Meta
-                    </Button>
-                    {settings !== undefined && <MetaSetupGuide setup={settings.setup} />}
-                </div>
-            </Card>
-            {update.isSuccess && <p className="ir-text-xs ir-text-success">Guardado.</p>}
+                </SettingsRow>
 
-            <MailSettingsCard />
+                <MailSettingsCard />
+            </div>
         </div>
     );
 }
@@ -1104,13 +1200,13 @@ function MailSettingsCard(): ReactElement {
     const sends = settings?.mail_sends ?? false;
 
     return (
-        <Card
-            title="Correo saliente (SMTP)"
-            description="Con qué servidor se envían los reportes por email. Se guarda cifrado; sustituye a las variables del .env."
-            actions={sends ? <Badge tone="success">envía por «{settings?.mail_mailer}» ✓</Badge> : <Badge tone="warning">sin configurar</Badge>}
+        <SettingsRow
+            title="Correo saliente"
+            description="El servidor SMTP con el que salen los reportes y avisos. Se guarda cifrado y sustituye al .env."
+            status={<ConfigChip ready={sends} note={sends ? `(${settings?.mail_mailer ?? ''})` : undefined} />}
         >
-            <div className="ir-flex ir-flex-col ir-gap-3">
-                {!sends && <p className="ir-text-xs ir-text-warning">Los correos no salen: solo se registran en el log hasta que configures un servidor.</p>}
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                {!sends && <p className="ir-rounded-lg ir-bg-warning/10 ir-px-3 ir-py-2 ir-text-xs ir-text-warning">Los correos no salen: solo se registran en el log hasta que configures un servidor.</p>}
                 <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2">
                     <Field label="Servidor SMTP (host)">
                         <Input autoComplete="off" value={host} onChange={(e) => setHost(e.target.value)} placeholder="smtp.tuservidor.com" />
@@ -1140,11 +1236,9 @@ function MailSettingsCard(): ReactElement {
                         <Input autoComplete="off" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Imagina Reports" />
                     </Field>
                 </div>
-                <Button className="ir-self-start" onClick={saveSmtp} disabled={update.isPending}>
-                    Guardar correo
-                </Button>
+                <SaveBar onSave={saveSmtp} disabled={false} busy={update.isPending} saved={update.isSuccess} />
 
-                <div className="ir-mt-1 ir-border-t ir-pt-3">
+                <div className="ir-border-t ir-pt-4">
                     <p className="ir-mb-2 ir-text-xs ir-text-muted-foreground">Envía un correo de prueba para confirmar que funciona (guarda primero).</p>
                     <div className="ir-flex ir-gap-2">
                         <Input autoComplete="off" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="tu@correo.com" />
@@ -1162,7 +1256,7 @@ function MailSettingsCard(): ReactElement {
                     {sendTest.isError && <p className="ir-mt-2 ir-text-xs ir-text-danger">No se pudo contactar el servidor. Inténtalo de nuevo.</p>}
                 </div>
             </div>
-        </Card>
+        </SettingsRow>
     );
 }
 
@@ -1192,8 +1286,8 @@ const SECTIONS: Record<PlatformTab, { title: string; description: string; icon: 
         icon: LayoutGrid,
     },
     billing: {
-        title: 'Facturación',
-        description: 'Pasarelas de cobro de la plataforma. Las credenciales se guardan cifradas.',
+        title: 'Cobros',
+        description: 'Pasarelas con las que las agencias pagan su plan. Las credenciales se guardan cifradas.',
         icon: CreditCard,
     },
     integrations: {
@@ -1210,22 +1304,8 @@ const SECTIONS: Record<PlatformTab, { title: string; description: string; icon: 
 
 function SectionHeader({ tab, action }: { tab: PlatformTab; action?: ReactNode }): ReactElement {
     const section = SECTIONS[tab];
-    const Icon = section.icon;
 
-    return (
-        <div className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-pb-4">
-            <div className="ir-flex ir-min-w-0 ir-items-start ir-gap-3">
-                <span className="ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-muted ir-text-muted-foreground">
-                    <Icon className="ir-size-4" />
-                </span>
-                <div className="ir-min-w-0">
-                    <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">{section.title}</h1>
-                    <p className="ir-mt-0.5 ir-text-sm ir-text-muted-foreground">{section.description}</p>
-                </div>
-            </div>
-            {action !== undefined && <div className="ir-shrink-0">{action}</div>}
-        </div>
-    );
+    return <PageHeader className="ir-mb-0" title={section.title} description={section.description} actions={action} />;
 }
 
 export function PlatformScreen({

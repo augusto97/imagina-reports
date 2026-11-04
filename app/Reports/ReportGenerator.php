@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Reports;
 
 use App\Connectors\Period;
+use App\Enums\DataSourceType;
 use App\Enums\ReportStatus;
 use App\Events\ReportGenerated;
+use App\Models\DataSource;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Reports\Blocks\Block;
@@ -55,9 +57,18 @@ final readonly class ReportGenerator
         // one acknowledged exception to "no external APIs during GENERATE" (§3.1/§10.6); it
         // is fully resilient — a failure leaves the summary empty and never breaks the report.
         $summary = $aiEnabled ? $this->narrative($definition, $visibleBlocks, $data, $score) : null;
+
+        // No AI text (plan without AI, no key, API down): write the summary from the figures
+        // themselves, so the report never opens without its story.
+        if ($summary === null && ExecutiveSummary::present($visibleBlocks)) {
+            $summary = FallbackNarrative::summary($visibleBlocks, $data, $score, $this->locale($definition), $this->currency($definition));
+        }
         if ($summary !== null) {
             $data = ExecutiveSummary::inject($visibleBlocks, $data, $summary);
         }
+
+        // A closing/CTA block the agency left blank gets the standard "your plan is active" line.
+        $data = $this->fillFooters($definition, $visibleBlocks, $data);
 
         // AI advisory "site condition" insight (§10.6 added value): a consultative diagnosis
         // that also reads the previous period, the maintenance/updates done, downtime and the
@@ -127,6 +138,20 @@ final readonly class ReportGenerator
         // editor preview uses, so the preview matches the generated report exactly.
         // Page/dashboard filters cascade in; each block's own filters then override them.
         ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags, $this->pageFilters($definition));
+
+        // A block hidden because the site simply doesn't have that source (no WooCommerce →
+        // no sales) is the template adapting, not a problem. Only a CONNECTED source that came
+        // back empty deserves the agency's attention, so flag which is which.
+        $connected = DataSource::query()->withoutGlobalScopes()
+            ->where('agency_id', $definition->agency_id)
+            ->where('site_id', $definition->site_id)
+            ->pluck('type')
+            ->map(static fn (mixed $type): string => $type instanceof DataSourceType ? $type->value : (is_scalar($type) ? (string) $type : ''))
+            ->all();
+        $diagnostics = array_map(
+            static fn (array $diagnostic): array => $diagnostic + ['connected' => in_array($diagnostic['source'], $connected, true)],
+            $diagnostics,
+        );
 
         // Per-report theme (accent + density): the definition's, falling back to its template's.
         $theme = $definition->theme ?? $definition->template?->theme;
@@ -539,6 +564,36 @@ final readonly class ReportGenerator
         }
 
         return $text === '' ? null : $text;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $visibleBlocks
+     * @param  array<array-key, mixed>  $data
+     * @return array<array-key, mixed>
+     */
+    private function fillFooters(ReportDefinition $definition, array $visibleBlocks, array $data): array
+    {
+        foreach ($visibleBlocks as $block) {
+            $props = is_array($block['props'] ?? null) ? $block['props'] : [];
+            $id = $block['id'] ?? null;
+            $text = $props['text'] ?? null;
+            if (($block['type'] ?? null) !== 'narrative' || ($props['variant'] ?? null) !== 'footer_cta' || ! is_string($id)) {
+                continue;
+            }
+            if ((is_string($text) && trim(strip_tags($text)) !== '') || (is_string($data[$id] ?? null) && trim((string) $data[$id]) !== '')) {
+                continue;
+            }
+            $data[$id] = FallbackNarrative::footer($definition->agency?->name, $this->locale($definition));
+        }
+
+        return $data;
+    }
+
+    private function currency(ReportDefinition $definition): string
+    {
+        $currency = $definition->site?->currency;
+
+        return is_string($currency) && $currency !== '' ? $currency : 'USD';
     }
 
     /**

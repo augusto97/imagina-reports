@@ -45,6 +45,10 @@ final class ReportSummaryResource extends JsonResource
             'hidden_metrics' => $report->hidden_metrics ?? [],
             // When the report was generated, so the list shows the exact moment (not just the period).
             'created_at' => $report->created_at?->toIso8601String(),
+            // Did the client open it? (portal visits, not the agency's previews)
+            'first_viewed_at' => $report->first_viewed_at?->toIso8601String(),
+            'last_viewed_at' => $report->last_viewed_at?->toIso8601String(),
+            'view_count' => $report->view_count,
         ];
     }
 }

@@ -7,6 +7,29 @@
 ---
 
 ## Where I left off (read me first)
+**🎯 ETAPA 1 «LO QUE VE EL CLIENTE» + SUPERADMIN + ANCHO FLUIDO (2026-11-04, v1.33.0):** tras el análisis competitivo (AgencyAnalytics,
+DashThis, Whatagraph, Swydo, Data Studio, WP Umbrella, MainWP Pro Reports, Modular DS) el owner pidió hacer toda la Etapa 1:
+- **Resumen sin IA** (`app/Reports/FallbackNarrative.php`): si la IA no responde/no está en el plan, el resumen se escribe con las cifras
+  (es/en/pt) y el bloque `footer_cta` vacío recibe «Tu plan de soporte con {agencia} está activo…». Se guarda en `executive_summary`.
+- **Bloques que se ajustan** (`shared/blocks/layout.ts`: `contentRows` + `fitContent`): cada fila del grid toma la altura que su contenido
+  necesita (tablas, trabajo, textos, salud, KPI con serie); los gráficos ya no se cortan (min-h 7rem). Mismo cálculo en portal y PDF.
+- **KPI**: mini-gráfico (serie `*_by_date` → `series` en `BlockResolver::sparkline`, ≤31 puntos) + «antes: X». Cierre con diseño de firma.
+- **Portal** (`portal/PortalApp.tsx`): barra con logo, «Informe de octubre 2026», selector de meses legible, botón PDF
+  (`GET /api/v1/public/reports/{token}/pdf`, reutiliza el PDF guardado si es más nuevo que el reporte) y «Escríbenos» (WhatsApp/email).
+  Contacto de la agencia en Ajustes → Mi agencia (`settings.contact_email|contact_phone|website`, `Agency::contact()`). Títulos de
+  pestaña neutros + `noindex` en portal/report/dashboard/embed. Periodo legible en todo (`App\Support\PeriodLabel`).
+- **Correo** (`ReportReadyMail` + `emails/report-ready.blade.php` HTML): de «{agencia}», responde a la agencia (contacto u owner), asunto
+  «{sitio} · tu informe de octubre 2026 está listo», salud + 3 KPI (`ReportHighlights`) + resumen + botón al PORTAL.
+- **Aperturas**: `ir_reports.first_viewed_at/last_viewed_at/view_count` (visitas a >30 min; no cuentan el PDF ni la propia agencia).
+  Reportes muestra «Visto el 4 nov» / «Aún sin abrir». «Ver» del panel abre el portal.
+- **Plantilla que se adapta**: los diagnósticos llevan `connected`; «bloques sin datos» solo cuenta fuentes CONECTADAS que no trajeron datos.
+- **Superadmin**: mismo menú que la app (grupos Negocio/Instalación, cuenta con avatar), `PageHeader`/`StatCard`, planes con precio y
+  lista de funciones, cobros/integraciones/correo en filas tipo Stripe con un solo «Guardar» por proveedor, Sistema reescrito.
+- **Ancho fluido**: el contenido ya no se limita a 1088px (tope 1920px), con grillas que suman columnas en pantallas anchas y Ajustes
+  a ancho legible.
+Siguiente (análisis, Etapas 2–5): dominio propio y remitente propio por agencia; editor con pantalla de inicio/galería y plantillas
+vinculadas; comentarios/metas del cliente en el portal; aviso de conexiones caídas con reconexión por enlace.
+
 **🔗 ENLACES DE CONEXIÓN PARA CLIENTES (2026-11-04, v1.32.0):** antes, para conectar Google/Meta/Woo había que tener sesión en la app o
 que el cliente agregara a la agencia en su cuenta. Ahora: Clientes → sitio → «Pedir acceso al cliente» crea un enlace
 (`ir_connect_invites`: token aleatorio buscado por `sha256` + copia cifrada para volver a copiarlo; tipos permitidos; vence en 1/7/30
@@ -2534,6 +2557,9 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-04) Resumen de respaldo determinista (sin IA) en vez de dejar el bloque vacío: un reporte sin historia se ve roto y el cliente no lo entiende; el texto solo usa cifras resueltas (nunca inventa).
+- (2026-11-04) Ajuste de altura por contenido calculado (estimación en px → filas) y no con `grid-auto-rows: auto`: debe ser determinista para que el PDF escale la página igual que el portal.
+- (2026-11-04) Correo: remitente = dirección verificada de la plataforma con NOMBRE de la agencia + Reply-To de la agencia (entregabilidad sin dominio propio por agencia, que queda para la Etapa 2).
 - (2026-11-04) Enlaces de conexión para clientes: token en hash para buscar + copia cifrada para que la agencia pueda copiarlo de nuevo (igual que `push_token`); multi-uso hasta que vence o se revoca, porque el cliente suele conectar varias fuentes. Cualquier miembro de la agencia puede crearlos (igual que crear una fuente).
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 

@@ -246,6 +246,10 @@ export interface ReportSummary {
     pdf_path: string | null;
     hidden_metrics: string[];
     created_at: string | null;
+    /** Client visits to the portal (the agency's own previews don't count). */
+    first_viewed_at?: string | null;
+    last_viewed_at?: string | null;
+    view_count?: number;
 }
 
 export interface CatalogMeasure {
@@ -449,6 +453,10 @@ export interface AgencySettings {
     webhook_urls: string[];
     webhook_secret_set: boolean;
     slack_webhook_url: string;
+    /** How clients reach the agency (portal "Escríbenos" + reply-to of the report email). */
+    contact_email: string;
+    contact_phone: string;
+    website: string;
     plan: { name: string; slug: string } | null;
     status: string;
     limits: PlanLimits;

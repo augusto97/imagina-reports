@@ -460,7 +460,7 @@ function SiteGrid({
     }
 
     return (
-        <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 xl:ir-grid-cols-3">
+        <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 xl:ir-grid-cols-3 min-[1700px]:ir-grid-cols-4">
             {sites.map((site) => {
                 const h = health[String(site.id)];
                 const client = clients.find((item) => item.id === site.client_id);
@@ -636,7 +636,7 @@ export function WorkspaceScreen(): ReactElement {
                 </div>
             )}
 
-            <div className="ir-grid ir-gap-5 lg:ir-grid-cols-[290px_minmax(0,1fr)]">
+            <div className="ir-grid ir-gap-5 lg:ir-grid-cols-[290px_minmax(0,1fr)] 2xl:ir-grid-cols-[320px_minmax(0,1fr)]">
             {/* Left: clients → sites tree */}
             {/* On phones the list and the detail take turns: the list until a site is picked. */}
             <aside className={'ir-self-start ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-xs lg:ir-sticky lg:ir-top-4 ' + (selectedSite !== null ? 'ir-hidden lg:ir-block' : '')}>

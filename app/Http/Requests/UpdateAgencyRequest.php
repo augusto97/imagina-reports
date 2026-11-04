@@ -48,6 +48,10 @@ final class UpdateAgencyRequest extends FormRequest
             'webhook_secret' => ['sometimes', 'nullable', 'string', 'max:255'],
             // Slack incoming webhook URL for alerts (§8). Empty string clears it.
             'slack_webhook_url' => ['sometimes', 'nullable', 'string', 'url', 'max:2048'],
+            // How clients reach the agency from the portal and by replying to the report email.
+            'contact_email' => ['sometimes', 'nullable', 'string', 'email', 'max:255'],
+            'contact_phone' => ['sometimes', 'nullable', 'string', 'max:40', 'regex:/^[+0-9 ()-]{6,40}$/'],
+            'website' => ['sometimes', 'nullable', 'string', 'url', 'max:255'],
         ];
     }
 }

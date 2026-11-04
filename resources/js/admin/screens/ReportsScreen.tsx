@@ -5,6 +5,7 @@ import {
     Check,
     ChevronDown,
     Eye,
+    EyeOff,
     FileBarChart,
     FileDown,
     FileText,
@@ -120,6 +121,37 @@ function formatGeneratedAt(value: string | null): string {
     const date = new Date(value);
 
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function shortDate(value: string): string {
+    return new Date(value).toLocaleDateString('es', { day: 'numeric', month: 'short' }).replace('.', '');
+}
+
+/** Did the client open it? The retention signal: a sent report nobody read is a warning. */
+function ViewedBadge({ report }: { report: ReportSummary }): ReactElement | null {
+    const views = report.view_count ?? 0;
+    if (views > 0 && report.last_viewed_at != null) {
+        const first = report.first_viewed_at ?? report.last_viewed_at;
+
+        return (
+            <span className="ir-inline-flex ir-items-center ir-gap-1 ir-font-medium ir-text-success" title={`Primera visita: ${formatGeneratedAt(first)} · Última: ${formatGeneratedAt(report.last_viewed_at)}`}>
+                <Eye className="ir-size-3" />
+                {views === 1 ? `Visto el ${shortDate(report.last_viewed_at)}` : `Visto ${views} veces · último ${shortDate(report.last_viewed_at)}`}
+                <span className="ir-font-normal ir-text-muted-foreground">·</span>
+            </span>
+        );
+    }
+    if (report.status === 'sent') {
+        return (
+            <span className="ir-inline-flex ir-items-center ir-gap-1 ir-text-warning" title="El cliente todavía no abrió el enlace del reporte.">
+                <EyeOff className="ir-size-3" />
+                Aún sin abrir
+                <span className="ir-text-muted-foreground">·</span>
+            </span>
+        );
+    }
+
+    return null;
 }
 
 /**
@@ -469,7 +501,7 @@ function ReportToolsModal({
                         </h2>
                     </div>
                     <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')} title="Abrir el reporte como lo ve el cliente">
+                        <Button variant="ghost" size="sm" onClick={() => window.open(`/portal/${report.public_token}`, '_blank', 'noopener')} title="Abrir el reporte como lo ve el cliente">
                             <Eye className="ir-size-3.5" />
                             <span className="ir-hidden sm:ir-inline">Ver</span>
                         </Button>
@@ -959,7 +991,7 @@ function ReportConfigCard({
                             const status = STATUS[report.status] ?? { label: report.status, tone: 'neutral' as const };
                             const hidden = report.hidden_metrics ?? [];
                             const busyPdf = downloadPdf.isPending && downloadPdf.variables === report.id;
-                            const view = (): void => void window.open(`/reports/${report.public_token}`, '_blank', 'noopener');
+                            const view = (): void => void window.open(`/portal/${report.public_token}`, '_blank', 'noopener');
                             let primary: ReactNode = null;
                             if (report.status === 'draft') {
                                 primary = (
@@ -984,6 +1016,7 @@ function ReportConfigCard({
                                             <Badge tone={status.tone}>{status.label}</Badge>
                                         </p>
                                         <p className="ir-mt-0.5 ir-flex ir-flex-wrap ir-items-center ir-gap-x-2 ir-text-xs ir-text-muted-foreground">
+                                            <ViewedBadge report={report} />
                                             <span>Generado {formatGeneratedAt(report.created_at)}</span>
                                             {report.health_score !== null && <span>· Salud {report.health_score}/100</span>}
                                             {hidden.length > 0 && (

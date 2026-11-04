@@ -340,4 +340,9 @@
         /* Height becomes content-driven when stacked; charts keep their own min-height. */
         height: auto !important;
     }
+
+    /* Stacked cards have no spare height for the KPI sparkline to grow into: give it its own. */
+    .ir-kpi-spark {
+        min-height: 1.75rem;
+    }
 }

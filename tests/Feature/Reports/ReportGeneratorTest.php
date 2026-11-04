@@ -368,9 +368,55 @@ class ReportGeneratorTest extends TestCase
 
         $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
 
-        $this->assertNull($report->executive_summary);
+        // The AI failed, so the summary is written from the figures instead of left empty.
+        $this->assertSame('Este mes tu sitio recibió 1500 visitas. El estado general del sitio es de '.$report->health_score.'/100: '
+            .($report->health_score >= 90 ? 'excelente' : ($report->health_score >= 75 ? 'muy bien' : ($report->health_score >= 50 ? 'mejorable' : 'requiere atención'))).'.', $report->executive_summary);
         $this->assertSame(1500, $report->resolved_blocks['data']['kpi_visits']['value'] ?? null);
-        $this->assertArrayNotHasKey('summary', $report->resolved_blocks['data']);
+        $this->assertSame($report->executive_summary, $report->resolved_blocks['data']['summary'] ?? null);
+    }
+
+    public function test_a_plan_without_ai_still_gets_a_summary_written_from_the_figures(): void
+    {
+        $this->app->instance(AiClient::class, new FakeAiClient('No debería aparecer.'));
+
+        $plan = Plan::factory()->create(['features' => ['ai_builder' => false, 'white_label' => true, 'remove_branding' => false, 'custom_domain' => false]]);
+        $agency = Agency::factory()->create(['plan_id' => $plan->id, 'name' => 'Agencia Sol']);
+        app(TenantContext::class)->set($agency->id);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'currency' => 'COP']);
+        $source = fn (DataSourceType $type): DataSource => DataSource::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'type' => $type]);
+        $snap = function (DataSource $ds, array $payload) use ($agency): void {
+            MetricSnapshot::factory()->create([
+                'agency_id' => $agency->id, 'data_source_id' => $ds->id,
+                'period_start' => '2026-06-15 00:00:00', 'period_end' => '2026-06-15 23:59:59', 'payload' => ['metrics' => $payload], 'captured_at' => '2026-06-15 00:00:00',
+            ]);
+        };
+        $snap($source(DataSourceType::Ga4), ['ga4.sessions' => 12500]);
+        $snap($source(DataSourceType::BetterUptime), ['betteruptime.uptime_percent' => 99.9]);
+        $snap($source(DataSourceType::WooCommerce), ['woocommerce.revenue' => 3200000, 'woocommerce.orders' => 41]);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'locale' => 'es']);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $summary = (string) $report->executive_summary;
+        $this->assertStringContainsString('recibió 12.500 visitas y estuvo disponible el 99,9 % del tiempo.', $summary);
+        $this->assertStringContainsString('Las ventas sumaron 3.200.000 COP en 41 pedidos.', $summary);
+        $this->assertStringNotContainsString('No debería aparecer', $summary);
+        // The empty closing block gets the "your plan is active" line, with the agency's name.
+        $this->assertStringContainsString('Tu plan de soporte con Agencia Sol está activo', (string) ($report->resolved_blocks['data']['footer'] ?? ''));
+    }
+
+    public function test_only_connected_sources_without_data_count_as_missing(): void
+    {
+        // GA4 is connected but synced nothing; the site has no WooCommerce at all.
+        $this->dataSource(DataSourceType::Ga4);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $this->site->id]);
+
+        $report = app(ReportGenerator::class)->generate($definition, Period::make('2026-06-01', '2026-06-30'));
+
+        $hidden = $report->hidden_metrics ?? [];
+        $this->assertContains('ga4.sessions', $hidden);
+        // The sales blocks just adapted away — not a warning for the agency.
+        $this->assertNotContains('woocommerce.revenue', $hidden);
     }
 
     public function test_it_records_diagnostics_when_a_bound_metric_has_no_data(): void

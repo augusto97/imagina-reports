@@ -127,6 +127,24 @@ class Agency extends Model
     /**
      * Public URL of the agency logo (white-label, §11.5) for the portal/PDF, or null.
      */
+    /**
+     * How the agency's clients reach it (set in Ajustes → Mi agencia). Only the filled fields.
+     *
+     * @return array{email?: string, phone?: string, website?: string}
+     */
+    public function contact(): array
+    {
+        $out = [];
+        foreach (['email' => 'contact_email', 'phone' => 'contact_phone', 'website' => 'website'] as $key => $field) {
+            $value = $this->settings[$field] ?? null;
+            if (is_string($value) && $value !== '') {
+                $out[$key] = $value;
+            }
+        }
+
+        return $out;
+    }
+
     public function logoUrl(): ?string
     {
         return $this->logo_path === null ? null : Storage::disk('public')->url($this->logo_path);

@@ -8,9 +8,11 @@ use App\Enums\DeliveryStatus;
 use App\Enums\ReportStatus;
 use App\Mail\ReportReadyMail;
 use App\Models\Agency;
+use App\Models\Client;
 use App\Models\Report;
 use App\Models\ReportDefinition;
 use App\Models\ReportDelivery;
+use App\Models\Site;
 use App\Services\DeliveryService;
 use App\Services\Pdf\PdfRenderer;
 use App\Support\Tenancy\TenantContext;
@@ -62,8 +64,47 @@ class DeliveryServiceTest extends TestCase
         $report = Report::factory()->create(['agency_id' => $agency->id, 'report_definition_id' => $english->id, 'pdf_path' => null]);
 
         $mail = new ReportReadyMail($report);
-        $mail->assertSeeInHtml('Your report is ready');
-        $mail->assertDontSeeInHtml('Tu reporte está listo');
+        $mail->assertSeeInHtml('report is ready');
+        $mail->assertSeeInHtml('View the full report');
+        $mail->assertDontSeeInHtml('está listo');
+    }
+
+    public function test_the_email_is_white_label_and_carries_the_headline_figures(): void
+    {
+        Storage::fake();
+        $agency = Agency::factory()->create(['name' => 'Agencia Sol', 'settings' => ['contact_email' => 'hola@sol.test']]);
+        app(TenantContext::class)->set($agency->id);
+        $client = Client::factory()->create(['agency_id' => $agency->id]);
+        $site = Site::factory()->create(['agency_id' => $agency->id, 'client_id' => $client->id, 'name' => 'Hotel Mirador']);
+        $definition = ReportDefinition::factory()->create(['agency_id' => $agency->id, 'site_id' => $site->id, 'locale' => 'es']);
+        $report = Report::factory()->create([
+            'agency_id' => $agency->id,
+            'report_definition_id' => $definition->id,
+            'pdf_path' => null,
+            'health_score' => 91,
+            'period_start' => '2026-10-01 00:00:00',
+            'period_end' => '2026-10-31 23:59:59',
+            'executive_summary' => 'Este mes tu sitio recibió 4737 visitas.',
+            'resolved_blocks' => [
+                'blocks' => [
+                    ['id' => 'v', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions'], 'props' => ['label' => 'Visitas'], 'style' => []],
+                    ['id' => 'u', 'type' => 'kpi', 'binding' => ['source' => 'betteruptime', 'metric' => 'uptime_percent'], 'props' => ['label' => 'Disponibilidad'], 'style' => ['format' => 'percent']],
+                ],
+                'data' => ['v' => ['value' => 4737, 'previous' => 4518, 'change_percent' => 4.8], 'u' => 99.9],
+            ],
+        ]);
+
+        $mail = new ReportReadyMail($report);
+
+        $mail->assertHasSubject('Hotel Mirador · tu informe de octubre 2026 está listo');
+        $mail->assertFrom((string) config('mail.from.address'), 'Agencia Sol');
+        $mail->assertHasReplyTo('hola@sol.test');
+        $mail->assertSeeInHtml('91');
+        $mail->assertSeeInHtml('Excelente');
+        $mail->assertSeeInHtml('4737');
+        $mail->assertSeeInHtml('+4,8 %');
+        $mail->assertSeeInHtml('99,9 %');
+        $mail->assertSeeInHtml('/portal/'.$report->public_token);
     }
 
     public function test_it_does_not_mark_sent_when_every_email_fails(): void

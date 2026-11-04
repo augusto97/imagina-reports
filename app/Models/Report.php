@@ -32,6 +32,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $pdf_path
  * @property string $public_token
  * @property ReportStatus $status
+ * @property Carbon|null $first_viewed_at
+ * @property Carbon|null $last_viewed_at
+ * @property int $view_count
  */
 class Report extends Model
 {
@@ -72,7 +75,30 @@ class Report extends Model
             'hidden_metrics' => 'array',
             'has_advisory' => 'boolean',
             'status' => ReportStatus::class,
+            'first_viewed_at' => 'datetime',
+            'last_viewed_at' => 'datetime',
+            'view_count' => 'integer',
         ];
+    }
+
+    /**
+     * Count a client visit. Opens within 30 minutes are the same visit (switching periods,
+     * reloading), so the counter means "times the client came to read it".
+     */
+    public function recordView(): void
+    {
+        $now = now();
+        $sameVisit = $this->last_viewed_at !== null && $this->last_viewed_at->gt($now->copy()->subMinutes(30));
+
+        // A visit isn't an edit: leave updated_at alone (the public PDF uses it to know
+        // whether its stored file is still current).
+        $this->timestamps = false;
+        $this->forceFill([
+            'first_viewed_at' => $this->first_viewed_at ?? $now,
+            'last_viewed_at' => $now,
+            'view_count' => $sameVisit ? $this->view_count : $this->view_count + 1,
+        ])->saveQuietly();
+        $this->timestamps = true;
     }
 
     /**
@@ -106,8 +132,11 @@ class Report extends Model
             foreach ($diagnostics as $diagnostic) {
                 $source = is_array($diagnostic) ? ($diagnostic['source'] ?? null) : null;
                 $metric = is_array($diagnostic) ? ($diagnostic['metric'] ?? null) : null;
+                // Blocks of sources the site doesn't have aren't "missing data" — the template
+                // adapted to the site. (Older reports carry no flag: keep counting them.)
+                $connected = is_array($diagnostic) ? ($diagnostic['connected'] ?? true) : true;
 
-                if (is_string($source) && is_string($metric)) {
+                if (is_string($source) && is_string($metric) && $connected !== false) {
                     $hiddenMetrics[] = "{$source}.{$metric}";
                 }
             }

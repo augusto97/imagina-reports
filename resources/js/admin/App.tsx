@@ -173,13 +173,23 @@ function oauthRedirectTarget(): string | null {
     return target !== null && target.startsWith('/oauth/authorize?') ? target : null;
 }
 
-const PLATFORM_NAV: { tab: PlatformTab; label: string; icon: typeof Users }[] = [
-    { tab: "overview", label: "Resumen", icon: Gauge },
-    { tab: "agencies", label: "Agencias", icon: Building2 },
-    { tab: "plans", label: "Planes", icon: LayoutGrid },
-    { tab: "billing", label: "Facturación", icon: CreditCard },
-    { tab: "integrations", label: "Integraciones", icon: Plug },
-    { tab: "system", label: "Sistema", icon: DownloadCloud },
+const PLATFORM_NAV: { label?: string; items: { tab: PlatformTab; label: string; icon: typeof Users }[] }[] = [
+    { items: [{ tab: "overview", label: "Resumen", icon: Gauge }] },
+    {
+        label: "Negocio",
+        items: [
+            { tab: "agencies", label: "Agencias", icon: Building2 },
+            { tab: "plans", label: "Planes", icon: LayoutGrid },
+            { tab: "billing", label: "Cobros", icon: CreditCard },
+        ],
+    },
+    {
+        label: "Instalación",
+        items: [
+            { tab: "integrations", label: "Integraciones", icon: Plug },
+            { tab: "system", label: "Sistema", icon: DownloadCloud },
+        ],
+    },
 ];
 
 /**
@@ -219,7 +229,7 @@ function PlatformShell({ email }: { email: string }): ReactElement {
 
                 <aside
                     className={cn(
-                        "ir-z-40 ir-flex ir-w-64 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-px-3 ir-py-4 ir-shadow-xl ir-transition-transform ir-duration-200",
+                        "ir-z-40 ir-flex ir-w-64 ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-[hsl(220_18%_95.5%)] ir-px-3 ir-py-4 ir-shadow-xl ir-transition-transform ir-duration-200",
                         "ir-fixed ir-inset-y-0 ir-left-0",
                         mobileOpen ? "ir-translate-x-0" : "-ir-translate-x-full",
                         "lg:ir-static lg:ir-w-56 lg:ir-translate-x-0 lg:ir-shrink-0 lg:ir-shadow-none",
@@ -229,12 +239,10 @@ function PlatformShell({ email }: { email: string }): ReactElement {
                         <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-foreground ir-text-background ir-shadow-ir-sm">
                             <ShieldCheck className="ir-size-4" />
                         </span>
-                        <span className="ir-min-w-0">
-                            <span className="ir-block ir-truncate ir-text-sm ir-font-semibold ir-tracking-tight">
-                                Imagina Reports
-                            </span>
-                            <span className="ir-block ir-text-[11px] ir-font-medium ir-text-muted-foreground">
-                                Plataforma
+                        <span className="ir-min-w-0 ir-flex-1">
+                            <span className="ir-block ir-truncate ir-text-sm ir-font-semibold ir-tracking-tight">Imagina Reports</span>
+                            <span className="ir-mt-0.5 ir-inline-flex ir-rounded ir-bg-foreground/[0.08] ir-px-1.5 ir-text-[10px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-foreground/70">
+                                Superadmin
                             </span>
                         </span>
                         <button
@@ -247,49 +255,59 @@ function PlatformShell({ email }: { email: string }): ReactElement {
                         </button>
                     </div>
 
-                    <nav className="ir-flex ir-flex-col ir-gap-0.5">
-                        {PLATFORM_NAV.map((item) => {
-                            const active = tab === item.tab;
+                    <nav className="ir-flex ir-flex-col ir-gap-4">
+                        {PLATFORM_NAV.map((group, index) => (
+                            <div key={group.label ?? index} className="ir-flex ir-flex-col ir-gap-0.5">
+                                {group.label !== undefined && (
+                                    <p className="ir-mb-1 ir-px-2.5 ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wider ir-text-muted-foreground/70">{group.label}</p>
+                                )}
+                                {group.items.map((item) => {
+                                    const active = tab === item.tab;
 
-                            return (
-                                <button
-                                    key={item.tab}
-                                    type="button"
-                                    onClick={() => go(item.tab)}
-                                    className={cn(
-                                        "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-md ir-px-2.5 ir-py-2 ir-text-left ir-text-sm ir-transition-colors",
-                                        active
-                                            ? "ir-bg-accent/10 ir-font-medium ir-text-accent"
-                                            : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
-                                    )}
-                                >
-                                    <item.icon
-                                        className={cn(
-                                            "ir-size-4 ir-shrink-0",
-                                            active
-                                                ? "ir-text-accent"
-                                                : "ir-text-muted-foreground group-hover:ir-text-foreground",
-                                        )}
-                                    />
-                                    {item.label}
-                                </button>
-                            );
-                        })}
+                                    return (
+                                        <button
+                                            key={item.tab}
+                                            type="button"
+                                            onClick={() => go(item.tab)}
+                                            className={cn(
+                                                "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-lg ir-px-2.5 ir-py-[7px] ir-text-left ir-text-sm ir-transition-colors",
+                                                active
+                                                    ? "ir-bg-card ir-font-medium ir-text-foreground ir-shadow-ir-xs ir-ring-1 ir-ring-border"
+                                                    : "ir-text-muted-foreground hover:ir-bg-card/70 hover:ir-text-foreground",
+                                            )}
+                                        >
+                                            <item.icon className={cn("ir-size-4 ir-shrink-0", active ? "ir-text-accent" : "ir-text-muted-foreground group-hover:ir-text-foreground")} />
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ))}
                     </nav>
 
-                    <div className="ir-mt-auto ir-flex ir-flex-col ir-gap-1 ir-border-t ir-pt-3 ir-text-xs ir-text-muted-foreground">
-                        <p className="ir-mb-0.5 ir-truncate ir-px-1" title={email}>
-                            {email}
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => logout.mutate()}
-                            disabled={logout.isPending}
-                            className="ir-flex ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-left ir-text-sm ir-text-muted-foreground ir-transition-colors hover:ir-bg-danger/10 hover:ir-text-danger"
-                        >
-                            <LogOut className="ir-size-4 ir-shrink-0" />
-                            Cerrar sesión
-                        </button>
+                    <div className="ir-mt-auto ir-border-t ir-pt-3">
+                        <ActionMenu
+                            align="left"
+                            block
+                            label="Tu cuenta: cerrar sesión"
+                            header={
+                                <div className="ir-min-w-0">
+                                    <p className="ir-truncate ir-text-sm ir-font-medium">{email}</p>
+                                    <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">Administrador de la plataforma</p>
+                                </div>
+                            }
+                            trigger={
+                                <span className="ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-lg ir-p-1.5 ir-text-left ir-transition-colors hover:ir-bg-card">
+                                    <Avatar name={email} />
+                                    <span className="ir-min-w-0 ir-flex-1">
+                                        <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{email}</span>
+                                        <span className="ir-block ir-truncate ir-text-xs ir-text-muted-foreground">Superadmin</span>
+                                    </span>
+                                    <ChevronsUpDown className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
+                                </span>
+                            }
+                            items={[{ label: "Cerrar sesión", icon: LogOut, onSelect: () => logout.mutate(), danger: true }]}
+                        />
                     </div>
                 </aside>
 
@@ -312,7 +330,7 @@ function PlatformShell({ email }: { email: string }): ReactElement {
                     </header>
 
                     <main className="ir-min-w-0 ir-flex-1 ir-overflow-y-auto">
-                        <div className="ir-mx-auto ir-max-w-6xl ir-p-4 sm:ir-p-6 lg:ir-p-8">
+                        <div className="ir-mx-auto ir-w-full ir-max-w-[1920px] ir-p-4 sm:ir-p-6 lg:ir-px-10 lg:ir-py-8">
                             <PlatformScreen tab={tab} onTab={setTab} />
                         </div>
                     </main>
@@ -605,7 +623,7 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                         <Screen view={view} />
                     ) : (
                         <div className="ir-h-full ir-overflow-y-auto">
-                            <div className="ir-mx-auto ir-max-w-6xl ir-p-4 sm:ir-p-6 lg:ir-p-8">
+                            <div className="ir-mx-auto ir-w-full ir-max-w-[1920px] ir-p-4 sm:ir-p-6 lg:ir-px-10 lg:ir-py-8">
                                 <Screen view={view} />
                             </div>
                         </div>

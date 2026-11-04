@@ -133,6 +133,17 @@ final class AgencyController extends Controller
             }
         }
 
+        foreach (['contact_email', 'contact_phone', 'website'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $value = $validated[$field];
+                if (is_string($value) && trim($value) !== '') {
+                    $settings[$field] = trim($value);
+                } else {
+                    unset($settings[$field]);
+                }
+            }
+        }
+
         $agency->settings = $settings;
         $agency->save();
 
@@ -235,6 +246,9 @@ final class AgencyController extends Controller
             'webhook_urls' => $this->webhookUrls($agency),
             'webhook_secret_set' => is_string($agency->settings['webhook_secret'] ?? null) && $agency->settings['webhook_secret'] !== '',
             'slack_webhook_url' => is_string($agency->settings['slack_webhook_url'] ?? null) ? $agency->settings['slack_webhook_url'] : '',
+            'contact_email' => $agency->contact()['email'] ?? '',
+            'contact_phone' => $agency->contact()['phone'] ?? '',
+            'website' => $agency->contact()['website'] ?? '',
             'plan' => $agency->plan !== null ? ['name' => $agency->plan->name, 'slug' => $agency->plan->slug] : null,
             'status' => $agency->status,
             'limits' => app(Entitlements::class)->limits($agency),

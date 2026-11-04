@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name', 'Imagina Reports') }}</title>
+    {{-- White-label: the client never sees the platform name; the page sets the real title (site · period · agency). --}}
+    <title>Informe</title>
+    <meta name="robots" content="noindex, nofollow">
     @vite('resources/js/report/main.tsx')
 </head>
 <body>

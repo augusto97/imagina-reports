@@ -8,9 +8,17 @@ use App\Enums\ReportStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
+use App\Models\User;
 use App\Reports\Sharing\ShareGate;
+use App\Services\ReportPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 /**
  * Public, token-authenticated report data for the interactive portal and the PDF
@@ -31,7 +39,58 @@ final class PublicReportController extends Controller
             return $denied;
         }
 
+        if ($this->isClientVisit($report, $request)) {
+            $report->recordView();
+        }
+
         return new ReportResource($report);
+    }
+
+    /**
+     * The report as a PDF for the client's "Descargar PDF" button. Reuses the stored file
+     * while it's newer than the report (the send already rendered it); otherwise renders it
+     * once and keeps it.
+     */
+    public function pdf(Request $request, string $token, ReportPdfService $service): StreamedResponse|JsonResponse
+    {
+        $report = Report::query()->withoutGlobalScopes()->with(['agency', 'definition'])->where('public_token', $token)->firstOrFail();
+
+        if (($denied = $this->gate($report, $request)) !== null) {
+            return $denied;
+        }
+
+        $path = $report->pdf_path;
+        $fresh = $path !== null && Storage::exists($path) && Storage::lastModified($path) >= ($report->updated_at?->getTimestamp() ?? 0);
+
+        if (! $fresh) {
+            try {
+                $path = $service->generate($report);
+            } catch (Throwable $e) {
+                Log::error('Public report PDF generation failed', ['report_id' => $report->id, 'error' => $e->getMessage()]);
+
+                return response()->json(['message' => 'No pudimos preparar el PDF ahora mismo. Inténtalo de nuevo en unos minutos.'], 503);
+            }
+        }
+
+        $name = Str::slug(($report->definition->name ?? 'reporte').' '.$report->period_start->format('Y-m')).'.pdf';
+
+        return Storage::download($path, $name);
+    }
+
+    /**
+     * A real client visit: not the PDF renderer (print token) and not someone from the agency
+     * previewing it from the panel (their session rides along on same-site requests).
+     */
+    private function isClientVisit(Report $report, Request $request): bool
+    {
+        $print = $request->header('X-Print-Token') ?: $request->query('print');
+        if (is_string($print) && $print !== '') {
+            return false;
+        }
+
+        $user = Auth::guard('web')->user();
+
+        return ! ($user instanceof User && ($user->agency_id === $report->agency_id || $user->is_platform_admin));
     }
 
     /**

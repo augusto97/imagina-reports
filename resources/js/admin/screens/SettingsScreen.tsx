@@ -1,6 +1,8 @@
 import { Bot, Building2, Check, Copy, CreditCard, Plug, Plus, Send, ShieldCheck, Trash2, User, Webhook } from 'lucide-react';
 import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
 
+import { apiErrorMessage } from '@shared/lib/api';
+
 import {
     type AgencyUpdate,
     useAgency,
@@ -343,6 +345,43 @@ function BrandingCard({ agency }: { agency: AgencySettings }): ReactElement {
                     </Button>
                     {update.isSuccess && <span className="ir-text-xs ir-text-success">Marca guardada.</span>}
                     {update.isError && <span className="ir-text-xs ir-text-danger">No se pudo guardar.</span>}
+                </div>
+            </div>
+        </Card>
+    );
+}
+
+/** How clients reach the agency: shown in the client portal and used as reply-to of the report email. */
+function ContactCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const update = useUpdateAgency();
+    const [email, setEmail] = useState(agency.contact_email);
+    const [phone, setPhone] = useState(agency.contact_phone);
+    const [website, setWebsite] = useState(agency.website);
+
+    const save = (): void => {
+        update.mutate({ ...agencyBase(agency), contact_email: email.trim(), contact_phone: phone.trim(), website: website.trim() });
+    };
+
+    return (
+        <Card title="Contacto para tus clientes" description="Aparece en el portal del reporte («Escríbenos») y las respuestas al correo del reporte llegan a este email.">
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                    <Field label="Email de contacto" hint="Si lo dejas vacío, las respuestas llegan al email del propietario.">
+                        <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="hola@tuagencia.com" />
+                    </Field>
+                    <Field label="WhatsApp" hint="Con código de país, p. ej. +57 300 123 4567.">
+                        <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+57 300 123 4567" />
+                    </Field>
+                </div>
+                <Field label="Sitio web de la agencia">
+                    <Input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="https://tuagencia.com" />
+                </Field>
+                <div className="ir-flex ir-items-center ir-gap-3">
+                    <Button onClick={save} disabled={update.isPending}>
+                        {update.isPending ? 'Guardando…' : 'Guardar contacto'}
+                    </Button>
+                    {update.isSuccess && <span className="ir-text-xs ir-text-success">Contacto guardado.</span>}
+                    {update.isError && <span className="ir-text-xs ir-text-danger">{apiErrorMessage(update.error, 'No se pudo guardar.')}</span>}
                 </div>
             </div>
         </Card>
@@ -1024,7 +1063,12 @@ export function SettingsScreen(): ReactElement {
                 <TwoFactorCard />
             </>
         ),
-        agency: <BrandingCard agency={agency} />,
+        agency: (
+            <>
+                <BrandingCard agency={agency} />
+                <ContactCard agency={agency} />
+            </>
+        ),
         billing: (
             <>
                 <PlanUsageCard agency={agency} />
@@ -1071,7 +1115,8 @@ export function SettingsScreen(): ReactElement {
                     ))}
                 </nav>
 
-                <div className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-gap-4">
+                {/* Forms read best at a comfortable width, even on a very wide screen. */}
+                <div className="ir-flex ir-min-w-0 ir-max-w-4xl ir-flex-1 ir-flex-col ir-gap-4">
                     {current !== undefined && (
                         <div>
                             <h2 className="ir-text-base ir-font-semibold ir-tracking-tight">{current.heading}</h2>

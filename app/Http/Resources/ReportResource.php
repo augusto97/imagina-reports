@@ -10,6 +10,7 @@ use App\Models\Report;
 use App\Models\ReportComment;
 use App\Models\WorkLog;
 use App\Services\Platform\Entitlements;
+use App\Support\PeriodLabel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
@@ -58,14 +59,18 @@ final class ReportResource extends JsonResource
                 'agency' => $agency !== null ? $agency->name : '',
                 'site' => $site !== null ? $site->name : '',
                 'client' => $client !== null ? $client->name : '',
-                'period' => $report->period_start->format('d/m/Y').' – '.$report->period_end->format('d/m/Y'),
+                'period' => PeriodLabel::for($report->period_start, $report->period_end, $this->locale($report)),
                 'score' => (string) ($report->health_score ?? ''),
             ],
             // Overlay live work logs + client-visible comments onto their blocks (the
             // frozen layout stays; the lists reflect entries added after generation).
             'data' => $this->withComments($report, $blocks, $this->withWorkLogs($report, $blocks, is_array($data) ? $data : [])),
+            'period_label' => PeriodLabel::for($report->period_start, $report->period_end, $this->locale($report)),
+            'site' => $site === null ? null : ['name' => $site->name, 'url' => $site->url],
+            'client' => $client?->name,
             'agency' => $agency === null ? null : [
                 'name' => $agency->name,
+                'contact' => (object) $agency->contact(),
                 'logo_path' => $agency->logo_path,
                 'logo_url' => $agency->logoUrl(),
                 'brand_color' => $agency->brand_color,
@@ -75,6 +80,17 @@ final class ReportResource extends JsonResource
             // (the premium white-label feature). No agency → shown.
             'show_branding' => $agency === null || ! app(Entitlements::class)->hasFeature($agency, 'remove_branding'),
         ];
+    }
+
+    private function locale(Report $report): string
+    {
+        $locale = $report->definition?->locale;
+        if (is_string($locale) && $locale !== '') {
+            return $locale;
+        }
+        $agencyLocale = $report->agency?->default_locale;
+
+        return is_string($agencyLocale) && $agencyLocale !== '' ? $agencyLocale : 'es';
     }
 
     /**

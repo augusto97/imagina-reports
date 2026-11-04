@@ -81,6 +81,10 @@ Route::get('/health', static fn (): JsonResponse => response()->json([
 Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
     ->middleware('throttle:public-report')
     ->name('api.public.reports.show');
+// The client's "Descargar PDF" (renders at most once per report change; tighter limit).
+Route::get('/public/reports/{token}/pdf', [PublicReportController::class, 'pdf'])
+    ->middleware('throttle:10,1')
+    ->name('api.public.reports.pdf');
 Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
     ->middleware('throttle:public-report')
     ->name('api.public.reports.periods');

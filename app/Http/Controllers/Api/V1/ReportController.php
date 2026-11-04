@@ -48,6 +48,7 @@ final class ReportController extends Controller
                     'id', 'agency_id', 'report_definition_id', 'period_start', 'period_end',
                     'health_score', 'status', 'executive_summary', 'hidden_metrics',
                     'has_advisory', 'advisory', 'public_token', 'pdf_path', 'created_at',
+                    'first_viewed_at', 'last_viewed_at', 'view_count',
                 ])
                 ->latest()
                 ->limit($limit)

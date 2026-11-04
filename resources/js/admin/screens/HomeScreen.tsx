@@ -208,7 +208,7 @@ export function HomeScreen(): ReactElement {
                 />
             </div>
 
-            <div className="ir-grid ir-gap-6 lg:ir-grid-cols-[minmax(0,1fr)_320px]">
+            <div className="ir-grid ir-gap-6 lg:ir-grid-cols-[minmax(0,1fr)_320px] 2xl:ir-grid-cols-[minmax(0,1fr)_380px]">
                 <div className="ir-flex ir-min-w-0 ir-flex-col ir-gap-6">
                     {needsOnboarding && (
                         <Onboarding

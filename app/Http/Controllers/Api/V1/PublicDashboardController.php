@@ -11,6 +11,7 @@ use App\Models\MetricSnapshot;
 use App\Models\ReportDefinition;
 use App\Reports\ReportGenerator;
 use App\Reports\Sharing\ShareGate;
+use App\Support\PeriodLabel;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,7 +66,7 @@ final class PublicDashboardController extends Controller
                 'agency' => $agency !== null ? $agency->name : '',
                 'site' => $site !== null ? $site->name : '',
                 'client' => $client !== null ? $client->name : '',
-                'period' => $period->start->format('d/m/Y').' – '.$period->end->format('d/m/Y'),
+                'period' => PeriodLabel::for($period->start, $period->end, $definition->locale !== '' ? $definition->locale : 'es'),
                 'score' => (string) $score,
             ],
             'data' => $resolved['data'],

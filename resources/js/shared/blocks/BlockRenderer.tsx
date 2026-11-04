@@ -24,7 +24,7 @@ import { cn } from '@shared/lib/utils';
 import { hexToHslString } from '@shared/lib/color';
 
 import { matchCountry } from './geo';
-import { ensureHeaderRoom, reflowGaps } from './layout';
+import { contentRows, ensureHeaderRoom, fitContent, reflowGaps } from './layout';
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
 import type { Block, BlockComponentProps, BlockLayout, BlockType, ReportNav } from './types';
 import { WorldChoropleth } from './WorldChoropleth';
@@ -406,8 +406,9 @@ function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
                     {eyebrow !== '' && (
                         <span className="ir-block ir-truncate ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{eyebrow}</span>
                     )}
-                    <h1 className="ir-truncate ir-text-[28px] ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
-                    {subtitle !== '' && <p className="ir-truncate ir-text-sm ir-text-muted-foreground">{subtitle}</p>}
+                    <h1 className="ir-text-2xl ir-font-bold ir-leading-tight ir-tracking-tight sm:ir-truncate sm:ir-text-[28px]">{title}</h1>
+                    {/* Wraps on a phone (the stacked layout has room); one line on the fixed grid. */}
+                    {subtitle !== '' && <p className="ir-text-sm ir-text-muted-foreground sm:ir-truncate">{subtitle}</p>}
                 </div>
             </div>
             {showLogo && <img src={brand.logoUrl ?? ''} alt={brand.agencyName} className="ir-max-h-12 ir-max-w-[9rem] ir-shrink-0 ir-object-contain" />}
@@ -479,20 +480,52 @@ function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
 interface Kpi {
     value: number;
     changePercent: number | null;
+    previous: number | null;
+    series: number[];
 }
 
 function asKpi(data: unknown): Kpi {
     if (data !== null && typeof data === 'object' && 'value' in data) {
         const record = data as Record<string, unknown>;
         const change = record.change_percent;
+        const previous = record.previous;
 
         return {
             value: typeof record.value === 'number' ? record.value : Number(record.value) || 0,
             changePercent: typeof change === 'number' ? change : null,
+            previous: typeof previous === 'number' ? previous : null,
+            series: Array.isArray(record.series) ? record.series.filter((point): point is number => typeof point === 'number') : [],
         };
     }
 
-    return { value: typeof data === 'number' ? data : Number(data) || 0, changePercent: null };
+    return { value: typeof data === 'number' ? data : Number(data) || 0, changePercent: null, previous: null, series: [] };
+}
+
+/** A tiny trend line under a KPI: a number + a mini visual (§11.5). Pure SVG, prints crisp. */
+function Sparkline({ points, id }: { points: number[]; id: string }): ReactElement | null {
+    if (points.length < 2) {
+        return null;
+    }
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const span = max - min || 1;
+    const step = 100 / (points.length - 1);
+    const coords = points.map((point, index) => [index * step, 28 - ((point - min) / span) * 24] as const);
+    const line = coords.map(([x, y], index) => `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+    const gradient = `ir-spark-${id}`;
+
+    return (
+        <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="ir-h-full ir-max-h-8 ir-w-full" aria-hidden>
+            <defs>
+                <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--ir-primary))" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="hsl(var(--ir-primary))" stopOpacity={0} />
+                </linearGradient>
+            </defs>
+            <path d={`${line} L100,30 L0,30 Z`} fill={`url(#${gradient})`} />
+            <path d={line} fill="none" stroke="hsl(var(--ir-primary))" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+    );
 }
 
 /** A compact trend pill: tinted green/red arrow + signed percent vs the previous period. */
@@ -512,14 +545,16 @@ function TrendBadge({ percent, invert = false }: { percent: number; invert?: boo
 }
 
 function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
-    const { value, changePercent } = asKpi(data);
+    const { value, changePercent, previous, series } = asKpi(data);
     const settings = useContext(ReportSettingsContext);
     const metric = `${block.binding?.source ?? ''}.${block.binding?.metric ?? ''}`.toLowerCase();
     const Icon = metricIcon(metric);
+    const format = str(block.style?.format);
+    const showSpark = block.style?.sparkline !== false && series.length >= 2;
 
     return (
         <Section style={block.style}>
-            <div className="ir-kpi ir-flex ir-h-full ir-flex-col ir-justify-between ir-gap-2">
+            <div className="ir-kpi ir-flex ir-h-full ir-flex-col ir-gap-2">
                 <div className="ir-flex ir-items-start ir-justify-between ir-gap-2">
                     <p className="ir-text-[13px] ir-font-medium ir-leading-snug ir-text-muted-foreground">{str(prop(block, 'label'))}</p>
                     <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-primary/10 ir-text-primary">
@@ -530,15 +565,24 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
                     {/* The value auto-shrinks to the card width (ir-kpi is a size container) so a
                         long amount like "300.000 COP" never overflows/gets clipped in a narrow card. */}
                     <p className="ir-kpi-value ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums" style={{ color: 'var(--ir-r-kpi-value)' }}>
-                        {formatNumber(value, str(block.style?.format), settings)}
+                        {formatNumber(value, format, settings)}
                     </p>
                     {changePercent !== null && (
-                        <div className="ir-flex ir-items-center ir-gap-1.5">
+                        <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-1.5">
                             <TrendBadge percent={changePercent} invert={LOWER_IS_BETTER.test(metric)} />
-                            <span className="ir-text-[11px] ir-text-muted-foreground">vs. periodo anterior</span>
+                            {/* The plain sentence: what it was before, not just a percentage. */}
+                            <span className="ir-truncate ir-text-[11px] ir-text-muted-foreground">
+                                {previous !== null ? `antes: ${formatNumber(previous, format, settings)}` : 'vs. periodo anterior'}
+                            </span>
                         </div>
                     )}
                 </div>
+                {/* Takes whatever height is left: a short card simply shows no sparkline. */}
+                {showSpark && (
+                    <div className="ir-kpi-spark ir-flex ir-min-h-0 ir-flex-1 ir-items-end ir-overflow-hidden">
+                        <Sparkline points={series} id={block.id} />
+                    </div>
+                )}
             </div>
         </Section>
     );
@@ -590,8 +634,8 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 
         return (
             <Section title={str(prop(block, 'title'))} style={block.style}>
-                <div className="ir-flex ir-h-full ir-min-h-[11rem] ir-items-center ir-gap-4">
-                    <div className="ir-relative ir-h-full ir-min-h-[9rem] ir-w-1/2 ir-max-w-[12rem] ir-shrink-0">
+                <div className="ir-flex ir-h-full ir-min-h-[8rem] ir-items-center ir-gap-4">
+                    <div className="ir-relative ir-h-full ir-min-h-[7rem] ir-w-1/2 ir-max-w-[12rem] ir-shrink-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 {tooltip}
@@ -635,7 +679,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
 
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
-            <div className="ir-h-full ir-min-h-[11rem] ir-w-full">
+            <div className="ir-h-full ir-min-h-[7rem] ir-w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     {chartType === 'bar' ? (
                         <BarChart data={rows} margin={{ top: 6, right: 4, left: -4, bottom: 0 }}>
@@ -998,8 +1042,29 @@ function NarrativeBlock({ block, data }: BlockComponentProps): ReactElement | nu
     // never sees a stray editor placeholder.
     const html = useMemo(() => sanitizeReportHtml(raw), [raw]);
 
+    const brand = useContext(ReportBrandContext);
+
     if (htmlToText(html) === '') {
         return null;
+    }
+
+    // The closing block reads as a sign-off from the agency, not as one more card of text.
+    if (prop(block, 'variant') === 'footer_cta') {
+        return (
+            <div className="ir-flex ir-h-full ir-items-center ir-gap-4 ir-rounded-2xl ir-bg-primary/[0.07] ir-px-6 ir-py-4 ir-ring-1 ir-ring-inset ir-ring-primary/15" style={styleCss(block.style)}>
+                <span className="ir-flex ir-size-10 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-bg-primary ir-text-primary-foreground">
+                    <ShieldCheck className="ir-size-5" />
+                </span>
+                <div className="ir-min-w-0 ir-flex-1">
+                    <div className="ir-report-prose ir-text-sm ir-leading-relaxed ir-text-foreground/90" dangerouslySetInnerHTML={{ __html: html }} />
+                </div>
+                {brand.logoUrl !== null ? (
+                    <img src={brand.logoUrl} alt={brand.agencyName} className="ir-hidden ir-max-h-9 ir-max-w-[7rem] ir-shrink-0 ir-object-contain sm:ir-block" />
+                ) : brand.agencyName !== '' ? (
+                    <span className="ir-hidden ir-shrink-0 ir-text-sm ir-font-semibold ir-text-primary sm:ir-block">{brand.agencyName}</span>
+                ) : null}
+            </div>
+        );
     }
 
     return (
@@ -1703,10 +1768,18 @@ export function BlockList({
     // (like a full-bleed cover on the Portada page) can't force every OTHER page back to the
     // legacy flow. And within a grid page, a stray block without coordinates just gets a
     // full-width auto cell instead of collapsing the whole page to flow.
+    const fitMode = mode === 'print' ? 'print' : 'screen';
+    const arrange = (rawBlocks: Block[]): Block[] =>
+        fitContent(
+            reflowGaps(ensureHeaderRoom(rawBlocks.filter((block) => !rendersEmpty(block, data[block.id])))),
+            (block) => contentRows(block, data[block.id], fitMode, density === 'compact'),
+        );
+
     const renderPage = (rawBlocks: Block[]): ReactElement => {
         const pageUsesGrid = rawBlocks.some((block) => block.layout != null);
-        // Close the holes hidden blocks leave and give headers room for their subtitle.
-        const pageBlocks = pageUsesGrid ? reflowGaps(ensureHeaderRoom(rawBlocks.filter((block) => !rendersEmpty(block, data[block.id])))) : rawBlocks;
+        // Close the holes hidden blocks leave, give headers room for their subtitle and size
+        // each row to what it holds (no clipped table rows, no half-empty cards).
+        const pageBlocks = pageUsesGrid ? arrange(rawBlocks) : rawBlocks;
 
         return pageUsesGrid ? (
             <div
@@ -1753,7 +1826,7 @@ export function BlockList({
                     // uniformly so it prints on exactly ONE physical page — no awkward splits or
                     // half-blank pages. The inner width is inflated by 1/scale so it still fills
                     // the sheet width after the transform; the outer box reserves the scaled height.
-                    const designHeight = bleed ? 0 : gridDesignHeightPx(reflowGaps(ensureHeaderRoom(pageBlocks.filter((block) => !rendersEmpty(block, data[block.id])))));
+                    const designHeight = bleed ? 0 : gridDesignHeightPx(arrange(pageBlocks));
                     const scale = designHeight > PRINT_CONTENT_PX ? PRINT_CONTENT_PX / designHeight : 1;
 
                     return (
