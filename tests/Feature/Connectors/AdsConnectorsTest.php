@@ -82,13 +82,16 @@ class AdsConnectorsTest extends TestCase
                 return Http::response(['access_token' => 'ya29-fake']);
             }
             if (str_contains($request->url(), ':listAccessibleCustomers')) {
-                return Http::response(['resourceNames' => ['customers/1234567890']]);
+                // Separate accounts, not under one MCC; the second refuses the name query.
+                return Http::response(['resourceNames' => ['customers/1234567890', 'customers/5555447152', 'customers/9853485337']]);
             }
 
-            // ONE customer_client query resolves the names for every accessible account.
-            return Http::response(['results' => [
-                ['customerClient' => ['id' => '1234567890', 'descriptiveName' => 'Tienda Acme']],
-            ]]);
+            // Each account answers for itself.
+            return match (true) {
+                str_contains($request->url(), '/customers/1234567890/') => Http::response(['results' => [['customer' => ['id' => '1234567890', 'descriptiveName' => 'Tienda Acme']]]]),
+                str_contains($request->url(), '/customers/9853485337/') => Http::response(['results' => [['customer' => ['id' => '9853485337', 'descriptiveName' => 'Clínica Sonrisa']]]]),
+                default => Http::response(['error' => ['message' => 'denied']], 403),
+            };
         });
 
         $resources = (new GoogleAdsConnector)->connectableResources(
@@ -98,8 +101,10 @@ class AdsConnectorsTest extends TestCase
         $this->assertNotNull($resources);
         $this->assertSame('customer_id', $resources->field);
         $this->assertSame('1234567890', $resources->options[0]['value']);
-        // Label shows the human name + the formatted id.
+        // Label shows the human name + the formatted id; an account that refuses keeps its id.
         $this->assertSame('Tienda Acme (123-456-7890)', $resources->options[0]['label']);
+        $this->assertSame('555-544-7152', $resources->options[1]['label']);
+        $this->assertSame('Clínica Sonrisa (985-348-5337)', $resources->options[2]['label']);
     }
 
     public function test_the_meta_campaign_dataset_splits_by_placement_so_instagram_can_be_isolated(): void

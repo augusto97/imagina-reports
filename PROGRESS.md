@@ -7,6 +7,11 @@
 ---
 
 ## Where I left off (read me first)
+**🏷️ NOMBRES DE CUENTAS DE GOOGLE ADS (2026-11-04, v1.30.2):** el desplegable mostraba solo ids: los nombres salían de UNA consulta
+`customer_client` contra la primera cuenta accesible, que no ve cuentas independientes (o la rechaza). Ahora `accountNames()` consulta el MCC
+configurado (si hay) y luego cada cuenta restante pregunta su propio `customer.descriptive_name` en paralelo (`Http::pool`, máx. 40). Las
+fuentes ya conectadas necesitan «Detectar cuentas» otra vez para refrescar las etiquetas.
+
 **📈 GOOGLE ADS v26 + VENTANAS DE REPORTE (2026-11-04, v1.30.1):** Google retiró la API de Google Ads v21 (las vigentes son v23–v26):
 todo respondía 404 («HTTP 404 al listar las cuentas»). Pasado a **v26** (`DEFAULT_API_VERSION`), sobreescribible sin release con
 `GOOGLE_ADS_API_VERSION`, y un 404 sin JSON de Google ahora dice «Google ya no reconoce la versión vX… actualiza». Próximo retiro: v26 en

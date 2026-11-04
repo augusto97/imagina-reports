@@ -24,6 +24,7 @@ use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use App\Services\Platform\OAuthCredentials;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -482,9 +483,7 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
             }
         }
 
-        // Resolve the human names in ONE query (customer_client lists the whole hierarchy
-        // reachable from the first account) instead of one call per account.
-        $labels = $this->accountNames($source, $token, $ids[0] ?? '');
+        $labels = $this->accountNames($source, $token, $ids);
 
         $options = [];
         foreach ($ids as $id) {
@@ -502,32 +501,94 @@ final class GoogleAdsConnector implements DataSourceConnector, ListsConnectableR
         );
     }
 
+    /** Accounts whose name is looked up one by one (in parallel) after the MCC query. */
+    private const NAME_LOOKUP_LIMIT = 40;
+
     /**
-     * Descriptive names for every account reachable from $rootCustomerId, in a single GAQL
-     * query. Best-effort: an empty map just means the picker shows plain ids.
+     * Descriptive names for the accessible accounts. Best-effort: an account whose name
+     * can't be read just shows its id.
      *
+     * It used to query only the hierarchy under the FIRST accessible account, so separate
+     * accounts (not under one MCC) — or a first account that refused the query — left every
+     * option as a bare id. Now: the configured MCC's whole hierarchy in one query, then each
+     * remaining account asks for its own name, as itself.
+     *
+     * @param  list<string>  $ids
      * @return array<string, string> customer id => descriptive name
      */
-    private function accountNames(DataSource $source, string $token, string $rootCustomerId): array
+    private function accountNames(DataSource $source, string $token, array $ids): array
     {
-        if ($rootCustomerId === '') {
+        if ($ids === []) {
             return [];
         }
 
-        try {
-            $response = $this->apiClient($source, $token)->post(
-                self::API_BASE.'/'.$this->apiVersion().'/customers/'.$rootCustomerId.'/googleAds:search',
-                ['query' => 'SELECT customer_client.id, customer_client.descriptive_name FROM customer_client'],
+        $labels = [];
+        $manager = $this->loginCustomerId($source);
+        if ($manager !== '') {
+            $labels = $this->namesFrom(
+                $this->apiClient($source, $token),
+                $manager,
+                'SELECT customer_client.id, customer_client.descriptive_name FROM customer_client',
+                'customerClient',
             );
+        }
 
+        $missing = array_slice(array_values(array_filter($ids, static fn (string $id): bool => ! isset($labels[$id]))), 0, self::NAME_LOOKUP_LIMIT);
+        if ($missing === []) {
+            return $labels;
+        }
+
+        try {
+            $developerToken = $this->developerToken($source);
+            $responses = Http::pool(function (Pool $pool) use ($missing, $token, $developerToken): array {
+                $requests = [];
+                foreach ($missing as $id) {
+                    // Each account asks about itself, so no manager header is needed (or wrong).
+                    $requests[] = $pool->as($id)
+                        ->withToken($token)
+                        ->withHeaders(['developer-token' => $developerToken, 'login-customer-id' => $id])
+                        ->acceptJson()
+                        ->timeout(20)
+                        ->post(self::API_BASE.'/'.$this->apiVersion().'/customers/'.$id.'/googleAds:search', [
+                            'query' => 'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1',
+                        ]);
+                }
+
+                return $requests;
+            });
+        } catch (Throwable) {
+            return $labels;
+        }
+
+        foreach ($missing as $id) {
+            $response = $responses[$id] ?? null;
+            if (! $response instanceof Response || $response->failed()) {
+                continue;
+            }
+            $name = $this->toStr(Arr::get($this->listOf($response->json('results'))[0] ?? [], 'customer.descriptiveName'));
+            if ($name !== '') {
+                $labels[$id] = $name;
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function namesFrom(PendingRequest $client, string $customerId, string $query, string $resource): array
+    {
+        try {
+            $response = $client->post(self::API_BASE.'/'.$this->apiVersion().'/customers/'.$customerId.'/googleAds:search', ['query' => $query]);
             if ($response->failed()) {
                 return [];
             }
 
             $labels = [];
             foreach ($this->listOf($response->json('results')) as $row) {
-                $id = $this->toStr(Arr::get($row, 'customerClient.id'));
-                $name = $this->toStr(Arr::get($row, 'customerClient.descriptiveName'));
+                $id = $this->toStr(Arr::get($row, "{$resource}.id"));
+                $name = $this->toStr(Arr::get($row, "{$resource}.descriptiveName"));
                 if ($id !== '' && $name !== '') {
                     $labels[$id] = $name;
                 }
