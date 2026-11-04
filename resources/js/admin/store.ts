@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
-export type AdminView = 'clients' | 'sites' | 'data-sources' | 'worklogs' | 'reports' | 'editor' | 'templates' | 'trends' | 'upsell' | 'alerts' | 'team' | 'system' | 'settings';
+export type AdminView = 'home' | 'clients' | 'sites' | 'data-sources' | 'worklogs' | 'reports' | 'editor' | 'templates' | 'trends' | 'upsell' | 'alerts' | 'team' | 'system' | 'settings';
 
-const VIEWS: AdminView[] = ['clients', 'sites', 'data-sources', 'worklogs', 'reports', 'editor', 'templates', 'trends', 'upsell', 'alerts', 'team', 'system', 'settings'];
+const VIEWS: AdminView[] = ['home', 'clients', 'sites', 'data-sources', 'worklogs', 'reports', 'editor', 'templates', 'trends', 'upsell', 'alerts', 'team', 'system', 'settings'];
 
 /** Parse the active section from the URL hash (e.g. `#/reports` → `reports`). */
 export function viewFromHash(): AdminView | null {
@@ -65,7 +65,7 @@ interface AdminUiState {
 // The active section is restored from the URL hash and the auxiliary ids from
 // localStorage, so a page reload keeps you where you were instead of resetting to Clients.
 export const useAdminUi = create<AdminUiState>((set) => ({
-    view: viewFromHash() ?? 'clients',
+    view: viewFromHash() ?? 'home',
     selectedSiteId: persistedId('ir-selected-site'),
     editingTemplateId: persistedId('ir-editing-template'),
     suspended: false,

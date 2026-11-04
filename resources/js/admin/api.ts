@@ -518,6 +518,44 @@ export function useDeleteTeamMember() {
     });
 }
 
+/* -------------------------------- overview --------------------------------- */
+
+export interface OverviewReportRow {
+    id: number;
+    site_id: number | null;
+    site: string;
+    client: string | null;
+    period_start: string;
+    status: string;
+    health_score: number | null;
+}
+
+export interface Overview {
+    counts: {
+        clients: number;
+        sites: number;
+        sources: number;
+        sources_failing: number;
+        definitions: number;
+        drafts: number;
+        approved: number;
+        missing_reports: number;
+        open_alerts: number;
+        sites_without_sources: number;
+    };
+    last_month: string;
+    failing_sources: { id: number; site_id: number | null; site: string; client: string | null; type: string; label: string; error: string | null }[];
+    drafts: OverviewReportRow[];
+    approved: OverviewReportRow[];
+    missing_reports: { definition_id: number; site_id: number; name: string; site: string; client: string | null }[];
+    site_health: Record<string, { sources: number; errors: number; health_score: number | null }>;
+}
+
+/** Inicio: what needs attention today, and per-site health for the client tree. */
+export function useOverview() {
+    return useQuery({ queryKey: ['overview'], queryFn: () => get<Overview>('/overview'), staleTime: 30_000 });
+}
+
 /* ------------------------------ AI assistants ------------------------------ */
 
 export interface ApiToken {

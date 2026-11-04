@@ -1,4 +1,7 @@
 import {
+    ChevronsUpDown,
+    Home,
+    Info,
     Building2,
     Clock,
     CreditCard,
@@ -9,10 +12,8 @@ import {
     FileBarChart,
     LayoutDashboard,
     LayoutTemplate,
-    Lightbulb,
     LogOut,
     Menu,
-    TriangleAlert,
     PanelLeftClose,
     PanelLeftOpen,
     PencilRuler,
@@ -29,10 +30,12 @@ import { type ReactElement, useEffect, useRef, useState } from "react";
 import { setApiErrorHandlers } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 
-import { useAgency, useAuthUser, useLogout, useStopImpersonating } from "./api";
+import { useAgency, useAnomalies, useAuthUser, useLogout, useStopImpersonating } from "./api";
+import { ActionMenu, Avatar } from "./components/ui";
 import { EditorScreen } from "./editor/EditorScreen";
 import { useMediaQuery } from "./hooks/useMediaQuery";
-import { AlertsScreen } from "./screens/AlertsScreen";
+import { HomeScreen } from "./screens/HomeScreen";
+import { InsightsScreen } from "./screens/InsightsScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { PlatformScreen } from "./screens/PlatformScreen";
 import { TeamScreen } from "./screens/TeamScreen";
@@ -40,8 +43,6 @@ import { ReportsScreen } from "./screens/ReportsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SystemScreen } from "./screens/SystemScreen";
 import { TemplatesScreen } from "./screens/TemplatesScreen";
-import { TrendsScreen } from "./screens/TrendsScreen";
-import { UpsellScreen } from "./screens/UpsellScreen";
 import { WorkLogsScreen } from "./screens/WorkLogsScreen";
 import { WorkspaceScreen } from "./screens/WorkspaceScreen";
 import { useHashRoute } from "./hooks/useHashRoute";
@@ -55,18 +56,36 @@ import {
     viewHash,
 } from "./store";
 
-const NAV: { view: AdminView; label: string; icon: typeof Users; privileged?: boolean }[] = [
-    { view: "clients", label: "Clientes", icon: Users },
-    { view: "worklogs", label: "Trabajo", icon: Clock },
-    { view: "editor", label: "Editor", icon: PencilRuler },
-    { view: "templates", label: "Plantillas", icon: LayoutTemplate },
-    { view: "reports", label: "Reportes", icon: FileBarChart },
-    { view: "trends", label: "Tendencias", icon: TrendingUp },
-    { view: "upsell", label: "Oportunidades", icon: Lightbulb },
-    { view: "alerts", label: "Alertas", icon: TriangleAlert },
-    { view: "team", label: "Equipo", icon: UserCog, privileged: true },
-    { view: "system", label: "Sistema", icon: DownloadCloud },
-    { view: "settings", label: "Ajustes", icon: Settings },
+/**
+ * The sidebar, grouped by what people come to do. It used to be eleven flat entries (with
+ * three different "analysis" screens and a "Sistema" page that only held a download), which
+ * made it hard to know where anything lived.
+ */
+const NAV_GROUPS: { label?: string; items: { view: AdminView; label: string; icon: typeof Users; privileged?: boolean; also?: AdminView[] }[] }[] = [
+    { items: [{ view: "home", label: "Inicio", icon: Home }] },
+    {
+        label: "Día a día",
+        items: [
+            { view: "clients", label: "Clientes", icon: Users, also: ["sites", "data-sources"] },
+            { view: "reports", label: "Reportes", icon: FileBarChart },
+            { view: "worklogs", label: "Trabajo", icon: Clock },
+            { view: "trends", label: "Análisis", icon: TrendingUp, also: ["upsell", "alerts"] },
+        ],
+    },
+    {
+        label: "Diseño",
+        items: [
+            { view: "templates", label: "Plantillas", icon: LayoutTemplate },
+            { view: "editor", label: "Editor", icon: PencilRuler },
+        ],
+    },
+    {
+        label: "Cuenta",
+        items: [
+            { view: "team", label: "Equipo", icon: UserCog, privileged: true },
+            { view: "settings", label: "Ajustes", icon: Settings, also: ["system"] },
+        ],
+    },
 ];
 
 function Screen({ view }: { view: AdminView }): ReactElement {
@@ -77,6 +96,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
         case "sites":
         case "data-sources":
             return <WorkspaceScreen />;
+        case "home":
+            return <HomeScreen />;
         case "worklogs":
             return <WorkLogsScreen />;
         case "editor":
@@ -86,11 +107,9 @@ function Screen({ view }: { view: AdminView }): ReactElement {
         case "reports":
             return <ReportsScreen />;
         case "trends":
-            return <TrendsScreen />;
         case "upsell":
-            return <UpsellScreen />;
         case "alerts":
-            return <AlertsScreen />;
+            return <InsightsScreen tab={view} />;
         case "team":
             return <TeamScreen />;
         case "system":
@@ -99,6 +118,8 @@ function Screen({ view }: { view: AdminView }): ReactElement {
             return <SettingsScreen />;
     }
 }
+
+const ROLE_LABELS: Record<string, string> = { owner: "Propietario", admin: "Administrador", collaborator: "Colaborador" };
 
 export function App(): ReactElement {
     const { data: user, isLoading, isError } = useAuthUser();
@@ -309,11 +330,14 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
     const logout = useLogout();
     const stopImpersonating = useStopImpersonating();
     const privileged = role === "owner" || role === "admin";
-    const nav = NAV.filter((item) => item.privileged !== true || privileged);
 
     // White-label: show the agency's own logo + name in the app chrome (falls back to the
     // product default when the agency hasn't uploaded a logo).
     const { data: agency } = useAgency();
+    const { data: me } = useAuthUser();
+    const userName = me?.name ?? "";
+    const { data: anomalies = [] } = useAnomalies();
+    const openAlerts = anomalies.filter((alert) => alert.acknowledged_at === null).length;
     const brandName = agency?.name ?? "Imagina Reports";
     const brandLogo = agency?.logo_url ?? null;
 
@@ -404,7 +428,7 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
 
             <aside
                 className={cn(
-                    "ir-z-40 ir-flex ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-card ir-py-4 ir-transition-all ir-duration-200",
+                    "ir-z-40 ir-flex ir-flex-col ir-overflow-y-auto ir-border-r ir-bg-[hsl(220_18%_95.5%)] ir-py-4 ir-transition-all ir-duration-200",
                     // Mobile: fixed off-canvas drawer, slid in/out.
                     "ir-fixed ir-inset-y-0 ir-left-0 ir-w-64 ir-px-3 ir-shadow-xl",
                     mobileOpen ? "ir-translate-x-0" : "-ir-translate-x-full",
@@ -459,65 +483,79 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                     </button>
                 )}
 
-                <nav className="ir-flex ir-flex-col ir-gap-0.5">
-                    {nav.map((item) => {
-                        const active = view === item.view;
+                <nav className="ir-flex ir-flex-col ir-gap-4">
+                    {NAV_GROUPS.map((group, index) => {
+                        const items = group.items.filter((item) => item.privileged !== true || privileged);
+                        if (items.length === 0) {
+                            return null;
+                        }
 
                         return (
-                            <button
-                                key={item.view}
-                                type="button"
-                                onClick={() => go(item.view)}
-                                title={iconOnly ? item.label : undefined}
-                                className={cn(
-                                    "ir-group ir-flex ir-items-center ir-gap-2.5 ir-rounded-md ir-px-2.5 ir-py-2 ir-text-left ir-text-sm ir-transition-colors",
-                                    iconOnly && "lg:ir-justify-center lg:ir-px-0",
-                                    active
-                                        ? "ir-bg-accent/10 ir-font-medium ir-text-accent"
-                                        : "ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground",
+                            <div key={group.label ?? index} className="ir-flex ir-flex-col ir-gap-0.5">
+                                {group.label !== undefined && !iconOnly && (
+                                    <p className="ir-mb-1 ir-px-2.5 ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wider ir-text-muted-foreground/70">{group.label}</p>
                                 )}
-                            >
-                                <item.icon
-                                    className={cn(
-                                        "ir-size-4 ir-shrink-0",
-                                        active ? "ir-text-accent" : "ir-text-muted-foreground group-hover:ir-text-foreground",
-                                    )}
-                                />
-                                {!iconOnly && item.label}
-                            </button>
+                                {group.label !== undefined && iconOnly && <div className="ir-mx-2 ir-mb-1 ir-hidden ir-border-t lg:ir-block" />}
+                                {items.map((item) => {
+                                    const active = view === item.view || (item.also ?? []).includes(view);
+
+                                    return (
+                                        <button
+                                            key={item.view}
+                                            type="button"
+                                            onClick={() => go(item.view)}
+                                            title={iconOnly ? item.label : undefined}
+                                            className={cn(
+                                                "ir-group ir-relative ir-flex ir-items-center ir-gap-2.5 ir-rounded-lg ir-px-2.5 ir-py-[7px] ir-text-left ir-text-sm ir-transition-colors",
+                                                iconOnly && "lg:ir-justify-center lg:ir-px-0",
+                                                active
+                                                    ? "ir-bg-card ir-font-medium ir-text-foreground ir-shadow-ir-xs ir-ring-1 ir-ring-border"
+                                                    : "ir-text-muted-foreground hover:ir-bg-card/70 hover:ir-text-foreground",
+                                            )}
+                                        >
+                                            <item.icon className={cn("ir-size-4 ir-shrink-0", active ? "ir-text-accent" : "ir-text-muted-foreground group-hover:ir-text-foreground")} />
+                                            {!iconOnly && <span className="ir-flex-1">{item.label}</span>}
+                                            {item.view === "trends" && openAlerts > 0 && (
+                                                <span
+                                                    className={cn(
+                                                        "ir-rounded-full ir-bg-danger ir-px-1.5 ir-text-[10px] ir-font-semibold ir-leading-4 ir-text-white",
+                                                        iconOnly && "lg:ir-absolute lg:ir-right-1 lg:ir-top-0.5",
+                                                    )}
+                                                    title={`${openAlerts} alertas sin revisar`}
+                                                >
+                                                    {openAlerts}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         );
                     })}
                 </nav>
 
-                <div className={cn("ir-mt-auto ir-flex ir-flex-col ir-gap-1 ir-border-t ir-pt-3 ir-text-xs ir-text-muted-foreground", iconOnly && "lg:ir-items-center")}>
-                    {!iconOnly && (
-                        <p className="ir-mb-0.5 ir-truncate ir-px-1" title={email}>
-                            {email}
-                        </p>
-                    )}
-                    {/* Log out — danger hover so it clearly reads as "exit", never confused
-                        with the collapse control. */}
-                    <button
-                        type="button"
-                        onClick={() => logout.mutate()}
-                        disabled={logout.isPending}
-                        title="Cerrar sesión"
-                        className={cn(
-                            "ir-flex ir-items-center ir-gap-2 ir-rounded-md ir-px-2.5 ir-py-1.5 ir-text-left ir-text-sm ir-text-muted-foreground ir-transition-colors hover:ir-bg-danger/10 hover:ir-text-danger",
-                            iconOnly && "lg:ir-justify-center lg:ir-px-0",
-                        )}
-                    >
-                        <LogOut className="ir-size-4 ir-shrink-0" />
-                        {!iconOnly && "Cerrar sesión"}
-                    </button>
-
-                    {/* Installed version — plain informational tag (no action, no download
-                        icon). Updates live in the Sistema screen. */}
-                    {!iconOnly && (
-                        <p className="ir-mt-2 ir-px-1 ir-text-[11px] ir-text-muted-foreground/70" title="Versión instalada en este servidor">
-                            Versión v{(version ?? "—").replace(/^v/, "")}
-                        </p>
-                    )}
+                <div className={cn("ir-mt-auto ir-border-t ir-pt-3", iconOnly && "lg:ir-flex lg:ir-justify-center")}>
+                    <ActionMenu
+                        align="left"
+                        label="Tu cuenta"
+                        trigger={
+                            <span className={cn("ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-lg ir-p-1.5 ir-text-left ir-transition-colors hover:ir-bg-card", iconOnly && "lg:ir-justify-center")}>
+                                <Avatar name={userName !== "" ? userName : email} />
+                                {!iconOnly && (
+                                    <span className="ir-min-w-0 ir-flex-1">
+                                        <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{userName !== "" ? userName : email}</span>
+                                        <span className="ir-block ir-truncate ir-text-xs ir-text-muted-foreground">{ROLE_LABELS[role ?? ""] ?? email}</span>
+                                    </span>
+                                )}
+                                {!iconOnly && <ChevronsUpDown className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />}
+                            </span>
+                        }
+                        items={[
+                            { label: "Ajustes de la cuenta", icon: Settings, onSelect: () => go("settings"), hint: email },
+                            { label: `Versión v${(version ?? "—").replace(/^v/, "")}`, icon: Info, onSelect: () => undefined, disabled: true },
+                            { label: "Cerrar sesión", icon: LogOut, onSelect: () => logout.mutate(), danger: true },
+                        ]}
+                    />
                 </div>
             </aside>
 

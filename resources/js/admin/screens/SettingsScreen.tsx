@@ -22,8 +22,9 @@ import {
     useUpdateProfile,
     useUploadLogo,
 } from '../api';
-import { Badge, Button, Card, Field, Input, Select } from '../components/ui';
+import { Badge, Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
 import type { AgencySettings } from '../types';
+import { SiteAgentPluginCard } from './SystemScreen';
 
 const SUB_STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }> = {
     active: { label: 'Activa', tone: 'success' },
@@ -987,7 +988,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof User; heading: st
     { key: 'account', label: 'Mi cuenta', icon: User, heading: 'Mi cuenta', blurb: 'Tus datos personales: nombre, email de acceso, contraseña y verificación en dos pasos.' },
     { key: 'agency', label: 'Mi agencia', icon: Building2, heading: 'Mi agencia', blurb: 'Cómo se ve tu agencia en los reportes: nombre, idioma, color y logo.' },
     { key: 'billing', label: 'Plan y pagos', icon: CreditCard, heading: 'Plan y pagos', blurb: 'Tu consumo, tu suscripción y el email con el que se te cobra.' },
-    { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, webhooks salientes y avisos por Slack.' },
+    { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, plugin del agente para WordPress, webhooks salientes y avisos por Slack.' },
     { key: 'assistants', label: 'Asistentes IA', icon: Bot, heading: 'Asistentes IA', blurb: 'Conecta Claude, ChatGPT u otro asistente para trabajar con Imagina Reports hablando.' },
     { key: 'security', label: 'Seguridad', icon: ShieldCheck, heading: 'Seguridad', blurb: 'Registro de actividad de tu equipo y eliminación de la cuenta.' },
 ];
@@ -1020,6 +1021,7 @@ export function SettingsScreen(): ReactElement {
         integrations: (
             <>
                 <AiCard agency={agency} />
+                <SiteAgentPluginCard />
                 <WebhooksCard agency={agency} />
             </>
         ),
@@ -1033,11 +1035,8 @@ export function SettingsScreen(): ReactElement {
     };
 
     return (
-        <div className="ir-flex ir-flex-col ir-gap-5">
-            <div>
-                <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Ajustes</h1>
-                <p className="ir-mt-1 ir-text-sm ir-text-muted-foreground">Elige una sección para ver solo lo que necesitas cambiar.</p>
-            </div>
+        <div className="ir-flex ir-flex-col">
+            <PageHeader title="Ajustes" description="Tu cuenta, tu agencia, el plan y las integraciones. Elige una sección para ver solo lo que necesitas cambiar." />
 
             <div className="ir-flex ir-flex-col ir-gap-6 lg:ir-flex-row lg:ir-gap-8">
                 {/* Pills on narrow screens, a settings sidebar from lg up. */}
@@ -1049,7 +1048,7 @@ export function SettingsScreen(): ReactElement {
                             onClick={() => setSection(key)}
                             className={`ir-inline-flex ir-shrink-0 ir-items-center ir-gap-2 ir-rounded-md ir-px-3 ir-py-2 ir-text-sm ir-font-medium ir-transition-colors lg:ir-w-full ${
                                 section === key
-                                    ? 'ir-bg-muted ir-text-foreground'
+                                    ? 'ir-bg-card ir-text-foreground ir-shadow-ir-xs ir-ring-1 ir-ring-border'
                                     : 'ir-text-muted-foreground hover:ir-bg-muted/50 hover:ir-text-foreground'
                             }`}
                         >

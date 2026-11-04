@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\DimensionValuesController;
 use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
+use App\Http\Controllers\Api\V1\OverviewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformAgencyController;
@@ -249,6 +250,8 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::get('upsell', [UpsellController::class, 'index'])->name('api.upsell.index');
 
     // In-app anomaly alerts feed (CLAUDE.md §13).
+    // Inicio: what needs attention today + per-site health for the client tree.
+    Route::get('overview', OverviewController::class)->name('api.overview');
     Route::get('anomalies', [AnomalyController::class, 'index'])->name('api.anomalies.index');
     Route::post('anomalies/{anomaly}/acknowledge', [AnomalyController::class, 'acknowledge'])->name('api.anomalies.acknowledge');
     Route::delete('anomalies/{anomaly}', [AnomalyController::class, 'destroy'])->name('api.anomalies.destroy');

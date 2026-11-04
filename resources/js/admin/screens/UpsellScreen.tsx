@@ -10,7 +10,7 @@ import {
 import { type ReactElement } from 'react';
 
 import { useUpsell } from '../api';
-import { Badge, Card } from '../components/ui';
+import { Badge, Card, StatCard } from '../components/ui';
 import type { SiteUpsell, UpsellOpportunityView } from '../types';
 
 type Tone = 'success' | 'warning' | 'info' | 'danger' | 'neutral';
@@ -156,22 +156,10 @@ export function UpsellScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
-            <p className="ir-text-sm ir-text-muted-foreground">
-                Señales comerciales detectadas a partir del último reporte de cada sitio: crecimiento, presión de
-                seguridad y huecos de cobertura. <span className="ir-font-medium">Solo para uso interno</span> — el
-                cliente nunca las ve.
-            </p>
-
-            <div className="ir-grid ir-grid-cols-1 ir-gap-4 sm:ir-grid-cols-3">
-                <Card title="Sitios evaluados">
-                    <p className="ir-text-3xl ir-font-semibold">{upsell.summary.sites_count}</p>
-                </Card>
-                <Card title="Sitios con oportunidades">
-                    <p className="ir-text-3xl ir-font-semibold ir-text-accent">{upsell.summary.sites_with_opportunities}</p>
-                </Card>
-                <Card title="Oportunidades totales">
-                    <p className="ir-text-3xl ir-font-semibold">{upsell.summary.opportunities_count}</p>
-                </Card>
+            <div className="ir-grid ir-grid-cols-1 ir-gap-3 sm:ir-grid-cols-3">
+                <StatCard label="Sitios evaluados" value={upsell.summary.sites_count} />
+                <StatCard label="Sitios con oportunidades" value={upsell.summary.sites_with_opportunities} tone="accent" />
+                <StatCard label="Oportunidades totales" value={upsell.summary.opportunities_count} />
             </div>
 
             {upsell.sites.length === 0 ? (

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Building2, ChevronDown, ChevronRight, ExternalLink, Globe, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Building2, ChevronDown, ChevronRight, Clock, ExternalLink, FileBarChart, Globe, Lock, Pencil, Plug, Plus, Search, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useMemo, useState } from 'react';
 
 import {
@@ -8,12 +8,13 @@ import {
     useCreateSite,
     useDeleteClient,
     useDeleteSite,
+    useOverview,
     useSites,
     useUpdateClient,
     useUpdateSite,
 } from '../api';
 import { SiteDataSources } from '../components/SiteDataSources';
-import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
+import { ActionMenu, Badge, Button, Card, Field, Input, Modal, PageHeader, Segmented, Select, StatusDot } from '../components/ui';
 import { CURRENCIES } from '../currencies';
 import { useAdminUi } from '../store';
 import { TIMEZONES } from '../timezones';
@@ -383,6 +384,120 @@ function PlanLimitNotice({ tone, title, body }: { tone: 'danger' | 'warning'; ti
     );
 }
 
+/* --------------------------------- health ---------------------------------- */
+
+type SiteHealth = { sources: number; errors: number; health_score: number | null };
+
+const SITE_STATUS: Record<string, string> = { active: 'Activo', paused: 'Pausado', inactive: 'Inactivo', archived: 'Archivado' };
+
+function healthTone(health: SiteHealth | undefined): 'success' | 'warning' | 'danger' | 'neutral' {
+    if (health === undefined || health.sources === 0) {
+        return 'neutral';
+    }
+    if (health.errors > 0) {
+        return 'danger';
+    }
+
+    return health.health_score !== null && health.health_score < 60 ? 'warning' : 'success';
+}
+
+function scoreClass(score: number | null): string {
+    if (score === null) {
+        return 'ir-text-muted-foreground';
+    }
+
+    return score >= 80 ? 'ir-text-success' : score >= 50 ? 'ir-text-warning' : 'ir-text-danger';
+}
+
+/** Small circular gauge for a 0–100 health score. */
+function ScoreRing({ score, size = 44 }: { score: number | null; size?: number }): ReactElement {
+    const radius = (size - 6) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const value = score ?? 0;
+    const color = score === null ? 'hsl(var(--ir-border))' : value >= 80 ? 'hsl(var(--ir-success))' : value >= 50 ? 'hsl(var(--ir-warning))' : 'hsl(var(--ir-danger))';
+
+    return (
+        <span className="ir-relative ir-inline-flex ir-shrink-0 ir-items-center ir-justify-center" style={{ width: size, height: size }} title="Salud del último reporte">
+            <svg width={size} height={size} className="-ir-rotate-90">
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="hsl(var(--ir-muted))" strokeWidth={4} />
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={4} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - value / 100)} />
+            </svg>
+            <span className={`ir-absolute ir-text-xs ir-font-semibold ir-tabular-nums ${scoreClass(score)}`}>{score ?? '—'}</span>
+        </span>
+    );
+}
+
+/** The portfolio at a glance (shown when no site is selected): one card per site. */
+function SiteGrid({
+    sites,
+    clients,
+    health,
+    onSelect,
+    onNewClient,
+}: {
+    sites: Site[];
+    clients: Client[];
+    health: Record<string, SiteHealth>;
+    onSelect: (siteId: number) => void;
+    onNewClient: () => void;
+}): ReactElement {
+    if (sites.length === 0) {
+        return (
+            <section className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-xl ir-border ir-border-dashed ir-bg-card ir-px-6 ir-py-20 ir-text-center">
+                <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
+                    <Building2 className="ir-size-6" />
+                </span>
+                <div>
+                    <p className="ir-text-sm ir-font-semibold">Tu cartera está vacía</p>
+                    <p className="ir-mt-1 ir-max-w-xs ir-text-[13px] ir-text-muted-foreground">Crea tu primer cliente con su sitio web. Después conectas sus fuentes y generas su reporte.</p>
+                </div>
+                <Button onClick={onNewClient}>
+                    <Plus className="ir-size-4" />
+                    Nuevo cliente
+                </Button>
+            </section>
+        );
+    }
+
+    return (
+        <div className="ir-grid ir-gap-3 sm:ir-grid-cols-2 xl:ir-grid-cols-3">
+            {sites.map((site) => {
+                const h = health[String(site.id)];
+                const client = clients.find((item) => item.id === site.client_id);
+
+                return (
+                    <button
+                        key={site.id}
+                        type="button"
+                        onClick={() => onSelect(site.id)}
+                        className="ir-group ir-flex ir-flex-col ir-gap-3 ir-rounded-xl ir-border ir-bg-card ir-p-4 ir-text-left ir-shadow-ir-xs ir-transition hover:ir-border-foreground/20 hover:ir-shadow-ir-sm"
+                    >
+                        <div className="ir-flex ir-items-start ir-justify-between ir-gap-3">
+                            <div className="ir-min-w-0">
+                                <p className="ir-truncate ir-text-sm ir-font-semibold">{site.name}</p>
+                                <p className="ir-truncate ir-text-xs ir-text-muted-foreground">
+                                    {client?.name ?? ''} · {site.url.replace(/^https?:\/\//, '')}
+                                </p>
+                            </div>
+                            <ScoreRing score={h?.health_score ?? null} size={40} />
+                        </div>
+                        <div className="ir-flex ir-items-center ir-gap-2 ir-text-xs ir-text-muted-foreground">
+                            <StatusDot tone={healthTone(h)} />
+                            {h === undefined || h.sources === 0 ? (
+                                <span>Sin fuentes conectadas</span>
+                            ) : h.errors > 0 ? (
+                                <span className="ir-text-danger">{h.errors} de {h.sources} fuentes con error</span>
+                            ) : (
+                                <span>{h.sources} fuentes funcionando</span>
+                            )}
+                        </div>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 /* ------------------------------- main screen ------------------------------ */
 
 export function WorkspaceScreen(): ReactElement {
@@ -395,7 +510,11 @@ export function WorkspaceScreen(): ReactElement {
     const deleteClient = useDeleteClient();
     const deleteSite = useDeleteSite();
 
+    const { data: overview } = useOverview();
+    const health = overview?.site_health ?? {};
+    const setView = useAdminUi((state) => state.setView);
     const [query, setQuery] = useState('');
+    const [filter, setFilter] = useState<'all' | 'issues' | 'empty'>('all');
     const [modal, setModal] = useState<ModalState>(null);
     const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
 
@@ -421,18 +540,42 @@ export function WorkspaceScreen(): ReactElement {
         return set;
     }, [expanded, selectedSite]);
 
+    const siteMatchesFilter = (site: Site): boolean => {
+        const h = health[String(site.id)];
+        if (filter === 'issues') {
+            return h !== undefined && h.errors > 0;
+        }
+        if (filter === 'empty') {
+            return h === undefined || h.sources === 0;
+        }
+
+        return true;
+    };
+
     const filteredClients = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (q === '') {
-            return clients;
-        }
-        return clients.filter((client) => {
-            if (client.name.toLowerCase().includes(q)) {
-                return true;
-            }
-            return (sitesByClient.get(client.id) ?? []).some((site) => site.name.toLowerCase().includes(q) || site.url.toLowerCase().includes(q));
-        });
-    }, [clients, query, sitesByClient]);
+
+        return [...clients]
+            .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+            .filter((client) => {
+                const own = sitesByClient.get(client.id) ?? [];
+                if (filter !== 'all' && !own.some(siteMatchesFilter)) {
+                    return false;
+                }
+                if (q === '') {
+                    return true;
+                }
+                if (client.name.toLowerCase().includes(q)) {
+                    return true;
+                }
+                return own.some((site) => site.name.toLowerCase().includes(q) || site.url.toLowerCase().includes(q));
+            });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clients, query, sitesByClient, filter, health]);
+
+    const issuesCount = sites.filter((site) => (health[String(site.id)]?.errors ?? 0) > 0).length;
+    const emptyCount = sites.filter((site) => (health[String(site.id)]?.sources ?? 0) === 0).length;
+    const gridSites = sites.filter((site) => siteMatchesFilter(site) && filteredClients.some((client) => client.id === site.client_id));
 
     const toggle = (clientId: number): void => {
         setExpanded((current) => {
@@ -483,69 +626,93 @@ export function WorkspaceScreen(): ReactElement {
     const clientsBlocked = blocked || ent.clients.reached;
 
     return (
-        <div className="ir-flex ir-flex-col ir-gap-5">
-            {notice !== null && <PlanLimitNotice tone={notice.tone} title={notice.title} body={notice.body} />}
-
-            <div className="ir-grid ir-gap-5 lg:ir-grid-cols-[300px_1fr]">
-            {/* Left: clients → sites tree */}
-            <aside className="ir-self-start ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-sm lg:ir-sticky lg:ir-top-4">
-                <div className="ir-flex ir-items-center ir-justify-between ir-gap-2 ir-border-b ir-px-4 ir-py-3">
-                    <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">Clientes</h2>
+        <div className="ir-flex ir-flex-col">
+            <PageHeader
+                title="Clientes"
+                description="Las empresas a las que reportas y sus sitios. Elige un sitio para conectar sus fuentes y ver su estado."
+                eyebrow={
+                    ent.ready ? (
+                        <span className="ir-flex ir-gap-1.5">
+                            <UsageChip label="Clientes" entitlement={ent.clients} reached={clientsBlocked} />
+                            <UsageChip label="Sitios" entitlement={ent.sites} reached={blocked || ent.sites.reached} />
+                        </span>
+                    ) : undefined
+                }
+                actions={
                     <Button
-                        size="sm"
                         disabled={clientsBlocked}
                         title={clientsBlocked ? (ent.hasPlan ? 'Has alcanzado el límite de clientes de tu plan.' : 'Suscríbete a un plan para crear clientes.') : undefined}
                         onClick={() => setModal({ kind: 'new-client' })}
                     >
-                        <Plus className="ir-size-3.5" />
-                        Nuevo
+                        <Plus className="ir-size-4" />
+                        Nuevo cliente
                     </Button>
+                }
+            />
+
+            {notice !== null && (
+                <div className="ir-mb-5">
+                    <PlanLimitNotice tone={notice.tone} title={notice.title} body={notice.body} />
                 </div>
+            )}
 
-                {ent.ready && (
-                    <div className="ir-flex ir-items-center ir-gap-1.5 ir-border-b ir-px-4 ir-py-2">
-                        <UsageChip label="Clientes" entitlement={ent.clients} reached={clientsBlocked} />
-                        <UsageChip label="Sitios" entitlement={ent.sites} reached={blocked || ent.sites.reached} />
-                    </div>
-                )}
-
-                <div className="ir-p-3">
-                    <div className="ir-relative ir-mb-2">
+            <div className="ir-grid ir-gap-5 lg:ir-grid-cols-[290px_minmax(0,1fr)]">
+            {/* Left: clients → sites tree */}
+            {/* On phones the list and the detail take turns: the list until a site is picked. */}
+            <aside className={'ir-self-start ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-xs lg:ir-sticky lg:ir-top-4 ' + (selectedSite !== null ? 'ir-hidden lg:ir-block' : '')}>
+                <div className="ir-flex ir-flex-col ir-gap-2.5 ir-border-b ir-p-3">
+                    <div className="ir-relative">
                         <Search className="ir-pointer-events-none ir-absolute ir-left-2.5 ir-top-1/2 ir-size-4 -ir-translate-y-1/2 ir-text-muted-foreground" />
                         <Input className="ir-pl-8" placeholder="Buscar cliente o sitio…" value={query} onChange={(event) => setQuery(event.target.value)} />
                     </div>
+                    <Segmented
+                        fill
+                        value={filter}
+                        onChange={setFilter}
+                        items={[
+                            { value: 'all', label: 'Todos', count: sites.length },
+                            { value: 'issues', label: 'Con error', count: issuesCount },
+                            { value: 'empty', label: 'Sin fuentes', count: emptyCount },
+                        ]}
+                    />
+                </div>
 
+                <div className="ir-max-h-[calc(100vh-15rem)] ir-overflow-y-auto ir-p-2">
                     <ul className="ir-flex ir-flex-col ir-gap-0.5">
                         {filteredClients.map((client) => {
-                            const clientSites = sitesByClient.get(client.id) ?? [];
-                            const isOpen = effectiveExpanded.has(client.id);
+                            const clientSites = (sitesByClient.get(client.id) ?? []).filter(siteMatchesFilter);
+                            const isOpen = effectiveExpanded.has(client.id) || query.trim() !== '' || filter !== 'all';
                             const Chevron = isOpen ? ChevronDown : ChevronRight;
+                            const clientErrors = clientSites.some((site) => (health[String(site.id)]?.errors ?? 0) > 0);
 
                             return (
                                 <li key={client.id}>
                                     <div className="ir-group ir-flex ir-items-center ir-gap-1 ir-rounded-lg ir-px-1.5 ir-py-1.5 ir-transition-colors hover:ir-bg-muted/60">
                                         <button type="button" onClick={() => toggle(client.id)} className="ir-flex ir-min-w-0 ir-flex-1 ir-items-center ir-gap-1.5 ir-text-left">
                                             <Chevron className="ir-size-3.5 ir-shrink-0 ir-text-muted-foreground" />
-                                            <Building2 className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
                                             <span className="ir-truncate ir-text-sm ir-font-medium">{client.name}</span>
-                                            <span className="ir-ml-auto ir-shrink-0 ir-rounded-full ir-bg-muted ir-px-1.5 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground group-hover:ir-hidden">
-                                                {clientSites.length}
+                                            {clientErrors && !isOpen && <StatusDot tone="danger" className="ir-ml-1" />}
+                                            <span className="ir-ml-auto ir-shrink-0 ir-text-[11px] ir-font-medium ir-tabular-nums ir-text-muted-foreground group-hover:ir-hidden">
+                                                {(sitesByClient.get(client.id) ?? []).length}
                                             </span>
                                         </button>
                                         <span className="ir-hidden ir-shrink-0 ir-items-center group-hover:ir-flex">
-                                            <button type="button" title="Editar cliente" onClick={() => setModal({ kind: 'edit-client', client })} className="ir-rounded-md ir-p-1 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground">
-                                                <Pencil className="ir-size-3.5" />
-                                            </button>
-                                            <button type="button" title="Eliminar cliente" onClick={() => removeClient(client)} disabled={deleteClient.isPending} className="ir-rounded-md ir-p-1 ir-text-muted-foreground hover:ir-bg-danger/10 hover:ir-text-danger disabled:ir-opacity-50">
-                                                <Trash2 className="ir-size-3.5" />
-                                            </button>
+                                            <ActionMenu
+                                                label={`Acciones de ${client.name}`}
+                                                items={[
+                                                    { label: 'Añadir sitio', icon: Plus, onSelect: () => setModal({ kind: 'add-site', clientId: client.id }), disabled: blocked || ent.sites.reached },
+                                                    { label: 'Editar cliente', icon: Pencil, onSelect: () => setModal({ kind: 'edit-client', client }) },
+                                                    { label: 'Eliminar cliente', icon: Trash2, onSelect: () => removeClient(client), danger: true },
+                                                ]}
+                                            />
                                         </span>
                                     </div>
 
                                     {isOpen && (
-                                        <div className="ir-mb-1 ir-ml-[1.05rem] ir-flex ir-flex-col ir-gap-0.5 ir-border-l ir-pl-2">
+                                        <div className="ir-mb-1 ir-ml-[0.95rem] ir-flex ir-flex-col ir-gap-0.5 ir-border-l ir-pl-2">
                                             {clientSites.map((site) => {
                                                 const active = site.id === selectedSiteId;
+                                                const h = health[String(site.id)];
 
                                                 return (
                                                     <button
@@ -553,25 +720,28 @@ export function WorkspaceScreen(): ReactElement {
                                                         type="button"
                                                         onClick={() => selectSite(site.id)}
                                                         className={
-                                                            'ir-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-left ir-text-sm ir-transition-colors ' +
+                                                            'ir-flex ir-items-center ir-gap-2 ir-rounded-lg ir-px-2 ir-py-1.5 ir-text-left ir-text-sm ir-transition-colors ' +
                                                             (active ? 'ir-bg-accent/10 ir-font-medium ir-text-accent' : 'ir-text-foreground/80 hover:ir-bg-muted/60')
                                                         }
                                                     >
-                                                        <Globe className={'ir-size-3.5 ir-shrink-0 ' + (active ? 'ir-text-accent' : 'ir-text-muted-foreground')} />
-                                                        <span className="ir-truncate">{site.name}</span>
+                                                        <StatusDot tone={healthTone(h)} />
+                                                        <span className="ir-min-w-0 ir-flex-1 ir-truncate">{site.name}</span>
+                                                        {h?.health_score != null && <span className={`ir-shrink-0 ir-text-[11px] ir-font-semibold ir-tabular-nums ${scoreClass(h.health_score)}`}>{h.health_score}</span>}
                                                     </button>
                                                 );
                                             })}
-                                            <button
-                                                type="button"
-                                                disabled={blocked || ent.sites.reached}
-                                                title={blocked || ent.sites.reached ? (ent.hasPlan ? 'Has alcanzado el límite de sitios de tu plan.' : 'Suscríbete a un plan para crear sitios.') : undefined}
-                                                onClick={() => setModal({ kind: 'add-site', clientId: client.id })}
-                                                className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-md ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-font-medium ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted/60 hover:ir-text-foreground disabled:ir-cursor-not-allowed disabled:ir-opacity-50 disabled:hover:ir-bg-transparent"
-                                            >
-                                                <Plus className="ir-size-3.5" />
-                                                Añadir sitio
-                                            </button>
+                                            {filter === 'all' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={blocked || ent.sites.reached}
+                                                    title={blocked || ent.sites.reached ? (ent.hasPlan ? 'Has alcanzado el límite de sitios de tu plan.' : 'Suscríbete a un plan para crear sitios.') : undefined}
+                                                    onClick={() => setModal({ kind: 'add-site', clientId: client.id })}
+                                                    className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-lg ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-font-medium ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted/60 hover:ir-text-foreground disabled:ir-cursor-not-allowed disabled:ir-opacity-50 disabled:hover:ir-bg-transparent"
+                                                >
+                                                    <Plus className="ir-size-3.5" />
+                                                    Añadir sitio
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </li>
@@ -580,83 +750,75 @@ export function WorkspaceScreen(): ReactElement {
 
                         {filteredClients.length === 0 && (
                             <li className="ir-rounded-lg ir-border ir-border-dashed ir-p-4 ir-text-center ir-text-xs ir-text-muted-foreground">
-                                {clients.length === 0 ? 'Aún no hay clientes. Crea el primero arriba.' : 'Ningún resultado.'}
+                                {clients.length === 0 ? 'Aún no hay clientes. Crea el primero con «Nuevo cliente».' : 'Nada coincide con la búsqueda o el filtro.'}
                             </li>
                         )}
                     </ul>
                 </div>
             </aside>
 
-            {/* Right: selected site detail + its data sources */}
+            {/* Right: selected site detail + its data sources, or the whole portfolio */}
             {selectedSite !== null ? (
-                <section className="ir-self-start ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-sm">
-                    <header className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
-                        <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-3">
-                            <span className="ir-flex ir-size-10 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-accent/10 ir-text-accent">
-                                <Globe className="ir-size-5" />
-                            </span>
-                            <div className="ir-min-w-0">
-                                <h2 className="ir-truncate ir-text-base ir-font-semibold ir-tracking-tight">{selectedSite.name}</h2>
-                                {selectedClient !== null && <p className="ir-text-xs ir-text-muted-foreground">{selectedClient.name}</p>}
+                <section className="ir-min-w-0 ir-self-start ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-xs">
+                    <header className="ir-flex ir-flex-col ir-gap-4 ir-border-b ir-px-5 ir-py-5">
+                        <div className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3">
+                            <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-3">
+                                <ScoreRing score={health[String(selectedSite.id)]?.health_score ?? null} size={48} />
+                                <div className="ir-min-w-0">
+                                    <button type="button" onClick={() => selectSite(0)} className="ir-text-xs ir-font-medium ir-text-muted-foreground hover:ir-text-foreground" title="Volver a la cartera">
+                                        ← {selectedClient?.name ?? 'Cartera'}
+                                    </button>
+                                    <h2 className="ir-truncate ir-text-lg ir-font-semibold ir-tracking-tight">{selectedSite.name}</h2>
+                                </div>
+                            </div>
+                            <div className="ir-flex ir-items-center ir-gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => setView('worklogs')}>
+                                    <Clock className="ir-size-3.5" />
+                                    Registrar trabajo
+                                </Button>
+                                <Button size="sm" onClick={() => setView('reports')}>
+                                    <FileBarChart className="ir-size-3.5" />
+                                    Reportes
+                                </Button>
+                                <ActionMenu
+                                    label="Más acciones del sitio"
+                                    items={[
+                                        { label: 'Editar sitio', icon: Pencil, onSelect: () => setModal({ kind: 'edit-site', site: selectedSite }) },
+                                        { label: 'Eliminar sitio', icon: Trash2, onSelect: () => removeSite(selectedSite), danger: true, disabled: deleteSite.isPending },
+                                    ]}
+                                />
                             </div>
                         </div>
-                        <div className="ir-flex ir-items-center ir-gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => setModal({ kind: 'edit-site', site: selectedSite })}>
-                                <Pencil className="ir-size-3.5" />
-                                Editar sitio
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={deleteSite.isPending}
-                                onClick={() => removeSite(selectedSite)}
-                                className="ir-text-danger hover:ir-bg-danger/10"
-                            >
-                                <Trash2 className="ir-size-3.5" />
-                                Eliminar
-                            </Button>
-                        </div>
-                    </header>
-
-                    <div className="ir-flex ir-flex-col ir-gap-5 ir-px-5 ir-py-4">
                         <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
                             <a
                                 href={selectedSite.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="ir-inline-flex ir-max-w-full ir-items-center ir-gap-1.5 ir-rounded-full ir-border ir-bg-muted/40 ir-px-2.5 ir-py-1 ir-text-xs ir-text-foreground/80 ir-transition hover:ir-bg-muted hover:ir-text-foreground"
+                                className="ir-inline-flex ir-max-w-full ir-items-center ir-gap-1.5 ir-rounded-full ir-border ir-px-2.5 ir-py-1 ir-text-xs ir-text-foreground/80 ir-transition hover:ir-bg-muted hover:ir-text-foreground"
                             >
+                                <Globe className="ir-size-3 ir-shrink-0" />
                                 <span className="ir-truncate">{selectedSite.url.replace(/^https?:\/\//, '')}</span>
-                                <ExternalLink className="ir-size-3 ir-shrink-0" />
+                                <ExternalLink className="ir-size-3 ir-shrink-0 ir-opacity-60" />
                             </a>
-                            <Badge tone={selectedSite.status === 'active' ? 'success' : 'neutral'}>{selectedSite.status}</Badge>
+                            <Badge tone={selectedSite.status === 'active' ? 'success' : 'neutral'}>{SITE_STATUS[selectedSite.status] ?? selectedSite.status}</Badge>
                             <Badge tone="neutral">{selectedSite.currency}</Badge>
+                            {selectedSite.support_plan !== null && selectedSite.support_plan !== '' && <Badge tone="neutral">Plan {selectedSite.support_plan}</Badge>}
                             {selectedSite.plan_hours != null && <Badge tone="info">{selectedSite.plan_hours} h/mes</Badge>}
                         </div>
+                    </header>
 
-                        <div className="ir-border-t ir-pt-5">
-                            <SiteDataSources siteId={selectedSite.id} />
-                        </div>
+                    <div className="ir-px-5 ir-py-5">
+                        <SiteDataSources siteId={selectedSite.id} />
                     </div>
                 </section>
             ) : (
-                <section className="ir-self-start ir-rounded-xl ir-border ir-border-dashed ir-bg-card">
-                    <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-px-6 ir-py-20 ir-text-center">
-                        <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-full ir-bg-muted ir-text-muted-foreground">
-                            <Building2 className="ir-size-6" />
-                        </span>
-                        <div>
-                            <p className="ir-text-sm ir-font-medium ir-text-foreground">Selecciona un sitio</p>
-                            <p className="ir-mt-1 ir-max-w-xs ir-text-xs ir-text-muted-foreground">
-                                Elige un sitio en la lista de la izquierda para ver y configurar sus fuentes de datos, o crea un cliente nuevo.
-                            </p>
-                        </div>
-                        <Button onClick={() => setModal({ kind: 'new-client' })}>
-                            <Plus className="ir-size-4" />
-                            Nuevo cliente
-                        </Button>
+                <div className="ir-hidden ir-min-w-0 ir-flex-col ir-gap-3 lg:ir-flex">
+                    <div className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-text-muted-foreground">
+                        <Plug className="ir-size-4" />
+                        {filter === 'issues' ? 'Sitios con alguna fuente fallando' : filter === 'empty' ? 'Sitios a los que aún no les conectaste fuentes' : 'Todos tus sitios. Elige uno para ver y configurar sus fuentes.'}
                     </div>
-                </section>
+                    <SiteGrid sites={gridSites} clients={clients} health={health} onSelect={selectSite} onNewClient={() => setModal({ kind: 'new-client' })} />
+                </div>
             )}
             </div>
 

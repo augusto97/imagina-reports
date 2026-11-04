@@ -1,3 +1,4 @@
+import { ChevronLeft, FlaskConical, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
@@ -17,7 +18,8 @@ import type { Ga4DatasetSpec } from '../api';
 import type { ConfigFieldDef, Connector, DataSourceDto } from '../types';
 import { Ga4DatasetBuilder } from './Ga4DatasetBuilder';
 import { RangeSyncMenu } from './RangeSyncMenu';
-import { Button, Field, Input } from './ui';
+import { SOURCE_CATEGORIES, SOURCE_META } from '../lib/sources';
+import { ActionMenu, Button, Field, Input, StatusDot } from './ui';
 
 /** One-click download of the companion WordPress plugin (site_agent connector). */
 function SiteAgentDownload(): ReactElement {
@@ -353,12 +355,19 @@ function ResourcePicker({ source, siteId }: { source: DataSourceDto; siteId: num
 }
 
 /** Colored status dot for a data source (green = ok, red = error, amber = partial). */
-function statusDot(status: string): string {
-    if (status === 'ok') return 'ir-bg-success';
-    if (status === 'error' || status === 'failed') return 'ir-bg-danger';
-    if (status === 'partial' || status === 'pending') return 'ir-bg-warning';
-    return 'ir-bg-muted-foreground/40';
+function syncedAgo(iso: string | null | undefined): string {
+    if (iso == null) {
+        return '';
+    }
+    const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (minutes < 60) {
+        return ` · sincronizada hace ${Math.max(1, minutes)} min`;
+    }
+    const hours = Math.round(minutes / 60);
+
+    return hours < 48 ? ` · sincronizada hace ${hours} h` : ` · sincronizada hace ${Math.round(hours / 24)} días`;
 }
+
 
 /**
  * Site Agent version line: shows the plugin version the site reports and, when it's
@@ -429,7 +438,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     const [connectResult, setConnectResult] = useState(takeConnectResult);
 
     const connector = connectors.find((item) => item.key === type);
-    const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? sourceType;
+    const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? SOURCE_META[sourceType]?.label ?? sourceType;
 
     // Missing any required up-front connect field (e.g. the WooCommerce store URL)?
     const connectReady =
@@ -501,11 +510,14 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     </button>
                 </div>
             )}
-            <div className="ir-flex ir-items-center ir-justify-between">
-                <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
-                    Fuentes de datos
-                    <span className="ir-rounded-full ir-bg-muted ir-px-1.5 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">{sources.length}</span>
-                </h3>
+            <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
+                <div>
+                    <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-[15px] ir-font-semibold ir-tracking-tight">
+                        Fuentes de datos
+                        <span className="ir-rounded-full ir-bg-muted ir-px-1.5 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">{sources.length}</span>
+                    </h3>
+                    <p className="ir-text-[13px] ir-text-muted-foreground">De aquí salen los números del reporte. Solo lectura: nunca se modifica nada en las cuentas.</p>
+                </div>
                 <Button
                     size="sm"
                     variant={adding ? 'ghost' : 'primary'}
@@ -516,30 +528,75 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                         setManualOpen(false);
                     }}
                 >
-                    {adding ? 'Cerrar' : '+ Añadir fuente'}
+                    {adding ? 'Cancelar' : <><Plus className="ir-size-3.5" />Añadir fuente</>}
                 </Button>
             </div>
 
             {adding && (
-                <div className="ir-flex ir-flex-col ir-gap-3 ir-rounded-md ir-border ir-bg-muted/20 ir-p-3">
-                    <Field label="Conector">
-                        <select
-                            className="ir-h-9 ir-w-full ir-rounded-md ir-border ir-bg-card ir-px-3 ir-text-sm"
-                            value={type}
-                            onChange={(event) => {
-                                setType(event.target.value);
-                                setValues({});
-                                setManualOpen(false);
-                            }}
-                        >
-                            <option value="">Selecciona…</option>
-                            {connectors.map((item) => (
-                                <option key={item.key} value={item.key}>
-                                    {item.label}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
+                <div className="ir-flex ir-flex-col ir-gap-4 ir-rounded-xl ir-border ir-bg-muted/30 ir-p-4">
+                    {connector === undefined ? (
+                        <div className="ir-flex ir-flex-col ir-gap-4">
+                            <p className="ir-text-sm ir-font-medium">¿Qué quieres conectar?</p>
+                            {SOURCE_CATEGORIES.map((category) => {
+                                const options = connectors.filter((item) => (SOURCE_META[item.key]?.category ?? 'custom') === category.key);
+                                if (options.length === 0) {
+                                    return null;
+                                }
+
+                                return (
+                                    <div key={category.key}>
+                                        <p className="ir-mb-2 ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wider ir-text-muted-foreground">{category.label}</p>
+                                        <div className="ir-grid ir-gap-2 sm:ir-grid-cols-2 xl:ir-grid-cols-3">
+                                            {options.map((item) => {
+                                                const meta = SOURCE_META[item.key];
+                                                const Icon = meta?.icon ?? Sparkles;
+                                                const already = sources.some((source) => source.type === item.key);
+
+                                                return (
+                                                    <button
+                                                        key={item.key}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setType(item.key);
+                                                            setValues({});
+                                                            setManualOpen(false);
+                                                        }}
+                                                        className="ir-flex ir-items-center ir-gap-3 ir-rounded-lg ir-border ir-bg-card ir-p-2.5 ir-text-left ir-transition hover:ir-border-foreground/25 hover:ir-shadow-ir-xs"
+                                                    >
+                                                        <span className="ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-muted ir-text-foreground/80">
+                                                            <Icon className="ir-size-4" />
+                                                        </span>
+                                                        <span className="ir-min-w-0">
+                                                            <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{item.label}</span>
+                                                            <span className="ir-block ir-truncate ir-text-xs ir-text-muted-foreground">
+                                                                {already ? 'Ya conectada' : meta?.blurb ?? (item.connect != null ? 'Conexión con un clic' : 'Con claves de acceso')}
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="ir-flex ir-items-center ir-gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setType('');
+                                    setValues({});
+                                    setManualOpen(false);
+                                }}
+                                className="ir-flex ir-size-7 ir-items-center ir-justify-center ir-rounded-lg ir-text-muted-foreground hover:ir-bg-card hover:ir-text-foreground"
+                                title="Elegir otra fuente"
+                            >
+                                <ChevronLeft className="ir-size-4" />
+                            </button>
+                            <p className="ir-text-sm ir-font-semibold">Conectar {connector.label}</p>
+                        </div>
+                    )}
 
                     {/* One-click connect (the client authorizes on the provider's own screen). */}
                     {connector?.connect != null && (
@@ -586,53 +643,52 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
 
             <ul className="ir-flex ir-flex-col ir-gap-2">
                 {sources.map((source) => {
-                    const detail = results[source.id] ?? source.last_error ?? source.status;
                     // Anything that can list its accounts, not just the OAuth ones: a plain
                     // API key reaches an account list too, and picking from a dropdown beats
                     // hunting for a numeric id in the provider's UI.
                     const canDiscover = connectors.find((item) => item.key === source.type)?.lists_resources === true;
 
+                    const meta = SOURCE_META[source.type];
+                    const Icon = meta?.icon ?? Sparkles;
+                    const tone = source.status === 'ok' ? 'success' : source.status === 'error' || source.status === 'failed' ? 'danger' : source.status === 'pending' || source.status === 'partial' ? 'warning' : 'neutral';
+                    const fallback = source.status === 'ok' ? `Funcionando${syncedAgo(source.last_synced_at)}` : source.status === 'pending' ? 'Pendiente: pulsa «Probar» para comprobarla' : source.status;
+                    const message = results[source.id] ?? source.last_error ?? fallback;
+
                     return (
-                        <li key={source.id} className="ir-rounded-lg ir-border ir-bg-card ir-px-3 ir-py-2.5 ir-transition-colors hover:ir-border-foreground/15">
-                            <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
-                                <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-2.5">
-                                    <span className={'ir-size-2 ir-shrink-0 ir-rounded-full ' + statusDot(source.status)} title={source.status} />
+                        <li
+                            key={source.id}
+                            className={'ir-rounded-xl ir-border ir-bg-card ir-px-3.5 ir-py-3 ir-transition-colors hover:ir-border-foreground/15 ' + (tone === 'danger' ? 'ir-border-danger/30 ir-bg-danger/[0.02]' : '')}
+                        >
+                            <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
+                                <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-3">
+                                    <span className="ir-relative ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-muted ir-text-foreground/80">
+                                        <Icon className="ir-size-4" />
+                                        <StatusDot tone={tone} className="ir-absolute -ir-bottom-0.5 -ir-right-0.5 ir-ring-2 ir-ring-card ir-rounded-full" />
+                                    </span>
                                     <div className="ir-min-w-0">
                                         <p className="ir-truncate ir-text-sm ir-font-medium">{labelFor(source.type)}</p>
                                         {/* Wraps rather than truncates: this line carries the reason a
                                             connection failed, which is useless cut off at one line. */}
-                                        <p className="ir-text-xs ir-text-muted-foreground">{detail}</p>
+                                        <p className={'ir-text-xs ' + (tone === 'danger' ? 'ir-text-danger' : 'ir-text-muted-foreground')}>{message}</p>
                                         <AgentVersion source={source} />
                                     </div>
                                 </div>
                                 <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
-                                    {source.type === 'ga4' && (
-                                        <Button variant="ghost" size="sm" onClick={() => setBuilderFor(source)} title="Crear métricas personalizadas de GA4">
-                                            Métricas
-                                        </Button>
-                                    )}
-                                    {canDiscover && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => runDiscover(source.id)}
-                                            disabled={discover.isPending}
-                                            title="Vuelve a preguntar al proveedor qué cuentas ve esta conexión"
-                                        >
-                                            Detectar cuentas
-                                        </Button>
-                                    )}
                                     {source.is_push !== true && (
-                                        <Button variant="ghost" size="sm" onClick={() => runTest(source.id)} disabled={test.isPending}>
-                                            Probar
+                                        <Button variant="ghost" size="sm" onClick={() => runTest(source.id)} disabled={test.isPending} title="Comprueba que la conexión funciona">
+                                            <RefreshCw className={'ir-size-3.5 ' + (test.isPending && test.variables === source.id ? 'ir-animate-spin' : '')} />
+                                            <span className="ir-hidden sm:ir-inline">Probar</span>
                                         </Button>
                                     )}
-                                    <Button variant="ghost" size="sm" onClick={() => setEditing((current) => (current === source.id ? null : source.id))}>
-                                        {editing === source.id ? 'Cerrar' : 'Editar'}
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => confirmRemove(source)} disabled={remove.isPending}>
-                                        Eliminar
-                                    </Button>
+                                    <ActionMenu
+                                        label={`Acciones de ${labelFor(source.type)}`}
+                                        items={[
+                                            canDiscover && { label: 'Detectar cuentas', icon: Search, hint: 'Vuelve a listar las cuentas que ve', onSelect: () => runDiscover(source.id), disabled: discover.isPending },
+                                            source.type === 'ga4' && { label: 'Métricas personalizadas', icon: FlaskConical, onSelect: () => setBuilderFor(source) },
+                                            { label: editing === source.id ? 'Cerrar edición' : 'Editar configuración', icon: Pencil, onSelect: () => setEditing((current) => (current === source.id ? null : source.id)) },
+                                            { label: 'Eliminar fuente', icon: Trash2, danger: true, onSelect: () => confirmRemove(source), disabled: remove.isPending },
+                                        ]}
+                                    />
                                 </div>
                             </div>
                             <ConfiguredAccount source={source} connector={connectors.find((item) => item.key === source.type)} />
@@ -650,8 +706,8 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     );
                 })}
                 {sources.length === 0 && !adding && (
-                    <li className="ir-rounded-lg ir-border ir-border-dashed ir-p-6 ir-text-center ir-text-sm ir-text-muted-foreground">
-                        Aún no hay fuentes. Pulsa «+ Añadir fuente» para conectar GA4, MainWP, el Agente del sitio, WooCommerce…
+                    <li className="ir-rounded-xl ir-border ir-border-dashed ir-p-8 ir-text-center ir-text-sm ir-text-muted-foreground">
+                        Este sitio aún no tiene fuentes. Pulsa «Añadir fuente» y conecta Google Analytics, Search Console, MainWP… Sin fuentes, el reporte sale vacío.
                     </li>
                 )}
             </ul>

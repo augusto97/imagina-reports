@@ -91,12 +91,6 @@ export function AlertsScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-5">
-            <div>
-                <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Alertas</h1>
-                <p className="ir-mt-1 ir-max-w-2xl ir-text-sm ir-text-muted-foreground">
-                    Anomalías detectadas automáticamente al generar los reportes: caídas de tráfico y picos de ataques. Actúa antes de que el cliente lo note.
-                </p>
-            </div>
 
             {isLoading ? (
                 <p className="ir-text-sm ir-text-muted-foreground">Cargando…</p>

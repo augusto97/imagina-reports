@@ -13,7 +13,7 @@ import {
 
 import { useTrends } from '../api';
 import { DataTable } from '../components/DataTable';
-import { Card } from '../components/ui';
+import { Card, StatCard } from '../components/ui';
 import type { SiteTrend } from '../types';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#14b8a6', '#f97316'];
@@ -95,29 +95,21 @@ export function TrendsScreen(): ReactElement {
 
     return (
         <div className="ir-flex ir-flex-col ir-gap-6">
-            <div className="ir-grid ir-grid-cols-1 ir-gap-4 sm:ir-grid-cols-3">
-                <Card title="Sitios">
-                    <p className="ir-text-3xl ir-font-semibold">{trends.summary.sites_count}</p>
-                </Card>
-                <Card title="Salud promedio">
-                    <p className={`ir-text-3xl ir-font-semibold ${healthClass(trends.summary.average_health_score)}`}>
-                        {trends.summary.average_health_score ?? '—'}
-                    </p>
-                </Card>
-                <Card title="Reportes">
-                    <p className="ir-text-3xl ir-font-semibold">{trends.summary.reports_count}</p>
-                </Card>
+            <div className="ir-grid ir-grid-cols-1 ir-gap-3 sm:ir-grid-cols-3">
+                <StatCard label="Sitios" value={trends.summary.sites_count} />
+                <StatCard label="Salud promedio" value={<span className={healthClass(trends.summary.average_health_score)}>{trends.summary.average_health_score ?? '—'}</span>} />
+                <StatCard label="Reportes generados" value={trends.summary.reports_count} />
             </div>
 
             <Card title="Evolución de la salud por sitio">
                 <div className="ir-h-72">
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" className="ir-stroke-muted" />
-                            <XAxis dataKey="period_end" fontSize={12} tickFormatter={(value: string) => value.slice(0, 7)} />
-                            <YAxis domain={[0, 100]} fontSize={12} width={32} />
-                            <Tooltip />
-                            <Legend />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--ir-border))" />
+                            <XAxis dataKey="period_end" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: string) => value.slice(0, 7)} />
+                            <YAxis domain={[0, 100]} fontSize={12} width={32} tickLine={false} axisLine={false} />
+                            <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid hsl(var(--ir-border))', fontSize: 12 }} />
+                            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
                             {trends.sites.map((site, index) => (
                                 <Line
                                     key={site.site_id}

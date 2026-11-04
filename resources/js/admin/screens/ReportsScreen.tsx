@@ -1,7 +1,9 @@
-import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
+import { type FormEvent, type ReactElement, type ReactNode, useEffect, useState } from 'react';
 
 import {
     CalendarClock,
+    ChevronDown,
+    Eye,
     FileBarChart,
     FileDown,
     Lightbulb,
@@ -10,6 +12,7 @@ import {
     MessageSquare,
     Plus,
     Repeat,
+    Search,
     RotateCw,
     Send,
     Settings2,
@@ -53,7 +56,7 @@ import { apiErrorMessage } from '@shared/lib/api';
 import { RANGE_PRESETS } from '@shared/lib/dateRanges';
 import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
-import { Badge, Button, Card, Field, Input, Modal, Select } from '../components/ui';
+import { ActionMenu, Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Segmented, Select } from '../components/ui';
 import type { ReportDefinitionDto, ReportSummary, ScheduleCadence, ScheduleDto } from '../types';
 
 const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 ir-py-2 ir-text-sm';
@@ -61,9 +64,9 @@ const inputClass = 'ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-3 i
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 /** Human, Spanish status labels + badge tones (the API stores the English enum value). */
-const STATUS: Record<string, { label: string; tone: 'neutral' | 'info' | 'success' }> = {
-    draft: { label: 'Borrador', tone: 'neutral' },
-    approved: { label: 'Aprobado', tone: 'info' },
+const STATUS: Record<string, { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' }> = {
+    draft: { label: 'Por revisar', tone: 'warning' },
+    approved: { label: 'Listo para enviar', tone: 'info' },
     sent: { label: 'Enviado', tone: 'success' },
 };
 
@@ -692,7 +695,9 @@ function ReportConfigCard({
     const createSchedule = useCreateSchedule();
     const deleteSchedule = useDeleteSchedule();
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
     const [recipients, setRecipients] = useState((definition.recipients ?? []).join(', '));
+    const noRecipients = (definition.recipients ?? []).length === 0;
 
     const saveRecipients = (): void => {
         const next = parseRecipients(recipients);
@@ -715,14 +720,13 @@ function ReportConfigCard({
     const changeSendDay = (day: number): void => {
         createSchedule.mutate({ report_definition_id: definition.id, cadence: 'monthly', send_day: day });
     };
-    const noRecipients = (definition.recipients ?? []).length === 0;
-
     return (
-        <section className="ir-rounded-lg ir-border ir-bg-card ir-shadow-ir-sm">
-            {/* Header: what this report is + primary actions. */}
-            <header className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-px-5 ir-py-4">
+        <section className="ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-shadow-ir-xs">
+            {/* Header: what this report is, its one main action, and the rest in a menu. */}
+            <header className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-px-5 ir-pb-3 ir-pt-4">
                 <div className="ir-min-w-0">
-                    <h3 className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-sm ir-font-semibold ir-tracking-tight">
+                    <p className="ir-truncate ir-text-xs ir-font-medium ir-text-muted-foreground">{siteName}</p>
+                    <h3 className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-[15px] ir-font-semibold ir-tracking-tight">
                         {definition.name}
                         <VisibilityTag definition={definition} />
                         {schedule !== null && (
@@ -733,40 +737,38 @@ function ReportConfigCard({
                         )}
                     </h3>
                     <p className="ir-mt-0.5 ir-truncate ir-text-xs ir-text-muted-foreground">
-                        {siteName} · Plantilla: {templateName}
+                        Plantilla: {templateName} · {noRecipients ? <span className="ir-text-warning">sin destinatarios</span> : `${(definition.recipients ?? []).length} destinatario(s)`}
                     </p>
                 </div>
-                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-2">
-                    <Button variant="accent" size="sm" onClick={() => onGenerate(definition)}>
+                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => onGenerate(definition)} title="Generar un periodo nuevo">
                         <Plus className="ir-size-3.5" />
-                        Generar
+                        <span className="ir-hidden sm:ir-inline">Generar</span>
                     </Button>
-                    <Button variant="outline" size="sm" title="Compartir / privacidad" onClick={() => onShare(definition)}>
-                        <Share2 className="ir-size-3.5" />
-                        <span className="ir-ml-1 ir-hidden sm:ir-inline">Compartir</span>
-                    </Button>
-                    <Button variant="ghost" size="sm" title="Ajustes del reporte" onClick={() => setSettingsOpen((open) => !open)}>
-                        <Settings2 className="ir-size-3.5" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Eliminar este reporte y todo su historial"
-                        onClick={() => {
-                            if (window.confirm(`¿Eliminar «${definition.name}» y todos sus reportes generados? No se puede deshacer.`)) {
-                                deleteDefinition.mutate(definition.id);
-                            }
-                        }}
-                        disabled={deleteDefinition.isPending}
-                    >
-                        <Trash2 className="ir-size-3.5 ir-text-danger" />
-                    </Button>
+                    <ActionMenu
+                        label={`Opciones de ${definition.name}`}
+                        items={[
+                            { label: settingsOpen ? 'Ocultar ajustes' : 'Plantilla, destinatarios y envío automático', icon: Settings2, onSelect: () => setSettingsOpen((open) => !open) },
+                            { label: 'Compartir y privacidad', icon: Share2, onSelect: () => onShare(definition) },
+                            {
+                                label: 'Eliminar reporte e historial',
+                                icon: Trash2,
+                                danger: true,
+                                disabled: deleteDefinition.isPending,
+                                onSelect: () => {
+                                    if (window.confirm(`¿Eliminar «${definition.name}» y todos sus reportes generados? No se puede deshacer.`)) {
+                                        deleteDefinition.mutate(definition.id);
+                                    }
+                                },
+                            },
+                        ]}
+                    />
                 </div>
             </header>
 
             {/* Collapsible settings: template + recipients. Hidden by default to keep it clean. */}
             {settingsOpen && (
-                <div className="ir-grid ir-gap-3 ir-border-b ir-bg-muted/30 ir-px-5 ir-py-4 sm:ir-grid-cols-2">
+                <div className="ir-grid ir-gap-3 ir-border-y ir-bg-muted/30 ir-px-5 ir-py-4 sm:ir-grid-cols-2">
                     <Field label="Plantilla">
                         <Select
                             value={definition.template_id ?? ''}
@@ -819,10 +821,10 @@ function ReportConfigCard({
                 </div>
             )}
 
-            {/* Generation history. */}
-            <div className="ir-px-5 ir-py-4">
+            {/* Generation history: the latest period up front, older ones folded away. */}
+            <div className="ir-border-t ir-px-5 ir-py-2">
                 {reports.length === 0 ? (
-                    <div className="ir-flex ir-flex-col ir-items-center ir-gap-2 ir-rounded-md ir-border ir-border-dashed ir-py-8 ir-text-center">
+                    <div className="ir-flex ir-flex-col ir-items-center ir-gap-2 ir-py-6 ir-text-center">
                         <CalendarClock className="ir-size-5 ir-text-muted-foreground" />
                         <p className="ir-text-sm ir-text-muted-foreground">Aún no has generado este reporte.</p>
                         <Button variant="accent" size="sm" onClick={() => onGenerate(definition)}>
@@ -832,84 +834,94 @@ function ReportConfigCard({
                     </div>
                 ) : (
                     <div className="ir-flex ir-flex-col ir-divide-y">
-                        {reports.map((report) => {
+                        {(historyOpen ? reports : reports.slice(0, 1)).map((report, index) => {
                             const status = STATUS[report.status] ?? { label: report.status, tone: 'neutral' as const };
                             const hidden = report.hidden_metrics ?? [];
+                            const busyPdf = downloadPdf.isPending && downloadPdf.variables === report.id;
+                            const view = (): void => void window.open(`/reports/${report.public_token}`, '_blank', 'noopener');
+                            let primary: ReactNode = null;
+                            if (report.status === 'draft') {
+                                primary = (
+                                    <Button variant="accent" size="sm" title="Aprobar para poder enviarlo" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
+                                        Aprobar
+                                    </Button>
+                                );
+                            } else if (report.status === 'approved') {
+                                primary = (
+                                    <Button variant="accent" size="sm" title="Enviar por email a los destinatarios" onClick={() => send.mutate(report.id)} disabled={send.isPending || noRecipients}>
+                                        <Send className="ir-size-3.5" />
+                                        Enviar
+                                    </Button>
+                                );
+                            }
 
                             return (
                                 <div key={report.id} className="ir-flex ir-flex-wrap ir-items-center ir-gap-x-4 ir-gap-y-2 ir-py-3">
-                                    {/* Period + meta */}
                                     <div className="ir-min-w-[10rem] ir-flex-1">
-                                        <p className="ir-flex ir-items-center ir-gap-2 ir-text-sm ir-font-medium">
+                                        <p className="ir-flex ir-flex-wrap ir-items-center ir-gap-2 ir-text-sm ir-font-medium">
                                             {friendlyPeriod(report.period_start, report.period_end)}
                                             <Badge tone={status.tone}>{status.label}</Badge>
                                         </p>
                                         <p className="ir-mt-0.5 ir-flex ir-flex-wrap ir-items-center ir-gap-x-2 ir-text-xs ir-text-muted-foreground">
                                             <span>Generado {formatGeneratedAt(report.created_at)}</span>
-                                            {report.health_score !== null && <span>· Salud {report.health_score}</span>}
+                                            {report.health_score !== null && <span>· Salud {report.health_score}/100</span>}
                                             {hidden.length > 0 && (
-                                                <span className="ir-text-amber-600" title={`Sin datos este periodo (no es un error): ${hidden.map(humanizeMetric).join(', ')}. El bloque se ocultó porque su métrica llegó vacía. Sincroniza el periodo y regenera; si es del Agente, revisa que el plugin del sitio esté actualizado.`}>
-                                                    · ⚠ {hidden.length} sin datos
+                                                <span className="ir-text-warning" title={`Sin datos este periodo (no es un error): ${hidden.map(humanizeMetric).join(', ')}. El bloque se ocultó porque su métrica llegó vacía. Sincroniza el periodo y regenera; si es del Agente, revisa que el plugin del sitio esté actualizado.`}>
+                                                    · {hidden.length} bloques sin datos
                                                 </span>
                                             )}
                                         </p>
-                                        {hidden.length > 0 && (
-                                            <div className="ir-mt-1">
+                                        {hidden.length > 0 && index === 0 && (
+                                            <div className="ir-mt-1.5">
                                                 <PeriodSyncMenu siteId={definition.site_id} periodStart={report.period_start.slice(0, 10)} periodEnd={report.period_end.slice(0, 10)} />
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Actions */}
-                                    <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-1.5">
-                                        <Button variant="outline" size="sm" title="Abrir el portal interactivo del cliente" onClick={() => window.open(`/reports/${report.public_token}`, '_blank', 'noopener')}>
+                                    <div className="ir-flex ir-items-center ir-gap-1">
+                                        <Button variant="ghost" size="sm" title="Abrir el reporte como lo ve el cliente" onClick={view}>
+                                            <Eye className="ir-size-3.5" />
                                             Ver
                                         </Button>
-                                        <Button variant="outline" size="sm" title="Descargar el PDF" onClick={() => downloadPdf.mutate(report.id)} disabled={downloadPdf.isPending && downloadPdf.variables === report.id}>
-                                            <FileDown className="ir-size-3.5" />
-                                            {downloadPdf.isPending && downloadPdf.variables === report.id ? '…' : 'PDF'}
-                                        </Button>
-                                        <Button variant="ghost" size="sm" title="Resumen, diagnóstico, comentarios e insights" onClick={() => onTools(report, 'summary')}>
-                                            <Sparkles className="ir-size-3.5" />
-                                            Herramientas
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            title="Volver a generar este periodo (tras sincronizar o editar la plantilla)"
-                                            onClick={() => generate.mutate({ report_definition_id: report.report_definition_id, period_start: report.period_start.slice(0, 10), period_end: report.period_end.slice(0, 10) })}
-                                            disabled={generate.isPending}
-                                        >
-                                            <RotateCw className="ir-size-3.5" />
-                                        </Button>
-                                        {report.status === 'draft' ? (
-                                            <Button variant="accent" size="sm" title="Aprobar para poder enviarlo" onClick={() => approve.mutate(report.id)} disabled={approve.isPending}>
-                                                Aprobar
-                                            </Button>
-                                        ) : (
-                                            <Button variant="accent" size="sm" title="Enviar por email a los destinatarios" onClick={() => send.mutate(report.id)} disabled={send.isPending}>
-                                                <Send className="ir-size-3.5" />
-                                                {report.status === 'sent' ? 'Reenviar' : 'Enviar'}
-                                            </Button>
-                                        )}
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            title="Eliminar este reporte generado"
-                                            onClick={() => {
-                                                if (window.confirm('¿Eliminar este reporte? No se puede deshacer.')) {
-                                                    deleteReport.mutate(report.id);
-                                                }
-                                            }}
-                                            disabled={deleteReport.isPending}
-                                        >
-                                            <Trash2 className="ir-size-3.5 ir-text-danger" />
-                                        </Button>
+                                        {primary}
+                                        <ActionMenu
+                                            label="Más acciones del reporte"
+                                            items={[
+                                                { label: 'Resumen, diagnóstico y comentarios', icon: Sparkles, onSelect: () => onTools(report, 'summary') },
+                                                { label: busyPdf ? 'Preparando PDF…' : 'Descargar PDF', icon: FileDown, onSelect: () => downloadPdf.mutate(report.id), disabled: busyPdf },
+                                                report.status === 'sent' && { label: 'Reenviar por email', icon: Send, onSelect: () => send.mutate(report.id), disabled: send.isPending },
+                                                { label: 'Historial de envíos', icon: Mail, onSelect: () => onTools(report, 'deliveries') },
+                                                {
+                                                    label: 'Volver a generar',
+                                                    icon: RotateCw,
+                                                    hint: 'Tras sincronizar o cambiar la plantilla',
+                                                    disabled: generate.isPending,
+                                                    onSelect: () => generate.mutate({ report_definition_id: report.report_definition_id, period_start: report.period_start.slice(0, 10), period_end: report.period_end.slice(0, 10) }),
+                                                },
+                                                {
+                                                    label: 'Eliminar este periodo',
+                                                    icon: Trash2,
+                                                    danger: true,
+                                                    disabled: deleteReport.isPending,
+                                                    onSelect: () => {
+                                                        if (window.confirm('¿Eliminar este reporte? No se puede deshacer.')) {
+                                                            deleteReport.mutate(report.id);
+                                                        }
+                                                    },
+                                                },
+                                            ]}
+                                        />
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
+                )}
+                {reports.length > 1 && (
+                    <button type="button" onClick={() => setHistoryOpen((open) => !open)} className="ir-flex ir-w-full ir-items-center ir-justify-center ir-gap-1 ir-border-t ir-py-2.5 ir-text-xs ir-font-medium ir-text-muted-foreground hover:ir-text-foreground">
+                        <ChevronDown className={'ir-size-3.5 ir-transition-transform ' + (historyOpen ? 'ir-rotate-180' : '')} />
+                        {historyOpen ? 'Ocultar periodos anteriores' : `Ver periodos anteriores (${reports.length - 1})`}
+                    </button>
                 )}
                 {/* Surface a failed lifecycle action (approve/send/regenerate) instead of a
                     dead click — especially "Enviar", where silence means nobody notices. */}
@@ -939,6 +951,8 @@ export function ReportsScreen(): ReactElement {
     const { data: schedules = [] } = useSchedules();
 
     const [createOpen, setCreateOpen] = useState(false);
+    const [filter, setFilter] = useState<'all' | 'draft' | 'approved' | 'sent' | 'none'>('all');
+    const [query, setQuery] = useState('');
     const [generateFor, setGenerateFor] = useState<ReportDefinitionDto | null>(null);
     const [sharingDefinition, setSharingDefinition] = useState<ReportDefinitionDto | null>(null);
     const [tools, setTools] = useState<{ report: ReportSummary; tab: ToolTab } | null>(null);
@@ -953,85 +967,118 @@ export function ReportsScreen(): ReactElement {
     const reportsFor = (definitionId: number): ReportSummary[] =>
         reports
             .filter((report) => report.report_definition_id === definitionId)
-            .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+            .sort((a, b) => b.period_start.localeCompare(a.period_start) || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
 
     // Keep the tools modal's report in sync with fresh data (e.g. after regenerate).
     const toolsReport = tools !== null ? (reports.find((report) => report.id === tools.report.id) ?? tools.report) : null;
 
+    // Filter by where each report is in its cycle (its latest period's status) + search.
+    const latestStatus = (definitionId: number): string | null => reportsFor(definitionId)[0]?.status ?? null;
+    const counts = {
+        all: definitions.length,
+        draft: definitions.filter((definition) => latestStatus(definition.id) === 'draft').length,
+        approved: definitions.filter((definition) => latestStatus(definition.id) === 'approved').length,
+        sent: definitions.filter((definition) => latestStatus(definition.id) === 'sent').length,
+        none: definitions.filter((definition) => latestStatus(definition.id) === null).length,
+    };
+    const q = query.trim().toLowerCase();
+    const visible = definitions.filter((definition) => {
+        if (filter !== 'all' && (latestStatus(definition.id) ?? 'none') !== filter) {
+            return false;
+        }
+
+        return q === '' || definition.name.toLowerCase().includes(q) || siteName(definition.site_id).toLowerCase().includes(q);
+    });
+
     return (
-        <div className="ir-flex ir-flex-col ir-gap-5">
-            {/* Header + primary CTA. */}
-            <div className="ir-flex ir-flex-wrap ir-items-start ir-justify-between ir-gap-3">
-                <div>
-                    <h1 className="ir-text-lg ir-font-semibold ir-tracking-tight">Reportes</h1>
-                    <p className="ir-mt-1 ir-max-w-2xl ir-text-sm ir-text-muted-foreground">
-                        Configura un reporte por cliente una vez y genéralo cada periodo. Cada generación crea un PDF y un portal interactivo para el cliente.
-                    </p>
-                </div>
-                <Button onClick={() => setCreateOpen(true)}>
-                    <Plus className="ir-size-4" />
-                    Nuevo reporte
-                </Button>
-            </div>
+        <div className="ir-flex ir-flex-col">
+            <PageHeader
+                title="Reportes"
+                description="Cada cliente tiene su reporte configurado una vez; cada mes lo generas, lo revisas y lo envías. Aquí ves en qué punto está cada uno."
+                actions={
+                    <Button onClick={() => setCreateOpen(true)}>
+                        <Plus className="ir-size-4" />
+                        Nuevo reporte
+                    </Button>
+                }
+            />
 
-            {/* 3-step hint — makes the flow obvious at a glance. */}
-            <div className="ir-grid ir-gap-3 sm:ir-grid-cols-3">
-                {[
-                    { n: 1, title: 'Configura', text: 'Crea un reporte para el cliente: nombre, plantilla y destinatarios.' },
-                    { n: 2, title: 'Genera', text: 'Elige el periodo y genera. Se crea el PDF y el portal del cliente.' },
-                    { n: 3, title: 'Revisa y envía', text: 'Ajusta el resumen IA, apruébalo y envíalo. O automatízalo para que salga solo cada mes.' },
-                ].map((step) => (
-                    <div key={step.n} className="ir-flex ir-items-start ir-gap-3 ir-rounded-lg ir-border ir-bg-card ir-p-3">
-                        <span className="ir-flex ir-size-6 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-bg-accent/10 ir-text-xs ir-font-semibold ir-text-accent">{step.n}</span>
-                        <div>
-                            <p className="ir-text-sm ir-font-medium">{step.title}</p>
-                            <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{step.text}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Configured reports + their history. Distinguish loading and error from the
-                genuine empty state (FE-4) so a failed load doesn't read as "no reports". */}
+            {/* Distinguish loading and error from the genuine empty state (FE-4) so a failed
+                load doesn't read as "no reports". */}
             {definitionsError ? (
-                <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-lg ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">
+                <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-xl ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">
                     <p className="ir-text-sm ir-text-danger">No se pudieron cargar los reportes.</p>
                     <Button variant="outline" onClick={() => void refetchDefinitions()}>Reintentar</Button>
                 </div>
             ) : definitionsLoading ? (
                 <p className="ir-text-sm ir-text-muted-foreground">Cargando reportes…</p>
             ) : definitions.length === 0 ? (
-                <div className="ir-flex ir-flex-col ir-items-center ir-gap-3 ir-rounded-lg ir-border ir-border-dashed ir-bg-card ir-py-16 ir-text-center">
-                    <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
-                        <FileBarChart className="ir-size-6" />
-                    </span>
-                    <div>
-                        <p className="ir-text-sm ir-font-medium">Aún no tienes reportes configurados</p>
-                        <p className="ir-mt-1 ir-max-w-sm ir-text-xs ir-text-muted-foreground">
-                            Crea el primero para un cliente. Después podrás generarlo cada mes en segundos.
-                        </p>
+                <div className="ir-flex ir-flex-col ir-gap-4">
+                    <EmptyState
+                        icon={FileBarChart}
+                        title="Aún no tienes reportes configurados"
+                        description="Crea el primero para un cliente. Después lo generas cada mes en segundos (o lo dejas automático)."
+                        action={
+                            <Button onClick={() => setCreateOpen(true)}>
+                                <Plus className="ir-size-4" />
+                                Nuevo reporte
+                            </Button>
+                        }
+                    />
+                    <div className="ir-grid ir-gap-3 sm:ir-grid-cols-3">
+                        {[
+                            { n: 1, title: 'Configura', text: 'Elige el sitio, la plantilla y quién lo recibe.' },
+                            { n: 2, title: 'Genera', text: 'Elige el periodo. Se crea el PDF y el panel interactivo del cliente.' },
+                            { n: 3, title: 'Revisa y envía', text: 'Ajusta el resumen IA, apruébalo y envíalo. O automatízalo.' },
+                        ].map((step) => (
+                            <div key={step.n} className="ir-flex ir-items-start ir-gap-3 ir-rounded-xl ir-border ir-bg-card ir-p-4">
+                                <span className="ir-flex ir-size-6 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-bg-accent/10 ir-text-xs ir-font-semibold ir-text-accent">{step.n}</span>
+                                <div>
+                                    <p className="ir-text-sm ir-font-medium">{step.title}</p>
+                                    <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">{step.text}</p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <Button onClick={() => setCreateOpen(true)}>
-                        <Plus className="ir-size-4" />
-                        Nuevo reporte
-                    </Button>
                 </div>
             ) : (
                 <div className="ir-flex ir-flex-col ir-gap-4">
-                    {definitions.map((definition) => (
-                        <ReportConfigCard
-                            key={definition.id}
-                            definition={definition}
-                            reports={reportsFor(definition.id)}
-                            schedule={schedules.find((entry) => entry.report_definition_id === definition.id) ?? null}
-                            siteName={siteName(definition.site_id)}
-                            templateName={templateName(definition.template_id)}
-                            templates={templates}
-                            onGenerate={setGenerateFor}
-                            onShare={setSharingDefinition}
-                            onTools={(report, tab) => setTools({ report, tab })}
+                    <div className="ir-flex ir-flex-col ir-gap-3 sm:ir-flex-row sm:ir-items-center sm:ir-justify-between">
+                        <Segmented
+                            value={filter}
+                            onChange={setFilter}
+                            items={[
+                                { value: 'all', label: 'Todos', count: counts.all },
+                                { value: 'draft', label: 'Por revisar', count: counts.draft },
+                                { value: 'approved', label: 'Listos para enviar', count: counts.approved },
+                                { value: 'sent', label: 'Enviados', count: counts.sent },
+                                ...(counts.none > 0 ? [{ value: 'none' as const, label: 'Sin generar', count: counts.none }] : []),
+                            ]}
                         />
-                    ))}
+                        <div className="ir-relative sm:ir-w-64">
+                            <Search className="ir-pointer-events-none ir-absolute ir-left-2.5 ir-top-1/2 ir-size-4 -ir-translate-y-1/2 ir-text-muted-foreground" />
+                            <Input className="ir-pl-8" placeholder="Buscar cliente o reporte…" value={query} onChange={(event) => setQuery(event.target.value)} />
+                        </div>
+                    </div>
+
+                    {visible.length === 0 ? (
+                        <EmptyState icon={Search} title="Nada por aquí" description="Ningún reporte coincide con este filtro o búsqueda." />
+                    ) : (
+                        visible.map((definition) => (
+                            <ReportConfigCard
+                                key={definition.id}
+                                definition={definition}
+                                reports={reportsFor(definition.id)}
+                                schedule={schedules.find((entry) => entry.report_definition_id === definition.id) ?? null}
+                                siteName={siteName(definition.site_id)}
+                                templateName={templateName(definition.template_id)}
+                                templates={templates}
+                                onGenerate={setGenerateFor}
+                                onShare={setSharingDefinition}
+                                onTools={(report, tab) => setTools({ report, tab })}
+                            />
+                        ))
+                    )}
                 </div>
             )}
 

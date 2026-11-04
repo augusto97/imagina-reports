@@ -2,10 +2,10 @@ import { Download, Puzzle } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import { downloadSiteAgentPlugin, useSiteAgentVersion } from '../api';
-import { Button, Card } from '../components/ui';
+import { Button, Card, PageHeader } from '../components/ui';
 
 /** Always-at-hand download of the companion WordPress agent plugin + its bundled version. */
-function SiteAgentPluginCard(): ReactElement {
+export function SiteAgentPluginCard(): ReactElement {
     const { data: version } = useSiteAgentVersion();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(false);
@@ -46,7 +46,8 @@ function SiteAgentPluginCard(): ReactElement {
 
 export function SystemScreen(): ReactElement {
     return (
-        <div className="ir-flex ir-flex-col ir-gap-6">
+        <div className="ir-flex ir-flex-col">
+            <PageHeader title="Sistema" description="Recursos para instalar en los sitios de tus clientes." />
             <SiteAgentPluginCard />
         </div>
     );
