@@ -462,7 +462,7 @@ export function Inspector({
                                     {block.binding != null ? (
                                         <>
                                             <span className="ir-block ir-truncate ir-text-sm ir-font-medium">
-                                                {boundEntry?.label ?? block.binding.metric}
+                                                {boundEntry?.label ?? (str(block.props?.label) || str(block.props?.title) || block.binding.metric.replace(/_/g, ' '))}
                                             </span>
                                             <span className="ir-block ir-truncate ir-text-[11px] ir-text-muted-foreground">
                                                 {sourceLabel(block.binding.source)}

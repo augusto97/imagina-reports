@@ -24,6 +24,7 @@ import { cn } from '@shared/lib/utils';
 import { hexToHslString } from '@shared/lib/color';
 
 import { matchCountry } from './geo';
+import { ensureHeaderRoom, reflowGaps } from './layout';
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from './types';
 import type { Block, BlockComponentProps, BlockLayout, BlockType, ReportNav } from './types';
 import { WorldChoropleth } from './WorldChoropleth';
@@ -72,6 +73,36 @@ function asRecords(data: unknown): Record<string, unknown>[] {
 /* -------------------------------- styling ---------------------------------- */
 
 /** Slice/series palette — starts with the agency accent, then complementary hues. */
+/** Reports are Spanish-first (CLAUDE.md §6): format numbers/dates the Spanish way unless told otherwise. */
+const FALLBACK_LOCALE = 'es';
+
+/**
+ * Text blocks that would render nothing (an executive summary the AI didn't write, an empty
+ * advisory): treated as hidden so the grid reflow closes their hole instead of leaving a gap.
+ */
+function rendersEmpty(block: Block, data: unknown): boolean {
+    if (block.type !== 'narrative' && block.type !== 'advisory') {
+        return false;
+    }
+    const raw = typeof data === 'string' ? data : typeof block.props?.text === 'string' ? block.props.text : '';
+
+    return htmlToText(sanitizeReportHtml(raw)) === '';
+}
+
+/** Friendly table headers for the generic row keys connectors emit. */
+const COLUMN_LABELS: Record<string, string> = { label: 'Nombre', value: 'Valor', date: 'Fecha', name: 'Nombre', count: 'Total', total: 'Total' };
+
+/** "2026-06-10" → "10 jun 2026"; anything else is returned unchanged. */
+function prettyDate(value: string): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (match === null) {
+        return value;
+    }
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+
+    return date.toLocaleDateString(FALLBACK_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '');
+}
+
 const CHART_COLORS = ['hsl(var(--ir-primary))', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899'];
 
 // Printable height of one A4 sheet in CSS px (96dpi): 297mm − 28mm sheet padding ≈ 269mm,
@@ -254,7 +285,8 @@ function useFilteredRows<T>(rows: T[]): T[] {
 
 /** Format a KPI/sales number per the block's `style.format`, in the report's currency/locale. */
 function formatNumber(value: number, format: string, settings: ReportSettings = { currency: 'USD' }): string {
-    const { currency, locale } = settings;
+    const { currency } = settings;
+    const locale = settings.locale ?? FALLBACK_LOCALE;
 
     switch (format) {
         case 'compact':
@@ -313,12 +345,12 @@ function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
     const subtitle = str(record?.subtitle, str(prop(block, 'subtitle')));
 
     return (
-        <header className="ir-flex ir-flex-col ir-gap-1 ir-border-b-2 ir-border-primary/60 ir-pb-4" style={styleCss(block.style)}>
+        <header className="ir-flex ir-h-full ir-flex-col ir-justify-end ir-gap-1 ir-border-b-2 ir-border-primary/60 ir-pb-3" style={styleCss(block.style)}>
             {eyebrow !== '' && (
-                <span className="ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{eyebrow}</span>
+                <span className="ir-truncate ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{eyebrow}</span>
             )}
-            <h1 className="ir-text-3xl ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
-            {subtitle !== '' && <p className="ir-text-sm ir-text-muted-foreground">{subtitle}</p>}
+            <h1 className="ir-truncate ir-text-[28px] ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
+            {subtitle !== '' && <p className="ir-truncate ir-text-sm ir-text-muted-foreground">{subtitle}</p>}
         </header>
     );
 }
@@ -392,7 +424,7 @@ function TrendBadge({ percent }: { percent: number }): ReactElement {
         <span className={cn('ir-inline-flex ir-w-fit ir-items-center ir-gap-0.5 ir-rounded-full ir-px-1.5 ir-py-0.5 ir-text-xs ir-font-semibold ir-tabular-nums', tone)}>
             <Arrow className="ir-size-3" />
             {up ? '+' : ''}
-            {percent.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+            {percent.toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })}%
         </span>
     );
 }
@@ -612,7 +644,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                                     className="ir-inline-flex ir-max-w-full ir-items-center ir-gap-1 ir-truncate hover:ir-text-foreground"
                                     onClick={() => toggleSort(col)}
                                 >
-                                    {col}
+                                    {COLUMN_LABELS[col] ?? col}
                                     {sort?.col === col && <span className="ir-text-[10px]">{sort.dir === 1 ? '▲' : '▼'}</span>}
                                 </button>
                             </th>
@@ -639,7 +671,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                                                     style={{ width: `${max > 0 ? ((Number(row[col]) || 0) / max) * 100 : 0}%` }}
                                                 />
                                             </div>
-                                            <span className="ir-tabular-nums">{Number(row[col]).toLocaleString()}</span>
+                                            <span className="ir-tabular-nums">{Number(row[col]).toLocaleString(FALLBACK_LOCALE)}</span>
                                         </div>
                                     ) : (
                                         String(row[col] ?? '')
@@ -723,7 +755,7 @@ function FunnelBlock({ block, data }: BlockComponentProps): ReactElement | null 
                             <div className="ir-mb-1 ir-flex ir-items-baseline ir-justify-between ir-text-xs">
                                 <span className="ir-font-medium">{stage.label}</span>
                                 <span className="ir-tabular-nums ir-text-muted-foreground">
-                                    {stage.value.toLocaleString()} · {shareOfTop.toFixed(0)}%
+                                    {stage.value.toLocaleString(FALLBACK_LOCALE)} · {shareOfTop.toFixed(0)}%
                                 </span>
                             </div>
                             <div className="ir-flex ir-justify-center">
@@ -787,7 +819,7 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
                             <div className="ir-h-full ir-rounded ir-bg-accent" style={{ width: `${max > 0 ? (row.value / max) * 100 : 0}%` }} />
                         </div>
                         <span className="ir-w-24 ir-shrink-0 ir-text-right ir-tabular-nums">
-                            {row.value.toLocaleString()}
+                            {row.value.toLocaleString(FALLBACK_LOCALE)}
                             <span className="ir-ml-1 ir-text-xs ir-text-muted-foreground">{total > 0 ? `${((row.value / total) * 100).toFixed(0)}%` : ''}</span>
                         </span>
                     </div>
@@ -867,7 +899,7 @@ function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement
                 <div className="ir-mt-4 ir-grid ir-grid-cols-3 ir-gap-3">
                     {tiles.map((stat) => (
                         <div key={stat.key} className="ir-rounded-md ir-bg-muted ir-p-3 ir-text-center">
-                            <p className="ir-text-2xl ir-font-semibold">{Number(stats[stat.key]).toLocaleString()}</p>
+                            <p className="ir-text-2xl ir-font-semibold">{Number(stats[stat.key]).toLocaleString(FALLBACK_LOCALE)}</p>
                             <p className="ir-text-xs ir-text-muted-foreground">{stat.label}</p>
                         </div>
                     ))}
@@ -888,7 +920,7 @@ function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElemen
             <ul className="ir-space-y-2">
                 {entries.map((entry, index) => (
                     <li key={index} className="ir-flex ir-items-baseline ir-gap-3 ir-text-sm">
-                        <span className="ir-w-20 ir-shrink-0 ir-text-muted-foreground">{str(entry.performed_at)}</span>
+                        <span className="ir-w-24 ir-shrink-0 ir-text-muted-foreground">{prettyDate(str(entry.performed_at))}</span>
                         <span className="ir-flex-1">{str(entry.description)}</span>
                         {typeof entry.screenshot_url === 'string' && entry.screenshot_url !== '' && (
                             <img src={entry.screenshot_url} alt="" className="ir-size-9 ir-shrink-0 ir-self-center ir-rounded ir-border ir-object-cover" />
@@ -898,7 +930,7 @@ function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElemen
                         )}
                         {typeof entry.minutes === 'number' && entry.minutes > 0 && (
                             <span className="ir-shrink-0 ir-tabular-nums ir-text-muted-foreground">
-                                {(entry.minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 })} h
+                                {(entry.minutes / 60).toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })} h
                             </span>
                         )}
                     </li>
@@ -906,7 +938,7 @@ function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElemen
             </ul>
             {totalMinutes > 0 && (
                 <p className="ir-mt-3 ir-border-t ir-pt-2 ir-text-right ir-text-sm ir-font-medium">
-                    Total: {(totalMinutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 })} h
+                    Total: {(totalMinutes / 60).toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })} h
                 </p>
             )}
         </Section>
@@ -1171,9 +1203,9 @@ function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
     const textColor = onTrack ? 'ir-text-emerald-600' : budgetMode ? 'ir-text-red-600' : 'ir-text-muted-foreground';
     const caption = budgetMode
         ? remaining >= 0
-            ? `${ratio.toLocaleString(undefined, { maximumFractionDigits: 0 })}% del presupuesto · quedan ${formatNumber(remaining, format, settings)}`
-            : `${ratio.toLocaleString(undefined, { maximumFractionDigits: 0 })}% del presupuesto · te pasaste ${formatNumber(-remaining, format, settings)}`
-        : `${barPct.toLocaleString(undefined, { maximumFractionDigits: 0 })}% de la meta`;
+            ? `${ratio.toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 0 })}% del presupuesto · quedan ${formatNumber(remaining, format, settings)}`
+            : `${ratio.toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 0 })}% del presupuesto · te pasaste ${formatNumber(-remaining, format, settings)}`
+        : `${barPct.toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 0 })}% de la meta`;
 
     return (
         <Section title={str(prop(block, 'label'), budgetMode ? 'Presupuesto' : 'Meta')} style={block.style}>
@@ -1220,7 +1252,7 @@ function CommentsBlock({ block, data }: BlockComponentProps): ReactElement | nul
                     <blockquote key={index} className="ir-border-l-2 ir-border-primary ir-pl-3 ir-text-sm">
                         <p>{str(note.body)}</p>
                         {typeof note.created_at === 'string' && note.created_at !== '' && (
-                            <span className="ir-text-xs ir-text-muted-foreground">{note.created_at}</span>
+                            <span className="ir-text-xs ir-text-muted-foreground">{prettyDate(note.created_at)}</span>
                         )}
                     </blockquote>
                 ))}
@@ -1494,8 +1526,10 @@ export function BlockList({
     // (like a full-bleed cover on the Portada page) can't force every OTHER page back to the
     // legacy flow. And within a grid page, a stray block without coordinates just gets a
     // full-width auto cell instead of collapsing the whole page to flow.
-    const renderPage = (pageBlocks: Block[]): ReactElement => {
-        const pageUsesGrid = pageBlocks.some((block) => block.layout != null);
+    const renderPage = (rawBlocks: Block[]): ReactElement => {
+        const pageUsesGrid = rawBlocks.some((block) => block.layout != null);
+        // Close the holes hidden blocks leave and give headers room for their subtitle.
+        const pageBlocks = pageUsesGrid ? reflowGaps(ensureHeaderRoom(rawBlocks.filter((block) => !rendersEmpty(block, data[block.id])))) : rawBlocks;
 
         return pageUsesGrid ? (
             <div
@@ -1542,7 +1576,7 @@ export function BlockList({
                     // uniformly so it prints on exactly ONE physical page — no awkward splits or
                     // half-blank pages. The inner width is inflated by 1/scale so it still fills
                     // the sheet width after the transform; the outer box reserves the scaled height.
-                    const designHeight = bleed ? 0 : gridDesignHeightPx(pageBlocks);
+                    const designHeight = bleed ? 0 : gridDesignHeightPx(reflowGaps(ensureHeaderRoom(pageBlocks.filter((block) => !rendersEmpty(block, data[block.id])))));
                     const scale = designHeight > PRINT_CONTENT_PX ? PRINT_CONTENT_PX / designHeight : 1;
 
                     return (

@@ -11,7 +11,7 @@ export function defaultSize(type: BlockType): { w: number; h: number } {
             // A full page — covers stand alone on their own page.
             return { w: 12, h: 16 };
         case 'header':
-            return { w: 12, h: 2 };
+            return { w: 12, h: 3 };
         case 'cta':
             return { w: 12, h: 3 };
         case 'narrative':
@@ -204,6 +204,24 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'pagebreak', label: 'Salto de página' },
 ];
 
+/** A plausible sample value for a KPI, from its metric name and number format. */
+function sampleKpi(block: Block): number {
+    const metric = `${block.binding?.metric ?? ''}`.toLowerCase();
+    const format = typeof block.style?.format === 'string' ? block.style.format : '';
+    if (format === 'percent' || /uptime|percent|rate|ctr|ratio/.test(metric)) {
+        return metric.includes('uptime') ? 99.9 : 3.4;
+    }
+    if (metric.includes('position')) {
+        return 12.4;
+    }
+    if (format === 'currency' || /revenue|cost|spend|sales/.test(metric)) {
+        return 4820;
+    }
+    const seed = [...(block.id ?? metric)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+    return 120 + (seed * 37) % 4800;
+}
+
 /** Placeholder data so the live preview shows something for each block type. */
 export function sampleData(block: Block): unknown {
     switch (block.type) {
@@ -222,11 +240,19 @@ export function sampleData(block: Block): unknown {
             return { title: headerTitle, eyebrow: 'Tu Agencia', subtitle: 'Cliente · misitio.com · junio 2026' };
         }
         case 'kpi':
-        case 'sales_summary':
-            // Rich shape so the sample preview shows the professional card with a trend.
+        case 'sales_summary': {
+            // Believable numbers per kind of metric: a 1.234% uptime read as broken.
+            const value = sampleKpi(block);
+
             return block.binding?.compare === 'prev_period'
-                ? { value: 1234, previous: 1100, change_percent: 12.2 }
-                : 1234;
+                ? { value, previous: Math.round(value / 1.12 * 10) / 10, change_percent: 12.2 }
+                : value;
+        }
+        case 'narrative':
+            // The executive summary is written per period; show what it will read like.
+            return typeof block.props?.html === 'string' && block.props.html.trim() !== ''
+                ? undefined
+                : '<p>Este mes tu sitio recibió <strong>7.607 visitas</strong> (+4,8%) y estuvo disponible el 100% del tiempo. Bloqueamos 3.662 ataques y aplicamos 17 actualizaciones de seguridad. Tus clics desde Google crecieron un 5%.</p>';
         case 'goal':
             return 720;
         case 'healthscore':
@@ -234,11 +260,10 @@ export function sampleData(block: Block): unknown {
         case 'security_shield':
             return { threats_blocked: 1840, attacks_blocked: 96, malware_found: 0 };
         case 'chart':
-            return [
-                { date: '01', value: 40 },
-                { date: '02', value: 55 },
-                { date: '03', value: 48 },
-            ];
+            return Array.from({ length: 30 }, (_, day) => ({
+                date: `202606${String(day + 1).padStart(2, '0')}`,
+                value: Math.round(220 + 60 * Math.sin(day / 3) + (day % 7) * 9),
+            }));
         case 'table': {
             // Binding-aware placeholders so structured tables (e.g. the MainWP work log)
             // preview with their real columns, not a generic label/value pair.

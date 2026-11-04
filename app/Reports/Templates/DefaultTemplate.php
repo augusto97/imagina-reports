@@ -26,36 +26,36 @@ final class DefaultTemplate
                 'showPeriod' => true,
                 'eyebrow' => '{{agency}}',
                 'subtitle' => '{{client}} · {{site}} · {{period}}',
-            ], layout: ['x' => 0, 'y' => 0, 'w' => 12, 'h' => 2]),
+            ], layout: ['x' => 0, 'y' => 0, 'w' => 12, 'h' => 3]),
 
-            self::block('health', BlockType::HealthScore, props: ['title' => 'Estado general'], layout: ['x' => 0, 'y' => 2, 'w' => 4, 'h' => 7]),
-            self::block('summary', BlockType::Narrative, props: ['variant' => 'executive_summary', 'title' => 'Resumen del mes'], layout: ['x' => 4, 'y' => 2, 'w' => 8, 'h' => 7]),
+            self::block('health', BlockType::HealthScore, props: ['title' => 'Estado general'], layout: ['x' => 0, 'y' => 3, 'w' => 4, 'h' => 7]),
+            self::block('summary', BlockType::Narrative, props: ['variant' => 'executive_summary', 'title' => 'Resumen del mes'], layout: ['x' => 4, 'y' => 3, 'w' => 8, 'h' => 7]),
 
             // Headline KPIs — the numbers that matter, three-plus per row (§11.5).
-            self::kpi('kpi_uptime', 'betteruptime', 'uptime_percent', 'Disponibilidad', 'percent', ['x' => 0, 'y' => 9, 'w' => 3, 'h' => 4]),
-            self::kpi('kpi_attacks', 'crowdsec', 'attacks_blocked', 'Ataques bloqueados', 'number', ['x' => 3, 'y' => 9, 'w' => 3, 'h' => 4]),
-            self::kpi('kpi_updates', 'mainwp', 'updates_applied', 'Actualizaciones aplicadas', 'number', ['x' => 6, 'y' => 9, 'w' => 3, 'h' => 4]),
-            self::kpi('kpi_visits', 'ga4', 'sessions', 'Visitas', 'number', ['x' => 9, 'y' => 9, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_uptime', 'betteruptime', 'uptime_percent', 'Disponibilidad', 'percent', ['x' => 0, 'y' => 10, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_attacks', 'crowdsec', 'attacks_blocked', 'Ataques bloqueados', 'number', ['x' => 3, 'y' => 10, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_updates', 'mainwp', 'updates_applied', 'Actualizaciones aplicadas', 'number', ['x' => 6, 'y' => 10, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_visits', 'ga4', 'sessions', 'Visitas', 'number', ['x' => 9, 'y' => 10, 'w' => 3, 'h' => 4]),
 
-            self::kpi('kpi_sales', 'woocommerce', 'revenue', 'Ventas', 'currency', ['x' => 0, 'y' => 13, 'w' => 3, 'h' => 4]),
-            self::kpi('kpi_orders', 'woocommerce', 'orders', 'Pedidos', 'number', ['x' => 3, 'y' => 13, 'w' => 3, 'h' => 4]),
-            self::kpi('kpi_clicks', 'gsc', 'clicks', 'Clics en Google', 'number', ['x' => 6, 'y' => 13, 'w' => 3, 'h' => 4]),
-            self::kpi('kpi_position', 'gsc', 'position', 'Posición media', 'number', ['x' => 9, 'y' => 13, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_sales', 'woocommerce', 'revenue', 'Ventas', 'currency', ['x' => 0, 'y' => 14, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_orders', 'woocommerce', 'orders', 'Pedidos', 'number', ['x' => 3, 'y' => 14, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_clicks', 'gsc', 'clicks', 'Clics en Google', 'number', ['x' => 6, 'y' => 14, 'w' => 3, 'h' => 4]),
+            self::kpi('kpi_position', 'gsc', 'position', 'Posición media', 'number', ['x' => 9, 'y' => 14, 'w' => 3, 'h' => 4]),
 
-            self::block('security', BlockType::SecurityShield, props: ['title' => 'Seguridad'], layout: ['x' => 0, 'y' => 17, 'w' => 6, 'h' => 5]),
-            self::chart('traffic_chart', 'ga4', 'sessions_by_date', 'area', 'Visitas por día', ['x' => 6, 'y' => 17, 'w' => 6, 'h' => 5]),
+            self::block('security', BlockType::SecurityShield, props: ['title' => 'Seguridad'], layout: ['x' => 0, 'y' => 18, 'w' => 6, 'h' => 5]),
+            self::chart('traffic_chart', 'ga4', 'sessions_by_date', 'area', 'Visitas por día', ['x' => 6, 'y' => 18, 'w' => 6, 'h' => 5]),
 
-            self::table('top_pages', 'ga4', 'top_pages', 'Páginas más vistas', ['x' => 0, 'y' => 22, 'w' => 6, 'h' => 7], ['bars' => true]),
-            self::table('top_queries', 'gsc', 'top_queries', 'Búsquedas principales', ['x' => 6, 'y' => 22, 'w' => 6, 'h' => 7]),
+            self::table('top_pages', 'ga4', 'top_pages', 'Páginas más vistas', ['x' => 0, 'y' => 23, 'w' => 6, 'h' => 7], ['bars' => true]),
+            self::table('top_queries', 'gsc', 'top_queries', 'Búsquedas principales', ['x' => 6, 'y' => 23, 'w' => 6, 'h' => 7]),
 
             // "What we did this month" — the block that justifies the support plan (§11.5).
-            self::block('worklog', BlockType::WorklogTimeline, props: ['title' => 'Lo que hicimos este mes'], layout: ['x' => 0, 'y' => 29, 'w' => 12, 'h' => 7]),
+            self::block('worklog', BlockType::WorklogTimeline, props: ['title' => 'Lo que hicimos este mes'], layout: ['x' => 0, 'y' => 30, 'w' => 12, 'h' => 7]),
 
             // Sales detail (hidden automatically when there is no WooCommerce source).
-            self::chart('sales_chart', 'woocommerce', 'revenue_by_date', 'area', 'Ingresos por día', ['x' => 0, 'y' => 36, 'w' => 6, 'h' => 7], ['format' => 'currency']),
-            self::table('top_products', 'woocommerce', 'top_products', 'Productos más vendidos', ['x' => 6, 'y' => 36, 'w' => 6, 'h' => 7]),
+            self::chart('sales_chart', 'woocommerce', 'revenue_by_date', 'area', 'Ingresos por día', ['x' => 0, 'y' => 37, 'w' => 6, 'h' => 7], ['format' => 'currency']),
+            self::table('top_products', 'woocommerce', 'top_products', 'Productos más vendidos', ['x' => 6, 'y' => 37, 'w' => 6, 'h' => 7]),
 
-            self::block('footer', BlockType::Narrative, props: ['variant' => 'footer_cta'], layout: ['x' => 0, 'y' => 43, 'w' => 12, 'h' => 3]),
+            self::block('footer', BlockType::Narrative, props: ['variant' => 'footer_cta'], layout: ['x' => 0, 'y' => 44, 'w' => 12, 'h' => 3]),
         ];
     }
 

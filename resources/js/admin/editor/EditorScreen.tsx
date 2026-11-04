@@ -33,6 +33,7 @@ import {
     MoreHorizontal,
     SlidersHorizontal,
     X,
+    Monitor,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -44,6 +45,7 @@ import {
     useState,
 } from "react";
 import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
+import { ensureHeaderRoom } from "@shared/blocks/layout";
 
 /** The artboard's natural width in px (matches the report's intended layout). */
 const ARTBOARD_WIDTH = 1024;
@@ -287,6 +289,7 @@ export function EditorScreen(): ReactElement {
     const [calcModalOpen, setCalcModalOpen] = useState(false);
 
     const [name, setName] = useState("");
+    const [phoneNoticeDismissed, setPhoneNoticeDismissed] = useState(false);
     const [aiPrompt, setAiPrompt] = useState("");
     const [aiSectionPrompt, setAiSectionPrompt] = useState("");
     const [month, setMonth] = useState(currentMonth());
@@ -357,7 +360,8 @@ export function EditorScreen(): ReactElement {
 
     /** Replace the canvas wholesale (load/AI/reset) and clear the undo history. */
     const resetBlocks = (next: Block[]): void => {
-        const prepared = ensureLayouts(next);
+        // Old templates saved a 2-row header that clipped its subtitle; give it room.
+        const prepared = ensureHeaderRoom(ensureLayouts(next));
         setPast([]);
         setFuture([]);
         setBlocks(prepared);
@@ -1662,6 +1666,18 @@ export function EditorScreen(): ReactElement {
                     ref={canvasColumnRef}
                     className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-bg-muted/40"
                 >
+                    {/* Honest about the phone: the canvas is a desktop tool; here you review. */}
+                    {isCompact && !phoneNoticeDismissed && (
+                        <div className="ir-flex ir-items-start ir-gap-2.5 ir-border-b ir-bg-accent/5 ir-px-3 ir-py-2.5 ir-text-xs ir-text-foreground/80 lg:ir-hidden">
+                            <Monitor className="ir-mt-0.5 ir-size-4 ir-shrink-0 ir-text-accent" />
+                            <p className="ir-flex-1">
+                                En el celular puedes revisar la plantilla y cambiar textos o datos de un bloque (tócalo). Para diseñar la distribución, ábrela en un computador.
+                            </p>
+                            <button type="button" onClick={() => setPhoneNoticeDismissed(true)} className="ir-shrink-0 ir-font-medium ir-text-accent">
+                                Entendido
+                            </button>
+                        </div>
+                    )}
                     {/* Page navigator + preview-data status. `flex-wrap` only from `lg`:
                         on a phone this row must stay a single line — the tabs scroll
                         sideways instead of stacking. */}
@@ -1952,6 +1968,7 @@ export function EditorScreen(): ReactElement {
                                 <div className="ir-border ir-bg-card ir-p-6 ir-shadow-sm">
                                     <ReportSettingsProvider
                                         currency={siteCurrency}
+                                        locale="es"
                                         density={
                                             theme.density === "compact"
                                                 ? "compact"
