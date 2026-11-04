@@ -7,6 +7,18 @@
 ---
 
 ## Where I left off (read me first)
+**✨ REPORTE PREMIUM (2026-11-04, v1.31.0):** el owner veía los reportes «cajones simples con texto». Cambios en el renderer compartido
+(editor, portal y PDF a la vez):
+- **Estilos visuales** (`theme.style`: `modern` por defecto · `executive` · `minimal` · `bold`), todo por variables CSS en `app.css`
+  (`.ir-r-card`, `.ir-r-title`, `.ir-r-page`, `[data-report-style]`). Selector con miniaturas en Editor → Informe → Tema. Validado en los
+  4 FormRequests (`theme.style`). El editor ya usa el color de la agencia cuando el informe no tiene acento propio (antes, casi negro).
+- **Bloques:** KPI con icono por tipo de métrica (`metricIcon`) y tendencia invertida donde bajar es bueno (`LOWER_IS_BETTER`: posición,
+  rebote…); gráficos con degradado, ejes limpios, fechas «14 oct», números compactos, tooltip propio; donut con total y leyenda con %;
+  tablas con ranking y valores traducidos (`humanLabel`); gauge con degradado y veredicto («Excelente»…); escudo de seguridad con estado y
+  tiles; trabajo como línea de tiempo; cabecera con barra de acento y logo de la agencia.
+- **Plantilla por defecto:** título «Informe mensual», seguridad/tráfico y tablas más altos para que no se corten (no cambia plantillas ya
+  guardadas).
+
 **🏷️ NOMBRES DE CUENTAS DE GOOGLE ADS (2026-11-04, v1.30.2):** el desplegable mostraba solo ids: los nombres salían de UNA consulta
 `customer_client` contra la primera cuenta accesible, que no ve cuentas independientes (o la rechaza). Ahora `accountNames()` consulta el MCC
 configurado (si hay) y luego cada cuenta restante pregunta su propio `customer.descriptive_name` en paralelo (`Http::pool`, máx. 40). Las

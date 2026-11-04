@@ -111,6 +111,91 @@
     }
 }
 
+/* ---------------------------------------------------------------------------------------
+ * Report visual styles (theme.style). Every block draws its card/title through these
+ * variables, so one choice restyles the whole report — editor, portal and PDF alike.
+ *   modern     soft shadows, rounded, sentence-case titles (default)
+ *   executive  hairline borders, square-ish, small caps titles — sober, corporate
+ *   minimal    no boxes: content on the page, separated by space and hairlines
+ *   bold       accent-tinted cards — energetic, brand-forward
+ * ------------------------------------------------------------------------------------- */
+:root {
+    --ir-r-page: 220 22% 97.5%;
+    --ir-r-card-bg: hsl(var(--ir-card));
+    --ir-r-card-border: 1px solid hsl(var(--ir-border) / 0.7);
+    --ir-r-card-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 6px 20px -8px rgb(16 24 40 / 0.1);
+    --ir-r-radius: 14px;
+    --ir-r-title-size: 13px;
+    --ir-r-title-weight: 600;
+    --ir-r-title-transform: none;
+    --ir-r-title-tracking: -0.005em;
+    --ir-r-title-color: hsl(var(--ir-foreground));
+    --ir-r-kpi-value: hsl(var(--ir-foreground));
+}
+
+[data-report-style='executive'] {
+    --ir-r-page: 0 0% 100%;
+    --ir-r-card-border: 1px solid hsl(var(--ir-border));
+    --ir-r-card-shadow: inset 0 3px 0 hsl(var(--ir-primary));
+    --ir-r-radius: 6px;
+    --ir-r-title-size: 11px;
+    --ir-r-title-transform: uppercase;
+    --ir-r-title-tracking: 0.09em;
+    --ir-r-title-color: hsl(var(--ir-muted-foreground));
+}
+
+[data-report-style='minimal'] {
+    --ir-r-page: 0 0% 100%;
+    --ir-r-card-bg: transparent;
+    --ir-r-card-border: 0;
+    --ir-r-card-shadow: none;
+    --ir-r-radius: 0px;
+    --ir-r-title-size: 14px;
+}
+
+[data-report-style='bold'] {
+    --ir-r-page: 0 0% 100%;
+    --ir-r-card-bg: hsl(var(--ir-primary) / 0.05);
+    --ir-r-card-border: 1px solid hsl(var(--ir-primary) / 0.14);
+    --ir-r-card-shadow: none;
+    --ir-r-radius: 16px;
+    --ir-r-title-color: hsl(var(--ir-primary));
+    --ir-r-kpi-value: hsl(var(--ir-primary));
+}
+
+@layer components {
+    .ir-r-card {
+        background: var(--ir-r-card-bg);
+        border: var(--ir-r-card-border);
+        box-shadow: var(--ir-r-card-shadow);
+        border-radius: var(--ir-r-radius);
+    }
+
+    .ir-r-card--bare {
+        border: 0;
+        box-shadow: none;
+    }
+
+    [data-report-style='minimal'] .ir-r-card:not(.ir-r-card--bare) {
+        border-top: 1px solid hsl(var(--ir-border));
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .ir-r-title {
+        font-size: var(--ir-r-title-size);
+        font-weight: var(--ir-r-title-weight);
+        text-transform: var(--ir-r-title-transform);
+        letter-spacing: var(--ir-r-title-tracking);
+        color: var(--ir-r-title-color);
+        line-height: 1.3;
+    }
+
+    .ir-r-page {
+        background: hsl(var(--ir-r-page));
+    }
+}
+
 /* Paginated "sheets" (CLAUDE.md §10.7): the report renders as a stack of paper sheets so
    the agency sees exactly where each page ends and what lands on each printed PDF page.
    On screen each sheet is a bordered, shadowed white card on a tinted gutter; in print the
@@ -125,7 +210,7 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    background: hsl(var(--ir-card));
+    background: hsl(var(--ir-r-page));
     border: 1px solid hsl(var(--ir-border));
     border-radius: 0.5rem;
     box-shadow:

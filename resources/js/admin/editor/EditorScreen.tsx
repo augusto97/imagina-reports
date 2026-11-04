@@ -210,6 +210,14 @@ import {
 } from "./controls";
 import { cn } from "@shared/lib/utils";
 
+/** The report's visual styles (cards, titles, page tint) — defined in app.css. */
+const VISUAL_STYLES: { value: "modern" | "executive" | "minimal" | "bold"; label: string; hint: string }[] = [
+    { value: "modern", label: "Moderno", hint: "Tarjetas suaves con sombra" },
+    { value: "executive", label: "Ejecutivo", hint: "Sobrio, líneas finas" },
+    { value: "minimal", label: "Minimal", hint: "Sin cajas, mucho aire" },
+    { value: "bold", label: "Intenso", hint: "Tarjetas con tu color" },
+];
+
 /** A small icon per gallery template (keeps templateGallery.ts pure data). */
 const GALLERY_ICONS: Record<string, LucideIcon> = {
     woocommerce: ShoppingCart,
@@ -812,7 +820,7 @@ export function EditorScreen(): ReactElement {
 
         // Only send a theme when something is set, so an unstyled template stays null.
         const themePayload =
-            theme.accent != null || theme.density != null || theme.nav != null
+            theme.accent != null || theme.density != null || theme.style != null || theme.nav != null
                 ? theme
                 : null;
         // Only persist filters when some scope actually has rules.
@@ -1063,8 +1071,10 @@ export function EditorScreen(): ReactElement {
         (block) => (block.page ?? 0) === currentPage,
     );
     // Apply the report accent to the canvas as a scoped CSS var (matches portal/PDF).
+    // No report accent → the agency's brand colour, exactly as the portal/PDF resolve it.
+    const accentSource = theme.accent ?? agency?.brand_color ?? null;
     const accentHsl =
-        theme.accent != null ? hexToHslString(theme.accent) : null;
+        accentSource != null && accentSource !== "" ? hexToHslString(accentSource) : null;
     const canvasThemeStyle: CSSProperties | undefined =
         accentHsl !== null
             ? ({
@@ -1965,7 +1975,7 @@ export function EditorScreen(): ReactElement {
                                         />
                                     </div>
                                 )}
-                                <div className="ir-border ir-bg-card ir-p-6 ir-shadow-sm">
+                                <div data-report-style={theme.style ?? "modern"} className="ir-r-page ir-border ir-p-6 ir-shadow-sm">
                                     <ReportSettingsProvider
                                         currency={siteCurrency}
                                         locale="es"
@@ -2141,6 +2151,33 @@ export function EditorScreen(): ReactElement {
 
                                     <Section title="Tema del reporte" icon={<Palette className="ir-size-4" />}>
                             <div className="ir-flex ir-flex-col ir-gap-3">
+                                <Field label="Estilo visual">
+                                    <div className="ir-grid ir-grid-cols-2 ir-gap-2">
+                                        {VISUAL_STYLES.map((option) => {
+                                            const active = (theme.style ?? "modern") === option.value;
+
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setTheme((current) => ({ ...current, style: option.value === "modern" ? null : option.value }))}
+                                                    className={cn(
+                                                        "ir-flex ir-flex-col ir-gap-1.5 ir-rounded-lg ir-border ir-p-2 ir-text-left ir-transition",
+                                                        active ? "ir-border-accent ir-ring-2 ir-ring-accent/20" : "hover:ir-border-foreground/25",
+                                                    )}
+                                                >
+                                                    <span data-report-style={option.value} className="ir-r-page ir-grid ir-h-12 ir-grid-cols-3 ir-gap-1 ir-rounded-md ir-p-1.5">
+                                                        <span className="ir-r-card ir-col-span-2 ir-h-full" />
+                                                        <span className="ir-r-card ir-h-full" />
+                                                        <span className="ir-r-card ir-col-span-3 ir-h-2.5" />
+                                                    </span>
+                                                    <span className="ir-text-xs ir-font-medium">{option.label}</span>
+                                                    <span className="ir-text-[10px] ir-leading-tight ir-text-muted-foreground">{option.hint}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </Field>
                                 <Field label="Color de acento">
                                     <ColorSwatch
                                         value={theme.accent ?? ""}

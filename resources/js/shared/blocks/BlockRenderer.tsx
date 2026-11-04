@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Lightbulb, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, Clock, Eye, Lightbulb, type LucideIcon, Mail, MousePointerClick, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldAlert, ShieldCheck, ShoppingBag, Target, Users, Wallet } from 'lucide-react';
 import { Component as ReactComponent, type CSSProperties, type ErrorInfo, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
@@ -101,6 +101,56 @@ function prettyDate(value: string): string {
     const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 
     return date.toLocaleDateString(FALLBACK_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '');
+}
+
+/** Chart axis label: "20261014" / "2026-10-14" → "14 oct"; anything else unchanged. */
+function axisLabel(value: string): string {
+    const match = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(value);
+    if (match === null) {
+        return humanLabel(value);
+    }
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+
+    return date.toLocaleDateString(FALLBACK_LOCALE, { day: 'numeric', month: 'short' }).replace('.', '');
+}
+
+/** 12500 → "12,5 mil" style compact axis numbers. */
+function compactNumber(value: number): string {
+    return new Intl.NumberFormat(FALLBACK_LOCALE, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+/** Connector dimension values clients shouldn't see raw ("mobile", "Organic Search"). */
+const HUMAN_LABELS: Record<string, string> = {
+    mobile: 'Móvil', desktop: 'Escritorio', tablet: 'Tablet',
+    'organic search': 'Búsqueda orgánica', direct: 'Directo', 'organic social': 'Redes sociales', referral: 'Referencias',
+    'paid search': 'Búsqueda de pago', email: 'Email', 'paid social': 'Redes (pago)', display: 'Display', unassigned: 'Sin asignar', '(not set)': 'Sin dato',
+};
+
+function humanLabel(value: string): string {
+    return HUMAN_LABELS[value.toLowerCase()] ?? value;
+}
+
+/** Metrics where going DOWN is the good news (the trend pill turns green on a drop). */
+const LOWER_IS_BETTER = /position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|malware|out_of_stock|cron_overdue|last_backup/;
+
+/** A recognisable icon per kind of metric, so a row of KPIs reads at a glance. */
+function metricIcon(metric: string): LucideIcon {
+    const rules: [RegExp, LucideIcon][] = [
+        [/uptime|availability|response/, Activity],
+        [/attack|threat|ban|waf|blocked|malware|vulnerab|security|ssl/, ShieldCheck],
+        [/update|plugin|theme|core|backup/, RefreshCw],
+        [/revenue|sales|spend|cost|budget|cpc|cpa|roas|value/, Wallet],
+        [/order|purchase|transaction|items|stock/, ShoppingBag],
+        [/conversion|lead|goal/, Target],
+        [/click/, MousePointerClick],
+        [/impression|reach|views|page_views|screen/, Eye],
+        [/position|rank|keyword|query/, Search],
+        [/session|user|visit|visitor/, Users],
+        [/email|open|campaign|mailchimp/, Mail],
+        [/time|duration/, Clock],
+    ];
+
+    return rules.find(([pattern]) => pattern.test(metric))?.[1] ?? BarChart3;
 }
 
 const CHART_COLORS = ['hsl(var(--ir-primary))', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899'];
@@ -316,18 +366,20 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
 
 /* -------------------------------- sections --------------------------------- */
 
-function Section({ title, style: s, children }: { title?: string; style?: Style; children: React.ReactNode }): ReactElement {
+function Section({ title, style: s, children, action }: { title?: string; style?: Style; children: React.ReactNode; action?: ReactNode }): ReactElement {
     const settings = useContext(ReportSettingsContext);
     const pad = PAD[str(s?.pad)] ?? (settings.density === 'compact' ? 'ir-p-4' : 'ir-p-5');
-    const radius = RADIUS[str(s?.radius)] ?? 'ir-rounded-lg';
+    const radius = RADIUS[str(s?.radius)] ?? '';
     const align = ALIGN[str(s?.align)] ?? '';
-    const border = s?.border === false ? '' : 'ir-border ir-shadow-ir-xs';
     const showTitle = title !== undefined && title !== '' && s?.hideTitle !== true;
 
     return (
-        <section className={cn('ir-flex ir-h-full ir-flex-col ir-bg-card', pad, radius, align, border)} style={styleCss(s)}>
-            {showTitle && (
-                <h3 className="ir-mb-3 ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-wider ir-text-muted-foreground">{title}</h3>
+        <section className={cn('ir-r-card ir-flex ir-h-full ir-flex-col', s?.border === false && 'ir-r-card--bare', pad, radius, align)} style={styleCss(s)}>
+            {(showTitle || action !== undefined) && (
+                <div className="ir-mb-3 ir-flex ir-items-center ir-justify-between ir-gap-2">
+                    {showTitle ? <h3 className="ir-r-title">{title}</h3> : <span />}
+                    {action}
+                </div>
             )}
             <div className="ir-min-h-0 ir-flex-1">{children}</div>
         </section>
@@ -338,47 +390,62 @@ function Section({ title, style: s, children }: { title?: string; style?: Style;
 
 function HeaderBlock({ block, data }: BlockComponentProps): ReactElement {
     const record = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+    const brand = useContext(ReportBrandContext);
     const title = str(record?.title, str(prop(block, 'title'), 'Reporte'));
     // Eyebrow (e.g. agency) + subtitle (client · site · period) make the header read like a
     // real branded report cover rather than a bare title. Both resolve {{merge-fields}}.
     const eyebrow = str(record?.eyebrow, str(prop(block, 'eyebrow')));
     const subtitle = str(record?.subtitle, str(prop(block, 'subtitle')));
+    const showLogo = prop(block, 'showLogo') !== false && brand.logoUrl !== null;
 
     return (
-        <header className="ir-flex ir-h-full ir-flex-col ir-justify-end ir-gap-1 ir-border-b-2 ir-border-primary/60 ir-pb-3" style={styleCss(block.style)}>
-            {eyebrow !== '' && (
-                <span className="ir-truncate ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{eyebrow}</span>
-            )}
-            <h1 className="ir-truncate ir-text-[28px] ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
-            {subtitle !== '' && <p className="ir-truncate ir-text-sm ir-text-muted-foreground">{subtitle}</p>}
+        <header className="ir-relative ir-flex ir-h-full ir-items-end ir-justify-between ir-gap-4 ir-pb-3" style={styleCss(block.style)}>
+            <div className="ir-flex ir-min-w-0 ir-items-stretch ir-gap-3.5">
+                <span className="ir-w-1 ir-shrink-0 ir-rounded-full ir-bg-primary" aria-hidden />
+                <div className="ir-min-w-0">
+                    {eyebrow !== '' && (
+                        <span className="ir-block ir-truncate ir-text-[11px] ir-font-semibold ir-uppercase ir-tracking-[0.18em] ir-text-primary">{eyebrow}</span>
+                    )}
+                    <h1 className="ir-truncate ir-text-[28px] ir-font-bold ir-leading-tight ir-tracking-tight">{title}</h1>
+                    {subtitle !== '' && <p className="ir-truncate ir-text-sm ir-text-muted-foreground">{subtitle}</p>}
+                </div>
+            </div>
+            {showLogo && <img src={brand.logoUrl ?? ''} alt={brand.agencyName} className="ir-max-h-12 ir-max-w-[9rem] ir-shrink-0 ir-object-contain" />}
         </header>
     );
 }
 
 /** Semicircular SVG gauge (0–100) with a semantic color — prints cleanly to PDF. */
-function Gauge({ score }: { score: number }): ReactElement {
+function Gauge({ score, id }: { score: number; id: string }): ReactElement {
     const clamped = Math.max(0, Math.min(100, score));
     const radius = 80;
     const arcLength = Math.PI * radius; // half circumference
-    const stroke = clamped >= 80 ? '#10b981' : clamped >= 50 ? '#f59e0b' : '#ef4444';
+    const [from, to] = clamped >= 80 ? ['#34d399', '#059669'] : clamped >= 50 ? ['#fbbf24', '#d97706'] : ['#f87171', '#dc2626'];
+    const gradientId = `ir-gauge-${id}`;
 
     return (
-        <div className="ir-relative ir-mx-auto ir-w-full ir-max-w-[220px]">
-            <svg viewBox="0 0 200 120" className="ir-w-full">
-                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="hsl(var(--ir-muted))" strokeWidth="14" strokeLinecap="round" />
+        <div className="ir-relative ir-mx-auto ir-w-full ir-max-w-[240px]">
+            <svg viewBox="0 0 200 118" className="ir-w-full">
+                <defs>
+                    <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={from} />
+                        <stop offset="100%" stopColor={to} />
+                    </linearGradient>
+                </defs>
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="hsl(var(--ir-muted))" strokeWidth="13" strokeLinecap="round" />
                 <path
                     d="M 20 100 A 80 80 0 0 1 180 100"
                     fill="none"
-                    stroke={stroke}
-                    strokeWidth="14"
+                    stroke={`url(#${gradientId})`}
+                    strokeWidth="13"
                     strokeLinecap="round"
                     strokeDasharray={`${(clamped / 100) * arcLength} ${arcLength}`}
                 />
-                <text x="100" y="92" textAnchor="middle" className="ir-fill-foreground" style={{ fontSize: '34px', fontWeight: 700 }}>
+                <text x="100" y="90" textAnchor="middle" className="ir-fill-foreground" style={{ fontSize: '38px', fontWeight: 700, letterSpacing: '-0.02em' }}>
                     {clamped}
                 </text>
-                <text x="100" y="112" textAnchor="middle" className="ir-fill-muted-foreground" style={{ fontSize: '11px' }}>
-                    / 100
+                <text x="100" y="110" textAnchor="middle" className="ir-fill-muted-foreground" style={{ fontSize: '11px' }}>
+                    de 100
                 </text>
             </svg>
         </div>
@@ -387,10 +454,24 @@ function Gauge({ score }: { score: number }): ReactElement {
 
 function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
     const score = typeof data === 'number' ? data : Number(data) || 0;
+    const verdict =
+        score >= 90 ? { label: 'Excelente', text: 'Todo funciona como debe.', tone: 'ir-bg-success/10 ir-text-success' }
+        : score >= 75 ? { label: 'Muy bien', text: 'Estable, con detalles menores.', tone: 'ir-bg-success/10 ir-text-success' }
+        : score >= 50 ? { label: 'Mejorable', text: 'Hay puntos que conviene atender.', tone: 'ir-bg-warning/10 ir-text-warning' }
+        : { label: 'Requiere atención', text: 'Recomendamos actuar pronto.', tone: 'ir-bg-danger/10 ir-text-danger' };
 
     return (
         <Section title={str(prop(block, 'title'), 'Estado general')} style={block.style}>
-            <Gauge score={score} />
+            {/* Stacks in a narrow cell; side by side when the block spans the page. */}
+            <div className="ir-flex ir-h-full ir-flex-wrap ir-items-center ir-justify-center ir-gap-x-8 ir-gap-y-2">
+                <div className="ir-w-[220px] ir-max-w-full">
+                    <Gauge score={score} id={block.id} />
+                </div>
+                <div className="ir-flex ir-flex-col ir-items-center ir-gap-1.5">
+                    <span className={cn('ir-rounded-full ir-px-2.5 ir-py-0.5 ir-text-xs ir-font-semibold', verdict.tone)}>{verdict.label}</span>
+                    <p className="ir-max-w-[14rem] ir-text-center ir-text-xs ir-text-muted-foreground">{verdict.text}</p>
+                </div>
+            </div>
         </Section>
     );
 }
@@ -415,10 +496,11 @@ function asKpi(data: unknown): Kpi {
 }
 
 /** A compact trend pill: tinted green/red arrow + signed percent vs the previous period. */
-function TrendBadge({ percent }: { percent: number }): ReactElement {
+function TrendBadge({ percent, invert = false }: { percent: number; invert?: boolean }): ReactElement {
     const up = percent >= 0;
+    const good = invert ? !up : up;
     const Arrow = up ? ArrowUpRight : ArrowDownRight;
-    const tone = up ? 'ir-bg-success/10 ir-text-success' : 'ir-bg-danger/10 ir-text-danger';
+    const tone = percent === 0 ? 'ir-bg-muted ir-text-muted-foreground' : good ? 'ir-bg-success/10 ir-text-success' : 'ir-bg-danger/10 ir-text-danger';
 
     return (
         <span className={cn('ir-inline-flex ir-w-fit ir-items-center ir-gap-0.5 ir-rounded-full ir-px-1.5 ir-py-0.5 ir-text-xs ir-font-semibold ir-tabular-nums', tone)}>
@@ -432,24 +514,31 @@ function TrendBadge({ percent }: { percent: number }): ReactElement {
 function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
     const { value, changePercent } = asKpi(data);
     const settings = useContext(ReportSettingsContext);
+    const metric = `${block.binding?.source ?? ''}.${block.binding?.metric ?? ''}`.toLowerCase();
+    const Icon = metricIcon(metric);
 
     return (
         <Section style={block.style}>
-            <div className="ir-kpi ir-flex ir-h-full ir-flex-col ir-justify-center ir-gap-1.5">
-                <p className="ir-text-[11px] ir-font-medium ir-uppercase ir-tracking-wider ir-text-muted-foreground">
-                    {str(prop(block, 'label'))}
-                </p>
-                {/* The value auto-shrinks to the card width (ir-kpi is a size container) so a
-                    long amount like "300.000 COP" never overflows/gets clipped in a narrow card. */}
-                <p className="ir-kpi-value ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums">
-                    {formatNumber(value, str(block.style?.format), settings)}
-                </p>
-                {changePercent !== null && (
-                    <div className="ir-flex ir-items-center ir-gap-1.5">
-                        <TrendBadge percent={changePercent} />
-                        <span className="ir-text-[11px] ir-text-muted-foreground">vs. anterior</span>
-                    </div>
-                )}
+            <div className="ir-kpi ir-flex ir-h-full ir-flex-col ir-justify-between ir-gap-2">
+                <div className="ir-flex ir-items-start ir-justify-between ir-gap-2">
+                    <p className="ir-text-[13px] ir-font-medium ir-leading-snug ir-text-muted-foreground">{str(prop(block, 'label'))}</p>
+                    <span className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-lg ir-bg-primary/10 ir-text-primary">
+                        <Icon className="ir-size-4" />
+                    </span>
+                </div>
+                <div className="ir-flex ir-flex-col ir-gap-1.5">
+                    {/* The value auto-shrinks to the card width (ir-kpi is a size container) so a
+                        long amount like "300.000 COP" never overflows/gets clipped in a narrow card. */}
+                    <p className="ir-kpi-value ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums" style={{ color: 'var(--ir-r-kpi-value)' }}>
+                        {formatNumber(value, str(block.style?.format), settings)}
+                    </p>
+                    {changePercent !== null && (
+                        <div className="ir-flex ir-items-center ir-gap-1.5">
+                            <TrendBadge percent={changePercent} invert={LOWER_IS_BETTER.test(metric)} />
+                            <span className="ir-text-[11px] ir-text-muted-foreground">vs. periodo anterior</span>
+                        </div>
+                    )}
+                </div>
             </div>
         </Section>
     );
@@ -457,9 +546,12 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 
 function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     const rows = useFilteredRows(asChartRows(data));
+    const settings = useContext(ReportSettingsContext);
     const chartType = str(prop(block, 'chartType'), 'line');
     const legend = block.style?.legend === true;
+    const format = str(block.style?.format);
     const accent = 'hsl(var(--ir-primary))';
+    const gradientId = `ir-chart-${block.id}`;
     // Recharts animates series in over ~1s via requestAnimationFrame. Headless Chromium
     // (Browsershot) captures the page the instant window.reportReady flips, before those
     // frames run — so animated bars/lines/pies print INVISIBLE (only axes/legend show).
@@ -468,18 +560,92 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     // status-page uptime bar. Values cluster near 100, so pin the axis to 0–100.
     const threshold = typeof block.style?.threshold === 'number' ? block.style.threshold : null;
 
+    const axis = { stroke: 'hsl(var(--ir-muted-foreground))', fontSize: 11, tickLine: false, axisLine: false } as const;
+    const grid = <CartesianGrid vertical={false} stroke="hsl(var(--ir-border))" strokeDasharray="3 4" />;
+    const xAxis = <XAxis dataKey="name" {...axis} tickFormatter={axisLabel} minTickGap={18} tickMargin={8} />;
+    const yAxis = <YAxis {...axis} width={54} tickFormatter={(value: number) => compactNumber(value)} domain={threshold !== null ? [0, 100] : undefined} />;
+    const tooltip = (
+        <Tooltip
+            cursor={{ fill: 'hsl(var(--ir-muted) / 0.6)', stroke: 'hsl(var(--ir-border))' }}
+            contentStyle={{ borderRadius: 10, border: '1px solid hsl(var(--ir-border))', boxShadow: '0 8px 24px -8px rgb(0 0 0 / 0.15)', fontSize: 12, padding: '6px 10px' }}
+            labelFormatter={(label: unknown) => axisLabel(String(label ?? ''))}
+            formatter={(value: unknown) => [formatNumber(Number(value) || 0, format, settings), str(prop(block, 'title'), 'Valor')]}
+        />
+    );
+    const defs = (
+        <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accent} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
+            </linearGradient>
+            <linearGradient id={`${gradientId}-bar`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accent} stopOpacity={1} />
+                <stop offset="100%" stopColor={accent} stopOpacity={0.7} />
+            </linearGradient>
+        </defs>
+    );
+
+    if (chartType === 'donut' || chartType === 'pie') {
+        const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+        return (
+            <Section title={str(prop(block, 'title'))} style={block.style}>
+                <div className="ir-flex ir-h-full ir-min-h-[11rem] ir-items-center ir-gap-4">
+                    <div className="ir-relative ir-h-full ir-min-h-[9rem] ir-w-1/2 ir-max-w-[12rem] ir-shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                {tooltip}
+                                <Pie
+                                    data={rows}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    innerRadius={chartType === 'donut' ? '62%' : 0}
+                                    outerRadius="92%"
+                                    paddingAngle={chartType === 'donut' ? 2 : 0}
+                                    stroke="hsl(var(--ir-card))"
+                                    strokeWidth={2}
+                                    isAnimationActive={false}
+                                >
+                                    {rows.map((_, index) => (
+                                        <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                    ))}
+                                </Pie>
+                            </PieChart>
+                        </ResponsiveContainer>
+                        {chartType === 'donut' && (
+                            <div className="ir-pointer-events-none ir-absolute ir-inset-0 ir-flex ir-flex-col ir-items-center ir-justify-center">
+                                <span className="ir-text-lg ir-font-bold ir-tabular-nums">{formatNumber(total, format === 'currency' ? 'currency' : 'compact', settings)}</span>
+                                <span className="ir-text-[10px] ir-uppercase ir-tracking-wider ir-text-muted-foreground">total</span>
+                            </div>
+                        )}
+                    </div>
+                    <ul className="ir-flex ir-min-w-0 ir-flex-1 ir-flex-col ir-gap-1.5">
+                        {rows.slice(0, 7).map((row, index) => (
+                            <li key={row.name} className="ir-flex ir-items-center ir-gap-2 ir-text-xs">
+                                <span className="ir-size-2.5 ir-shrink-0 ir-rounded-sm" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                <span className="ir-min-w-0 ir-flex-1 ir-truncate">{humanLabel(row.name)}</span>
+                                <span className="ir-shrink-0 ir-font-semibold ir-tabular-nums">{total > 0 ? Math.round((row.value / total) * 100) : 0}%</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </Section>
+        );
+    }
+
     return (
         <Section title={str(prop(block, 'title'))} style={block.style}>
-            <div className="ir-h-full ir-min-h-[12rem] ir-w-full">
+            <div className="ir-h-full ir-min-h-[11rem] ir-w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     {chartType === 'bar' ? (
-                        <BarChart data={rows}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis domain={threshold !== null ? [0, 100] : undefined} />
-                            <Tooltip />
+                        <BarChart data={rows} margin={{ top: 6, right: 4, left: -4, bottom: 0 }}>
+                            {defs}
+                            {grid}
+                            {xAxis}
+                            {yAxis}
+                            {tooltip}
                             {legend && <Legend />}
-                            <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                            <Bar dataKey="value" fill={`url(#${gradientId}-bar)`} radius={[6, 6, 2, 2]} maxBarSize={36} isAnimationActive={false}>
                                 {threshold !== null &&
                                     rows.map((row, index) => (
                                         <Cell key={index} fill={row.value >= threshold ? '#16a34a' : '#dc2626'} />
@@ -487,49 +653,33 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
                             </Bar>
                         </BarChart>
                     ) : chartType === 'hbar' ? (
-                        <BarChart data={rows} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis type="number" />
-                            <YAxis type="category" dataKey="name" width={90} />
-                            <Tooltip />
+                        <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                            {defs}
+                            <CartesianGrid horizontal={false} stroke="hsl(var(--ir-border))" strokeDasharray="3 4" />
+                            <XAxis type="number" {...axis} tickFormatter={(value: number) => compactNumber(value)} />
+                            <YAxis type="category" dataKey="name" {...axis} width={110} tickFormatter={(value: string) => humanLabel(value)} />
+                            {tooltip}
                             {legend && <Legend />}
-                            <Bar dataKey="value" fill={accent} radius={[0, 4, 4, 0]} isAnimationActive={false} />
+                            <Bar dataKey="value" fill={accent} radius={[2, 6, 6, 2]} maxBarSize={22} isAnimationActive={false} />
                         </BarChart>
                     ) : chartType === 'area' ? (
-                        <AreaChart data={rows}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip />
+                        <AreaChart data={rows} margin={{ top: 6, right: 4, left: -4, bottom: 0 }}>
+                            {defs}
+                            {grid}
+                            {xAxis}
+                            {yAxis}
+                            {tooltip}
                             {legend && <Legend />}
-                            <Area dataKey="value" stroke={accent} fill="hsl(var(--ir-muted))" isAnimationActive={false} />
+                            <Area type="monotone" dataKey="value" stroke={accent} strokeWidth={2.25} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} />
                         </AreaChart>
-                    ) : chartType === 'donut' || chartType === 'pie' ? (
-                        <PieChart>
-                            <Tooltip />
-                            {legend && <Legend />}
-                            <Pie
-                                data={rows}
-                                dataKey="value"
-                                nameKey="name"
-                                innerRadius={chartType === 'donut' ? 55 : 0}
-                                outerRadius={92}
-                                paddingAngle={2}
-                                isAnimationActive={false}
-                            >
-                                {rows.map((_, index) => (
-                                    <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                                ))}
-                            </Pie>
-                        </PieChart>
                     ) : (
-                        <LineChart data={rows}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip />
+                        <LineChart data={rows} margin={{ top: 6, right: 4, left: -4, bottom: 0 }}>
+                            {grid}
+                            {xAxis}
+                            {yAxis}
+                            {tooltip}
                             {legend && <Legend />}
-                            <Line dataKey="value" stroke={accent} strokeWidth={2} dot={false} isAnimationActive={false} />
+                            <Line type="monotone" dataKey="value" stroke={accent} strokeWidth={2.25} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} />
                         </LineChart>
                     )}
                 </ResponsiveContainer>
@@ -584,6 +734,8 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
 
     const numeric = new Set(columns.filter((col) => rows.every((row) => row[col] === undefined || typeof row[col] === 'number' || (row[col] !== '' && !Number.isNaN(Number(row[col]))))));
     const bars = block.style?.bars === true;
+    // Top-N lists (one label + numbers) get a rank number; structured tables (work log…) don't.
+    const rankable = columns.length <= 3 && columns.filter((col) => !numeric.has(col)).length === 1 && sort === null;
     const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
     const toggleSort = (col: string): void =>
         setUserSort((current) => {
@@ -636,7 +788,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                     })}
                 </colgroup>
                 <thead>
-                    <tr className="ir-border-b ir-text-[11px] ir-uppercase ir-tracking-wide ir-text-muted-foreground">
+                    <tr className="ir-border-b ir-text-[11px] ir-font-medium ir-text-muted-foreground">
                         {columns.map((col) => (
                             <th key={col} className={cn('ir-pb-2 ir-pr-2 ir-font-semibold last:ir-pr-0', numeric.has(col) && 'ir-text-right')}>
                                 <button
@@ -662,19 +814,28 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                             )}
                         >
                             {columns.map((col) => (
-                                <td key={col} className={cn('ir-py-2 ir-pr-2 ir-align-top last:ir-pr-0', numeric.has(col) ? 'ir-whitespace-nowrap ir-text-right ir-tabular-nums' : 'ir-break-words')}>
+                                <td key={col} className={cn('ir-py-1.5 ir-pr-2 ir-align-middle last:ir-pr-0', numeric.has(col) ? 'ir-whitespace-nowrap ir-text-right ir-tabular-nums' : 'ir-break-words')}>
                                     {bars && col === 'value' && typeof row[col] !== 'undefined' ? (
                                         <div className="ir-flex ir-items-center ir-gap-2">
                                             <div className="ir-h-1.5 ir-flex-1 ir-overflow-hidden ir-rounded ir-bg-muted">
                                                 <div
-                                                    className="ir-h-full ir-rounded ir-bg-primary"
+                                                    className="ir-h-full ir-rounded ir-bg-gradient-to-r ir-from-primary/70 ir-to-primary"
                                                     style={{ width: `${max > 0 ? ((Number(row[col]) || 0) / max) * 100 : 0}%` }}
                                                 />
                                             </div>
                                             <span className="ir-tabular-nums">{Number(row[col]).toLocaleString(FALLBACK_LOCALE)}</span>
                                         </div>
+                                    ) : col === columns[0] && !numeric.has(col) && rankable ? (
+                                        <span className="ir-flex ir-items-center ir-gap-2.5">
+                                            <span className="ir-flex ir-size-5 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-[10px] ir-font-semibold ir-tabular-nums ir-text-muted-foreground">
+                                                {index + 1}
+                                            </span>
+                                            <span className="ir-min-w-0 ir-break-words">{humanLabel(String(row[col] ?? ''))}</span>
+                                        </span>
+                                    ) : numeric.has(col) ? (
+                                        Number(row[col]).toLocaleString(FALLBACK_LOCALE)
                                     ) : (
-                                        String(row[col] ?? '')
+                                        humanLabel(String(row[col] ?? ''))
                                     )}
                                 </td>
                             ))}
@@ -886,25 +1047,32 @@ const SECURITY_STATS: { key: string; label: string }[] = [
 function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement {
     const stats = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : {};
     const tiles = SECURITY_STATS.filter((stat) => typeof stats[stat.key] === 'number');
+    const malware = Number(stats.malware_found) || 0;
+    const clean = malware === 0;
 
     return (
         <Section title={str(prop(block, 'title'), 'Seguridad')} style={block.style}>
-            <div className="ir-flex ir-items-center ir-gap-3">
-                <ShieldCheck className="ir-size-8 ir-shrink-0 ir-text-emerald-500" />
-                <p className="ir-text-sm ir-text-muted-foreground">
-                    Tu sitio está protegido y monitorizado.
-                </p>
-            </div>
-            {tiles.length > 0 && (
-                <div className="ir-mt-4 ir-grid ir-grid-cols-3 ir-gap-3">
-                    {tiles.map((stat) => (
-                        <div key={stat.key} className="ir-rounded-md ir-bg-muted ir-p-3 ir-text-center">
-                            <p className="ir-text-2xl ir-font-semibold">{Number(stats[stat.key]).toLocaleString(FALLBACK_LOCALE)}</p>
-                            <p className="ir-text-xs ir-text-muted-foreground">{stat.label}</p>
-                        </div>
-                    ))}
+            <div className="ir-flex ir-h-full ir-flex-col ir-gap-3">
+                <div className={cn('ir-flex ir-items-center ir-gap-3 ir-rounded-xl ir-px-3 ir-py-2.5', clean ? 'ir-bg-success/10' : 'ir-bg-danger/10')}>
+                    <span className={cn('ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full', clean ? 'ir-bg-success ir-text-white' : 'ir-bg-danger ir-text-white')}>
+                        {clean ? <ShieldCheck className="ir-size-5" /> : <ShieldAlert className="ir-size-5" />}
+                    </span>
+                    <div className="ir-min-w-0">
+                        <p className="ir-text-sm ir-font-semibold">{clean ? 'Tu sitio está protegido' : 'Detectamos una amenaza'}</p>
+                        <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{clean ? 'Vigilado 24/7: cada ataque se bloqueó.' : 'Ya la estamos tratando.'}</p>
+                    </div>
                 </div>
-            )}
+                {tiles.length > 0 && (
+                    <div className="ir-grid ir-gap-2.5" style={{ gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))` }}>
+                        {tiles.map((stat) => (
+                            <div key={stat.key} className="ir-rounded-xl ir-border ir-border-border/70 ir-px-3 ir-py-2.5">
+                                <p className="ir-text-xl ir-font-bold ir-tabular-nums ir-tracking-tight">{Number(stats[stat.key]).toLocaleString(FALLBACK_LOCALE)}</p>
+                                <p className="ir-text-[11px] ir-leading-tight ir-text-muted-foreground">{stat.label}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </Section>
     );
 }
@@ -914,33 +1082,42 @@ function WorklogTimelineBlock({ block, data }: BlockComponentProps): ReactElemen
 
     // Total invested hours across the listed tasks (only those with logged time).
     const totalMinutes = entries.reduce((sum, entry) => sum + (typeof entry.minutes === 'number' ? entry.minutes : 0), 0);
+    const hours = (minutes: number): string => `${(minutes / 60).toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })} h`;
 
     return (
-        <Section title={str(prop(block, 'title'), 'Lo que hicimos este mes')} style={block.style}>
-            <ul className="ir-space-y-2">
+        <Section
+            title={str(prop(block, 'title'), 'Lo que hicimos este mes')}
+            style={block.style}
+            action={
+                entries.length > 0 ? (
+                    <span className="ir-text-xs ir-text-muted-foreground">
+                        {entries.length} {entries.length === 1 ? 'tarea' : 'tareas'}
+                        {totalMinutes > 0 ? ` · ${hours(totalMinutes)}` : ''}
+                    </span>
+                ) : undefined
+            }
+        >
+            <ol className="ir-relative ir-flex ir-flex-col ir-gap-3 ir-pl-5">
+                <span className="ir-absolute ir-bottom-2 ir-left-[5px] ir-top-2 ir-w-px ir-bg-border" aria-hidden />
                 {entries.map((entry, index) => (
-                    <li key={index} className="ir-flex ir-items-baseline ir-gap-3 ir-text-sm">
-                        <span className="ir-w-24 ir-shrink-0 ir-text-muted-foreground">{prettyDate(str(entry.performed_at))}</span>
-                        <span className="ir-flex-1">{str(entry.description)}</span>
+                    <li key={index} className="ir-relative ir-flex ir-items-start ir-gap-3 ir-text-sm">
+                        <span className="ir-absolute -ir-left-5 ir-top-1.5 ir-size-[11px] ir-rounded-full ir-border-2 ir-border-primary ir-bg-card" aria-hidden />
+                        <div className="ir-min-w-0 ir-flex-1">
+                            <p className="ir-leading-snug">{str(entry.description)}</p>
+                            <p className="ir-mt-0.5 ir-flex ir-flex-wrap ir-items-center ir-gap-x-2 ir-gap-y-1 ir-text-xs ir-text-muted-foreground">
+                                <span>{prettyDate(str(entry.performed_at))}</span>
+                                {typeof entry.category === 'string' && entry.category !== '' && (
+                                    <span className="ir-rounded-full ir-bg-primary/10 ir-px-2 ir-py-px ir-font-medium ir-text-primary">{entry.category}</span>
+                                )}
+                                {typeof entry.minutes === 'number' && entry.minutes > 0 && <span className="ir-tabular-nums">{hours(entry.minutes)}</span>}
+                            </p>
+                        </div>
                         {typeof entry.screenshot_url === 'string' && entry.screenshot_url !== '' && (
-                            <img src={entry.screenshot_url} alt="" className="ir-size-9 ir-shrink-0 ir-self-center ir-rounded ir-border ir-object-cover" />
-                        )}
-                        {typeof entry.category === 'string' && entry.category !== '' && (
-                            <span className="ir-rounded ir-bg-muted ir-px-2 ir-py-0.5 ir-text-xs ir-text-muted-foreground">{entry.category}</span>
-                        )}
-                        {typeof entry.minutes === 'number' && entry.minutes > 0 && (
-                            <span className="ir-shrink-0 ir-tabular-nums ir-text-muted-foreground">
-                                {(entry.minutes / 60).toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })} h
-                            </span>
+                            <img src={entry.screenshot_url} alt="" className="ir-size-12 ir-shrink-0 ir-rounded-lg ir-border ir-object-cover" />
                         )}
                     </li>
                 ))}
-            </ul>
-            {totalMinutes > 0 && (
-                <p className="ir-mt-3 ir-border-t ir-pt-2 ir-text-right ir-text-sm ir-font-medium">
-                    Total: {(totalMinutes / 60).toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })} h
-                </p>
-            )}
+            </ol>
         </Section>
     );
 }
@@ -1480,7 +1657,7 @@ export function BlockList({
     context?: Record<string, string>;
     currency?: string;
     locale?: string;
-    theme?: { accent?: string | null; density?: 'normal' | 'compact' | null; nav?: ReportNav | null } | null;
+    theme?: { accent?: string | null; density?: 'normal' | 'compact' | null; style?: string | null; nav?: ReportNav | null } | null;
     /**
      * How the multi-page report is laid out (CLAUDE.md §11 — Looker/Power-BI parity):
      * - `paged` (default): interactive — ONE page at a time with a navigation menu, the way
@@ -1620,7 +1797,7 @@ export function BlockList({
         const navStyle = nav.style ?? 'pill';
         const showNav = pages.length > 1 && position !== 'hidden';
         const labels = pages.map((_, index) => pageName(index));
-        const surface = <div className="ir-rounded-xl ir-border ir-bg-card ir-p-5 ir-shadow-sm sm:ir-p-8">{renderPage(pages[safeActive] ?? [])}</div>;
+        const surface = <div className="ir-r-page ir-rounded-2xl ir-border ir-p-4 ir-shadow-sm sm:ir-p-8">{renderPage(pages[safeActive] ?? [])}</div>;
 
         if (position === 'sidebar') {
             // Left sidebar nav (Looker "Left"): a FIXED column pinned to the left edge of the
@@ -1671,7 +1848,7 @@ export function BlockList({
     }
 
     return (
-        <div style={themeStyle}>
+        <div style={themeStyle} data-report-style={theme?.style ?? 'modern'}>
             <ReportBrandContext.Provider value={brand}>
                 <ReportSettingsProvider currency={currency} locale={locale} density={density}>
                     <ReportFilterProvider>{body}</ReportFilterProvider>

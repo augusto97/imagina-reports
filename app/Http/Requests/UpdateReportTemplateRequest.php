@@ -34,6 +34,7 @@ final class UpdateReportTemplateRequest extends FormRequest
             'filters' => ['sometimes', 'nullable', 'array'],
             'theme.accent' => ['nullable', 'string', 'max:9'],
             'theme.density' => ['nullable', 'in:normal,compact'],
+            'theme.style' => ['nullable', 'in:modern,executive,minimal,bold'],
             'theme.nav' => ['nullable', 'array'],
             'theme.nav.position' => ['nullable', 'in:tabs,top,sidebar,hidden'],
             'theme.nav.style' => ['nullable', 'in:pill,underline,solid'],

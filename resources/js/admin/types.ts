@@ -271,6 +271,7 @@ export interface CatalogEntry {
 export interface ReportTheme {
     accent?: string | null;
     density?: 'normal' | 'compact' | null;
+    style?: import('@shared/lib/publicReport').ReportVisualStyle | null;
     nav?: import('@shared/blocks/types').ReportNav | null;
 }
 

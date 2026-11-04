@@ -27,9 +27,13 @@ export interface PublicReportAgency {
     locale: string;
 }
 
+export type ReportVisualStyle = 'modern' | 'executive' | 'minimal' | 'bold';
+
 export interface ReportTheme {
     accent?: string | null;
     density?: 'normal' | 'compact' | null;
+    /** Visual style of the whole report (cards, titles, page) — see app.css. */
+    style?: ReportVisualStyle | null;
     nav?: ReportNav | null;
 }
 
