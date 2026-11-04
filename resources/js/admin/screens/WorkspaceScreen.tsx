@@ -1,4 +1,4 @@
-import { ArrowUpRight, Building2, ChevronDown, ChevronRight, Clock, ExternalLink, FileBarChart, Globe, Lock, Pencil, Plug, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Building2, Clock, ExternalLink, FileBarChart, Globe, Lock, MoreHorizontal, Pencil, Plug, Plus, Search, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useMemo, useState } from 'react';
 
 import {
@@ -516,7 +516,6 @@ export function WorkspaceScreen(): ReactElement {
     const [query, setQuery] = useState('');
     const [filter, setFilter] = useState<'all' | 'issues' | 'empty'>('all');
     const [modal, setModal] = useState<ModalState>(null);
-    const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
 
     const sitesByClient = useMemo(() => {
         const map = new Map<number, Site[]>();
@@ -531,14 +530,6 @@ export function WorkspaceScreen(): ReactElement {
     const selectedSite = sites.find((site) => site.id === selectedSiteId) ?? null;
     const selectedClient = selectedSite !== null ? clients.find((client) => client.id === selectedSite.client_id) ?? null : null;
 
-    // Keep the owning client expanded so the selected site is always visible in the list.
-    const effectiveExpanded = useMemo(() => {
-        const set = new Set(expanded);
-        if (selectedSite !== null) {
-            set.add(selectedSite.client_id);
-        }
-        return set;
-    }, [expanded, selectedSite]);
 
     const siteMatchesFilter = (site: Site): boolean => {
         const h = health[String(site.id)];
@@ -577,17 +568,6 @@ export function WorkspaceScreen(): ReactElement {
     const emptyCount = sites.filter((site) => (health[String(site.id)]?.sources ?? 0) === 0).length;
     const gridSites = sites.filter((site) => siteMatchesFilter(site) && filteredClients.some((client) => client.id === site.client_id));
 
-    const toggle = (clientId: number): void => {
-        setExpanded((current) => {
-            const next = new Set(current);
-            if (next.has(clientId)) {
-                next.delete(clientId);
-            } else {
-                next.add(clientId);
-            }
-            return next;
-        });
-    };
 
     const removeClient = (client: Client): void => {
         if (window.confirm(`¿Eliminar el cliente «${client.name}»? (No se puede si todavía tiene sitios.)`)) {
@@ -677,83 +657,91 @@ export function WorkspaceScreen(): ReactElement {
                     />
                 </div>
 
-                <div className="ir-max-h-[calc(100vh-15rem)] ir-overflow-y-auto ir-p-2">
-                    <ul className="ir-flex ir-flex-col ir-gap-0.5">
-                        {filteredClients.map((client) => {
-                            const clientSites = (sitesByClient.get(client.id) ?? []).filter(siteMatchesFilter);
-                            const isOpen = effectiveExpanded.has(client.id) || query.trim() !== '' || filter !== 'all';
-                            const Chevron = isOpen ? ChevronDown : ChevronRight;
-                            const clientErrors = clientSites.some((site) => (health[String(site.id)]?.errors ?? 0) > 0);
+                {/* Every site is always visible, grouped under its client — no expanding
+                    clients one by one. Rows have a fixed height, so hover never shifts them. */}
+                <div className="ir-max-h-[calc(100vh-15rem)] ir-overflow-y-auto ir-px-2 ir-pb-2">
+                    {filteredClients.map((client) => {
+                        const allSites = sitesByClient.get(client.id) ?? [];
+                        const clientSites = allSites.filter(siteMatchesFilter);
 
-                            return (
-                                <li key={client.id}>
-                                    <div className="ir-group ir-flex ir-items-center ir-gap-1 ir-rounded-lg ir-px-1.5 ir-py-1.5 ir-transition-colors hover:ir-bg-muted/60">
-                                        <button type="button" onClick={() => toggle(client.id)} className="ir-flex ir-min-w-0 ir-flex-1 ir-items-center ir-gap-1.5 ir-text-left">
-                                            <Chevron className="ir-size-3.5 ir-shrink-0 ir-text-muted-foreground" />
-                                            <span className="ir-truncate ir-text-sm ir-font-medium">{client.name}</span>
-                                            {clientErrors && !isOpen && <StatusDot tone="danger" className="ir-ml-1" />}
-                                            <span className="ir-ml-auto ir-shrink-0 ir-text-[11px] ir-font-medium ir-tabular-nums ir-text-muted-foreground group-hover:ir-hidden">
-                                                {(sitesByClient.get(client.id) ?? []).length}
-                                            </span>
+                        return (
+                            <section key={client.id} className="ir-pt-2">
+                                <div className="ir-group ir-flex ir-h-8 ir-items-center ir-gap-2 ir-px-2">
+                                    <span className="ir-min-w-0 ir-flex-1 ir-truncate ir-text-xs ir-font-semibold ir-text-foreground/70" title={client.name}>
+                                        {client.name}
+                                    </span>
+                                    <span className="ir-flex ir-shrink-0 ir-items-center ir-opacity-0 ir-transition-opacity focus-within:ir-opacity-100 group-hover:ir-opacity-100">
+                                        <button
+                                            type="button"
+                                            title="Añadir sitio a este cliente"
+                                            disabled={blocked || ent.sites.reached}
+                                            onClick={() => setModal({ kind: 'add-site', clientId: client.id })}
+                                            className="ir-flex ir-size-6 ir-items-center ir-justify-center ir-rounded-md ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground disabled:ir-opacity-40"
+                                        >
+                                            <Plus className="ir-size-3.5" />
                                         </button>
-                                        <span className="ir-hidden ir-shrink-0 ir-items-center group-hover:ir-flex">
-                                            <ActionMenu
-                                                label={`Acciones de ${client.name}`}
-                                                items={[
-                                                    { label: 'Añadir sitio', icon: Plus, onSelect: () => setModal({ kind: 'add-site', clientId: client.id }), disabled: blocked || ent.sites.reached },
-                                                    { label: 'Editar cliente', icon: Pencil, onSelect: () => setModal({ kind: 'edit-client', client }) },
-                                                    { label: 'Eliminar cliente', icon: Trash2, onSelect: () => removeClient(client), danger: true },
-                                                ]}
-                                            />
-                                        </span>
-                                    </div>
+                                        <ActionMenu
+                                            label={`Acciones de ${client.name}`}
+                                            trigger={
+                                                <span className="ir-flex ir-size-6 ir-items-center ir-justify-center ir-rounded-md ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground">
+                                                    <MoreHorizontal className="ir-size-3.5" />
+                                                </span>
+                                            }
+                                            items={[
+                                                { label: 'Añadir sitio', icon: Plus, onSelect: () => setModal({ kind: 'add-site', clientId: client.id }), disabled: blocked || ent.sites.reached },
+                                                { label: 'Editar cliente', icon: Pencil, onSelect: () => setModal({ kind: 'edit-client', client }) },
+                                                { label: 'Eliminar cliente', icon: Trash2, onSelect: () => removeClient(client), danger: true },
+                                            ]}
+                                        />
+                                    </span>
+                                </div>
 
-                                    {isOpen && (
-                                        <div className="ir-mb-1 ir-ml-[0.95rem] ir-flex ir-flex-col ir-gap-0.5 ir-border-l ir-pl-2">
-                                            {clientSites.map((site) => {
-                                                const active = site.id === selectedSiteId;
-                                                const h = health[String(site.id)];
+                                {clientSites.map((site) => {
+                                    const active = site.id === selectedSiteId;
+                                    const h = health[String(site.id)];
 
-                                                return (
-                                                    <button
-                                                        key={site.id}
-                                                        type="button"
-                                                        onClick={() => selectSite(site.id)}
-                                                        className={
-                                                            'ir-flex ir-items-center ir-gap-2 ir-rounded-lg ir-px-2 ir-py-1.5 ir-text-left ir-text-sm ir-transition-colors ' +
-                                                            (active ? 'ir-bg-accent/10 ir-font-medium ir-text-accent' : 'ir-text-foreground/80 hover:ir-bg-muted/60')
-                                                        }
-                                                    >
-                                                        <StatusDot tone={healthTone(h)} />
-                                                        <span className="ir-min-w-0 ir-flex-1 ir-truncate">{site.name}</span>
-                                                        {h?.health_score != null && <span className={`ir-shrink-0 ir-text-[11px] ir-font-semibold ir-tabular-nums ${scoreClass(h.health_score)}`}>{h.health_score}</span>}
-                                                    </button>
-                                                );
-                                            })}
-                                            {filter === 'all' && (
-                                                <button
-                                                    type="button"
-                                                    disabled={blocked || ent.sites.reached}
-                                                    title={blocked || ent.sites.reached ? (ent.hasPlan ? 'Has alcanzado el límite de sitios de tu plan.' : 'Suscríbete a un plan para crear sitios.') : undefined}
-                                                    onClick={() => setModal({ kind: 'add-site', clientId: client.id })}
-                                                    className="ir-flex ir-items-center ir-gap-1.5 ir-rounded-lg ir-px-2 ir-py-1.5 ir-text-left ir-text-xs ir-font-medium ir-text-muted-foreground ir-transition-colors hover:ir-bg-muted/60 hover:ir-text-foreground disabled:ir-cursor-not-allowed disabled:ir-opacity-50 disabled:hover:ir-bg-transparent"
-                                                >
-                                                    <Plus className="ir-size-3.5" />
-                                                    Añadir sitio
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </li>
-                            );
-                        })}
+                                    return (
+                                        <button
+                                            key={site.id}
+                                            type="button"
+                                            onClick={() => selectSite(site.id)}
+                                            className={
+                                                'ir-flex ir-h-9 ir-w-full ir-items-center ir-gap-2.5 ir-rounded-lg ir-px-2 ir-text-left ir-text-sm ir-transition-colors ' +
+                                                (active ? 'ir-bg-accent/10 ir-font-medium ir-text-accent' : 'ir-text-foreground hover:ir-bg-muted/70')
+                                            }
+                                            title={site.url}
+                                        >
+                                            <StatusDot tone={healthTone(h)} />
+                                            <span className="ir-min-w-0 ir-flex-1 ir-truncate">{site.name}</span>
+                                            {h?.health_score != null ? (
+                                                <span className={`ir-shrink-0 ir-text-[11px] ir-font-semibold ir-tabular-nums ${scoreClass(h.health_score)}`}>{h.health_score}</span>
+                                            ) : (h?.sources ?? 0) === 0 ? (
+                                                <span className="ir-shrink-0 ir-text-[11px] ir-text-muted-foreground">sin fuentes</span>
+                                            ) : null}
+                                        </button>
+                                    );
+                                })}
 
-                        {filteredClients.length === 0 && (
-                            <li className="ir-rounded-lg ir-border ir-border-dashed ir-p-4 ir-text-center ir-text-xs ir-text-muted-foreground">
-                                {clients.length === 0 ? 'Aún no hay clientes. Crea el primero con «Nuevo cliente».' : 'Nada coincide con la búsqueda o el filtro.'}
-                            </li>
-                        )}
-                    </ul>
+                                {allSites.length === 0 && filter === 'all' && (
+                                    <button
+                                        type="button"
+                                        disabled={blocked || ent.sites.reached}
+                                        onClick={() => setModal({ kind: 'add-site', clientId: client.id })}
+                                        className="ir-flex ir-h-9 ir-w-full ir-items-center ir-gap-2 ir-rounded-lg ir-px-2 ir-text-left ir-text-xs ir-text-muted-foreground hover:ir-bg-muted/70 hover:ir-text-foreground disabled:ir-opacity-50"
+                                    >
+                                        <Plus className="ir-size-3.5" />
+                                        Añadir su primer sitio
+                                    </button>
+                                )}
+                            </section>
+                        );
+                    })}
+
+                    {filteredClients.length === 0 && (
+                        <p className="ir-mt-2 ir-rounded-lg ir-border ir-border-dashed ir-p-4 ir-text-center ir-text-xs ir-text-muted-foreground">
+                            {clients.length === 0 ? 'Aún no hay clientes. Crea el primero con «Nuevo cliente».' : 'Nada coincide con la búsqueda o el filtro.'}
+                        </p>
+                    )}
                 </div>
             </aside>
 
@@ -827,7 +815,7 @@ export function WorkspaceScreen(): ReactElement {
                 <NewClientModal
                     onClose={() => setModal(null)}
                     onCreatedSite={(siteId) => selectSite(siteId)}
-                    onCreatedClient={(clientId) => setExpanded((current) => new Set(current).add(clientId))}
+                    onCreatedClient={() => undefined}
                 />
             )}
             {modal?.kind === 'add-site' && (

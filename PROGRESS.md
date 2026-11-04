@@ -7,6 +7,11 @@
 ---
 
 ## Where I left off (read me first)
+**🗂️ LISTA DE CLIENTES (2026-11-04, v1.31.1):** el árbol con flechas obligaba a abrir cada cliente y al pasar el ratón la fila crecía
+(el «⋯» de 32 px sustituía al contador). Ahora todos los sitios se ven siempre, agrupados bajo su cliente, con filas de altura fija; las
+acciones del cliente (+ y «⋯») aparecen por opacidad sin mover nada. `ActionMenu` ahora flota con `position: fixed` (antes lo cortaban
+los contenedores con scroll) y se cierra al hacer scroll/redimensionar. El filtro segmentado ya no parte «Sin fuentes» en dos líneas.
+
 **✨ REPORTE PREMIUM (2026-11-04, v1.31.0):** el owner veía los reportes «cajones simples con texto». Cambios en el renderer compartido
 (editor, portal y PDF a la vez):
 - **Estilos visuales** (`theme.style`: `modern` por defecto · `executive` · `minimal` · `bold`), todo por variables CSS en `app.css`

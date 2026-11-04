@@ -263,7 +263,7 @@ export function Segmented<T extends string>({
                     type="button"
                     onClick={() => onChange(item.value)}
                     className={cn(
-                        'ir-inline-flex ir-shrink-0 ir-items-center ir-gap-1 ir-rounded-md ir-px-2 ir-py-1 ir-text-xs ir-font-medium ir-transition-colors',
+                        'ir-inline-flex ir-shrink-0 ir-items-center ir-gap-1 ir-whitespace-nowrap ir-rounded-md ir-px-2 ir-py-1 ir-text-xs ir-font-medium ir-transition-colors',
                         item.value === value ? 'ir-bg-card ir-text-foreground ir-shadow-ir-xs' : 'ir-text-muted-foreground hover:ir-text-foreground',
                     )}
                 >
@@ -388,6 +388,7 @@ export function ActionMenu({
     align?: 'left' | 'right';
 }): ReactElement {
     const [open, setOpen] = useState(false);
+    const [position, setPosition] = useState<{ top: number; left?: number; right?: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -404,12 +405,18 @@ export function ActionMenu({
                 setOpen(false);
             }
         };
+        // A fixed menu would drift away from its trigger on scroll/resize: close it instead.
+        const close = (): void => setOpen(false);
         document.addEventListener('mousedown', onDown);
         document.addEventListener('keydown', onKey);
+        window.addEventListener('scroll', close, true);
+        window.addEventListener('resize', close);
 
         return () => {
             document.removeEventListener('mousedown', onDown);
             document.removeEventListener('keydown', onKey);
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('resize', close);
         };
     }, [open]);
 
@@ -424,6 +431,14 @@ export function ActionMenu({
                 aria-expanded={open}
                 onClick={(event) => {
                     event.stopPropagation();
+                    // Fixed positioning, measured from the trigger: the menu floats above any
+                    // scrolling/clipping container (a list with its own scroll used to cut it off).
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setPosition(
+                        align === 'right'
+                            ? { top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) }
+                            : { top: rect.bottom + 4, left: Math.max(8, rect.left) },
+                    );
                     setOpen((current) => !current);
                 }}
                 className={
@@ -434,13 +449,11 @@ export function ActionMenu({
             >
                 {trigger ?? <MoreHorizontal className="ir-size-4" />}
             </button>
-            {open && (
+            {open && position !== null && (
                 <div
                     role="menu"
-                    className={cn(
-                        'ir-absolute ir-top-full ir-z-50 ir-mt-1 ir-min-w-48 ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-p-1 ir-shadow-ir-lg ir-animate-in ir-fade-in-0 ir-zoom-in-95',
-                        align === 'right' ? 'ir-right-0' : 'ir-left-0',
-                    )}
+                    style={{ position: 'fixed', top: position.top, left: position.left, right: position.right }}
+                    className="ir-z-[60] ir-min-w-48 ir-max-w-[calc(100vw-1rem)] ir-overflow-hidden ir-rounded-xl ir-border ir-bg-card ir-p-1 ir-shadow-ir-lg ir-animate-in ir-fade-in-0 ir-zoom-in-95"
                 >
                     {visible.map((item) => {
                         const Icon = item.icon;
