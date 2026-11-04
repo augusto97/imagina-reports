@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🔗 ENLACES DE CONEXIÓN PARA CLIENTES (2026-11-04, v1.32.0):** antes, para conectar Google/Meta/Woo había que tener sesión en la app o
+que el cliente agregara a la agencia en su cuenta. Ahora: Clientes → sitio → «Pedir acceso al cliente» crea un enlace
+(`ir_connect_invites`: token aleatorio buscado por `sha256` + copia cifrada para volver a copiarlo; tipos permitidos; vence en 1/7/30
+días; revocable). El cliente abre `/connect/{token}` (Blade, sin login, marca de la agencia, `noindex`, `Referrer-Policy: no-referrer`,
+`no-store`, throttle 30/min), entra con su propia cuenta y vuelve a la misma página; si su cuenta ve varias propiedades, elige allí
+(`/connect/{token}/select/{source}`, solo valores de `meta.connect_options`). Reutiliza el flujo existente: `ConnectIntents` (nuevo,
+compartido con `ConnectController`) guarda el intent con `invite_id`, y el callback público lo procesa igual. Todo se acota al agency/sitio/
+tipos del enlace; auditoría `connect_invite.created|revoked|used`. Solo fuentes con conexión de un clic (Google, Meta, WooCommerce); las de
+API key manual quedan fuera. Aviso: si la app de Google no está verificada, el cliente sigue viendo la advertencia de Google.
+
 **👤 MENÚ DE CUENTA (2026-11-04, v1.31.2):** el botón de cuenta al pie del menú lateral abría su menú hacia abajo (fuera de pantalla /
 scroll raro). `ActionMenu` ahora se abre hacia arriba si no cabe debajo, admite `header` (quién eres: nombre, email, rol, agencia,
 versión) y `block`. Opciones: «Mi perfil y contraseña» y «Ajustes de la agencia» (abren su sección vía `sessionStorage`
@@ -2524,6 +2534,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-04) Enlaces de conexión para clientes: token en hash para buscar + copia cifrada para que la agencia pueda copiarlo de nuevo (igual que `push_token`); multi-uso hasta que vence o se revoca, porque el cliente suele conectar varias fuentes. Cualquier miembro de la agencia puede crearlos (igual que crear una fuente).
 > History of locked decisions so any new conversation has full context. Append new ones with date + rationale.
 
 - (2026-11-04) **El renderer cierra los huecos de bloques ocultos** (`reflowGaps`): una fila que pierde bloques se estira si nada la cruza y las filas vacías se eliminan. Prioriza que el cliente nunca vea huecos sobre el «WYSIWYG estricto» en reportes con datos faltantes.

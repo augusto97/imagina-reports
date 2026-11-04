@@ -1,4 +1,4 @@
-import { ChevronLeft, FlaskConical, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronLeft, FlaskConical, Link2, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
@@ -16,6 +16,7 @@ import {
 } from '../api';
 import type { Ga4DatasetSpec } from '../api';
 import type { ConfigFieldDef, Connector, DataSourceDto } from '../types';
+import { ClientConnectLink } from './ClientConnectLink';
 import { Ga4DatasetBuilder } from './Ga4DatasetBuilder';
 import { RangeSyncMenu } from './RangeSyncMenu';
 import { SOURCE_CATEGORIES, SOURCE_META } from '../lib/sources';
@@ -417,7 +418,7 @@ function takeConnectResult(): { ok: boolean; message: string; type: string } | n
  * with test/edit/delete, and an "add source" panel driven by each connector's
  * configSchema. Extracted so the workspace (master-detail) can embed it directly.
  */
-export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
+export function SiteDataSources({ siteId, siteName }: { siteId: number; siteName: string }): ReactElement {
     const { data: connectors = [] } = useConnectors();
     const { data: sources = [] } = useSiteDataSources(siteId);
     const create = useCreateDataSource(siteId);
@@ -436,6 +437,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
     // ("usar mis propios accesos") so the client can still bring their own tokens if they prefer.
     const [manualOpen, setManualOpen] = useState(false);
     const [connectResult, setConnectResult] = useState(takeConnectResult);
+    const [askingClient, setAskingClient] = useState(false);
 
     const connector = connectors.find((item) => item.key === type);
     const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? SOURCE_META[sourceType]?.label ?? sourceType;
@@ -510,7 +512,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     </button>
                 </div>
             )}
-            <div className="ir-flex ir-items-center ir-justify-between ir-gap-3">
+            <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3">
                 <div>
                     <h3 className="ir-flex ir-items-center ir-gap-2 ir-text-[15px] ir-font-semibold ir-tracking-tight">
                         Fuentes de datos
@@ -518,19 +520,28 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                     </h3>
                     <p className="ir-text-[13px] ir-text-muted-foreground">De aquí salen los números del reporte. Solo lectura: nunca se modifica nada en las cuentas.</p>
                 </div>
-                <Button
-                    size="sm"
-                    variant={adding ? 'ghost' : 'primary'}
-                    onClick={() => {
-                        setAdding((open) => !open);
-                        setType('');
-                        setValues({});
-                        setManualOpen(false);
-                    }}
-                >
-                    {adding ? 'Cancelar' : <><Plus className="ir-size-3.5" />Añadir fuente</>}
-                </Button>
+                <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1.5">
+                    <Button size="sm" variant="ghost" onClick={() => setAskingClient(true)} title="Envía un enlace para que el cliente conecte sus propias cuentas">
+                        <Link2 className="ir-size-3.5" />
+                        <span className="ir-hidden sm:ir-inline">Pedir acceso al cliente</span>
+                        <span className="sm:ir-hidden">Pedir acceso</span>
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={adding ? 'ghost' : 'primary'}
+                        onClick={() => {
+                            setAdding((open) => !open);
+                            setType('');
+                            setValues({});
+                            setManualOpen(false);
+                        }}
+                    >
+                        {adding ? 'Cancelar' : <><Plus className="ir-size-3.5" />Añadir fuente</>}
+                    </Button>
+                </div>
             </div>
+
+            {askingClient && <ClientConnectLink siteId={siteId} siteName={siteName} connectors={connectors} onClose={() => setAskingClient(false)} />}
 
             {adding && (
                 <div className="ir-flex ir-flex-col ir-gap-4 ir-rounded-xl ir-border ir-bg-muted/30 ir-p-4">
@@ -707,7 +718,7 @@ export function SiteDataSources({ siteId }: { siteId: number }): ReactElement {
                 })}
                 {sources.length === 0 && !adding && (
                     <li className="ir-rounded-xl ir-border ir-border-dashed ir-p-8 ir-text-center ir-text-sm ir-text-muted-foreground">
-                        Este sitio aún no tiene fuentes. Pulsa «Añadir fuente» y conecta Google Analytics, Search Console, MainWP… Sin fuentes, el reporte sale vacío.
+                        Este sitio aún no tiene fuentes. Pulsa «Añadir fuente» y conecta Google Analytics, Search Console, MainWP…, o «Pedir acceso al cliente» para que conecte sus propias cuentas. Sin fuentes, el reporte sale vacío.
                     </li>
                 )}
             </ul>

@@ -61,6 +61,13 @@ final class AuditLogger
 
     public const API_TOKEN_REVOKED = 'api_token.revoked';
 
+    public const CONNECT_INVITE_CREATED = 'connect_invite.created';
+
+    public const CONNECT_INVITE_REVOKED = 'connect_invite.revoked';
+
+    /** A client connected one of their own accounts through a connection link. */
+    public const CONNECT_INVITE_USED = 'connect_invite.used';
+
     /**
      * @param  array<string, mixed>  $meta
      */

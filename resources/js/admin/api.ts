@@ -843,6 +843,47 @@ export function useConnectStart(siteId: number) {
     });
 }
 
+/* ------------------------------ connect invites ----------------------------- */
+
+/** A connection link the client opens (no account) to connect their own accounts to a site. */
+export interface ConnectInviteDto {
+    id: number;
+    site_id: number;
+    url: string;
+    types: string[];
+    expires_at: string;
+    last_used_at: string | null;
+    created_at: string;
+    created_by: string | null;
+}
+
+export function useConnectInvites(siteId: number | null) {
+    return useQuery({
+        queryKey: ['connect-invites', siteId],
+        queryFn: () => get<{ data: ConnectInviteDto[] }>(`/sites/${siteId}/connect-invites`).then((r) => r.data),
+        enabled: siteId !== null,
+    });
+}
+
+export function useCreateConnectInvite(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { types: string[]; expires_days: number }) =>
+            api.post<{ data: ConnectInviteDto }>(`/sites/${siteId}/connect-invites`, payload).then((r) => r.data.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connect-invites', siteId] }),
+    });
+}
+
+export function useRevokeConnectInvite(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/connect-invites/${id}`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connect-invites', siteId] }),
+    });
+}
+
 export interface ConnectionTestResult {
     successful: boolean;
     message: string;

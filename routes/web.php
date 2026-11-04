@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\ConnectInvitePageController;
 use App\Http\Controllers\EmbedController;
 use App\Http\Controllers\OAuth\OAuthAuthorizeController;
 use App\Http\Controllers\OAuth\OAuthMetadataController;
@@ -60,3 +61,11 @@ Route::get('/.well-known/oauth-protected-resource/api/v1/mcp', [OAuthMetadataCon
 Route::get('/.well-known/oauth-authorization-server', [OAuthMetadataController::class, 'authorizationServer']);
 Route::get('/oauth/authorize', [OAuthAuthorizeController::class, 'show'])->name('oauth.authorize');
 Route::post('/oauth/authorize', [OAuthAuthorizeController::class, 'decide'])->middleware('throttle:oauth')->name('oauth.authorize.decide');
+
+// Connection links (sent by the agency): the client connects their own Google/Meta/Woo
+// accounts to one site without an account here. The token is the only key.
+Route::middleware('throttle:30,1')->group(function (): void {
+    Route::get('/connect/{token}', [ConnectInvitePageController::class, 'show'])->name('connect.invite');
+    Route::post('/connect/{token}/start/{type}', [ConnectInvitePageController::class, 'start'])->name('connect.invite.start');
+    Route::post('/connect/{token}/select/{source}', [ConnectInvitePageController::class, 'select'])->whereNumber('source')->name('connect.invite.select');
+});

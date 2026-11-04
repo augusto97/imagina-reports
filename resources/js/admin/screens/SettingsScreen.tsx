@@ -884,6 +884,9 @@ const AUDIT_LABELS: Record<string, string> = {
     'mcp.applied': 'Un asistente de IA aplicó un cambio',
     'api_token.created': 'Conectó un asistente de IA',
     'api_token.revoked': 'Desconectó un asistente de IA',
+    'connect_invite.created': 'Creó un enlace de conexión para un cliente',
+    'connect_invite.revoked': 'Desactivó un enlace de conexión',
+    'connect_invite.used': 'El cliente conectó una cuenta desde su enlace',
 };
 
 function AuditLogCard(): ReactElement {

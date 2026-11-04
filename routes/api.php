@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\BillingWebhookController;
 use App\Http\Controllers\Api\V1\CalculatedMetricController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectController;
+use App\Http\Controllers\Api\V1\ConnectInviteController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\DataSourceController;
 use App\Http\Controllers\Api\V1\DimensionValuesController;
@@ -202,6 +203,10 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::get('sites/{site}/data-sources/coverage', [DataSourceController::class, 'coverage'])->name('api.sites.data-sources.coverage');
     Route::post('sites/{site}/data-sources', [DataSourceController::class, 'store'])->name('api.sites.data-sources.store');
     Route::post('sites/{site}/connect/{type}', [ConnectController::class, 'start'])->name('api.sites.connect.start');
+    // Connection links: the client connects their own accounts without an account here.
+    Route::get('sites/{site}/connect-invites', [ConnectInviteController::class, 'index'])->name('api.sites.connect-invites.index');
+    Route::post('sites/{site}/connect-invites', [ConnectInviteController::class, 'store'])->name('api.sites.connect-invites.store');
+    Route::delete('connect-invites/{connectInvite}', [ConnectInviteController::class, 'destroy'])->name('api.connect-invites.destroy');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     // Real values of a dataset dimension, so the editor's filters are a picker
     // rather than a free-text box you can typo into an empty block.

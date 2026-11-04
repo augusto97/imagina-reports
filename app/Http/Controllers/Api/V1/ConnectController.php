@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Connectors\Connect\ConnectFailed;
+use App\Connectors\Connect\ConnectIntents;
 use App\Connectors\Connect\ConnectRegistry;
 use App\Connectors\Connect\ResourceDiscovery;
 use App\Enums\DataSourceStatus;
@@ -12,13 +13,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Agency;
 use App\Models\DataSource;
 use App\Models\Site;
+use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 
 /**
  * One-click "connect your account" flows (the alternative to the manual configSchema
@@ -28,12 +28,10 @@ use Illuminate\Support\Str;
  */
 final class ConnectController extends Controller
 {
-    /** How long a started connect intent stays valid before the nonce expires. */
-    private const INTENT_TTL_MINUTES = 15;
-
     public function __construct(
         private readonly ConnectRegistry $registry,
         private readonly ResourceDiscovery $discovery,
+        private readonly ConnectIntents $intents,
     ) {}
 
     public function start(Request $request, Site $site, string $type, Entitlements $entitlements, TenantContext $tenant): JsonResponse
@@ -57,16 +55,8 @@ final class ConnectController extends Controller
         /** @var array<string, mixed> $input */
         $input = is_array($validated['input'] ?? null) ? $validated['input'] : [];
 
-        $nonce = Str::random(48);
         $returnUrl = $this->safeReturnUrl(is_string($validated['return_url'] ?? null) ? $validated['return_url'] : null);
-
-        Cache::put($this->intentKey($nonce), [
-            'type' => $type,
-            'site_id' => $site->id,
-            'agency_id' => $agency->id,
-            'input' => $input,
-            'return_url' => $returnUrl,
-        ], now()->addMinutes(self::INTENT_TTL_MINUTES));
+        $nonce = $this->intents->create($type, $site->id, $agency->id, $input, $returnUrl);
 
         return response()->json([
             'redirect_url' => $provider->redirectUrl($input, $nonce, $this->callbackUrl($type), $returnUrl),
@@ -87,10 +77,10 @@ final class ConnectController extends Controller
         $isBrowser = $provider->callbackIsBrowserRedirect();
 
         // The intent carries the return URL, so we can bounce the browser back even on denial.
-        $intent = Cache::pull($this->intentKey($provider->nonceFromCallback($request)));
-        $returnUrl = is_array($intent) && is_string($intent['return_url'] ?? null) ? $intent['return_url'] : $this->appUrl();
+        $intent = $this->intents->pull($provider->nonceFromCallback($request));
+        $returnUrl = is_string($intent['return_url'] ?? null) ? $intent['return_url'] : $this->appUrl();
 
-        if (! is_array($intent) || ($intent['type'] ?? null) !== $type) {
+        if ($intent === null || ($intent['type'] ?? null) !== $type) {
             return $this->fail($isBrowser, $returnUrl, 'La solicitud de conexión expiró o no es válida. Vuelve a intentarlo.');
         }
 
@@ -129,16 +119,22 @@ final class ConnectController extends Controller
         // token, so the UI offers a dropdown. Auto-select when there's exactly one.
         $this->discovery->discover($source);
 
+        // Connected by the client through a connection link: leave a trace for the agency.
+        if (is_int($intent['invite_id'] ?? null)) {
+            AuditLogger::record(
+                AuditLogger::CONNECT_INVITE_USED,
+                $source,
+                'El cliente conectó '.$source->type->label().' desde un enlace de conexión.',
+                ['invite_id' => $intent['invite_id'], 'type' => $type],
+                agencyId: $agencyId,
+            );
+        }
+
         if ($isBrowser) {
             return redirect()->away($this->withQuery($returnUrl, ['connected' => $type, 'source' => (string) $source->id]));
         }
 
         return response()->json(['connected' => true, 'source_id' => $source->id]);
-    }
-
-    private function intentKey(string $nonce): string
-    {
-        return "connect:intent:{$nonce}";
     }
 
     private function callbackUrl(string $type): string
