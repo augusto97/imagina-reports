@@ -118,6 +118,8 @@ class CustomDomainTest extends TestCase
 
     public function test_the_domain_only_serves_its_agencys_client_pages(): void
     {
+        // The pages are Blade shells for the SPA; CI's backend job has no Vite build.
+        $this->withoutVite();
         $agency = $this->agency();
         $this->goLive();
         $this->putJson('/api/v1/agency/domain', ['domain' => 'reportes.sol.test'])->assertJsonPath('domain_status', 'active');
