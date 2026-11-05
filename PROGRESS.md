@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**🧠 «GENERAR CON IA» REHECHO + PREGUNTAS CON TODOS LOS DATOS (2026-11-05, v1.38.0):** el owner probó un prompt largo
+(«informe muy completo, multipágina, todas las fuentes») y salió «La IA no pudo generar un borrador válido». Causas posibles (sin la clave
+real no se pudo reproducir): petición web cortada por el límite de 30 s de PHP con un modelo que razona, respuesta truncada o JSON
+inválido, un solo bloque inválido tumbaba todo el borrador, el prompt no conocía las páginas ni los tipos actuales, y el editor mostraba
+un error genérico. Ahora: la IA escribe un **plan compacto** (`{title, pages:[{name,type:cover|content|back_cover,items:[{kind,metric,title,chart,size,by,measure,text}]}]}`)
+y `App\Reports\AiPlanLayout` lo convierte en bloques válidos: cabecera por página, KPIs/gráficos/tablas/mapas/embudos, filas de 12
+columnas que cierran al ras, el visual se ajusta al tipo de métrica (KPI de una serie → gráfico…), datasets con `measure`/`breakdown`,
+formatos por unidad, métricas inexistentes descartadas y reportadas, páginas vacías fuera. El catálogo va en líneas compactas por fuente y
+marca qué métricas tienen datos en la última sincronización. `ask()`: `set_time_limit(300)`, un reintento si no es JSON, y el motivo real
+(«No se pudo usar la IA: La clave no es válida…», «respuesta incompleta») llega al editor. Aún acepta el formato viejo `{blocks}` (bloque a
+bloque). `AnthropicAiClient::lastError()` y `stop_reason=max_tokens` → error claro. Editor: nuevo `AiGenerateModal.tsx` (área de texto
+grande, ideas de ejemplo, «Informe completo» / «Añadir una sección», progreso y error dentro del modal; aplica los nombres de página).
+`ReportAssistant` ahora también envía `datos_sincronizados` (todas las métricas de cada fuente en el periodo, con nombres del catálogo,
+filas recortadas hasta caber en ~90 KB) y `periodo_anterior` (cifras simples). Tests nuevos en AiReportBuilderTest (5), AiTemplateApiTest (1),
+ReportConversationTest (1).
+
 **🔄 MODELOS DE IA EN VIVO, TODO DESDE EL PANEL (2026-11-05, v1.37.3):** el owner pidió (1) no tener que tocar el `.env` nunca y
 (2) no dejar modelos fijos: que se actualicen solos. Ahora `App\Ai\AiModelCatalog` lee `GET /v1/models` de Anthropic (paginado, con
 beta `server-side-fallback-2026-06-01` para ver `allowed_fallback_models`; si ese beta da 400, repite sin él), por clave (hash sha256,
@@ -2671,6 +2687,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) «Generar con IA» = la IA decide QUÉ (plan de páginas y métricas), el código decide CÓMO (bloques y distribución): más fiable y respuestas más cortas. «Pregúntale a tu reporte» lee todas las instantáneas del periodo (no solo los bloques); el owner dijo que sin eso no tenía utilidad.
 - (2026-11-05) Modelos de IA leídos en vivo de la Models API (no hay lista en código); elección por defecto `auto:opus` («el Opus más reciente»). Se elimina `ANTHROPIC_MODEL`: el owner quiere todo desde el panel y que los modelos se actualicen solos. El panel nunca menciona el `.env`.
 - (2026-11-05) Modelo de IA por defecto `claude-opus-5-5`; una agencia solo elige modelo con su propia clave — con la clave de la plataforma paga la plataforma, así que decide el superadmin. El `.env` queda como respaldo (clave y modelo).
 - (2026-11-05) Aviso de conexión caída solo en la TRANSICIÓN a error (y como mucho cada 12 h por fuente): un aviso por cada reintento fallido enseña a ignorarlos. El correo va a owners+admins (es operativo), no al contacto público de la agencia.

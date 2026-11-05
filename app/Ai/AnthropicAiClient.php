@@ -22,6 +22,9 @@ final class AnthropicAiClient implements AiClient
 
     private const VERSION = '2023-06-01';
 
+    /** Why the last complete() came back empty (shown by callers that can explain it). */
+    private ?string $lastError = null;
+
     public function __construct(
         private readonly TenantContext $tenant,
         private readonly AiModelCatalog $catalog,
@@ -30,8 +33,15 @@ final class AnthropicAiClient implements AiClient
     public function complete(string $system, string $prompt): string
     {
         ['key' => $key, 'model' => $choice, 'effort' => $effort] = AiSettings::for($this->agency());
+        $result = $this->send($key ?? '', $choice, $system, $prompt, 16000, $effort);
+        $this->lastError = $result['ok'] ? null : $result['error'];
 
-        return $this->send($key ?? '', $choice, $system, $prompt, 16000, $effort)['text'];
+        return $result['text'];
+    }
+
+    public function lastError(): ?string
+    {
+        return $this->lastError;
     }
 
     /**
@@ -100,6 +110,11 @@ final class AnthropicAiClient implements AiClient
             if (is_array($block) && ($block['type'] ?? null) === 'text' && is_string($block['text'] ?? null)) {
                 $text .= $block['text'];
             }
+        }
+
+        // Ran out of room mid-answer: the text is cut (a JSON layout would be unusable).
+        if (data_get($json, 'stop_reason') === 'max_tokens') {
+            return ['ok' => false, 'text' => $text, 'error' => 'La respuesta de la IA quedó incompleta porque era demasiado larga.', ...$meta];
         }
 
         return ['ok' => $text !== '', 'text' => $text, 'error' => $text === '' ? 'La IA respondió vacío.' : null, ...$meta];

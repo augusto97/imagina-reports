@@ -82,6 +82,116 @@ class AiReportBuilderTest extends TestCase
         $this->assertSame([['type' => 'kpi', 'metric' => 'woocommerce.revenue']], $result['dropped']);
     }
 
+    public function test_it_turns_a_multi_page_plan_into_a_tidy_layout(): void
+    {
+        $site = $this->siteWithGa4();
+        $response = (string) json_encode([
+            'title' => 'Informe 360',
+            'pages' => [
+                ['name' => 'Portada', 'type' => 'cover'],
+                ['name' => 'Resumen', 'items' => [
+                    ['kind' => 'healthscore'],
+                    ['kind' => 'summary'],
+                    ['kind' => 'kpi', 'metric' => 'ga4.sessions', 'title' => 'Visitas'],
+                    // A KPI of a time series becomes a chart; a map of countries stays a map.
+                    ['kind' => 'kpi', 'metric' => 'ga4.sessions_by_date', 'title' => 'Visitas por día'],
+                    ['kind' => 'map', 'metric' => 'ga4.top_countries', 'title' => 'De dónde te visitan'],
+                    // Invented metric: dropped and reported.
+                    ['kind' => 'kpi', 'metric' => 'woocommerce.revenue', 'title' => 'Ventas'],
+                ]],
+                // A page whose items are all unusable is left out.
+                ['name' => 'Ventas', 'items' => [['kind' => 'kpi', 'metric' => 'woocommerce.orders']]],
+                ['name' => 'Cierre', 'type' => 'back_cover'],
+            ],
+        ]);
+
+        $result = $this->builderReturning($response)->assembleTemplate($site, 'un informe completo');
+
+        $this->assertSame(['Portada', 'Resumen', 'Cierre'], $result['pages']);
+        $types = array_map(static fn (array $block): string => $block['type'].'@'.$block['page'], $result['blocks']);
+        $this->assertSame(['cover@0', 'header@1', 'healthscore@1', 'narrative@1', 'kpi@1', 'chart@1', 'geo_map@1', 'back_cover@2'], $types);
+        $this->assertSame([['type' => 'kpi', 'metric' => 'woocommerce.revenue'], ['type' => 'kpi', 'metric' => 'woocommerce.orders']], $result['dropped']);
+
+        $byType = [];
+        foreach ($result['blocks'] as $block) {
+            $byType[$block['type']] = $block;
+        }
+        $this->assertSame('Informe 360', $byType['cover']['props']['title']);
+        $this->assertSame('Resumen', $byType['header']['props']['title']);
+        $this->assertSame(['source' => 'ga4', 'metric' => 'sessions', 'compare' => 'prev_period'], $byType['kpi']['binding']);
+        $this->assertSame('area', $byType['chart']['props']['chartType']);
+        // Health gauge + summary share the first row; every row ends flush on the 12-column grid.
+        $this->assertSame(['x' => 0, 'y' => 3, 'w' => 4, 'h' => 7], $byType['healthscore']['layout']);
+        $this->assertSame(['x' => 4, 'y' => 3, 'w' => 8, 'h' => 7], $byType['narrative']['layout']);
+        $rows = [];
+        foreach ($result['blocks'] as $block) {
+            if ($block['page'] === 1 && $block['type'] !== 'header') {
+                $rows[$block['layout']['y']] = ($rows[$block['layout']['y']] ?? 0) + $block['layout']['w'];
+            }
+        }
+        $this->assertSame([12], array_values(array_unique($rows)));
+    }
+
+    public function test_a_section_plan_has_no_header_and_starts_at_the_top(): void
+    {
+        $site = $this->siteWithGa4();
+        $response = (string) json_encode(['items' => [
+            ['kind' => 'kpi', 'metric' => 'ga4.sessions'],
+            ['kind' => 'chart', 'metric' => 'ga4.traffic_sources', 'chart' => 'donut', 'title' => 'Fuentes'],
+        ]]);
+
+        $result = $this->builderReturning($response)->assembleSection($site, 'tráfico');
+
+        $this->assertSame(['kpi', 'chart'], array_column($result['blocks'], 'type'));
+        $this->assertSame(0, $result['blocks'][0]['layout']['y']);
+        $this->assertSame('donut', $result['blocks'][1]['props']['chartType']);
+        $this->assertSame([], $result['dropped']);
+    }
+
+    public function test_it_retries_once_when_the_answer_is_not_json(): void
+    {
+        $site = $this->siteWithGa4();
+        $answers = ['Claro, aquí tienes el informe…', (string) json_encode(['pages' => [['name' => 'Resumen', 'items' => [['kind' => 'kpi', 'metric' => 'ga4.sessions']]]]])];
+        $this->app->instance(AiClient::class, new class($answers) implements AiClient
+        {
+            public int $calls = 0;
+
+            /** @param list<string> $answers */
+            public function __construct(private array $answers) {}
+
+            public function complete(string $system, string $prompt): string
+            {
+                return $this->answers[$this->calls++] ?? '';
+            }
+        });
+
+        $result = app(AiReportBuilder::class)->assembleTemplate($site);
+
+        $this->assertSame(['header', 'kpi'], array_column($result['blocks'], 'type'));
+    }
+
+    public function test_a_plan_with_only_invented_metrics_says_so(): void
+    {
+        $site = $this->siteWithGa4();
+        $response = (string) json_encode(['pages' => [['name' => 'Ventas', 'items' => [['kind' => 'kpi', 'metric' => 'woocommerce.revenue']]]]]);
+
+        $this->expectException(AiReportException::class);
+        $this->expectExceptionMessage('métricas que este sitio no tiene');
+        $this->builderReturning($response)->assembleTemplate($site);
+    }
+
+    public function test_the_prompt_lists_the_catalog_and_the_request(): void
+    {
+        $site = $this->siteWithGa4();
+        $fake = new FakeAiClient((string) json_encode(['pages' => [['name' => 'R', 'items' => [['kind' => 'kpi', 'metric' => 'ga4.sessions']]]]]));
+        $this->app->instance(AiClient::class, $fake);
+
+        app(AiReportBuilder::class)->assembleTemplate($site, 'hazlo multipágina');
+
+        $this->assertStringContainsString('- ga4.sessions | Sesiones | scalar, count', (string) $fake->lastPrompt);
+        $this->assertStringContainsString('hazlo multipágina', (string) $fake->lastPrompt);
+    }
+
     public function test_it_throws_on_unparseable_output(): void
     {
         $site = $this->siteWithGa4();

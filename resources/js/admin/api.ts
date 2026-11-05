@@ -1607,6 +1607,8 @@ export interface AiTemplateResult {
     blocks: Block[];
     narrative: string;
     dropped: { type: string; metric: string }[];
+    /** Page names for a multi-page draft (Portada, Resumen…), indexed by page. */
+    pages?: string[];
 }
 
 export function useAiTemplate(siteId: number) {

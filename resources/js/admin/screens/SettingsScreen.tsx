@@ -999,7 +999,7 @@ function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
                     <span>
                         <span className="ir-block ir-text-sm ir-font-medium">Respuestas automáticas a tus clientes</span>
                         <span className="ir-block ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
-                            En su informe, tus clientes pueden preguntar («¿por qué bajaron las visitas?») y la IA responde al instante solo con los datos del informe. Lo que preguntan lo ves en Reportes → Preguntas. Máximo 20 preguntas por informe al día.
+                            En su informe, tus clientes pueden preguntar («¿de qué países me visitan?», «¿por qué bajaron las visitas?») y la IA responde al instante con todo lo que se sincronizó de sus fuentes en ese periodo, aunque el informe no lo muestre, sin inventar cifras. Lo que preguntan lo ves en Reportes → Preguntas. Máximo 20 preguntas por informe al día.
                         </span>
                     </span>
                 </label>

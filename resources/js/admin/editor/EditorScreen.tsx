@@ -176,9 +176,10 @@ import { hexToHslString } from "@shared/lib/color";
 import { apiErrorMessage } from "@shared/lib/api";
 import { SyncStatus } from "./SyncStatus";
 import { TemplatePicker } from "./TemplatePicker";
+import { AiGenerateModal } from "./AiGenerateModal";
 import { ClientPreview } from "./ClientPreview";
 
-import { Button, Field, Input } from "../components/ui";
+import { Button, Field } from "../components/ui";
 import { COMPACT_QUERY, TIGHT_BAR_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import type { CatalogEntry, PageFilters, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
@@ -275,8 +276,8 @@ export function EditorScreen(): ReactElement {
 
     const [name, setName] = useState("");
     const [phoneNoticeDismissed, setPhoneNoticeDismissed] = useState(false);
-    const [aiPrompt, setAiPrompt] = useState("");
-    const [aiSectionPrompt, setAiSectionPrompt] = useState("");
+    // Why the last «Generar con IA» failed (shown inside the modal, which stays open).
+    const [aiError, setAiError] = useState<string | null>(null);
     const [month, setMonth] = useState(currentMonth());
     const [blocks, setBlocks] = useState<Block[]>([makeBlock("header")]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -489,17 +490,21 @@ export function EditorScreen(): ReactElement {
         });
     };
 
-    const generateWithAi = (): void => {
-        ai.mutate(aiPrompt, {
+    const generateWithAi = (prompt: string): void => {
+        setAiError(null);
+        ai.mutate(prompt, {
             onSuccess: (result) => {
                 resetBlocks(
                     result.blocks.length > 0
                         ? result.blocks
                         : [makeBlock("header")],
                 );
+                // Multi-page drafts come with their page names (Portada, Resumen, Seguridad…).
+                setPageNames(result.pages ?? []);
                 setSelectedId(null);
                 setErrors([]);
                 setDirty(true);
+                setAiOpen(false);
                 // Tell the user which blocks the AI proposed but were dropped because the
                 // site has no data for them (so the layout shrank for a reason).
                 setAiNotice(
@@ -510,30 +515,31 @@ export function EditorScreen(): ReactElement {
                         : null,
                 );
             },
-            onError: () => {
+            onError: (error) => {
                 setAiNotice(null);
-                setErrors(["La IA no pudo generar un borrador válido."]);
+                setAiError(apiErrorMessage(error, "La IA no pudo generar el informe. Inténtalo otra vez."));
             },
         });
     };
 
     // "Add a section with AI": builds only the described blocks and appends them below
     // the current page's content, leaving the rest of the layout untouched.
-    const generateSectionWithAi = (): void => {
-        if (aiSectionPrompt.trim() === "") {
+    const generateSectionWithAi = (prompt: string): void => {
+        if (prompt === "") {
             return;
         }
-        aiSection.mutate(aiSectionPrompt, {
+        setAiError(null);
+        aiSection.mutate(prompt, {
             onSuccess: (result) => {
                 if (result.blocks.length === 0) {
-                    setAiNotice(
+                    setAiError(
                         "La IA no propuso bloques válidos para este sitio (puede que no tenga los datos que pediste).",
                     );
                     return;
                 }
                 appendTemplate(() => result.blocks);
-                setAiSectionPrompt("");
                 setErrors([]);
+                setAiOpen(false);
                 setAiNotice(
                     result.dropped.length > 0
                         ? `Se añadió la sección. La IA omitió ${result.dropped.length} bloque(s) con métricas que este sitio no tiene: ${result.dropped
@@ -542,9 +548,9 @@ export function EditorScreen(): ReactElement {
                         : null,
                 );
             },
-            onError: () => {
+            onError: (error) => {
                 setAiNotice(null);
-                setErrors(["La IA no pudo generar la sección."]);
+                setAiError(apiErrorMessage(error, "La IA no pudo generar la sección. Inténtalo otra vez."));
             },
         });
     };
@@ -2393,87 +2399,16 @@ export function EditorScreen(): ReactElement {
             )}
 
             {aiOpen && (
-                <div className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-items-start ir-justify-center ir-bg-black/40 ir-p-4 ir-pt-[10vh]">
-                    <button type="button" aria-label="Cerrar" onClick={() => setAiOpen(false)} className="ir-fixed ir-inset-0 ir-cursor-default" />
-                    <div className="ir-relative ir-z-10 ir-w-full ir-max-w-lg ir-rounded-xl ir-border ir-bg-card ir-p-5 ir-shadow-ir-lg">
-                        <div className="ir-mb-4 ir-flex ir-items-start ir-justify-between ir-gap-3">
-                            <div>
-                                <h2 className="ir-text-sm ir-font-semibold ir-tracking-tight">Generar con IA</h2>
-                                <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">
-                                    Crea el informe completo a partir de los datos conectados, o añade una sección al actual.
-                                </p>
-                            </div>
-                            <Button variant="ghost" size="sm" onClick={() => setAiOpen(false)}>
-                                Cerrar
-                            </Button>
-                        </div>
-                            <div className="ir-flex ir-flex-col ir-gap-2.5">
-                                <div className="ir-flex ir-gap-2">
-                                    <Input
-                                        placeholder="Enfoque para la IA…"
-                                        value={aiPrompt}
-                                        onChange={(event) =>
-                                            setAiPrompt(event.target.value)
-                                        }
-                                    />
-                                    <Button
-                                        variant="ghost"
-                                        onClick={generateWithAi}
-                                        disabled={
-                                            siteId === null || ai.isPending
-                                        }
-                                    >
-                                        <Sparkles className="ir-size-4" />
-                                        IA
-                                    </Button>
-                                </div>
-                                {siteId === null && (
-                                    <p className="ir-text-[11px] ir-text-muted-foreground">
-                                        Elige un sitio en la barra superior para
-                                        generar con IA.
-                                    </p>
-                                )}
-                                <div className="ir-border-t ir-border-border ir-pt-2.5">
-                                    <p className="ir-mb-1.5 ir-text-[11px] ir-font-medium ir-text-muted-foreground">
-                                        Añadir sección al informe actual
-                                    </p>
-                                    <div className="ir-flex ir-gap-2">
-                                        <Input
-                                            placeholder="Ej.: sección de rendimiento de anuncios…"
-                                            value={aiSectionPrompt}
-                                            onChange={(event) =>
-                                                setAiSectionPrompt(
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                        <Button
-                                            variant="ghost"
-                                            onClick={generateSectionWithAi}
-                                            disabled={
-                                                siteId === null ||
-                                                aiSection.isPending ||
-                                                aiSectionPrompt.trim() === ""
-                                            }
-                                        >
-                                            <Sparkles className="ir-size-4" />
-                                            Añadir
-                                        </Button>
-                                    </div>
-                                </div>
-                                <p className="ir-text-[11px] ir-text-muted-foreground">
-                                    ¿Prefieres partir de una plantilla? Pulsa{" "}
-                                    <strong>«Plantillas»</strong> en la barra
-                                    superior.
-                                </p>
-                                {(create.isSuccess || update.isSuccess) && (
-                                    <p className="ir-text-xs ir-text-emerald-600">
-                                        Guardada.
-                                    </p>
-                                )}
-                            </div>
-                    </div>
-                </div>
+                <AiGenerateModal
+                    onClose={() => setAiOpen(false)}
+                    siteReady={siteId !== null}
+                    replacing={blocks.length > 1}
+                    fullPending={ai.isPending}
+                    sectionPending={aiSection.isPending}
+                    error={aiError}
+                    onFull={generateWithAi}
+                    onSection={generateSectionWithAi}
+                />
             )}
 
             {calcModalOpen && (

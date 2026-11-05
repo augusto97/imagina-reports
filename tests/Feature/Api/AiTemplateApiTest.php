@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Ai\AiClient;
+use App\Ai\AnthropicAiClient;
 use App\Enums\DataSourceType;
 use App\Models\Agency;
 use App\Models\Client;
@@ -12,6 +13,7 @@ use App\Models\DataSource;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\FakeAiClient;
 use Tests\TestCase;
@@ -53,6 +55,24 @@ class AiTemplateApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('blocks.0.id', 'k1')
             ->assertJsonPath('narrative', 'ok');
+    }
+
+    public function test_a_failing_ai_says_why_instead_of_a_generic_error(): void
+    {
+        // The real client (the base TestCase swaps in a fake), with Anthropic answering «bad key».
+        $this->app->bind(AiClient::class, AnthropicAiClient::class);
+        config(['services.anthropic.key' => 'sk-wrong']);
+        Http::fake([
+            'api.anthropic.com/v1/models*' => Http::response(['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key']], 401),
+            'api.anthropic.com/v1/messages' => Http::response(['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key']], 401),
+        ]);
+
+        $site = $this->site();
+
+        $response = $this->postJson("/api/v1/sites/{$site->id}/ai-template", ['prompt' => 'informe completo'])->assertUnprocessable();
+        $this->assertStringContainsString('No se pudo usar la IA: La clave no es válida', (string) $response->json('message'));
+        // The AI isn't called twice for a problem a retry can't fix.
+        Http::assertSentCount(2);
     }
 
     public function test_it_returns_422_on_unusable_ai_output(): void

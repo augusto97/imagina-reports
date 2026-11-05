@@ -134,7 +134,7 @@ export function AskPanel({ token, password, agency }: { token: string; password?
                             <div className="ir-min-w-0 ir-flex-1">
                                 <h2 className="ir-text-base ir-font-semibold ir-tracking-tight">Pregunta sobre tu informe</h2>
                                 <p className="ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
-                                    {aiOn ? `Te respondemos al instante con los datos del informe, o te contesta ${agency}.` : `Te contesta ${agency} aquí mismo.`}
+                                    {aiOn ? `Te respondemos al instante con todos los datos de tu sitio de este periodo, o te contesta ${agency}.` : `Te contesta ${agency} aquí mismo.`}
                                 </p>
                             </div>
                             <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="ir-rounded-lg ir-p-1.5 ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground">

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Ai\AiClient;
+use App\Enums\DataSourceType;
 use App\Enums\ReportMessageKind;
 use App\Enums\ReportVisibility;
 use App\Enums\UserRole;
@@ -12,6 +13,8 @@ use App\Jobs\NotifyReportMessage;
 use App\Mail\ClientQuestionMail;
 use App\Mail\QuestionAnsweredMail;
 use App\Models\Agency;
+use App\Models\DataSource;
+use App\Models\MetricSnapshot;
 use App\Models\Plan;
 use App\Models\Report;
 use App\Models\ReportMessage;
@@ -201,13 +204,42 @@ class ReportConversationTest extends TestCase
             ->assertJsonPath('message.kind', 'ai')
             ->assertJsonPath('message.answer', 'Este mes tuviste 4.820 visitas, un 4,8 % más que el anterior.');
 
-        // Only the report's own figures go to the AI.
-        $this->assertStringContainsString('"Visitas": 4820', (string) $fake->lastPrompt);
+        // The report's own figures go to the AI.
+        $this->assertStringContainsString('"Visitas":4820', (string) $fake->lastPrompt);
         $this->assertStringContainsString('¿Cuántas visitas tuve?', (string) $fake->lastPrompt);
 
         $message = ReportMessage::query()->sole();
         $this->assertSame(ReportMessageKind::Ai, $message->kind);
         $this->assertSame('Laura', $message->author_name);
+    }
+
+    public function test_the_ai_also_reads_everything_synced_for_the_period(): void
+    {
+        $report = $this->report(['period_start' => '2026-10-01 00:00:00', 'period_end' => '2026-10-31 23:59:59']);
+        $site = $report->definition?->site;
+        $this->assertNotNull($site);
+        $source = DataSource::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'type' => DataSourceType::Ga4]);
+        $snapshot = static fn (string $start, string $end, array $metrics): MetricSnapshot => MetricSnapshot::factory()->create([
+            'agency_id' => $source->agency_id, 'data_source_id' => $source->id, 'period_start' => $start, 'period_end' => $end,
+            'payload' => ['status' => 'ok', 'error' => null, 'metrics' => $metrics],
+        ]);
+        // October: more than the report shows (countries, top pages…).
+        $snapshot('2026-10-01 00:00:00', '2026-10-31 23:59:59', [
+            'ga4.sessions' => 4820,
+            'ga4.top_countries' => [['label' => 'Colombia', 'value' => 3100], ['label' => 'México', 'value' => 900]],
+        ]);
+        // September, for «vs. last month».
+        $snapshot('2026-09-01 00:00:00', '2026-09-30 23:59:59', ['ga4.sessions' => 4600, 'ga4.top_countries' => [['label' => 'Colombia', 'value' => 2900]]]);
+
+        $facts = app(ReportAssistant::class)->facts($report->fresh() ?? $report);
+
+        $this->assertSame(
+            [['label' => 'Colombia', 'value' => 3100], ['label' => 'México', 'value' => 900]],
+            $facts['datos_sincronizados']['Google Analytics 4']['Países'] ?? null,
+        );
+        $this->assertSame(4820, $facts['datos_sincronizados']['Google Analytics 4']['Sesiones'] ?? null);
+        // Only single figures from the previous period, for comparisons.
+        $this->assertSame(['Sesiones' => 4600], $facts['periodo_anterior']['Google Analytics 4'] ?? null);
     }
 
     public function test_the_ai_is_off_without_the_plan_feature_or_when_the_agency_turns_it_off(): void
