@@ -346,3 +346,32 @@
         min-height: 1.75rem;
     }
 }
+
+/* The editor's «Ver como el cliente» phone frame: a size container, so the report stacks
+   exactly like the portal does on a real phone (the rules above use the viewport). */
+.ir-phone-frame {
+    container-type: inline-size;
+    container-name: phone;
+}
+
+@container phone (max-width: 640px) {
+    .ir-report-grid {
+        grid-template-columns: 1fr !important;
+        grid-auto-rows: auto !important;
+    }
+
+    .ir-report-grid > .ir-report-cell {
+        grid-column: 1 / -1 !important;
+        grid-row: auto !important;
+        height: auto !important;
+    }
+
+    .ir-report-grid .ir-kpi-spark {
+        min-height: 1.75rem;
+    }
+
+    /* The surface's sm: padding follows the desktop viewport; a phone uses the small one. */
+    .ir-r-page {
+        padding: 0.75rem !important;
+    }
+}

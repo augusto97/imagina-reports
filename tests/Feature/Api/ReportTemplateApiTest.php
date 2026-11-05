@@ -28,6 +28,20 @@ class ReportTemplateApiTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['agency_id' => $this->agency->id]));
     }
 
+    public function test_a_template_says_which_clients_reports_follow_it(): void
+    {
+        $template = ReportTemplate::factory()->create(['agency_id' => $this->agency->id, 'name' => 'Mensual']);
+        $client = Client::factory()->create(['agency_id' => $this->agency->id]);
+        $site = Site::factory()->create(['agency_id' => $this->agency->id, 'client_id' => $client->id, 'name' => 'Hotel Sol']);
+        ReportDefinition::factory()->create(['agency_id' => $this->agency->id, 'site_id' => $site->id, 'template_id' => $template->id, 'name' => 'Informe Hotel Sol']);
+
+        $this->getJson('/api/v1/report-templates')
+            ->assertOk()
+            ->assertJsonPath('0.used_by.0.name', 'Informe Hotel Sol')
+            ->assertJsonPath('0.used_by.0.site', 'Hotel Sol');
+        $this->getJson("/api/v1/report-templates/{$template->id}")->assertOk()->assertJsonCount(1, 'used_by');
+    }
+
     public function test_default_blocks_returns_the_narrative_layout(): void
     {
         $response = $this->getJson('/api/v1/report-templates/default-blocks')->assertOk();

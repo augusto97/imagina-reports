@@ -8,6 +8,7 @@ use App\Models\Concerns\BelongsToAgency;
 use Database\Factories\ReportTemplateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A reusable block-based report template (CLAUDE.md §5/§10.2).
@@ -58,5 +59,16 @@ class ReportTemplate extends Model
             'pages' => 'array',
             'is_default' => 'boolean',
         ];
+    }
+
+    /**
+     * The clients' reports built from this template: they follow it (a change here reaches
+     * their next generated report), since a definition has no layout of its own.
+     *
+     * @return HasMany<ReportDefinition, $this>
+     */
+    public function definitions(): HasMany
+    {
+        return $this->hasMany(ReportDefinition::class, 'template_id');
     }
 }

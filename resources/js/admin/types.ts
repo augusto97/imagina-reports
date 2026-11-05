@@ -297,6 +297,8 @@ export interface ReportTemplateDto {
     pages?: { name: string }[] | null;
     is_default: boolean;
     locale: string;
+    /** The clients' reports that follow this template (editing it changes their next report). */
+    used_by?: { id: number; name: string; site: string | null }[];
 }
 
 export interface HealthPoint {

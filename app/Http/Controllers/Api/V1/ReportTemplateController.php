@@ -20,9 +20,12 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 final class ReportTemplateController extends Controller
 {
+    /** The clients' reports that follow each template (with their site), for "used by". */
+    private const USED_BY = ['definitions:id,name,site_id,template_id', 'definitions.site:id,name'];
+
     public function index(): AnonymousResourceCollection
     {
-        return ReportTemplateResource::collection(ReportTemplate::query()->latest()->get());
+        return ReportTemplateResource::collection(ReportTemplate::query()->with(self::USED_BY)->latest()->get());
     }
 
     /**
@@ -43,14 +46,14 @@ final class ReportTemplateController extends Controller
 
     public function show(ReportTemplate $reportTemplate): ReportTemplateResource
     {
-        return new ReportTemplateResource($reportTemplate);
+        return new ReportTemplateResource($reportTemplate->load(self::USED_BY));
     }
 
     public function update(UpdateReportTemplateRequest $request, ReportTemplate $reportTemplate): ReportTemplateResource
     {
         $reportTemplate->update($request->validated());
 
-        return new ReportTemplateResource($reportTemplate);
+        return new ReportTemplateResource($reportTemplate->load(self::USED_BY));
     }
 
     public function destroy(ReportTemplate $reportTemplate): JsonResponse

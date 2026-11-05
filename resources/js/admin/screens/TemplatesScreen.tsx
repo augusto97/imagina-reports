@@ -1,9 +1,10 @@
 import { Copy, LayoutTemplate, Pencil, Plus, Sparkles, Star, Trash2 } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
-import type { Block, BlockLayout } from '@shared/blocks/types';
+import type { Block } from '@shared/blocks/types';
 
 import { useCreateReportTemplate, useDeleteReportTemplate, useReportTemplates } from '../api';
+import { TemplateThumbnail as Thumbnail } from '../components/TemplateThumbnail';
 import { ActionMenu, Badge, Button, EmptyState, PageHeader } from '../components/ui';
 import { useAdminUi } from '../store';
 import type { ReportTemplateDto } from '../types';
@@ -17,41 +18,6 @@ function deleteErrorMessage(error: unknown): string {
     }
 
     return 'No se pudo eliminar la plantilla.';
-}
-
-/** Tint per kind of block, so the thumbnail reads like the report it will produce. */
-function tone(type: string): string {
-    if (type === 'header' || type === 'cover' || type === 'back_cover') return 'hsl(var(--ir-foreground) / 0.75)';
-    if (type === 'kpi' || type === 'sales_summary' || type === 'goal' || type === 'healthscore') return 'hsl(var(--ir-accent) / 0.45)';
-    if (type === 'chart' || type === 'geo_map' || type === 'funnel') return 'hsl(var(--ir-info) / 0.35)';
-    if (type === 'narrative' || type === 'advisory' || type === 'cta') return 'hsl(var(--ir-muted-foreground) / 0.25)';
-
-    return 'hsl(var(--ir-muted-foreground) / 0.18)';
-}
-
-/** A miniature wireframe of the template's first page, drawn from the blocks' grid layout. */
-function Thumbnail({ blocks }: { blocks: Block[] }): ReactElement {
-    const page = blocks.filter((block) => (block.page ?? 0) === 0 && block.layout != null) as (Block & { layout: BlockLayout })[];
-    const rows = Math.max(12, ...page.map((block) => block.layout.y + block.layout.h));
-    const visibleRows = Math.min(rows, 30);
-
-    return (
-        <svg viewBox={`0 0 120 ${visibleRows * 4}`} preserveAspectRatio="xMidYMin slice" className="ir-h-full ir-w-full">
-            {page
-                .filter((block) => block.layout.y < visibleRows)
-                .map((block) => (
-                    <rect
-                        key={block.id}
-                        x={block.layout.x * 10 + 1}
-                        y={block.layout.y * 4 + 1}
-                        width={Math.max(1, block.layout.w * 10 - 2)}
-                        height={Math.max(1, block.layout.h * 4 - 2)}
-                        rx={1.5}
-                        fill={tone(block.type)}
-                    />
-                ))}
-        </svg>
-    );
 }
 
 /**
@@ -129,6 +95,12 @@ export function TemplatesScreen(): ReactElement {
                                         <p className="ir-truncate ir-text-sm ir-font-semibold" title={template.name}>{template.name}</p>
                                         <p className="ir-mt-0.5 ir-text-xs ir-text-muted-foreground">
                                             {blocks.length} bloques · {pages} {pages === 1 ? 'página' : 'páginas'}
+                                        </p>
+                                        {/* Linked: the clients' reports that follow this template. */}
+                                        <p className="ir-mt-1 ir-truncate ir-text-xs ir-text-muted-foreground" title={(template.used_by ?? []).map((item) => item.site ?? item.name).join(', ')}>
+                                            {(template.used_by ?? []).length === 0
+                                                ? 'Ningún cliente la usa todavía'
+                                                : `Usada por ${(template.used_by ?? []).length} ${(template.used_by ?? []).length === 1 ? 'cliente' : 'clientes'}: ${(template.used_by ?? []).map((item) => item.site ?? item.name).slice(0, 3).join(', ')}${(template.used_by ?? []).length > 3 ? '…' : ''}`}
                                         </p>
                                     </div>
                                     <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-1">

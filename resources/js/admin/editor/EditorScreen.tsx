@@ -1,16 +1,15 @@
 import {
-    Activity,
     BookOpen,
-    Bug,
     Calendar,
-    Clock,
     Copy,
     Filter,
     Flag,
     FunctionSquare,
     Globe,
     Layers,
+    Eye,
     LayoutTemplate,
+    Link2,
     PanelLeftClose,
     PanelLeftOpen,
     PanelRightClose,
@@ -18,17 +17,10 @@ import {
     Plus,
     Redo2,
     Save,
-    Search,
     Shapes,
-    ShieldAlert,
-    ShieldCheck,
-    ShoppingCart,
     Sparkles,
     Trash2,
-    TrendingUp,
     Undo2,
-    Wrench,
-    Zap,
     Minus,
     MoreHorizontal,
     SlidersHorizontal,
@@ -176,14 +168,17 @@ import {
     useMetricCatalog,
     usePreview,
     useReportTemplate,
+    useReportTemplates,
     useSites,
     useUpdateReportTemplate,
 } from "../api";
 import { hexToHslString } from "@shared/lib/color";
 import { apiErrorMessage } from "@shared/lib/api";
 import { SyncStatus } from "./SyncStatus";
+import { TemplatePicker } from "./TemplatePicker";
+import { ClientPreview } from "./ClientPreview";
 
-import { Button, Card, Field, Input, Modal } from "../components/ui";
+import { Button, Field, Input } from "../components/ui";
 import { COMPACT_QUERY, TIGHT_BAR_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 import type { CatalogEntry, PageFilters, ReportTheme } from "../types";
 import { useAdminUi } from "../store";
@@ -198,7 +193,6 @@ import {
 import { BlockPalette, BLOCK_META } from "./BlockPalette";
 import { PageFiltersPanel } from "./PageFiltersPanel";
 import { CalcMetricsModal } from "../components/CalcMetricsModal";
-import { GALLERY } from "./templateGallery";
 import { Inspector } from "./Inspector";
 import {
     ColorSwatch,
@@ -217,23 +211,6 @@ const VISUAL_STYLES: { value: "modern" | "executive" | "minimal" | "bold"; label
     { value: "minimal", label: "Minimal", hint: "Sin cajas, mucho aire" },
     { value: "bold", label: "Intenso", hint: "Tarjetas con tu color" },
 ];
-
-/** A small icon per gallery template (keeps templateGallery.ts pure data). */
-const GALLERY_ICONS: Record<string, LucideIcon> = {
-    woocommerce: ShoppingCart,
-    ecommerce: ShoppingCart,
-    ga4_web: Globe,
-    ga4_ecommerce: TrendingUp,
-    seo: Search,
-    hourly_support: Clock,
-    security: ShieldCheck,
-    cloudflare: Zap,
-    uptime: Activity,
-    crowdsec: ShieldAlert,
-    maintenance: Wrench,
-    virusdie: Bug,
-    unified: Layers,
-};
 
 /** Width-measuring dashboard grid (react-grid-layout) for the editor canvas. */
 const Grid = WidthProvider(GridLayout);
@@ -409,6 +386,7 @@ export function EditorScreen(): ReactElement {
             setSelectedId(null);
             setErrors([]);
             setDirty(false);
+            setPickerMode("start");
         }
     }, [editingTemplateId]);
 
@@ -571,8 +549,35 @@ export function EditorScreen(): ReactElement {
         });
     };
 
-    // Predesigned templates live in a top-bar modal (kept out of the sidebar to save space).
-    const [galleryOpen, setGalleryOpen] = useState(false);
+    // Every way to start or extend a report (models, own templates, AI, blank) in one picker.
+    // It opens by itself on a NEW template — a blank canvas with no hint is where people
+    // used to get stuck — and from «Plantillas» while editing.
+    const [pickerMode, setPickerMode] = useState<"start" | "insert" | null>(() =>
+        editingTemplateId === null ? "start" : null,
+    );
+    const { data: ownTemplates = [] } = useReportTemplates();
+    const [savedNotice, setSavedNotice] = useState<string | null>(null);
+    const [clientPreview, setClientPreview] = useState(false);
+
+    // Open one of the agency's templates as a NEW template (a copy): the original and the
+    // clients that follow it stay untouched.
+    const openCopyOf = (template: { name: string; blocks: unknown[]; theme?: ReportTheme | null; filters?: PageFilters | null; pages?: { name: string }[] | null }): void => {
+        const loaded = template.blocks as Block[];
+        setName(`${template.name} (copia)`);
+        resetBlocks(loaded.length > 0 ? loaded : [makeBlock("header")]);
+        setTheme(template.theme ?? {});
+        setPageFilters(template.filters ?? {});
+        setPageNames((template.pages ?? []).map((page) => page.name ?? ""));
+        setSelectedId(null);
+        setDirty(true);
+    };
+
+    // Inserting a template's blocks next to the current ones: fresh ids, so nothing clashes.
+    const freshCopy = (source: unknown[]): Block[] => {
+        const stamp = Date.now().toString(36);
+
+        return (source as Block[]).map((block, index) => ({ ...block, id: `${block.id}_${stamp}${index}` }));
+    };
 
     // A gallery template the user picked while the canvas already has content — we ask
     // whether to append it below or replace everything (for building unified reports).
@@ -809,6 +814,12 @@ export function EditorScreen(): ReactElement {
             onSuccess: () => {
                 setErrors([]);
                 setDirty(false);
+                const linked = editingTemplate?.used_by ?? [];
+                setSavedNotice(
+                    linked.length > 0
+                        ? `Guardada. Los próximos reportes de ${linked.map((item) => item.site ?? item.name).slice(0, 4).join(", ")}${linked.length > 4 ? ` y ${linked.length - 4} más` : ""} usarán este diseño (los ya enviados no cambian).`
+                        : null,
+                );
             },
             onError: (error: unknown) => {
                 // Block-binding errors list per block; anything else (422 name, 403, 500) would
@@ -1241,7 +1252,16 @@ export function EditorScreen(): ReactElement {
                         hint="Partir de un diseño prediseñado"
                         onClick={() => {
                             setMoreOpen(false);
-                            setGalleryOpen(true);
+                            setPickerMode("insert");
+                        }}
+                    />
+                    <SheetAction
+                        icon={<Eye className="ir-size-4" />}
+                        label="Ver como el cliente"
+                        hint="El informe tal como lo abrirá tu cliente"
+                        onClick={() => {
+                            setMoreOpen(false);
+                            setClientPreview(true);
                         }}
                     />
                 </div>
@@ -1395,27 +1415,40 @@ export function EditorScreen(): ReactElement {
                             buttons: the AI one used to be accent-filled and shouted at
                             people who don't want AI in their workflow — being an option is
                             not the same as being the recommended one. */}
+                        {/* One entry for models, own templates and AI — two buttons that both
+                            meant "start from something" made the bar busier than it had to be. */}
                         <Button
                             variant="ghost"
                             size="sm"
                             className="ir-shrink-0"
-                            onClick={() => setAiOpen(true)}
-                            title="Generar el informe (o una sección) con IA"
+                            onClick={() => setPickerMode("insert")}
+                            title="Modelos, tus plantillas o generar con IA"
                         >
-                            <Sparkles className="ir-size-4" />
-                            IA
+                            <LayoutTemplate className="ir-size-4" />
+                            Plantillas
                         </Button>
 
                         <Button
                             variant="ghost"
                             size="sm"
                             className="ir-shrink-0"
-                            onClick={() => setGalleryOpen(true)}
-                            title="Elegir una plantilla prediseñada"
+                            onClick={() => setClientPreview(true)}
+                            title="Ver el informe como lo verá tu cliente, en escritorio o celular"
                         >
-                            <LayoutTemplate className="ir-size-4" />
-                            Plantillas
+                            <Eye className="ir-size-4" />
+                            <span className="ir-hidden xl:ir-inline">Ver como el cliente</span>
                         </Button>
+
+                        {/* Linked template: which clients' next reports this change reaches. */}
+                        {(editingTemplate?.used_by?.length ?? 0) > 0 && editingTemplate?.id === editingTemplateId && (
+                            <span
+                                className="ir-hidden ir-shrink-0 ir-items-center ir-gap-1 ir-rounded-full ir-bg-accent/10 ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-medium ir-text-accent xl:ir-inline-flex"
+                                title={`Al guardar, los próximos reportes de: ${(editingTemplate?.used_by ?? []).map((item) => item.site ?? item.name).join(", ")}`}
+                            >
+                                <Link2 className="ir-size-3" />
+                                {editingTemplate?.used_by?.length === 1 ? "1 cliente" : `${editingTemplate?.used_by?.length ?? 0} clientes`}
+                            </span>
+                        )}
                     </>
                 )}
 
@@ -1875,6 +1908,15 @@ export function EditorScreen(): ReactElement {
                         </div>
                     )}
 
+                    {savedNotice !== null && (
+                        <div className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-border-success/20 ir-bg-success/10 ir-px-4 ir-py-2">
+                            <p className="ir-text-xs ir-text-success">{savedNotice}</p>
+                            <button type="button" className="ir-shrink-0 ir-text-xs ir-text-success hover:ir-underline" onClick={() => setSavedNotice(null)}>
+                                Cerrar
+                            </button>
+                        </div>
+                    )}
+
                     {aiNotice !== null && (
                         <div className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-border-amber-200 ir-bg-amber-50 ir-px-4 ir-py-2">
                             <p className="ir-text-xs ir-text-amber-700">
@@ -2302,80 +2344,52 @@ export function EditorScreen(): ReactElement {
                 </BottomSheet>
             )}
 
-            {galleryOpen && (
-                <Modal
-                    onClose={() => setGalleryOpen(false)}
-                    className="ir-max-w-6xl xl:ir-max-w-7xl"
-                >
-                    <Card
-                        title="Plantillas prediseñadas"
-                        description="Elige un punto de partida. Si ya tienes contenido, te preguntaremos si añadirla debajo o reemplazar."
-                        actions={
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setGalleryOpen(false)}
-                            >
-                                Cerrar
-                            </Button>
+            {clientPreview && (
+                <ClientPreview
+                    blocks={blocks}
+                    data={renderData}
+                    theme={{ ...theme, accent: theme.accent ?? agency?.brand_color ?? null }}
+                    pages={pageNames.map((pageName) => ({ name: pageName }))}
+                    agency={agency !== undefined ? { name: agency.name, logo_url: agency.logo_url } : null}
+                    context={{
+                        agency: agency?.name ?? "Tu agencia",
+                        site: sites.find((item) => item.id === siteId)?.name ?? "misitio.com",
+                        client: "Tu cliente",
+                        period: monthLabel,
+                        score: "",
+                    }}
+                    onClose={() => setClientPreview(false)}
+                />
+            )}
+
+            {pickerMode !== null && (
+                <TemplatePicker
+                    mode={pickerMode}
+                    templates={ownTemplates.filter((template) => template.id !== editingTemplateId)}
+                    defaultBusy={defaultTpl.isPending}
+                    onClose={() => setPickerMode(null)}
+                    onBlank={() => setPickerMode(null)}
+                    onAi={() => {
+                        setPickerMode(null);
+                        setAiOpen(true);
+                    }}
+                    onDefault={() => {
+                        loadDefaultTemplate();
+                        setPickerMode(null);
+                    }}
+                    onGallery={(template) => {
+                        chooseTemplate(template);
+                        setPickerMode(null);
+                    }}
+                    onOwn={(template) => {
+                        if (pickerMode === "start") {
+                            openCopyOf(template);
+                        } else {
+                            chooseTemplate({ name: template.name, build: () => freshCopy(template.blocks) });
                         }
-                    >
-                        <div className="ir-grid ir-max-h-[70vh] ir-gap-3 ir-overflow-y-auto sm:ir-grid-cols-2 lg:ir-grid-cols-3 xl:ir-grid-cols-4">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    loadDefaultTemplate();
-                                    setGalleryOpen(false);
-                                }}
-                                disabled={defaultTpl.isPending}
-                                className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-3 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5 disabled:ir-opacity-50"
-                            >
-                                <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
-                                    <LayoutTemplate className="ir-size-4" />
-                                </span>
-                                <span className="ir-min-w-0">
-                                    <span className="ir-block ir-text-sm ir-font-medium">
-                                        Plantilla por defecto
-                                    </span>
-                                    <span className="ir-block ir-text-xs ir-text-muted-foreground">
-                                        El informe narrativo estándar de Imagina
-                                        (§11.5).
-                                    </span>
-                                </span>
-                            </button>
-
-                            {GALLERY.map((template) => {
-                                const GalleryIcon =
-                                    GALLERY_ICONS[template.key] ??
-                                    LayoutTemplate;
-
-                                return (
-                                    <button
-                                        key={template.key}
-                                        type="button"
-                                        onClick={() => {
-                                            chooseTemplate(template);
-                                            setGalleryOpen(false);
-                                        }}
-                                        className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-md ir-border ir-bg-background ir-p-3 ir-text-left ir-transition hover:ir-border-primary hover:ir-bg-primary/5"
-                                    >
-                                        <span className="ir-mt-0.5 ir-flex ir-size-7 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-primary/10 ir-text-primary">
-                                            <GalleryIcon className="ir-size-4" />
-                                        </span>
-                                        <span className="ir-min-w-0">
-                                            <span className="ir-block ir-text-sm ir-font-medium">
-                                                {template.name}
-                                            </span>
-                                            <span className="ir-block ir-text-xs ir-text-muted-foreground">
-                                                {template.description}
-                                            </span>
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </Card>
-                </Modal>
+                        setPickerMode(null);
+                    }}
+                />
             )}
 
             {aiOpen && (

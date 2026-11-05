@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**✏️ ETAPA 3 «EDITOR FÁCIL» (2026-11-05, v1.35.0):**
+- **Pantalla de inicio** (`resources/js/admin/editor/TemplatePicker.tsx`): una plantilla nueva abre sola «¿Cómo quieres empezar?» con
+  «Créala con IA», «Empezar en blanco», **«Tus plantillas»** (abre una COPIA «X (copia)» con ids nuevos: la original y sus clientes no
+  cambian) y **«Modelos listos»** (galería + plantilla por defecto), todo con miniaturas (`components/TemplateThumbnail.tsx`, wireframe
+  SVG que salta la portada). En edición, el botón «Plantillas» abre el mismo selector en modo `insert` (añadir debajo / reemplazar).
+  El botón «IA» de la barra se quitó: la IA vive dentro de «Plantillas».
+- **Plantillas vinculadas visibles:** `ReportTemplate::definitions()` + `used_by` en `ReportTemplateResource` (`[{id,name,site}]`).
+  El editor muestra un chip «N clientes» y, al guardar, «Guardada. Los próximos reportes de … usarán este diseño (los ya enviados no
+  cambian)». La lista de Plantillas dice «Usada por N clientes: …».
+- **«Ver como el cliente»** (`editor/ClientPreview.tsx`): vista a pantalla completa con `BlockList` en modo paginado y selector
+  Escritorio/Celular; el celular es un contenedor con nombre (`.ir-phone-frame`, `@container phone` en `app.css`) que apila los bloques
+  igual que el `@media` del portal.
+- **Siguiente (si el owner sigue):** Etapa 4 «el cliente participa» (comentarios, metas, pregúntale a tu reporte) y Etapa 5
+  «operación de la agencia» (alertas de conexión caída con enlace para reconectar, oportunidades de venta, riesgo de baja).
+
 **🏷️ ETAPA 2 «MARCA BLANCA COMPLETA» (2026-11-05, v1.34.0):** plan feature `custom_domain` («Dominio propio») ahora cubre:
 - **Dominio propio** (Ajustes → Mi agencia → «Dominio propio»): `ir_agencies.domain` + `domain_status` (`pending_dns` → `pending_ssl` →
   `active`), `domain_checked_at`, `domain_error`. `App\Services\Domains\DomainVerifier` comprueba DNS (CNAME al host de APP_URL o mismas IPs;
@@ -2572,6 +2587,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) «Usar una plantilla tuya» desde el editor abre una COPIA, no la original vinculada: editarla por error cambiaría los reportes de todos los clientes que la siguen. Para cambiar la original se abre desde Plantillas, y el editor avisa cuántos clientes la usan.
+- (2026-11-05) «Ver como el cliente» en celular usa una container query con nombre (`@container phone`) que replica el `@media` del portal, en vez de un iframe: mismo `BlockList`, sin cargar otra página ni tocar el CSS del portal.
 - (2026-11-05) Dominio propio: la app valida DNS+HTTPS y restringe el host, pero el alias/SSL en ServerAvatar lo añade el operador (no automatizo la API de ServerAvatar sin especificación — ver Open questions). Los enlaces de conexión para clientes siguen en el dominio de la plataforma (OAuth + CSRF/sesión), el resto de páginas de cliente usan el dominio de la agencia.
 - (2026-11-05) Remitente propio vía SMTP de la agencia (Mail::build por envío) en vez de verificar dominios en un proveedor transaccional: funciona con cualquier proveedor sin depender de APIs de terceros.
 - (2026-11-04) Resumen de respaldo determinista (sin IA) en vez de dejar el bloque vacío: un reporte sin historia se ve roto y el cliente no lo entiende; el texto solo usa cifras resueltas (nunca inventa).
