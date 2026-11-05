@@ -34,4 +34,16 @@ return [
         'security' => ['sources' => ['cloudflare', 'crowdsec']],
     ],
 
+    // Etapa 5: more signals worth a conversation.
+    // Hours worked above the contracted plan by this much → propose a bigger plan.
+    'plan_overuse' => [
+        'over_pct' => (float) env('UPSELL_PLAN_OVERUSE_PCT', 20),
+    ],
+
+    // Average response time at or above this (ms) → propose a speed optimisation.
+    'performance' => [
+        'metric' => env('UPSELL_PERFORMANCE_METRIC', 'betteruptime.avg_response_time'),
+        'response_ms' => (float) env('UPSELL_PERFORMANCE_MS', 1000),
+    ],
+
 ];

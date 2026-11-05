@@ -87,4 +87,22 @@ class UpsellDetectorTest extends TestCase
 
         $this->assertSame([], $opportunities);
     }
+
+    public function test_a_slow_site_and_all_goals_met_are_signals(): void
+    {
+        $covered = ['ga4', 'betteruptime', 'cloudflare', 'crowdsec'];
+
+        $slow = (new UpsellDetector)->detect(['betteruptime' => ['betteruptime.avg_response_time' => 1400]], [], $covered);
+        $this->assertSame(['performance'], $this->types($slow));
+
+        // The agency can be stricter than the default.
+        $fast = (new UpsellDetector)->detect(['betteruptime' => ['betteruptime.avg_response_time' => 600]], [], $covered, ['slow_response_ms' => 500]);
+        $this->assertSame(['performance'], $this->types($fast));
+
+        $goals = (new UpsellDetector)->detect([], [], $covered, [], [['met' => true], ['met' => true]]);
+        $this->assertSame(['goals_reached'], $this->types($goals));
+
+        $oneMissed = (new UpsellDetector)->detect([], [], $covered, [], [['met' => true], ['met' => false]]);
+        $this->assertSame([], $oneMissed);
+    }
 }

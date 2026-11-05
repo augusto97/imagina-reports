@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BillingWebhookController;
 use App\Http\Controllers\Api\V1\CalculatedMetricController;
+use App\Http\Controllers\Api\V1\ChurnRiskController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\ConnectController;
 use App\Http\Controllers\Api\V1\ConnectInviteController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
 use App\Http\Controllers\Api\V1\PublicReportConversationController;
+use App\Http\Controllers\Api\V1\ReconnectRequestController;
 use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
@@ -256,6 +258,8 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::put('data-sources/{dataSource}', [DataSourceController::class, 'update'])->name('api.data-sources.update');
     Route::delete('data-sources/{dataSource}', [DataSourceController::class, 'destroy'])->name('api.data-sources.destroy');
     Route::post('data-sources/{dataSource}/test', [DataSourceController::class, 'test'])->name('api.data-sources.test');
+    // A connection dropped: email the client a link to reconnect just that source (Etapa 5).
+    Route::post('data-sources/{dataSource}/reconnect-request', [ReconnectRequestController::class, 'store'])->middleware('throttle:20,1')->name('api.data-sources.reconnect-request');
     // Retry the post-connect account discovery without redoing the authorization.
     Route::post('data-sources/{dataSource}/discover', [DataSourceController::class, 'discover'])->name('api.data-sources.discover');
     // Self-serve GA4 dataset builder (§10.6/A.3): metadata dictionary + test/save/delete.
@@ -285,9 +289,14 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
 
     // Agency-wide trends + multi-client comparisons (CLAUDE.md §13).
     Route::get('trends', [TrendsController::class, 'index'])->name('api.trends.index');
+    // Which clients may be about to cancel, and why (Etapa 5).
+    Route::get('churn-risk', ChurnRiskController::class)->name('api.churn-risk.index');
 
     // Agency-wide upsell opportunities (CLAUDE.md §13) — internal-only commercial signals.
     Route::get('upsell', [UpsellController::class, 'index'])->name('api.upsell.index');
+    Route::put('upsell/thresholds', [UpsellController::class, 'thresholds'])->name('api.upsell.thresholds');
+    Route::post('upsell/offered', [UpsellController::class, 'offered'])->name('api.upsell.offered');
+    Route::post('upsell/proposal', [UpsellController::class, 'proposal'])->middleware('throttle:ai')->name('api.upsell.proposal');
 
     // In-app anomaly alerts feed (CLAUDE.md §13).
     // Inicio: what needs attention today + per-site health for the client tree.

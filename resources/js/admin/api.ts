@@ -19,11 +19,13 @@ import type {
     AgencySettings,
     AgencyTrends,
     AgencyUpsell,
+    UpsellThresholds,
     AnomalyAlert,
     AuditLogEntry,
     AuthUser,
     BillingInfo,
     CatalogEntry,
+    ChurnRisk,
     Client,
     Connector,
     DataSourceDto,
@@ -163,6 +165,7 @@ export interface AgencyUpdate {
     contact_phone?: string;
     website?: string;
     client_ai?: boolean;
+    notify?: { source_failures?: boolean; client_questions?: boolean };
 }
 
 /** Send a `ping` test event to the configured webhook endpoints (§8). */
@@ -943,6 +946,17 @@ export function useRevokeConnectInvite(siteId: number) {
     });
 }
 
+/** «Pedir reconexión al cliente»: emails the client a link to reconnect one source (Etapa 5). */
+export function useRequestReconnect(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: number; email: string; message: string }) =>
+            api.post<{ url: string; sent_to: string; expires_at: string }>(`/data-sources/${id}/reconnect-request`, payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['data-sources', siteId] }),
+    });
+}
+
 /* ---------------------------- site goals (Etapa 4) ---------------------------- */
 
 export function useSiteGoals(siteId: number | null) {
@@ -1337,6 +1351,36 @@ export function useTrends() {
 
 export function useUpsell() {
     return useQuery({ queryKey: ['upsell'], queryFn: () => get<AgencyUpsell>('/upsell') });
+}
+
+export function useChurnRisk() {
+    return useQuery({ queryKey: ['churn-risk'], queryFn: () => get<ChurnRisk>('/churn-risk'), staleTime: 60_000 });
+}
+
+export function useSaveUpsellThresholds() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: Partial<UpsellThresholds>) => api.put<{ thresholds: UpsellThresholds }>('/upsell/thresholds', payload).then((r) => r.data.thresholds),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['upsell'] }),
+    });
+}
+
+/** «Ya la ofrecí»: hides the signal for that site for a while. */
+export function useMarkOffered() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { site_id: number; type: string }) => api.post('/upsell/offered', payload).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['upsell'] }),
+    });
+}
+
+export function useUpsellProposal() {
+    return useMutation({
+        mutationFn: (payload: { site_id: number; type: string }) =>
+            api.post<{ subject: string; body: string; ai: boolean; to: string | null }>('/upsell/proposal', payload).then((r) => r.data),
+    });
 }
 
 /* --------------------------------- system ---------------------------------- */

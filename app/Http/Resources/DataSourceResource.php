@@ -50,6 +50,9 @@ final class DataSourceResource extends JsonResource
             // After a one-click OAuth connect with multiple pickable resources (GA4 properties,
             // ad accounts…), the options to choose from — drives the "pick your property" step.
             'connect_options' => is_array($source->meta['connect_options'] ?? null) ? $source->meta['connect_options'] : null,
+            // «Pedir reconexión al cliente» (Etapa 5): when and to whom it was last sent.
+            'reconnect_requested_at' => is_string($source->meta['reconnect_requested_at'] ?? null) ? $source->meta['reconnect_requested_at'] : null,
+            'reconnect_requested_to' => is_string($source->meta['reconnect_requested_to'] ?? null) ? $source->meta['reconnect_requested_to'] : null,
         ];
     }
 

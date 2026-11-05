@@ -197,6 +197,9 @@ export interface DataSourceDto {
     agent_logging_since?: string | null;
     /** After a one-click OAuth connect: the resources (GA4 properties, ad accounts…) to pick from. */
     connect_options?: { field: string; label: string; options: { value: string; label: string }[] } | null;
+    /** «Pedir reconexión al cliente» (Etapa 5): when and to whom it was last sent. */
+    reconnect_requested_at?: string | null;
+    reconnect_requested_to?: string | null;
 }
 
 export type ReportVisibility = 'public' | 'password' | 'private';
@@ -373,8 +376,34 @@ export interface SiteUpsell {
     site_id: number;
     site_name: string;
     client_name: string | null;
+    client_email?: string | null;
     period_end: string;
     opportunities: UpsellOpportunityView[];
+}
+
+/** A client that may be about to cancel, and why (Etapa 5). */
+export interface ChurnRiskSite {
+    site_id: number;
+    site_name: string;
+    client_name: string | null;
+    score: number;
+    level: 'high' | 'medium' | 'low';
+    reasons: { key: string; text: string; weight: number; action: 'reports' | 'questions' | 'site' | 'worklogs' }[];
+    latest_report_id: number | null;
+}
+
+export interface ChurnRisk {
+    summary: { sites: number; high: number; medium: number; low: number };
+    sites: ChurnRiskSite[];
+}
+
+/** When a signal counts as an opportunity — tuned by each agency (Etapa 5). */
+export interface UpsellThresholds {
+    traffic_growth_pct: number;
+    sales_growth_pct: number;
+    security_min_total: number;
+    plan_overuse_pct: number;
+    slow_response_ms: number;
 }
 
 export interface AgencyUpsell {
@@ -382,8 +411,11 @@ export interface AgencyUpsell {
         sites_count: number;
         sites_with_opportunities: number;
         opportunities_count: number;
+        /** Hidden because the agency already offered them recently. */
+        offered_count?: number;
     };
     sites: SiteUpsell[];
+    thresholds?: UpsellThresholds;
 }
 
 export interface AuthUser {
@@ -511,6 +543,8 @@ export interface AgencySettings {
     website: string;
     /** «Pregúntale a tu reporte» in the client portal (plan with AI). */
     client_ai: boolean;
+    /** Which emails the team gets (Etapa 5). */
+    notify: { source_failures: boolean; client_questions: boolean };
     plan: { name: string; slug: string } | null;
     status: string;
     limits: PlanLimits;

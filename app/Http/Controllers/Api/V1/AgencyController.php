@@ -13,6 +13,7 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Services\SnapshotRetentionService;
 use App\Services\Webhooks\WebhookDispatcher;
+use App\Support\AgencyMail;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -148,6 +149,16 @@ final class AgencyController extends Controller
             $settings['client_ai'] = (bool) $validated['client_ai'];
         }
 
+        if (is_array($validated['notify'] ?? null)) {
+            $notify = is_array($settings['notify'] ?? null) ? $settings['notify'] : [];
+            foreach ([AgencyMail::SOURCE_FAILURES, AgencyMail::CLIENT_QUESTIONS] as $key) {
+                if (array_key_exists($key, $validated['notify'])) {
+                    $notify[$key] = (bool) $validated['notify'][$key];
+                }
+            }
+            $settings['notify'] = $notify;
+        }
+
         $agency->settings = $settings;
         $agency->save();
 
@@ -256,6 +267,10 @@ final class AgencyController extends Controller
             'contact_phone' => $agency->contact()['phone'] ?? '',
             'website' => $agency->contact()['website'] ?? '',
             'client_ai' => ($agency->settings['client_ai'] ?? true) !== false,
+            'notify' => [
+                AgencyMail::SOURCE_FAILURES => AgencyMail::wants($agency, AgencyMail::SOURCE_FAILURES),
+                AgencyMail::CLIENT_QUESTIONS => AgencyMail::wants($agency, AgencyMail::CLIENT_QUESTIONS),
+            ],
             'plan' => $agency->plan !== null ? ['name' => $agency->plan->name, 'slug' => $agency->plan->slug] : null,
             'status' => $agency->status,
             'limits' => app(Entitlements::class)->limits($agency),

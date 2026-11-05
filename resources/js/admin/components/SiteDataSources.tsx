@@ -1,5 +1,5 @@
 import { ChevronLeft, FlaskConical, Link2, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
-import { type FormEvent, type ReactElement, useState } from 'react';
+import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
 
@@ -19,7 +19,9 @@ import type { ConfigFieldDef, Connector, DataSourceDto } from '../types';
 import { ClientConnectLink } from './ClientConnectLink';
 import { Ga4DatasetBuilder } from './Ga4DatasetBuilder';
 import { RangeSyncMenu } from './RangeSyncMenu';
+import { ReconnectRequest } from './ReconnectRequest';
 import { SOURCE_CATEGORIES, SOURCE_META } from '../lib/sources';
+import { useAdminUi } from '../store';
 import { ActionMenu, Button, Field, Input, StatusDot } from './ui';
 
 /** One-click download of the companion WordPress plugin (site_agent connector). */
@@ -418,7 +420,7 @@ function takeConnectResult(): { ok: boolean; message: string; type: string } | n
  * with test/edit/delete, and an "add source" panel driven by each connector's
  * configSchema. Extracted so the workspace (master-detail) can embed it directly.
  */
-export function SiteDataSources({ siteId, siteName }: { siteId: number; siteName: string }): ReactElement {
+export function SiteDataSources({ siteId, siteName, clientEmail = null }: { siteId: number; siteName: string; clientEmail?: string | null }): ReactElement {
     const { data: connectors = [] } = useConnectors();
     const { data: sources = [] } = useSiteDataSources(siteId);
     const create = useCreateDataSource(siteId);
@@ -438,6 +440,20 @@ export function SiteDataSources({ siteId, siteName }: { siteId: number; siteName
     const [manualOpen, setManualOpen] = useState(false);
     const [connectResult, setConnectResult] = useState(takeConnectResult);
     const [askingClient, setAskingClient] = useState(false);
+    const [reconnecting, setReconnecting] = useState<DataSourceDto | null>(null);
+    const reconnectFocus = useAdminUi((state) => state.reconnectFocus);
+    const clearReconnectFocus = useAdminUi((state) => state.clearReconnectFocus);
+    // From the «X dejó de funcionar» email: open the request for that source straight away.
+    useEffect(() => {
+        if (reconnectFocus === null) {
+            return;
+        }
+        const target = sources.find((source) => source.id === reconnectFocus);
+        if (target !== undefined) {
+            setReconnecting(target);
+            clearReconnectFocus();
+        }
+    }, [reconnectFocus, sources, clearReconnectFocus]);
 
     const connector = connectors.find((item) => item.key === type);
     const labelFor = (sourceType: string): string => connectors.find((item) => item.key === sourceType)?.label ?? SOURCE_META[sourceType]?.label ?? sourceType;
@@ -681,6 +697,20 @@ export function SiteDataSources({ siteId, siteName }: { siteId: number; siteName
                                         {/* Wraps rather than truncates: this line carries the reason a
                                             connection failed, which is useless cut off at one line. */}
                                         <p className={'ir-text-xs ' + (tone === 'danger' ? 'ir-text-danger' : 'ir-text-muted-foreground')}>{message}</p>
+                                        {tone === 'danger' && connectors.find((item) => item.key === source.type)?.connect != null && (
+                                            <p className="ir-mt-1.5 ir-flex ir-flex-wrap ir-items-center ir-gap-x-2 ir-gap-y-1 ir-text-xs">
+                                                <button type="button" onClick={() => setReconnecting(source)} className="ir-inline-flex ir-items-center ir-gap-1 ir-font-medium ir-text-accent hover:ir-underline">
+                                                    <Link2 className="ir-size-3.5" />
+                                                    {source.reconnect_requested_at != null ? 'Volver a pedir reconexión' : 'Pedir reconexión al cliente'}
+                                                </button>
+                                                {source.reconnect_requested_at != null && (
+                                                    <span className="ir-text-muted-foreground">
+                                                        Pedida el {new Date(source.reconnect_requested_at).toLocaleDateString('es', { day: 'numeric', month: 'short' }).replace('.', '')}
+                                                        {source.reconnect_requested_to != null ? ` a ${source.reconnect_requested_to}` : ''}
+                                                    </span>
+                                                )}
+                                            </p>
+                                        )}
                                         <AgentVersion source={source} />
                                     </div>
                                 </div>
@@ -726,6 +756,10 @@ export function SiteDataSources({ siteId, siteName }: { siteId: number; siteName
             {/* Period-sync tools live BELOW the list and collapsed by default, so the sources
                 (the primary content) stay at the top and the panel no longer dominates. */}
             {sources.length > 0 && <RangeSyncMenu siteId={siteId} />}
+
+            {reconnecting !== null && (
+                <ReconnectRequest source={reconnecting} label={labelFor(reconnecting.type)} siteId={siteId} siteName={siteName} clientEmail={clientEmail} onClose={() => setReconnecting(null)} />
+            )}
 
             {builderFor !== null && (
                 <Ga4DatasetBuilder

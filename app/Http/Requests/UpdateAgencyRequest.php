@@ -54,6 +54,10 @@ final class UpdateAgencyRequest extends FormRequest
             'website' => ['sometimes', 'nullable', 'string', 'url', 'max:255'],
             // «Pregúntale a tu reporte» in the portal (spends the agency's AI budget).
             'client_ai' => ['sometimes', 'boolean'],
+            // Which emails the team gets (Etapa 5): a dropped connection, a client's question.
+            'notify' => ['sometimes', 'array'],
+            'notify.source_failures' => ['sometimes', 'boolean'],
+            'notify.client_questions' => ['sometimes', 'boolean'],
         ];
     }
 }

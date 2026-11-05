@@ -27,5 +27,10 @@ return [
     'answered_lead' => 'Sobre o seu relatório de :period.',
     'answered_you_asked' => 'Sua pergunta',
     'answered_cta' => 'Ver a conversa',
+    'reconnect_subject' => ':agency precisa que você reconecte :source',
+    'reconnect_title' => 'Reconecte :source',
+    'reconnect_lead' => 'Para continuar mostrando os dados de :source nos relatórios de :site precisamos que você nos dê acesso novamente. Leva um minuto: entre com a sua conta e pronto, sem compartilhar senhas.',
+    'reconnect_cta' => 'Reconectar',
+    'reconnect_note' => 'O link é só para você e vence em :date.',
     'verdicts' => ['Excelente', 'Muito bom', 'Pode melhorar', 'Requer atenção'],
 ];

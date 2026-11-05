@@ -7,8 +7,7 @@ namespace App\Listeners;
 use App\Connectors\Period;
 use App\Events\ReportGenerated;
 use App\Models\DataSource;
-use App\Reports\MetricBagLoader;
-use App\Reports\UpsellDetector;
+use App\Reports\AgencyUpsell;
 use App\Services\Webhooks\WebhookDispatcher;
 use Illuminate\Support\Facades\Log;
 
@@ -21,8 +20,7 @@ use Illuminate\Support\Facades\Log;
 final readonly class DetectUpsellOpportunities
 {
     public function __construct(
-        private MetricBagLoader $bags,
-        private UpsellDetector $detector,
+        private AgencyUpsell $upsell,
         private WebhookDispatcher $webhooks,
     ) {}
 
@@ -36,8 +34,10 @@ final readonly class DetectUpsellOpportunities
         }
 
         $period = new Period($report->period_start, $report->period_end);
-        $current = $this->bags->forSite($definition->site_id, $period);
-        $previous = $this->bags->forSite($definition->site_id, $period->previous());
+        $site = $definition->site;
+        if ($site === null) {
+            return;
+        }
 
         $connected = array_values(
             DataSource::query()
@@ -47,7 +47,7 @@ final readonly class DetectUpsellOpportunities
                 ->all(),
         );
 
-        foreach ($this->detector->detect($current, $previous, $connected) as $opportunity) {
+        foreach ($this->upsell->forSite($site, $period, $connected, AgencyUpsell::agencyThresholds($report->agency)) as $opportunity) {
             $payload = [
                 'report_id' => $report->id,
                 'site_id' => $definition->site_id,

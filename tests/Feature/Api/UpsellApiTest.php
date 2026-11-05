@@ -97,8 +97,9 @@ class UpsellApiTest extends TestCase
         $this->getJson('/api/v1/upsell')
             ->assertOk()
             ->assertExactJson([
-                'summary' => ['sites_count' => 0, 'sites_with_opportunities' => 0, 'opportunities_count' => 0],
+                'summary' => ['sites_count' => 0, 'sites_with_opportunities' => 0, 'opportunities_count' => 0, 'offered_count' => 0],
                 'sites' => [],
+                'thresholds' => ['traffic_growth_pct' => 40, 'sales_growth_pct' => 25, 'security_min_total' => 500, 'plan_overuse_pct' => 20, 'slow_response_ms' => 1000],
             ]);
     }
 

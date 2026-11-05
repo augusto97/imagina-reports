@@ -16,6 +16,9 @@ enum UpsellType: string
     case SecurityHardening = 'security_hardening';
     case UptimeMonitoring = 'uptime_monitoring';
     case SecurityProtection = 'security_protection';
+    case PlanOveruse = 'plan_overuse';
+    case GoalsReached = 'goals_reached';
+    case Performance = 'performance';
 
     public function label(): string
     {
@@ -25,6 +28,9 @@ enum UpsellType: string
             self::SecurityHardening => 'Security hardening',
             self::UptimeMonitoring => 'Uptime monitoring',
             self::SecurityProtection => 'Security protection',
+            self::PlanOveruse => 'Plan overuse',
+            self::GoalsReached => 'Goals reached',
+            self::Performance => 'Performance',
         };
     }
 }

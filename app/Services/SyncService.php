@@ -8,8 +8,10 @@ use App\Connectors\ConnectorRegistry;
 use App\Connectors\MetricSet;
 use App\Connectors\Period;
 use App\Enums\DataSourceStatus;
+use App\Jobs\NotifySourceFailure;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 
 /**
@@ -69,6 +71,8 @@ final readonly class SyncService
 
     private function recordOutcome(DataSource $source, MetricSet $metricSet): void
     {
+        $wasFailing = $source->status === DataSourceStatus::Error;
+
         $attributes = [
             'status' => $metricSet->isFailed() ? DataSourceStatus::Error : DataSourceStatus::Ok,
             'last_synced_at' => Date::now(),
@@ -83,5 +87,11 @@ final readonly class SyncService
         }
 
         $source->forceFill($attributes)->save();
+
+        // It just stopped working (Etapa 5): tell the agency once, not on every retry. A source
+        // flapping between ok and error doesn't ping more than twice a day.
+        if (! $wasFailing && $metricSet->isFailed() && Cache::add('source-failed:'.$source->id, true, now()->addHours(12))) {
+            NotifySourceFailure::dispatch($source->id);
+        }
     }
 }

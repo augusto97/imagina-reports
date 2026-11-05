@@ -27,5 +27,10 @@ return [
     'answered_lead' => 'About your :period report.',
     'answered_you_asked' => 'Your question',
     'answered_cta' => 'See the conversation',
+    'reconnect_subject' => ':agency needs you to reconnect :source',
+    'reconnect_title' => 'Reconnect :source',
+    'reconnect_lead' => 'To keep showing :source data in the :site reports we need you to grant access again. It takes a minute: sign in with your account and you are done, no passwords shared.',
+    'reconnect_cta' => 'Reconnect',
+    'reconnect_note' => 'This link is just for you and expires on :date.',
     'verdicts' => ['Excellent', 'Very good', 'Room to improve', 'Needs attention'],
 ];

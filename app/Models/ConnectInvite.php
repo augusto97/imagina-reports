@@ -67,6 +67,27 @@ class ConnectInvite extends Model
         ];
     }
 
+    /**
+     * A fresh link for a site and the sources it may connect. Shared by «Pedir acceso al
+     * cliente» and «Pedir reconexión» (Etapa 5), so both make the same kind of link.
+     *
+     * @param  list<string>  $types
+     */
+    public static function issue(Site $site, array $types, int $days, ?int $createdBy): self
+    {
+        $token = self::newToken();
+
+        return self::query()->create([
+            'agency_id' => $site->agency_id,
+            'site_id' => $site->id,
+            'token' => $token,
+            'token_hash' => self::hashToken($token),
+            'types' => $types,
+            'expires_at' => now()->addDays($days),
+            'created_by' => $createdBy,
+        ]);
+    }
+
     public static function newToken(): string
     {
         return Str::random(48);

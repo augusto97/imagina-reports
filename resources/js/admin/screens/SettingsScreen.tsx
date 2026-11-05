@@ -44,7 +44,7 @@ const LOCALES: { value: string; label: string }[] = [
     { value: 'pt_BR', label: 'Português (BR)' },
 ];
 
-const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected', 'report.question'];
+const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected', 'report.question', 'source.failed'];
 
 /**
  * The agency's SAVED identity fields. Every card here saves on its own, and the update
@@ -849,6 +849,46 @@ function BillingCard(): ReactElement | null {
 /* ------------------------------ Integraciones ------------------------------ */
 
 /** The agency's own Anthropic key for the AI builder. Saves on its own. */
+/** Which emails the team gets (Etapa 5). Each switch saves on its own. */
+function NotifyCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const update = useUpdateAgency();
+    const items: { key: keyof AgencySettings['notify']; title: string; text: string }[] = [
+        {
+            key: 'source_failures',
+            title: 'Cuando una conexión deja de funcionar',
+            text: 'Un correo a los dueños y administradores, una sola vez por caída, con el botón para pedirle al cliente que la reconecte.',
+        },
+        {
+            key: 'client_questions',
+            title: 'Cuando un cliente pregunta desde su informe',
+            text: 'Llega a tu correo de contacto (o a los dueños y administradores si no lo tienes). Responder a ese correo le contesta directo al cliente.',
+        },
+    ];
+
+    return (
+        <Card title="Avisos por correo" description="Slack y los webhooks reciben estos eventos siempre; aquí decides qué llega también por correo.">
+            <div className="ir-flex ir-flex-col ir-divide-y">
+                {items.map((item) => (
+                    <label key={item.key} className="ir-flex ir-items-start ir-gap-3 ir-py-3 first:ir-pt-0 last:ir-pb-0">
+                        <input
+                            type="checkbox"
+                            className="ir-mt-1"
+                            checked={agency.notify[item.key]}
+                            disabled={update.isPending}
+                            onChange={(event) => update.mutate({ ...agencyBase(agency), notify: { [item.key]: event.target.checked } })}
+                        />
+                        <span>
+                            <span className="ir-block ir-text-sm ir-font-medium">{item.title}</span>
+                            <span className="ir-block ir-text-xs ir-leading-relaxed ir-text-muted-foreground">{item.text}</span>
+                        </span>
+                    </label>
+                ))}
+            </div>
+            {update.isError && <p className="ir-mt-3 ir-text-xs ir-text-danger">No se pudo guardar.</p>}
+        </Card>
+    );
+}
+
 function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
     const update = useUpdateAgency();
     const [apiKey, setApiKey] = useState('');
@@ -971,7 +1011,7 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
                     />
                 </Field>
 
-                <Field label="Slack (opcional)" hint="Pega la URL de un Incoming Webhook de Slack: recibirás un mensaje cuando se detecte una anomalía (caída de tráfico, pico de gasto, caída de conversiones…), se envíe un reporte, surja una oportunidad de venta o un cliente te haga una pregunta desde su informe.">
+                <Field label="Slack (opcional)" hint="Pega la URL de un Incoming Webhook de Slack: recibirás un mensaje cuando se detecte una anomalía (caída de tráfico, pico de gasto, caída de conversiones…), se envíe un reporte, surja una oportunidad de venta, una conexión deje de funcionar o un cliente te haga una pregunta desde su informe.">
                     <Input
                         type="url"
                         value={slackUrl}
@@ -1314,7 +1354,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof User; heading: st
     { key: 'account', label: 'Mi cuenta', icon: User, heading: 'Mi cuenta', blurb: 'Tus datos personales: nombre, email de acceso, contraseña y verificación en dos pasos.' },
     { key: 'agency', label: 'Mi agencia', icon: Building2, heading: 'Mi agencia', blurb: 'Cómo se ve tu agencia en los reportes: nombre, idioma, color y logo.' },
     { key: 'billing', label: 'Plan y pagos', icon: CreditCard, heading: 'Plan y pagos', blurb: 'Tu consumo, tu suscripción y el email con el que se te cobra.' },
-    { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, plugin del agente para WordPress, webhooks salientes y avisos por Slack.' },
+    { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, avisos por correo, plugin del agente para WordPress, webhooks salientes y avisos por Slack.' },
     { key: 'assistants', label: 'Asistentes IA', icon: Bot, heading: 'Asistentes IA', blurb: 'Conecta Claude, ChatGPT u otro asistente para trabajar con Imagina Reports hablando.' },
     { key: 'security', label: 'Seguridad', icon: ShieldCheck, heading: 'Seguridad', blurb: 'Registro de actividad de tu equipo y eliminación de la cuenta.' },
 ];
@@ -1364,6 +1404,7 @@ export function SettingsScreen(): ReactElement {
         integrations: (
             <>
                 <AiCard agency={agency} />
+                <NotifyCard agency={agency} />
                 <SiteAgentPluginCard />
                 <WebhooksCard agency={agency} />
             </>

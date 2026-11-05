@@ -7,6 +7,7 @@ import {
     Clock,
     FileBarChart,
     FilePlus2,
+    HeartPulse,
     MessageCircleQuestion,
     Plug,
     Send,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 import { type ReactElement, type ReactNode } from 'react';
 
-import { useAuthUser, useOverview, useQuestionInbox } from '../api';
+import { useAuthUser, useChurnRisk, useOverview, useQuestionInbox } from '../api';
 import { Button, Card, PageHeader, StatCard } from '../components/ui';
 import { monthLabel } from '../lib/months';
 import { type AdminView, useAdminUi } from '../store';
@@ -116,6 +117,7 @@ export function HomeScreen(): ReactElement {
     const { data: user } = useAuthUser();
     const { data, isLoading } = useOverview();
     const { data: questions = [] } = useQuestionInbox();
+    const { data: risk } = useChurnRisk();
     const setView = useAdminUi((state) => state.setView);
     const focusReport = useAdminUi((state) => state.focusReport);
     const selectSite = useAdminUi((state) => state.selectSite);
@@ -259,6 +261,7 @@ export function HomeScreen(): ReactElement {
 
                     <Card title="Salud de la cartera">
                         <div className="ir-flex ir-flex-col ir-gap-3 ir-text-sm">
+                            <HealthLine label="Clientes en riesgo alto" value={risk?.summary.high ?? 0} tone={(risk?.summary.high ?? 0) > 0 ? 'danger' : 'ok'} onClick={() => setView('risk')} icon={HeartPulse} />
                             <HealthLine label="Alertas sin revisar" value={counts.open_alerts} tone={counts.open_alerts > 0 ? 'danger' : 'ok'} onClick={() => setView('alerts')} icon={ShieldAlert} />
                             <HealthLine label="Sitios sin fuentes" value={counts.sites_without_sources} tone={counts.sites_without_sources > 0 ? 'warning' : 'ok'} onClick={() => setView('clients')} icon={Plug} />
                             <HealthLine label={`Reportes de ${monthLabel(data.last_month)} sin generar`} value={counts.missing_reports} tone={counts.missing_reports > 0 ? 'warning' : 'ok'} onClick={() => setView('reports')} icon={FilePlus2} />

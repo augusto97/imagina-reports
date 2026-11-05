@@ -25,6 +25,13 @@ final class SlackMessage
             'report.sent' => '✅ Reporte enviado'.$this->reportRef($payload).'.',
             'upsell.detected' => '💡 Oportunidad de venta detectada'.$this->siteRef($payload).'.',
             'report.question' => $this->question($payload),
+            'source.failed' => sprintf(
+                '🔌 %s dejó de funcionar en *%s*: %s%s',
+                $this->toStr($payload['label'] ?? 'Una fuente'),
+                $this->toStr($payload['site'] ?? 'un sitio'),
+                $this->toStr($payload['error'] ?? ''),
+                ($payload['reconnectable'] ?? false) === true ? ' — puedes pedirle al cliente que la reconecte desde el panel.' : '',
+            ),
             default => null,
         };
     }

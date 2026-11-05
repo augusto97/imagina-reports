@@ -68,7 +68,7 @@ const NAV_GROUPS: { label?: string; items: { view: AdminView; label: string; ico
             { view: "clients", label: "Clientes", icon: Users, also: ["sites", "data-sources"] },
             { view: "reports", label: "Reportes", icon: FileBarChart },
             { view: "worklogs", label: "Trabajo", icon: Clock },
-            { view: "trends", label: "Análisis", icon: TrendingUp, also: ["upsell", "alerts"] },
+            { view: "trends", label: "Análisis", icon: TrendingUp, also: ["upsell", "alerts", "risk"] },
         ],
     },
     {
@@ -108,6 +108,7 @@ function Screen({ view }: { view: AdminView }): ReactElement {
         case "trends":
         case "upsell":
         case "alerts":
+        case "risk":
             return <InsightsScreen tab={view} />;
         case "team":
             return <TeamScreen />;

@@ -7,6 +7,29 @@
 ---
 
 ## Where I left off (read me first)
+**🛠️ ETAPA 5 «OPERACIÓN DE LA AGENCIA» (2026-11-05, v1.37.0) — cierra las 5 etapas del análisis competitivo:**
+- **Conexión caída → aviso + reconexión por enlace.** `SyncService::recordOutcome()` detecta el paso a `error` (no en reintentos;
+  `Cache::add('source-failed:{id}', 12 h)` evita repetir si la fuente parpadea) y despacha `NotifySourceFailure`: correo
+  `SourceFailedMail` a owners+admins (`App\Support\AgencyMail::team()`) + evento `source.failed` (webhooks y Slack). Si la fuente
+  se conecta con un clic (`ConnectRegistry`), el correo lleva a `#/clients?site=ID&reconnect=DSID`, que abre «Pedir reconexión al
+  cliente» (`components/ReconnectRequest.tsx`): `POST /data-sources/{id}/reconnect-request` crea un `ConnectInvite::issue()` solo para
+  ese tipo (7 días) y manda `ReconnectRequestMail` (marca blanca, remitente propio vía `AgencyMail::toClient()`, es/en/pt), guarda
+  `meta.reconnect_requested_at/_to` (la fila muestra «Pedida el 5 nov a …»). Ajustes → Integraciones → «Avisos por correo»
+  (`settings.notify.source_failures|client_questions`, por defecto encendidos; los webhooks/Slack siempre salen).
+- **Oportunidades con umbrales reales.** `UpsellDetector::thresholds()` = config + `settings.upsell_thresholds` de la agencia (visitas %,
+  ventas %, ataques, horas sobre el plan %, ms de respuesta), editables en Análisis → Oportunidades → «Ajustar». Señales nuevas:
+  `plan_overuse` (horas registradas vs `plan_hours`), `goals_reached` (todas las metas del sitio cumplidas, ≥2) y `performance`
+  (respuesta media ≥ umbral). `AgencyUpsell::forSite()` es compartido por la pantalla y el listener del webhook. «Ya la ofrecí»
+  (`POST /upsell/offered`) la oculta 90 días (`settings.upsell_offered`). «Preparar propuesta» (`POST /upsell/proposal`,
+  `App\Reports\UpsellProposal`): correo editable que abre con la cifra del cliente; con IA si el plan la tiene (JSON
+  subject/body, sin inventar precios) y plantilla por señal si no; «Copiar» / «Abrir en tu correo» (mailto al contacto del cliente).
+- **Riesgo de baja** (`App\Reports\ChurnRisk`, `GET /churn-risk`, Análisis → «Riesgo de baja», línea en Inicio): puntuación 0–100
+  por sitio con motivos en palabras y acción: no abrió el/los último(s) informe(s), >45 días sin informe enviado, pregunta sin
+  responder >48 h, salud <60 o caída ≥10, conexiones en error, mayoría de metas sin cumplir, sin trabajo registrado en 45 días.
+  Alto ≥50, medio ≥25.
+- **No queda ninguna fase pendiente:** las 5 etapas del análisis y las fases 1–3 de CLAUDE.md están hechas. Lo único abierto es
+  opcional/descartado: Etapa E «explorar en vivo» GA4 (decisión v1.13.92) y automatizar ServerAvatar (ver Open questions).
+
 **💬 ETAPA 4 «EL CLIENTE PARTICIPA» (2026-11-05, v1.36.0):**
 - **Preguntas desde el portal** (`ir_report_messages`: kind `client`/`agency`/`ai`, `author_name`, `author_email`, `answer`,
   `handled_at`). Botón flotante «¿Tienes una pregunta?» en el portal (`resources/js/portal/AskPanel.tsx`, `?preguntas=1` lo abre):
@@ -2380,10 +2403,10 @@ start-from-default-template. Needs a release to reach the live VPS.
 
 ## Report Builder — progress
 - [x] (2026-06-19) **M1 — Real data in the editor preview**: shared `BlockResolver` (single source of truth, also used by `ReportGenerator`); `POST /sites/{site}/preview` (resolve draft blocks → real `{blocks,data,score,...}` without persisting) + `POST /sites/{site}/sync` ("Sincronizar ahora"); editor month picker + debounced auto-preview + real/sample states + has-data banners. `PreviewApiTest` (+4). 162 tests green.
-- [ ] M2 — professional blocks (KPI %-vs-prev + trend, real gauge, security shield).
-- [ ] M3 — multi-column / grid layout.
-- [ ] M4 — visual binding picker + branding / white-label.
-- [ ] M5 — start from the default narrative template (§11.5).
+- [x] M2 — professional blocks (KPI %-vs-prev + trend, real gauge, security shield). _(hecho en versiones posteriores; lista actualizada 2026-11-05)_
+- [x] M3 — multi-column / grid layout (react-grid-layout, 12 columnas).
+- [x] M4 — visual binding picker + branding / white-label.
+- [x] M5 — start from the default narrative template (§11.5) + pantalla de inicio con modelos (v1.35.0).
 
 ## Phase 3 — progress
 - [x] (2026-06-18) **P3·1 — Database / CSV / endpoint connector** (`DatabaseConnector` + `EndpointConnector`, config-driven, aggregate-at-source). — 59b9d3b
@@ -2609,6 +2632,10 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) Aviso de conexión caída solo en la TRANSICIÓN a error (y como mucho cada 12 h por fuente): un aviso por cada reintento fallido enseña a ignorarlos. El correo va a owners+admins (es operativo), no al contacto público de la agencia.
+- (2026-11-05) «Pedir reconexión» reutiliza los enlaces de conexión (ConnectInvite) limitados a UNA fuente y 7 días, y nunca reenvía credenciales; solo aplica a fuentes con conexión de un clic (Google/Meta/Woo según la configuración).
+- (2026-11-05) Propuestas de venta como BORRADOR que la agencia envía desde su propio correo (copiar/mailto), no un envío automático al cliente: es comunicación comercial y debe pasar por una persona.
+- (2026-11-05) Riesgo de baja por reglas explicables con peso fijo (no un modelo opaco): cada punto tiene una causa en palabras y una acción, que es lo que la agencia necesita para actuar.
 - (2026-11-05) Metas en el SITIO (`ir_site_goals`) y no en la plantilla: con plantillas vinculadas, un objetivo en la plantilla sería el mismo para todos los clientes. El bloque `goals` no tiene binding y se llena por sitio al generar.
 - (2026-11-05) «Pregúntale a tu reporte» responde solo con las cifras congeladas del informe (nunca llama a las APIs de las fuentes, §3.1) y tiene topes diarios por informe y agencia porque gasta la clave de IA de la agencia. Se guardan las preguntas para que la agencia vea qué le interesa a su cliente.
 - (2026-11-05) La conversación del cliente es una tabla nueva (`ir_report_messages`), separada de `ir_report_comments` (notas de la agencia que se imprimen en el reporte): mezclar ambas habría puesto preguntas del cliente en el PDF.

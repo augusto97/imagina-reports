@@ -9,6 +9,7 @@ use App\Http\Controllers\ConnectInvitePageController;
 use App\Http\Controllers\Controller;
 use App\Models\ConnectInvite;
 use App\Models\Site;
+use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,17 +54,8 @@ final class ConnectInviteController extends Controller
             'types.*.in' => 'Esa fuente no admite conexión con un clic.',
         ]);
 
-        $token = ConnectInvite::newToken();
         $user = $request->user();
-
-        $invite = ConnectInvite::query()->create([
-            'site_id' => $site->id,
-            'token' => $token,
-            'token_hash' => ConnectInvite::hashToken($token),
-            'types' => array_values($data['types']),
-            'expires_at' => now()->addDays((int) $data['expires_days']),
-            'created_by' => $user?->getAuthIdentifier(),
-        ]);
+        $invite = ConnectInvite::issue($site, array_values($data['types']), (int) $data['expires_days'], $user instanceof User ? $user->id : null);
         $invite->load('creator:id,name');
 
         AuditLogger::record(AuditLogger::CONNECT_INVITE_CREATED, $invite, "Enlace de conexión para {$site->name}", ['types' => $invite->types]);

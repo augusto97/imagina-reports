@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Enums\ReportMessageKind;
-use App\Enums\UserRole;
 use App\Mail\ClientQuestionMail;
 use App\Mail\QuestionAnsweredMail;
 use App\Models\Report;
 use App\Models\ReportMessage;
-use App\Models\User;
 use App\Services\Webhooks\WebhookDispatcher;
+use App\Support\AgencyMail;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
@@ -49,8 +48,9 @@ final class NotifyReportMessage implements ShouldQueue
 
     private function toAgency(ReportMessage $message, Report $report, WebhookDispatcher $webhooks): void
     {
-        $recipients = $this->agencyRecipients($report);
-        if ($recipients !== []) {
+        $agency = $report->agency;
+        $recipients = $agency !== null ? AgencyMail::inbox($agency) : [];
+        if ($agency !== null && $recipients !== [] && AgencyMail::wants($agency, AgencyMail::CLIENT_QUESTIONS)) {
             Mail::to($recipients)->send(new ClientQuestionMail($message, $report));
         }
 
@@ -85,38 +85,12 @@ final class NotifyReportMessage implements ShouldQueue
             ->take(5)
             ->values();
 
+        $agency = $report->agency;
+        if ($agency === null) {
+            return;
+        }
         foreach ($emails as $email) {
-            $mail = new QuestionAnsweredMail($reply, $report);
-            $sender = $report->agency?->senderMailer();
-            if ($sender !== null) {
-                Mail::build($sender['mailer'])->to((string) $email)->send($mail);
-            } else {
-                Mail::to((string) $email)->send($mail);
-            }
+            AgencyMail::toClient($agency, (string) $email, new QuestionAnsweredMail($reply, $report));
         }
-    }
-
-    /**
-     * The agency's contact address when it has one (that's where it wants client mail), else its
-     * owners and admins.
-     *
-     * @return list<string>
-     */
-    private function agencyRecipients(Report $report): array
-    {
-        $contact = $report->agency?->contact()['email'] ?? null;
-        if (is_string($contact) && $contact !== '') {
-            return [$contact];
-        }
-
-        $emails = [];
-        $users = User::query()->where('agency_id', $report->agency_id)->whereIn('role', [UserRole::Owner->value, UserRole::Admin->value])->get(['email']);
-        foreach ($users as $user) {
-            if ($user->email !== '' && ! in_array($user->email, $emails, true)) {
-                $emails[] = $user->email;
-            }
-        }
-
-        return $emails;
     }
 }

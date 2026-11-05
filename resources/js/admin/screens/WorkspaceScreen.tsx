@@ -797,7 +797,7 @@ export function WorkspaceScreen(): ReactElement {
                     </header>
 
                     <div className="ir-px-5 ir-py-5">
-                        <SiteDataSources siteId={selectedSite.id} siteName={selectedSite.name} />
+                        <SiteDataSources siteId={selectedSite.id} siteName={selectedSite.name} clientEmail={selectedClient?.contact_email ?? null} />
                     </div>
                     <div className="ir-border-t ir-px-5 ir-py-5">
                         <SiteGoalsCard siteId={selectedSite.id} />

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
-export type AdminView = 'home' | 'clients' | 'sites' | 'data-sources' | 'worklogs' | 'reports' | 'editor' | 'templates' | 'trends' | 'upsell' | 'alerts' | 'team' | 'system' | 'settings';
+export type AdminView = 'home' | 'clients' | 'sites' | 'data-sources' | 'worklogs' | 'reports' | 'editor' | 'templates' | 'trends' | 'upsell' | 'alerts' | 'risk' | 'team' | 'system' | 'settings';
 
-const VIEWS: AdminView[] = ['home', 'clients', 'sites', 'data-sources', 'worklogs', 'reports', 'editor', 'templates', 'trends', 'upsell', 'alerts', 'team', 'system', 'settings'];
+const VIEWS: AdminView[] = ['home', 'clients', 'sites', 'data-sources', 'worklogs', 'reports', 'editor', 'templates', 'trends', 'upsell', 'alerts', 'risk', 'team', 'system', 'settings'];
 
 /** Parse the active section from the URL hash (e.g. `#/reports` → `reports`). */
 export function viewFromHash(): AdminView | null {
@@ -71,6 +71,9 @@ interface AdminUiState {
     reportFocus: { report: number; tab: string } | null;
     focusReport: (report: number, tab: string) => void;
     clearReportFocus: () => void;
+    /** A failing source whose «pedir reconexión» dialog should open (from the alert email). */
+    reconnectFocus: number | null;
+    clearReconnectFocus: () => void;
 }
 
 function bootReportFocus(): { report: number; tab: string } | null {
@@ -83,10 +86,13 @@ function bootReportFocus(): { report: number; tab: string } | null {
 // localStorage, so a page reload keeps you where you were instead of resetting to Clients.
 export const useAdminUi = create<AdminUiState>((set) => ({
     view: viewFromHash() ?? 'home',
-    selectedSiteId: persistedId('ir-selected-site'),
+    // An email link (#/clients?site=12) opens that site; otherwise the last one you looked at.
+    selectedSiteId: Number(bootHashParams.get('site')) > 0 ? Number(bootHashParams.get('site')) : persistedId('ir-selected-site'),
     editingTemplateId: persistedId('ir-editing-template'),
     suspended: false,
     reportFocus: bootReportFocus(),
+    reconnectFocus: Number(bootHashParams.get('reconnect')) > 0 ? Number(bootHashParams.get('reconnect')) : null,
+    clearReconnectFocus: () => set({ reconnectFocus: null }),
     focusReport: (report, tab) => set({ reportFocus: { report, tab }, view: 'reports' }),
     clearReportFocus: () => set({ reportFocus: null }),
     setView: (view) => set({ view }),
