@@ -10,6 +10,7 @@ use App\Models\Agency;
 use App\Models\Client;
 use App\Models\DataSource;
 use App\Models\Site;
+use App\Reports\AiPlanLayout;
 use App\Reports\AiReportBuilder;
 use App\Reports\AiReportException;
 use App\Support\Tenancy\TenantContext;
@@ -159,7 +160,7 @@ class AiReportBuilderTest extends TestCase
             /** @param list<string> $answers */
             public function __construct(private array $answers) {}
 
-            public function complete(string $system, string $prompt): string
+            public function complete(string $system, string $prompt, int $maxTokens = 16000): string
             {
                 return $this->answers[$this->calls++] ?? '';
             }
@@ -190,6 +191,52 @@ class AiReportBuilderTest extends TestCase
 
         $this->assertStringContainsString('- ga4.sessions | Sesiones | scalar, count', (string) $fake->lastPrompt);
         $this->assertStringContainsString('hazlo multipágina', (string) $fake->lastPrompt);
+    }
+
+    public function test_adjusting_keeps_what_the_ai_left_alone_and_rebuilds_what_it_changed(): void
+    {
+        $site = $this->siteWithGa4();
+        $current = [
+            ['id' => 'hdr', 'type' => 'header', 'binding' => null, 'props' => ['title' => 'Tráfico', 'eyebrow' => 'Mi agencia'], 'style' => [], 'layout' => ['x' => 0, 'y' => 0, 'w' => 12, 'h' => 3], 'page' => 0],
+            // A KPI with manual settings (accent, format) the AI must not lose.
+            ['id' => 'k1', 'type' => 'kpi', 'binding' => ['source' => 'ga4', 'metric' => 'sessions', 'compare' => 'prev_period'], 'props' => ['label' => 'Visitas'], 'style' => ['accent' => '#ff0000'], 'layout' => ['x' => 0, 'y' => 3, 'w' => 4, 'h' => 4], 'page' => 0],
+            ['id' => 'c1', 'type' => 'chart', 'binding' => ['source' => 'ga4', 'metric' => 'sessions_by_date'], 'props' => ['chartType' => 'line', 'title' => 'Visitas por día'], 'style' => [], 'layout' => ['x' => 4, 'y' => 3, 'w' => 8, 'h' => 7], 'page' => 0],
+            ['id' => 't1', 'type' => 'table', 'binding' => ['source' => 'ga4', 'metric' => 'top_pages'], 'props' => ['title' => 'Páginas'], 'style' => [], 'layout' => ['x' => 0, 'y' => 10, 'w' => 12, 'h' => 7], 'page' => 0],
+            ['id' => 'img', 'type' => 'image', 'binding' => null, 'props' => ['url' => 'https://x.test/logo.png'], 'style' => [], 'layout' => ['x' => 0, 'y' => 17, 'w' => 6, 'h' => 4], 'page' => 0],
+        ];
+
+        $plan = AiPlanLayout::toPlan($current, ['Tráfico']);
+        $this->assertSame('hdr', $plan['pages'][0]['header_ref']);
+        $this->assertSame(['k1', 'c1', 't1', 'img'], array_column($plan['pages'][0]['items'], 'ref'));
+        $this->assertSame('keep', $plan['pages'][0]['items'][3]['kind']);
+
+        // The AI: retitles the KPI, turns the line into bars, drops the table, adds a donut, keeps the image.
+        $revised = (string) json_encode(['title' => 'Informe', 'pages' => [[
+            'name' => 'Tráfico y fuentes', 'header_ref' => 'hdr', 'items' => [
+                ['ref' => 'k1', 'kind' => 'kpi', 'metric' => 'ga4.sessions', 'title' => 'Visitas del mes'],
+                ['ref' => 'c1', 'kind' => 'chart', 'metric' => 'ga4.sessions_by_date', 'chart' => 'bar'],
+                ['kind' => 'chart', 'metric' => 'ga4.traffic_sources', 'chart' => 'donut', 'title' => 'Fuentes'],
+                ['ref' => 'img', 'kind' => 'keep'],
+            ],
+        ]]]);
+
+        $result = $this->builderReturning($revised)->adjustTemplate($site, 'barras y quita la tabla', $current, ['Tráfico']);
+
+        $byId = [];
+        foreach ($result['blocks'] as $block) {
+            $byId[$block['id']] = $block;
+        }
+        $this->assertSame(['Tráfico y fuentes'], $result['pages']);
+        $this->assertArrayNotHasKey('t1', $byId, 'the table was removed');
+        $this->assertSame('Visitas del mes', $byId['k1']['props']['label']);
+        $this->assertSame(['accent' => '#ff0000'], $byId['k1']['style'], 'manual settings survive');
+        $this->assertSame('bar', $byId['c1']['props']['chartType']);
+        $this->assertSame('https://x.test/logo.png', $byId['img']['props']['url']);
+        $this->assertSame('Mi agencia', $byId['hdr']['props']['eyebrow']);
+        $this->assertSame('Tráfico y fuentes', $byId['hdr']['props']['title']);
+        $new = array_values(array_filter($result['blocks'], static fn (array $block): bool => ! in_array($block['id'], ['hdr', 'k1', 'c1', 'img'], true)));
+        $this->assertCount(1, $new);
+        $this->assertSame('donut', $new[0]['props']['chartType']);
     }
 
     public function test_it_throws_on_unparseable_output(): void

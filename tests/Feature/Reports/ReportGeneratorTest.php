@@ -352,7 +352,7 @@ class ReportGeneratorTest extends TestCase
         // An AI client that throws must not break GENERATE — the summary stays empty.
         $this->app->instance(AiClient::class, new class implements AiClient
         {
-            public function complete(string $system, string $prompt): string
+            public function complete(string $system, string $prompt, int $maxTokens = 16000): string
             {
                 throw new RuntimeException('Claude API down');
             }

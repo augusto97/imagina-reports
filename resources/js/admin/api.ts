@@ -1611,22 +1611,64 @@ export interface AiTemplateResult {
     pages?: string[];
 }
 
-export function useAiTemplate(siteId: number) {
-    return useMutation({
-        mutationFn: (prompt: string) =>
-            api.post<AiTemplateResult>(`/sites/${siteId}/ai-template`, { prompt }).then((r) => r.data),
-    });
-}
-
 export interface AiSectionResult {
     blocks: Block[];
     dropped: { type: string; metric: string }[];
 }
 
+export interface AiAdjustResult {
+    blocks: Block[];
+    dropped: { type: string; metric: string }[];
+    pages: string[];
+}
+
+/** Where a background «Generar con IA» run stands (the result's fields come with `done`). */
+interface AiJobState {
+    job: string;
+    status: 'queued' | 'running' | 'done' | 'failed';
+    message?: string;
+}
+
+/** Ran out of patience waiting for a background AI run. */
+export class AiDesignTimeout extends Error {}
+
+/**
+ * Start a background AI run and wait for it: a whole multi-page report can take the model a few
+ * minutes, far longer than one HTTP request may last. A failed run comes back as a 422 (with the
+ * reason), which rejects like any API error.
+ */
+async function runAiDesign<T>(start: () => Promise<AiJobState>): Promise<T> {
+    let state = await start();
+    const startedAt = Date.now();
+
+    while (state.status !== 'done') {
+        if (Date.now() - startedAt > 15 * 60_000) {
+            throw new AiDesignTimeout('La IA está tardando demasiado. Inténtalo otra vez en un momento.');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        state = await api.get<AiJobState>(`/ai-design/${state.job}`).then((r) => r.data);
+    }
+
+    return state as unknown as T;
+}
+
+export function useAiTemplate(siteId: number) {
+    return useMutation({
+        mutationFn: (prompt: string) => runAiDesign<AiTemplateResult>(() => api.post<AiJobState>(`/sites/${siteId}/ai-template`, { prompt }).then((r) => r.data)),
+    });
+}
+
 export function useAiSection(siteId: number) {
     return useMutation({
-        mutationFn: (prompt: string) =>
-            api.post<AiSectionResult>(`/sites/${siteId}/ai-section`, { prompt }).then((r) => r.data),
+        mutationFn: (prompt: string) => runAiDesign<AiSectionResult>(() => api.post<AiJobState>(`/sites/${siteId}/ai-section`, { prompt }).then((r) => r.data)),
+    });
+}
+
+/** «Pedir cambios»: revise the report on the canvas as described. */
+export function useAiAdjust(siteId: number) {
+    return useMutation({
+        mutationFn: (payload: { prompt: string; blocks: Block[]; pages: string[] }) =>
+            runAiDesign<AiAdjustResult>(() => api.post<AiJobState>(`/sites/${siteId}/ai-adjust`, payload).then((r) => r.data)),
     });
 }
 

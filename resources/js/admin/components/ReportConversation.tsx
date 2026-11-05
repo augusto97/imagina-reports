@@ -2,6 +2,7 @@ import { Bot, Check, MessageCircleQuestion, Send } from 'lucide-react';
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
+import { SimpleMarkdown } from '@shared/lib/markdown';
 import { cn } from '@shared/lib/utils';
 
 import { useMarkQuestionsHandled, useReplyToClient, useReportMessages } from '../api';
@@ -26,7 +27,7 @@ function Bubble({ message }: { message: ReportMessageDto }): ReactElement {
                     {message.author ?? 'El cliente'} preguntó a la IA · {when(message.created_at)}
                 </p>
                 <p className="ir-mt-1 ir-font-medium">«{message.body}»</p>
-                {message.answer !== null && <p className="ir-mt-1 ir-whitespace-pre-line ir-text-muted-foreground">{message.answer}</p>}
+                {message.answer !== null && <SimpleMarkdown text={message.answer} className="ir-mt-1 ir-text-muted-foreground" />}
             </li>
         );
     }

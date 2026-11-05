@@ -161,6 +161,8 @@ import type { Block, BlockType } from "@shared/blocks/types";
 import {
     type PreviewResult,
     useAgency,
+    AiDesignTimeout,
+    useAiAdjust,
     useAiSection,
     useAiTemplate,
     useCreateReportTemplate,
@@ -253,6 +255,12 @@ function extractBlockErrors(error: unknown): string[] {
     return [];
 }
 
+
+/** The message to show for a failed AI run: the server's reason, or ours for a timeout. */
+function aiErrorText(error: unknown, fallback: string): string {
+    return error instanceof AiDesignTimeout ? error.message : apiErrorMessage(error, fallback);
+}
+
 export function EditorScreen(): ReactElement {
     const { data: sites = [] } = useSites();
     const [siteId, setSiteId] = useState<number | null>(null);
@@ -261,6 +269,9 @@ export function EditorScreen(): ReactElement {
     const defaultTpl = useDefaultTemplateBlocks();
     const ai = useAiTemplate(siteId ?? 0);
     const aiSection = useAiSection(siteId ?? 0);
+    const aiAdjust = useAiAdjust(siteId ?? 0);
+    // What the canvas looked like before the last AI change, so «Deshacer» can bring it back.
+    const [aiUndo, setAiUndo] = useState<{ blocks: Block[]; pageNames: string[] } | null>(null);
 
     const editingTemplateId = useAdminUi((state) => state.editingTemplateId);
     const editTemplate = useAdminUi((state) => state.editTemplate);
@@ -492,8 +503,10 @@ export function EditorScreen(): ReactElement {
 
     const generateWithAi = (prompt: string): void => {
         setAiError(null);
+        const before = { blocks, pageNames };
         ai.mutate(prompt, {
             onSuccess: (result) => {
+                setAiUndo(before.blocks.length > 1 ? before : null);
                 resetBlocks(
                     result.blocks.length > 0
                         ? result.blocks
@@ -516,10 +529,59 @@ export function EditorScreen(): ReactElement {
                 );
             },
             onError: (error) => {
-                setAiNotice(null);
-                setAiError(apiErrorMessage(error, "La IA no pudo generar el informe. Inténtalo otra vez."));
+                const message = aiErrorText(error, "La IA no pudo generar el informe. Inténtalo otra vez.");
+                setAiError(message);
+                // Also on the canvas, in case the window was closed while the AI worked.
+                setAiNotice(message);
             },
         });
+    };
+
+    // «Pedir cambios»: the AI revises the report on the canvas; what it leaves alone comes back
+    // exactly as it was. «Deshacer» brings back the version from before.
+    const adjustWithAi = (prompt: string): void => {
+        if (prompt === "") {
+            return;
+        }
+        setAiError(null);
+        const before = { blocks, pageNames };
+        aiAdjust.mutate(
+            { prompt, blocks, pages: Array.from({ length: pageCount }, (_, index) => pageNames[index] ?? "") },
+            {
+                onSuccess: (result) => {
+                    setAiUndo(before);
+                    resetBlocks(result.blocks);
+                    setPageNames(result.pages);
+                    setSelectedId(null);
+                    setErrors([]);
+                    setDirty(true);
+                    setAiOpen(false);
+                    setAiNotice(
+                        result.dropped.length > 0
+                            ? `Cambios aplicados. Se omitieron ${result.dropped.length} bloque(s) con métricas que este sitio no tiene: ${result.dropped
+                                  .map((block) => block.metric || block.type)
+                                  .join(", ")}.`
+                            : "Cambios aplicados.",
+                    );
+                },
+                onError: (error) => {
+                    const message = aiErrorText(error, "La IA no pudo aplicar los cambios. Inténtalo otra vez.");
+                    setAiError(message);
+                    setAiNotice(message);
+                },
+            },
+        );
+    };
+
+    const undoAi = (): void => {
+        if (aiUndo === null) {
+            return;
+        }
+        resetBlocks(aiUndo.blocks);
+        setPageNames(aiUndo.pageNames);
+        setAiUndo(null);
+        setAiNotice(null);
+        setDirty(true);
     };
 
     // "Add a section with AI": builds only the described blocks and appends them below
@@ -549,8 +611,10 @@ export function EditorScreen(): ReactElement {
                 );
             },
             onError: (error) => {
-                setAiNotice(null);
-                setAiError(apiErrorMessage(error, "La IA no pudo generar la sección. Inténtalo otra vez."));
+                const message = aiErrorText(error, "La IA no pudo generar la sección. Inténtalo otra vez.");
+                setAiError(message);
+                // Also on the canvas, in case the window was closed while the AI worked.
+                setAiNotice(message);
             },
         });
     };
@@ -1923,18 +1987,28 @@ export function EditorScreen(): ReactElement {
                         </div>
                     )}
 
-                    {aiNotice !== null && (
+                    {(aiNotice !== null || aiUndo !== null) && (
                         <div className="ir-flex ir-items-start ir-justify-between ir-gap-3 ir-border-b ir-border-amber-200 ir-bg-amber-50 ir-px-4 ir-py-2">
                             <p className="ir-text-xs ir-text-amber-700">
-                                {aiNotice}
+                                {aiNotice ?? "La IA cambió el informe."}
                             </p>
-                            <button
-                                type="button"
-                                className="ir-shrink-0 ir-text-xs ir-text-amber-700 hover:ir-underline"
-                                onClick={() => setAiNotice(null)}
-                            >
-                                Cerrar
-                            </button>
+                            <div className="ir-flex ir-shrink-0 ir-items-center ir-gap-3">
+                                {aiUndo !== null && (
+                                    <button type="button" className="ir-text-xs ir-font-semibold ir-text-amber-800 hover:ir-underline" onClick={undoAi}>
+                                        Deshacer el cambio de la IA
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    className="ir-text-xs ir-text-amber-700 hover:ir-underline"
+                                    onClick={() => {
+                                        setAiNotice(null);
+                                        setAiUndo(null);
+                                    }}
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -2405,9 +2479,11 @@ export function EditorScreen(): ReactElement {
                     replacing={blocks.length > 1}
                     fullPending={ai.isPending}
                     sectionPending={aiSection.isPending}
+                    adjustPending={aiAdjust.isPending}
                     error={aiError}
                     onFull={generateWithAi}
                     onSection={generateSectionWithAi}
+                    onAdjust={adjustWithAi}
                 />
             )}
 

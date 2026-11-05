@@ -20,6 +20,7 @@ use App\Reports\Blocks\BlockType;
  *
  * @phpstan-type CatalogEntry array{source: string, key: string, label: string, type: string, unit: string|null, dimensions: list<string>, measures: list<string>, has_data: bool}
  * @phpstan-type Dropped array{type: string, metric: string}
+ * @phpstan-type Built array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool, keep?: array<array-key, mixed>}
  */
 final class AiPlanLayout
 {
@@ -30,19 +31,37 @@ final class AiPlanLayout
 
     private const GEO_DIMENSIONS = ['country', 'region', 'city'];
 
-    private int $counter = 0;
-
     /** @var list<Dropped> */
     private array $dropped = [];
 
     /**
+     * The current report's blocks by id, when ADJUSTING it: a plan item that carries the `ref` of
+     * one of them (and still shows the same data the same way) reuses that block — its manual
+     * settings and size — instead of rebuilding it from scratch.
+     *
+     * @var array<string, array<array-key, mixed>>
+     */
+    private array $originals = [];
+
+    /** @var array<string, true> */
+    private array $usedIds = [];
+
+    /**
      * @param  array<array-key, mixed>  $plan
      * @param  list<CatalogEntry>  $catalog
+     * @param  array<array-key, mixed>  $originals  The current blocks, when adjusting a report.
      * @return array{blocks: list<array<string, mixed>>, pages: list<string>, dropped: list<Dropped>}
      */
-    public function build(array $plan, array $catalog): array
+    public function build(array $plan, array $catalog, array $originals = []): array
     {
         $this->dropped = [];
+        $this->usedIds = [];
+        $this->originals = [];
+        foreach ($originals as $original) {
+            if (is_array($original) && is_string($original['id'] ?? null)) {
+                $this->originals[$original['id']] = $original;
+            }
+        }
         $index = $this->index($catalog);
         $title = is_string($plan['title'] ?? null) && trim($plan['title']) !== '' ? trim($plan['title']) : 'Informe de tu sitio';
         $pagesIn = is_array($plan['pages'] ?? null) ? array_values($plan['pages']) : [];
@@ -61,22 +80,24 @@ final class AiPlanLayout
             $name = is_string($pageIn['name'] ?? null) ? trim($pageIn['name']) : '';
             $type = $pageIn['type'] ?? 'content';
 
+            $kept = $this->original($pageIn['ref'] ?? null);
             if ($type === 'cover') {
-                $blocks[] = $this->block(BlockType::Cover, null, [
-                    'title' => $title,
+                $props = $kept !== null && ($kept['type'] ?? null) === BlockType::Cover->value ? $this->props($kept) : [
                     'subtitle' => 'Resumen del trabajo realizado y el rendimiento de tu sitio este periodo.',
                     'showScore' => true,
-                ], [], ['x' => 0, 'y' => 0, 'w' => self::COLS, 'h' => 16], $page);
+                ];
+                $blocks[] = $this->block(BlockType::Cover, null, [...$props, 'title' => $title], $kept !== null ? $this->style($kept) : [], ['x' => 0, 'y' => 0, 'w' => self::COLS, 'h' => 16], $page, $kept);
                 $names[] = $name !== '' ? $name : 'Portada';
 
                 continue;
             }
             if ($type === 'back_cover') {
-                $blocks[] = $this->block(BlockType::BackCover, null, [
+                $props = $kept !== null && ($kept['type'] ?? null) === BlockType::BackCover->value ? $this->props($kept) : [
                     'headline' => 'Tu plan de soporte está activo y protegiendo tu sitio.',
                     'text' => 'Gracias por confiar en nosotros para cuidar tu sitio cada mes. Cualquier duda, estamos a un mensaje de distancia.',
                     'contact' => '{{agency}}',
-                ], [], ['x' => 0, 'y' => 0, 'w' => self::COLS, 'h' => 16], $page);
+                ];
+                $blocks[] = $this->block(BlockType::BackCover, null, $props, $kept !== null ? $this->style($kept) : [], ['x' => 0, 'y' => 0, 'w' => self::COLS, 'h' => 16], $page, $kept);
                 $names[] = $name !== '' ? $name : 'Cierre';
 
                 continue;
@@ -87,11 +108,11 @@ final class AiPlanLayout
                 continue; // nothing usable on this page: leave it out
             }
 
-            $header = $this->block(BlockType::Header, null, [
-                'title' => $name !== '' ? $name : $title,
-                'eyebrow' => '{{agency}}',
-                'subtitle' => '{{client}} · {{site}} · {{period}}',
-            ], [], ['x' => 0, 'y' => 0, 'w' => self::COLS, 'h' => 3], $page);
+            $keptHeader = $this->original($pageIn['header_ref'] ?? null);
+            $headerProps = $keptHeader !== null && ($keptHeader['type'] ?? null) === BlockType::Header->value
+                ? $this->props($keptHeader)
+                : ['eyebrow' => '{{agency}}', 'subtitle' => '{{client}} · {{site}} · {{period}}'];
+            $header = $this->block(BlockType::Header, null, [...$headerProps, 'title' => $name !== '' ? $name : $title], $keptHeader !== null ? $this->style($keptHeader) : [], ['x' => 0, 'y' => 0, 'w' => self::COLS, 'h' => 3], $page, $keptHeader);
             $blocks = [...$blocks, $header, ...$this->place($items, 3, $page)];
             $names[] = $name !== '' ? $name : 'Página '.($page + 1);
         }
@@ -109,6 +130,8 @@ final class AiPlanLayout
     public function section(array $items, array $catalog): array
     {
         $this->dropped = [];
+        $this->usedIds = [];
+        $this->originals = [];
         $built = $this->items($items, $this->index($catalog));
 
         return ['blocks' => $this->place($built, 0, 0), 'dropped' => $this->dropped];
@@ -117,7 +140,7 @@ final class AiPlanLayout
     /**
      * @param  array<array-key, mixed>  $itemsIn
      * @param  array<string, CatalogEntry>  $index
-     * @return list<array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}>
+     * @return list<Built>
      */
     private function items(array $itemsIn, array $index): array
     {
@@ -146,13 +169,25 @@ final class AiPlanLayout
     /**
      * @param  array<array-key, mixed>  $item
      * @param  array<string, CatalogEntry>  $index
-     * @return array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}|null
+     * @return Built|null
      */
     private function item(array $item, array $index): ?array
     {
         $kind = is_string($item['kind'] ?? null) ? strtolower($item['kind']) : '';
         $title = is_string($item['title'] ?? null) ? mb_substr(trim($item['title']), 0, 60) : '';
         $size = is_string($item['size'] ?? null) ? $item['size'] : null;
+
+        // Adjusting: an item the AI kept (same data, same kind of visual) reuses the current block.
+        $original = $this->original($item['ref'] ?? null);
+        if ($original !== null) {
+            $kept = $this->keep($original, $item, $kind, $title, $size, $index);
+            if ($kept !== null) {
+                return $kept;
+            }
+        }
+        if ($kind === 'keep') {
+            return null;
+        }
 
         if (! in_array($kind, self::DATA_KINDS, true)) {
             return $this->staticItem($kind, $title, $item, $size);
@@ -195,7 +230,7 @@ final class AiPlanLayout
 
     /**
      * @param  array<array-key, mixed>  $item
-     * @return array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}|null
+     * @return Built|null
      */
     private function staticItem(string $kind, string $title, array $item, ?string $size): ?array
     {
@@ -214,7 +249,7 @@ final class AiPlanLayout
 
     /**
      * @param  array<array-key, mixed>  $item
-     * @return array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}|null
+     * @return Built|null
      */
     private function textItem(string $title, array $item, ?string $size): ?array
     {
@@ -232,7 +267,7 @@ final class AiPlanLayout
      * @param  array<string, mixed>  $binding
      * @param  CatalogEntry  $entry
      * @param  array<array-key, mixed>  $item
-     * @return array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}
+     * @return Built
      */
     private function chartItem(array $binding, string $label, array $entry, array $item, ?string $format, ?string $size): array
     {
@@ -331,7 +366,7 @@ final class AiPlanLayout
      * @param  array<string, mixed>|null  $binding
      * @param  array<string, mixed>  $props
      * @param  array<string, mixed>  $style
-     * @return array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}
+     * @return Built
      */
     private function sized(BlockType $type, ?array $binding, array $props, array $style, ?string $size, int $w, int $h): array
     {
@@ -352,7 +387,7 @@ final class AiPlanLayout
      * its spare columns are shared out so it ends flush, and its items take the row's height.
      * A wide-by-default item (summary, text…) takes the rest of a started row when there's room.
      *
-     * @param  list<array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}>  $items
+     * @param  list<Built>  $items
      * @return list<array<string, mixed>>
      */
     private function place(array $items, int $top, int $page): array
@@ -383,7 +418,7 @@ final class AiPlanLayout
             $height = max(array_map(static fn (array $item): int => $item['h'], $row));
             $x = 0;
             foreach ($row as $item) {
-                $blocks[] = $this->block($item['type'], $item['binding'], $item['props'], $item['style'], ['x' => $x, 'y' => $y, 'w' => $item['w'], 'h' => $height], $page);
+                $blocks[] = $this->block($item['type'], $item['binding'], $item['props'], $item['style'], ['x' => $x, 'y' => $y, 'w' => $item['w'], 'h' => $height], $page, $item['keep'] ?? null);
                 $x += $item['w'];
             }
             $y += $height;
@@ -395,8 +430,8 @@ final class AiPlanLayout
     /**
      * Share a row's spare columns so it ends flush: KPIs grow evenly, otherwise the visuals get it.
      *
-     * @param  non-empty-list<array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}>  $row
-     * @return non-empty-list<array{type: BlockType, binding: array<string, mixed>|null, props: array<string, mixed>, style: array<string, mixed>, w: int, h: int, wide: bool}>
+     * @param  non-empty-list<Built>  $row
+     * @return non-empty-list<Built>
      */
     private function fill(array $row): array
     {
@@ -419,14 +454,19 @@ final class AiPlanLayout
      * @param  array<string, mixed>  $props
      * @param  array<string, mixed>  $style
      * @param  array{x: int, y: int, w: int, h: int}  $layout
+     * @param  array<array-key, mixed>|null  $original
      * @return array<string, mixed>
      */
-    private function block(BlockType $type, ?array $binding, array $props, array $style, array $layout, int $page): array
+    private function block(BlockType $type, ?array $binding, array $props, array $style, array $layout, int $page, ?array $original = null): array
     {
-        $this->counter++;
+        // A kept block keeps its id (anything keyed by it keeps working); new ones get a fresh one.
+        $id = is_array($original) && is_string($original['id'] ?? null) && ! isset($this->usedIds[$original['id']])
+            ? $original['id']
+            : 'ai_'.bin2hex(random_bytes(5));
+        $this->usedIds[$id] = true;
 
         return [
-            'id' => 'ai_'.$this->counter,
+            'id' => $id,
             'type' => $type->value,
             'binding' => $binding,
             'props' => $props,
@@ -434,6 +474,208 @@ final class AiPlanLayout
             'layout' => $layout,
             'page' => $page,
         ];
+    }
+
+    /**
+     * The current report as a plan the AI can edit: pages with their items, each carrying the `ref`
+     * of its block so what the AI leaves alone comes back exactly as it was.
+     *
+     * @param  array<array-key, mixed>  $blocks
+     * @param  array<array-key, mixed>  $pageNames
+     * @return array{title: string, pages: list<array<string, mixed>>}
+     */
+    public static function toPlan(array $blocks, array $pageNames): array
+    {
+        $byPage = [];
+        foreach (array_values($blocks) as $order => $block) {
+            if (! is_array($block) || ! is_string($block['id'] ?? null) || ! is_string($block['type'] ?? null)) {
+                continue;
+            }
+            $page = is_numeric($block['page'] ?? null) ? max(0, (int) $block['page']) : 0;
+            $layout = is_array($block['layout'] ?? null) ? $block['layout'] : [];
+            $y = is_numeric($layout['y'] ?? null) ? (int) $layout['y'] : $order * 100;
+            $x = is_numeric($layout['x'] ?? null) ? (int) $layout['x'] : 0;
+            $byPage[$page][] = ['sort' => $y * 100 + $x, 'block' => $block];
+        }
+        ksort($byPage);
+
+        $title = 'Informe de tu sitio';
+        $pages = [];
+        foreach ($byPage as $page => $entries) {
+            usort($entries, static fn (array $a, array $b): int => $a['sort'] <=> $b['sort']);
+            $name = is_string($pageNames[$page] ?? null) ? trim($pageNames[$page]) : '';
+            $first = $entries[0]['block'];
+
+            if ($first['type'] === BlockType::Cover->value || $first['type'] === BlockType::BackCover->value) {
+                $props = is_array($first['props'] ?? null) ? $first['props'] : [];
+                if ($first['type'] === BlockType::Cover->value && is_string($props['title'] ?? null) && $props['title'] !== '') {
+                    $title = $props['title'];
+                }
+                $pages[] = ['name' => $name !== '' ? $name : ($first['type'] === BlockType::Cover->value ? 'Portada' : 'Cierre'), 'type' => $first['type'], 'ref' => $first['id']];
+
+                continue;
+            }
+
+            $plan = ['name' => $name, 'type' => 'content', 'items' => []];
+            foreach ($entries as $position => $entry) {
+                $block = $entry['block'];
+                $props = is_array($block['props'] ?? null) ? $block['props'] : [];
+                // The page's own header becomes its name.
+                if ($position === 0 && $block['type'] === BlockType::Header->value) {
+                    $plan['header_ref'] = $block['id'];
+                    if ($plan['name'] === '' && is_string($props['title'] ?? null)) {
+                        $plan['name'] = $props['title'];
+                    }
+
+                    continue;
+                }
+                $plan['items'][] = self::planItem($block, $props);
+            }
+            $pages[] = $plan;
+        }
+
+        return ['title' => $title, 'pages' => $pages];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $block
+     * @param  array<array-key, mixed>  $props
+     * @return array<string, mixed>
+     */
+    private static function planItem(array $block, array $props): array
+    {
+        $typeName = is_string($block['type'] ?? null) ? $block['type'] : '';
+        $type = BlockType::tryFrom($typeName);
+        $kind = $type !== null ? self::kindOf($type, $props) : 'keep';
+        $item = ['ref' => $block['id'], 'kind' => $kind];
+
+        $binding = is_array($block['binding'] ?? null) ? $block['binding'] : [];
+        if (is_string($binding['source'] ?? null) && is_string($binding['metric'] ?? null)) {
+            $item['metric'] = $binding['source'].'.'.$binding['metric'];
+        }
+        $title = $props['label'] ?? $props['title'] ?? null;
+        if (is_string($title) && $title !== '') {
+            $item['title'] = $title;
+        }
+        if ($kind === 'chart' && is_string($props['chartType'] ?? null)) {
+            $item['chart'] = $props['chartType'];
+        }
+        if ($kind === 'text' && is_string($props['text'] ?? null)) {
+            $item['text'] = mb_substr(trim(strip_tags(str_replace('</p>', "\n\n", $props['text']))), 0, 400);
+        }
+        if ($kind === 'keep') {
+            $item['about'] = $typeName;
+        }
+
+        return $item;
+    }
+
+    /**
+     * The plan «kind» a block is shown as.
+     *
+     * @param  array<array-key, mixed>  $props
+     */
+    private static function kindOf(BlockType $type, array $props): string
+    {
+        return match ($type) {
+            BlockType::Kpi => 'kpi',
+            BlockType::Chart => 'chart',
+            BlockType::Table => 'table',
+            BlockType::GeoMap => 'map',
+            BlockType::Funnel => 'funnel',
+            BlockType::Goal => 'goal',
+            BlockType::HealthScore => 'healthscore',
+            BlockType::Narrative => ($props['variant'] ?? null) === 'executive_summary' ? 'summary' : 'text',
+            BlockType::Advisory => 'advisory',
+            BlockType::SecurityShield => 'security',
+            BlockType::WorklogTimeline => 'worklog',
+            BlockType::Goals => 'goals',
+            BlockType::Comments => 'comments',
+            default => 'keep',
+        };
+    }
+
+    /**
+     * Reuse a current block for an item the AI kept: same data and the same kind of visual. Its
+     * manual settings stay; only what the item changes (title, chart type, text, size) is applied.
+     *
+     * @param  array<array-key, mixed>  $original
+     * @param  array<array-key, mixed>  $item
+     * @param  array<string, CatalogEntry>  $index
+     * @return Built|null
+     */
+    private function keep(array $original, array $item, string $kind, string $title, ?string $size, array $index): ?array
+    {
+        $type = BlockType::tryFrom(is_string($original['type'] ?? null) ? $original['type'] : '');
+        if ($type === null) {
+            return null;
+        }
+        $props = $this->props($original);
+        $binding = is_array($original['binding'] ?? null) ? array_filter($original['binding'], 'is_string', ARRAY_FILTER_USE_KEY) : null;
+        $originalKey = is_string($binding['source'] ?? null) && is_string($binding['metric'] ?? null) ? $binding['source'].'.'.$binding['metric'] : null;
+        $itemKey = is_string($item['metric'] ?? null) && $item['metric'] !== '' ? $item['metric'] : null;
+
+        $sameKind = $kind === 'keep' || self::kindOf($type, $props) === $kind;
+        $sameData = $kind === 'keep' || $itemKey === null || $itemKey === $originalKey;
+        if (! $sameKind || ! $sameData) {
+            return null; // the AI changed what this shows: build it again from the item
+        }
+
+        if ($title !== '') {
+            $props[in_array($type, [BlockType::Kpi, BlockType::Goal], true) ? 'label' : 'title'] = $title;
+        }
+        $style = $this->style($original);
+        if ($type === BlockType::Chart && is_string($item['chart'] ?? null) && $originalKey !== null && isset($index[$originalKey])) {
+            $chart = $this->chartItem([], '', $index[$originalKey], $item, null, null);
+            $props['chartType'] = $chart['props']['chartType'];
+            $style['legend'] = $props['chartType'] === 'donut' ? true : ($style['legend'] ?? null);
+            $style = array_filter($style, static fn (mixed $value): bool => $value !== null);
+        }
+        if ($kind === 'text' && is_string($item['text'] ?? null) && trim($item['text']) !== '') {
+            $text = $this->textItem($title, $item, null);
+            if ($text !== null) {
+                $props['text'] = $text['props']['text'];
+            }
+        }
+
+        $layout = is_array($original['layout'] ?? null) ? $original['layout'] : [];
+        $w = is_numeric($layout['w'] ?? null) ? max(1, min(self::COLS, (int) $layout['w'])) : 6;
+        $h = is_numeric($layout['h'] ?? null) ? max(1, (int) $layout['h']) : 5;
+        $built = $this->sized($type, $binding, $props, $style, $size, $w, $h);
+        $built['wide'] = false;
+        $built['keep'] = $original;
+
+        return $built;
+    }
+
+    /**
+     * @return array<array-key, mixed>|null
+     */
+    private function original(mixed $ref): ?array
+    {
+        return is_string($ref) ? ($this->originals[$ref] ?? null) : null;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $block
+     * @return array<string, mixed>
+     */
+    private function props(array $block): array
+    {
+        $props = $block['props'] ?? [];
+
+        return is_array($props) ? array_filter($props, 'is_string', ARRAY_FILTER_USE_KEY) : [];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $block
+     * @return array<string, mixed>
+     */
+    private function style(array $block): array
+    {
+        $style = $block['style'] ?? [];
+
+        return is_array($style) ? array_filter($style, 'is_string', ARRAY_FILTER_USE_KEY) : [];
     }
 
     /**

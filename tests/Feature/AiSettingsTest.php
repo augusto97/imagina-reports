@@ -226,6 +226,44 @@ class AiSettingsTest extends TestCase
         $this->sentMessage(fn (Request $request): bool => $request['model'] === AiModels::LAST_RESORT && ! isset($request['output_config']));
     }
 
+    public function test_long_answers_are_streamed_and_capped_to_the_model(): void
+    {
+        $this->platform('sk-platform');
+        $haiku = $this->model('claude-haiku-4-5', 'Claude Haiku 4.5', '2025-10-01T00:00:00Z', [], null);
+        $opus = [...$this->model('claude-opus-5-5', 'Claude Opus 5.5', '2026-09-01T00:00:00Z'), 'max_tokens' => 40000];
+        $sse = implode("\n", [
+            'event: message_start', 'data: {"type":"message_start","message":{"id":"m"}}', '',
+            'event: content_block_start', 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}', '',
+            'event: content_block_delta', 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hmm"}}', '',
+            'event: content_block_delta', 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"{\\"pages\\":"}}', '',
+            'event: content_block_delta', 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[]}"}}', '',
+            'event: message_delta', 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":9}}', '',
+            'event: message_stop', 'data: {"type":"message_stop"}', '',
+        ]);
+        Http::fake([
+            'api.anthropic.com/v1/models*' => Http::response(['data' => [$opus, $haiku], 'has_more' => false]),
+            'api.anthropic.com/v1/messages' => Http::response($sse, 200, ['Content-Type' => 'text/event-stream']),
+        ]);
+
+        $text = app(AnthropicAiClient::class)->complete('s', 'p', 64000);
+
+        $this->assertSame('{"pages":[]}', $text, 'only the text deltas, not the thinking');
+        $this->sentMessage(fn (Request $request): bool => $request['stream'] === true && $request['max_tokens'] === 40000);
+    }
+
+    public function test_a_stream_cut_by_the_length_limit_says_so(): void
+    {
+        $this->platform('sk-platform');
+        $sse = "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"{\\\"pages\\\": [\"}}\n\n"
+            ."data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"max_tokens\"}}\n\n";
+        $this->fakeAnthropic(null, Http::response($sse, 200));
+
+        $client = app(AnthropicAiClient::class);
+        $client->complete('s', 'p', 64000);
+
+        $this->assertSame('La respuesta de la IA quedó incompleta porque era demasiado larga.', $client->lastError());
+    }
+
     public function test_the_agency_panel_lists_anthropics_models_for_its_own_key(): void
     {
         $agency = Agency::factory()->create();

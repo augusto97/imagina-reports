@@ -30,6 +30,13 @@ final readonly class AiReportBuilder
      */
     private const SECTION_EXCLUDED_TYPES = ['header', 'cover', 'cta'];
 
+    /**
+     * Room for a whole report plan, thinking included (the client streams it and never asks for
+     * more than the model allows). 16k was too little for a big multi-page report on a model that
+     * reasons before answering.
+     */
+    private const PLAN_TOKENS = 64000;
+
     public function __construct(
         private AiClient $ai,
         private ConnectorRegistry $registry,
@@ -99,6 +106,39 @@ final readonly class AiReportBuilder
     }
 
     /**
+     * «Pedir cambios»: the agency describes a change to the report on the canvas («barras en vez de
+     * líneas», «añade una página de anuncios», «títulos más claros»). The AI gets the current report
+     * as a plan — every item with the `ref` of its block — and returns the revised plan; what it
+     * keeps comes back exactly as it was (manual settings included), the rest is rebuilt.
+     *
+     * @param  array<array-key, mixed>  $blocks
+     * @param  array<array-key, mixed>  $pageNames
+     * @return array{blocks: list<array<string, mixed>>, dropped: list<array{type: string, metric: string}>, pages: list<string>}
+     *
+     * @throws AiReportException
+     */
+    public function adjustTemplate(Site $site, string $prompt, array $blocks, array $pageNames): array
+    {
+        $catalog = $this->siteCatalog($site);
+        $current = AiPlanLayout::toPlan($blocks, $pageNames);
+        if ($current['pages'] === []) {
+            throw new AiReportException('El lienzo está vacío: genera un informe primero o elige una plantilla.');
+        }
+
+        $user = $this->userPrompt($site, $catalog, null)
+            ."\n\nThe current report (JSON plan):\n".$this->encode($current)
+            ."\n\nWhat the agency wants changed (follow it):\n".Str::limit(trim($prompt), 4000);
+        $json = $this->ask($this->adjustSystemPrompt($this->language($site)), $user);
+
+        $built = (new AiPlanLayout)->build($json, $catalog, $blocks);
+        if ($built['blocks'] === []) {
+            throw new AiReportException('La IA devolvió un informe vacío. Prueba a describir el cambio con otras palabras.');
+        }
+
+        return ['blocks' => $built['blocks'], 'dropped' => $built['dropped'], 'pages' => $built['pages']];
+    }
+
+    /**
      * One call, read as JSON, with one retry when the answer isn't valid JSON. Failures come back
      * as a message the person can act on (bad key, no balance, a cut answer…), not a generic one.
      *
@@ -114,7 +154,7 @@ final readonly class AiReportBuilder
         }
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
-            $raw = $this->ai->complete($system, $attempt === 1 ? $user : $user."\n\nYour previous answer was not a valid JSON object. Reply again with ONLY the JSON object, nothing else.");
+            $raw = $this->ai->complete($system, $attempt === 1 ? $user : $user."\n\nYour previous answer was not a valid JSON object. Reply again with ONLY the JSON object, nothing else.", self::PLAN_TOKENS);
             $json = $this->decode($raw);
             if ($json !== null) {
                 return $json;
@@ -369,6 +409,7 @@ final readonly class AiReportBuilder
         - Multi-page reports: start with a cover page and end with a back_cover page. A short single-page report needs neither.
         - First content page: healthscore, summary, the 4-8 most important KPIs, and advisory.
         - Each content page: 3-4 KPIs first, then 2-6 charts/tables/maps. 5-14 items per page. Never the same metric twice with the same visual.
+        - At most 10 pages and 100 items in total, even when asked for «all» metrics: pick the useful, interesting ones and skip near-duplicates.
         - Include worklog (on the maintenance page) and goals once each when it makes sense.
         - "text" items explain a section in plain words; never write figures in them (the data changes every month).
         - Titles: short (max 40 characters), plain words for a non-technical client, no metric keys or jargon.
@@ -391,6 +432,30 @@ final readonly class AiReportBuilder
         Optional: "size": "small"|"medium"|"large"|"full"; for dataset metrics "by" (a dimension) and "measure".
         Rules: "metric" must be a key copied EXACTLY from the catalog (prefer has_data); match the visual to the metric type;
         KPIs first, then charts/tables; titles short and plain; no figures inside "text". Write titles in {$language}.
+        PROMPT;
+    }
+
+    private function adjustSystemPrompt(string $language): string
+    {
+        return <<<PROMPT
+        You revise a branded, client-facing website report for a web agency ("Imagina Reports"). You receive the
+        current report as a JSON plan and the change the agency wants. Reply with ONLY the COMPLETE revised plan as one
+        JSON object (no prose, no markdown fences), in the same shape:
+        {"title": "...", "pages": [{"name": "...", "type": "cover"|"content"|"back_cover", "ref"?: "...", "header_ref"?: "...", "items": [ITEM, ...]}]}
+        ITEM kinds: kpi, chart (chart: area|line|bar|donut), table, map, funnel, goal, healthscore, summary, advisory,
+        security, worklog, goals, comments, text, keep. Data kinds need "metric": a key copied EXACTLY from the catalog.
+        Optional on any item: "title", "size": small|medium|large|full; dataset metrics: "by" and "measure".
+
+        Rules:
+        - Change ONLY what the agency asked for. Everything else stays as it is, in the same order.
+        - Items of the current report carry a "ref". Keep the ref on every item you keep, even if you change its title,
+          chart type or size: that preserves its manual settings. Keep "ref" and "header_ref" on pages you keep.
+          New items have no ref. Remove an item by leaving it out. Never invent a ref.
+        - "keep" items are blocks you can't edit (images, buttons…): keep them as they are unless asked to remove them.
+        - Match the visual to the metric type (scalar → kpi; series → chart; table/dataset → table, donut, bar, map, funnel).
+        - Titles short (max 40 characters) and plain. No figures inside "text" items.
+        - At most 10 pages and 100 items in total.
+        - Write any new names, titles and texts in {$language}.
         PROMPT;
     }
 

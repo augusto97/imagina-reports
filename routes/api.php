@@ -251,7 +251,9 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     // rather than a free-text box you can typo into an empty block.
     Route::get('sites/{site}/dimension-values', [DimensionValuesController::class, 'show'])->name('api.sites.dimension-values');
     Route::post('sites/{site}/ai-template', [AiTemplateController::class, 'store'])->middleware('throttle:ai')->name('api.sites.ai-template');
-    Route::post('sites/{site}/ai-section', [AiTemplateController::class, 'section'])->name('api.sites.ai-section');
+    Route::post('sites/{site}/ai-section', [AiTemplateController::class, 'section'])->middleware('throttle:ai')->name('api.sites.ai-section');
+    Route::post('sites/{site}/ai-adjust', [AiTemplateController::class, 'adjust'])->middleware('throttle:ai')->name('api.sites.ai-adjust');
+    Route::get('ai-design/{job}', [AiTemplateController::class, 'status'])->whereUuid('job')->name('api.ai-design.status');
     Route::post('sites/{site}/preview', [PreviewController::class, 'preview'])->name('api.sites.preview');
     Route::post('sites/{site}/calc-preview', [CalculatedMetricController::class, 'preview'])->name('api.sites.calc-preview');
     Route::put('sites/{site}/calculated-metrics', [CalculatedMetricController::class, 'updateSite'])->name('api.sites.calculated-metrics.update');

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Http;
  * AiModels::LIST_BETA). Cached per key (hashed, never the key itself) for 12 hours; the last good
  * list is kept so a temporary outage doesn't empty the panel or change the model in use.
  *
- * @phpstan-type Model array{id: string, label: string, family: string, created_at: string, efforts: list<string>, fallbacks: bool}
+ * @phpstan-type Model array{id: string, label: string, family: string, created_at: string, efforts: list<string>, fallbacks: bool, max_output?: int|null}
  */
 final class AiModelCatalog
 {
@@ -250,6 +250,8 @@ final class AiModelCatalog
             'created_at' => is_string($row['created_at'] ?? null) ? $row['created_at'] : '',
             'efforts' => $efforts,
             'fallbacks' => is_array($fallbackTargets) && $fallbackTargets !== [],
+            // The model's output ceiling (thinking included), to never ask for more.
+            'max_output' => is_int($row['max_tokens'] ?? null) ? $row['max_tokens'] : null,
         ];
     }
 

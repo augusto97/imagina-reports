@@ -10,5 +10,9 @@ namespace App\Ai;
  */
 interface AiClient
 {
-    public function complete(string $system, string $prompt): string;
+    /**
+     * @param  int  $maxTokens  Room for the answer (thinking included). Long outputs (a whole
+     *                          report plan) need far more than a summary; the client streams them.
+     */
+    public function complete(string $system, string $prompt, int $maxTokens = 16000): string;
 }

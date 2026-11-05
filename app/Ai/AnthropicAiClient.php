@@ -7,6 +7,7 @@ namespace App\Ai;
 use App\Models\Agency;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -30,10 +31,10 @@ final class AnthropicAiClient implements AiClient
         private readonly AiModelCatalog $catalog,
     ) {}
 
-    public function complete(string $system, string $prompt): string
+    public function complete(string $system, string $prompt, int $maxTokens = 16000): string
     {
         ['key' => $key, 'model' => $choice, 'effort' => $effort] = AiSettings::for($this->agency());
-        $result = $this->send($key ?? '', $choice, $system, $prompt, 16000, $effort);
+        $result = $this->send($key ?? '', $choice, $system, $prompt, $maxTokens, $effort);
         $this->lastError = $result['ok'] ? null : $result['error'];
 
         return $result['text'];
@@ -62,6 +63,10 @@ final class AnthropicAiClient implements AiClient
         $level = $model !== null ? AiModels::effortFor($effort, $model['efforts']) : null;
         $fallbacks = $model !== null && $model['fallbacks'];
 
+        // Never ask for more room than the model has (Anthropic lists each model's output ceiling).
+        $ceiling = $model['max_output'] ?? null;
+        $maxTokens = is_int($ceiling) && $ceiling > 0 ? min($maxTokens, $ceiling) : $maxTokens;
+
         $headers = ['x-api-key' => $key, 'anthropic-version' => self::VERSION];
         $body = [
             'model' => $resolved['id'],
@@ -81,29 +86,53 @@ final class AnthropicAiClient implements AiClient
 
         $meta = ['model' => $resolved['id'], 'label' => $resolved['label'], 'effort' => $level];
 
+        // Long answers (a whole report plan) are streamed: a single long-held request is what
+        // timeouts cut, and streaming keeps the connection busy while the model thinks and writes.
+        $streamed = $maxTokens > 16000;
+
         try {
-            $response = Http::withHeaders($headers)
-                ->timeout(in_array($level, ['high', 'xhigh', 'max'], true) ? 180 : 120)
-                ->post(self::ENDPOINT, $body);
+            $request = Http::withHeaders($headers);
+            $response = $streamed
+                ? $request->withOptions(['stream' => true, 'read_timeout' => 300])->timeout(900)->post(self::ENDPOINT, [...$body, 'stream' => true])
+                : $request->timeout(in_array($level, ['high', 'xhigh', 'max'], true) ? 180 : 120)->post(self::ENDPOINT, $body);
         } catch (ConnectionException) {
             return ['ok' => false, 'text' => '', 'error' => 'No se pudo conectar con Anthropic. Inténtalo de nuevo en un momento.', ...$meta];
         }
 
-        $json = $response->json();
         if (! $response->successful()) {
             if ($response->status() === 404) {
                 $this->catalog->forget($key); // a retired model: read the list again next time
             }
 
-            return ['ok' => false, 'text' => '', 'error' => self::explain($response->status(), $json, $resolved['label']), ...$meta];
+            return ['ok' => false, 'text' => '', 'error' => self::explain($response->status(), $response->json(), $resolved['label']), ...$meta];
+        }
+
+        ['text' => $text, 'stop' => $stop, 'error' => $streamError] = $streamed ? $this->readStream($response) : $this->readJson($response->json());
+        if ($streamError !== null) {
+            return ['ok' => false, 'text' => '', 'error' => $streamError, ...$meta];
         }
 
         // A safety decline comes back as HTTP 200 with stop_reason «refusal»: no usable text.
-        if (data_get($json, 'stop_reason') === 'refusal') {
+        if ($stop === 'refusal') {
             return ['ok' => false, 'text' => '', 'error' => 'La IA prefirió no responder a esta petición.', ...$meta];
         }
 
-        // With thinking on, the first block can be a thinking block: join the text ones.
+        // Ran out of room mid-answer: the text is cut (a JSON layout would be unusable).
+        if ($stop === 'max_tokens') {
+            return ['ok' => false, 'text' => $text, 'error' => 'La respuesta de la IA quedó incompleta porque era demasiado larga.', ...$meta];
+        }
+
+        return ['ok' => $text !== '', 'text' => $text, 'error' => $text === '' ? 'La IA respondió vacío.' : null, ...$meta];
+    }
+
+    /**
+     * A whole (non-streamed) answer: with thinking on, the first block can be a thinking block,
+     * so only the text blocks are joined.
+     *
+     * @return array{text: string, stop: string|null, error: string|null}
+     */
+    private function readJson(mixed $json): array
+    {
         $text = '';
         $content = data_get($json, 'content');
         foreach (is_array($content) ? $content : [] as $block) {
@@ -111,13 +140,56 @@ final class AnthropicAiClient implements AiClient
                 $text .= $block['text'];
             }
         }
+        $stop = data_get($json, 'stop_reason');
 
-        // Ran out of room mid-answer: the text is cut (a JSON layout would be unusable).
-        if (data_get($json, 'stop_reason') === 'max_tokens') {
-            return ['ok' => false, 'text' => $text, 'error' => 'La respuesta de la IA quedó incompleta porque era demasiado larga.', ...$meta];
+        return ['text' => $text, 'stop' => is_string($stop) ? $stop : null, 'error' => null];
+    }
+
+    /**
+     * A streamed answer (server-sent events): the text deltas joined, how it stopped, and an
+     * error event if Anthropic sent one mid-stream (e.g. overloaded).
+     *
+     * @return array{text: string, stop: string|null, error: string|null}
+     */
+    private function readStream(Response $response): array
+    {
+        $body = $response->toPsrResponse()->getBody();
+        $buffer = '';
+        $text = '';
+        $stop = null;
+        $error = null;
+
+        $handle = function (string $line) use (&$text, &$stop, &$error): void {
+            $line = trim($line);
+            if (! str_starts_with($line, 'data:')) {
+                return;
+            }
+            $event = json_decode(trim(substr($line, 5)), true);
+            if (! is_array($event)) {
+                return;
+            }
+            $type = $event['type'] ?? null;
+            if ($type === 'content_block_delta' && data_get($event, 'delta.type') === 'text_delta' && is_string(data_get($event, 'delta.text'))) {
+                $text .= data_get($event, 'delta.text');
+            } elseif ($type === 'message_delta' && is_string(data_get($event, 'delta.stop_reason'))) {
+                $stop = data_get($event, 'delta.stop_reason');
+            } elseif ($type === 'error') {
+                $error = self::explain(0, $event, '');
+            }
+        };
+
+        while (! $body->eof()) {
+            $buffer .= $body->read(8192);
+            while (($position = strpos($buffer, "\n")) !== false) {
+                $handle(substr($buffer, 0, $position));
+                $buffer = substr($buffer, $position + 1);
+            }
+        }
+        if ($buffer !== '') {
+            $handle($buffer);
         }
 
-        return ['ok' => $text !== '', 'text' => $text, 'error' => $text === '' ? 'La IA respondió vacío.' : null, ...$meta];
+        return ['text' => $text, 'stop' => is_string($stop) ? $stop : null, 'error' => $error];
     }
 
     /** A message a person can act on, from an Anthropic error response (never includes the key). */

@@ -15,7 +15,7 @@ final class FakeAiClient implements AiClient
 
     public function __construct(private readonly string $response) {}
 
-    public function complete(string $system, string $prompt): string
+    public function complete(string $system, string $prompt, int $maxTokens = 16000): string
     {
         $this->lastPrompt = $prompt;
 

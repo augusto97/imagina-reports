@@ -1,5 +1,5 @@
 import { Loader2, Sparkles, X } from 'lucide-react';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { cn } from '@shared/lib/utils';
 
@@ -29,6 +29,31 @@ const EXAMPLES: { label: string; text: string }[] = [
     },
 ];
 
+/** Changes people ask for once a report exists. */
+const CHANGES: { label: string; text: string }[] = [
+    { label: 'Barras en vez de líneas', text: 'Cambia los gráficos de líneas y áreas por gráficos de barras.' },
+    { label: 'Añadir una página', text: 'Añade una página de anuncios con la inversión, los clics, las conversiones y su evolución.' },
+    { label: 'Títulos más claros', text: 'Reescribe los títulos para que un cliente sin conocimientos técnicos los entienda a la primera.' },
+    { label: 'Lo importante primero', text: 'Pon las cifras más importantes al principio de cada página y deja el detalle al final.' },
+    { label: 'Más compacto', text: 'Hazlo más corto: quita los bloques que repiten información y deja solo lo que más le interesa al cliente.' },
+];
+
+/** «0:42» since the run started, while the AI works. */
+function useElapsed(running: boolean): string {
+    const [seconds, setSeconds] = useState(0);
+    useEffect(() => {
+        if (!running) {
+            setSeconds(0);
+            return;
+        }
+        const started = Date.now();
+        const timer = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
+        return () => clearInterval(timer);
+    }, [running]);
+
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 /**
  * «Generar con IA»: describe the report the way you'd ask someone on your team. The full-report
  * request replaces the canvas; a section is added below what's there. Errors say why (bad key,
@@ -40,9 +65,11 @@ export function AiGenerateModal({
     replacing,
     fullPending,
     sectionPending,
+    adjustPending,
     error,
     onFull,
     onSection,
+    onAdjust,
 }: {
     onClose: () => void;
     siteReady: boolean;
@@ -50,14 +77,20 @@ export function AiGenerateModal({
     replacing: boolean;
     fullPending: boolean;
     sectionPending: boolean;
+    adjustPending: boolean;
     error: string | null;
     onFull: (prompt: string) => void;
     onSection: (prompt: string) => void;
+    onAdjust: (prompt: string) => void;
 }): ReactElement {
-    const [mode, setMode] = useState<'full' | 'section'>('full');
+    // With a report on the canvas, asking for changes is the likely next step.
+    const [mode, setMode] = useState<'full' | 'section' | 'adjust'>(replacing ? 'adjust' : 'full');
     const [full, setFull] = useState('');
     const [section, setSection] = useState('');
-    const pending = fullPending || sectionPending;
+    const [change, setChange] = useState('');
+    const pending = fullPending || sectionPending || adjustPending;
+    const elapsed = useElapsed(pending);
+    const working = `Trabajando… ${elapsed}. Un informe grande puede tardar 2 o 3 minutos; puedes cerrar esta ventana y seguir, se aplica solo al terminar.`;
 
     return (
         <div className="ir-fixed ir-inset-0 ir-z-50 ir-flex ir-items-start ir-justify-center ir-overflow-y-auto ir-bg-black/40 ir-p-4 ir-pt-[6vh]">
@@ -82,6 +115,7 @@ export function AiGenerateModal({
                     {(
                         [
                             ['full', 'Informe completo'],
+                            ['adjust', 'Pedir cambios'],
                             ['section', 'Añadir una sección'],
                         ] as const
                     ).map(([key, label]) => (
@@ -89,7 +123,12 @@ export function AiGenerateModal({
                             key={key}
                             type="button"
                             onClick={() => setMode(key)}
-                            className={cn('ir-rounded-md ir-px-3 ir-py-1.5 ir-font-medium ir-transition-colors', mode === key ? 'ir-bg-card ir-shadow-sm' : 'ir-text-muted-foreground hover:ir-text-foreground')}
+                            disabled={key === 'adjust' && !replacing}
+                            title={key === 'adjust' && !replacing ? 'Primero genera un informe o elige una plantilla.' : undefined}
+                            className={cn(
+                                'ir-rounded-md ir-px-3 ir-py-1.5 ir-font-medium ir-transition-colors disabled:ir-cursor-not-allowed disabled:ir-opacity-40',
+                                mode === key ? 'ir-bg-card ir-shadow-sm' : 'ir-text-muted-foreground hover:ir-text-foreground',
+                            )}
                         >
                             {label}
                         </button>
@@ -123,16 +162,52 @@ export function AiGenerateModal({
                             ))}
                         </div>
                         <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3 ir-border-t ir-pt-4">
-                            <p className="ir-text-[11px] ir-text-muted-foreground">
+                            <p className="ir-max-w-sm ir-text-[11px] ir-text-muted-foreground">
                                 {fullPending
-                                    ? 'Armando el informe… con varias páginas puede tardar hasta un minuto.'
+                                    ? working
                                     : replacing
-                                      ? 'Reemplaza lo que hay ahora en el lienzo.'
+                                      ? 'Reemplaza lo que hay ahora en el lienzo (podrás deshacerlo).'
                                       : 'Sin descripción, arma un informe completo con todas las fuentes.'}
                             </p>
                             <Button onClick={() => onFull(full.trim())} disabled={!siteReady || pending}>
                                 {fullPending ? <Loader2 className="ir-size-4 ir-animate-spin" /> : <Sparkles className="ir-size-4" />}
                                 {fullPending ? 'Generando…' : 'Generar informe'}
+                            </Button>
+                        </div>
+                    </div>
+                ) : mode === 'adjust' ? (
+                    <div className="ir-flex ir-flex-col ir-gap-3">
+                        <label className="ir-flex ir-flex-col ir-gap-1.5">
+                            <span className="ir-text-xs ir-font-medium">¿Qué quieres cambiar del informe actual?</span>
+                            <textarea
+                                value={change}
+                                onChange={(event) => setChange(event.target.value)}
+                                rows={5}
+                                maxLength={4000}
+                                placeholder="Ej.: En la página de tráfico usa barras en vez de líneas, añade un mapa de países y quita la tabla de páginas. Mantén todo lo demás igual."
+                                className="ir-w-full ir-resize-y ir-rounded-lg ir-border ir-border-input ir-bg-background ir-px-3 ir-py-2.5 ir-text-sm ir-leading-relaxed placeholder:ir-text-muted-foreground focus:ir-outline-none focus:ir-ring-2 focus:ir-ring-ring"
+                            />
+                        </label>
+                        <div className="ir-flex ir-flex-wrap ir-gap-1.5">
+                            <span className="ir-self-center ir-text-[11px] ir-text-muted-foreground">Ideas:</span>
+                            {CHANGES.map((example) => (
+                                <button
+                                    key={example.label}
+                                    type="button"
+                                    onClick={() => setChange(example.text)}
+                                    className="ir-rounded-full ir-border ir-bg-background ir-px-2.5 ir-py-1 ir-text-[11px] ir-font-medium hover:ir-border-primary/40 hover:ir-bg-primary/5"
+                                >
+                                    {example.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3 ir-border-t ir-pt-4">
+                            <p className="ir-max-w-sm ir-text-[11px] ir-text-muted-foreground">
+                                {adjustPending ? working : 'Solo cambia lo que pidas; lo demás (y lo que ajustaste a mano) se queda igual. Podrás deshacerlo.'}
+                            </p>
+                            <Button onClick={() => onAdjust(change.trim())} disabled={!siteReady || pending || change.trim() === ''}>
+                                {adjustPending ? <Loader2 className="ir-size-4 ir-animate-spin" /> : <Sparkles className="ir-size-4" />}
+                                {adjustPending ? 'Aplicando…' : 'Aplicar cambios'}
                             </Button>
                         </div>
                     </div>
@@ -150,7 +225,7 @@ export function AiGenerateModal({
                             />
                         </label>
                         <div className="ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-3 ir-border-t ir-pt-4">
-                            <p className="ir-text-[11px] ir-text-muted-foreground">Se añade debajo de lo que hay en la página actual.</p>
+                            <p className="ir-max-w-sm ir-text-[11px] ir-text-muted-foreground">{sectionPending ? working : 'Se añade debajo de lo que hay en la página actual.'}</p>
                             <Button onClick={() => onSection(section.trim())} disabled={!siteReady || pending || section.trim() === ''}>
                                 {sectionPending ? <Loader2 className="ir-size-4 ir-animate-spin" /> : <Sparkles className="ir-size-4" />}
                                 {sectionPending ? 'Generando…' : 'Añadir sección'}

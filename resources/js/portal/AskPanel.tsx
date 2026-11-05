@@ -2,6 +2,7 @@ import { ArrowUp, Loader2, MessageCircleQuestion, Send, Sparkles, X } from 'luci
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
+import { SimpleMarkdown } from '@shared/lib/markdown';
 import { cn } from '@shared/lib/utils';
 
 import { type PortalMessage, rememberedIdentity, rememberIdentity, useAskReport, useConversation, useSendQuestion } from './conversation';
@@ -31,7 +32,8 @@ function Theirs({ who, text, icon, note }: { who: string; text: string; icon?: R
                 {icon}
                 {who}
             </p>
-            <div className="ir-max-w-[90%] ir-whitespace-pre-line ir-rounded-2xl ir-rounded-tl-md ir-border ir-bg-card ir-px-3.5 ir-py-2.5 ir-text-sm ir-leading-relaxed">{text}</div>
+            {/* Answers come with light formatting (bold, lists): show it, not the asterisks. */}
+            <SimpleMarkdown text={text} className="ir-max-w-[90%] ir-rounded-2xl ir-rounded-tl-md ir-border ir-bg-card ir-px-3.5 ir-py-2.5 ir-text-sm ir-leading-relaxed" />
             {note !== undefined && <p className="ir-mt-1 ir-px-1 ir-text-[11px] ir-text-muted-foreground">{note}</p>}
         </div>
     );
@@ -273,7 +275,7 @@ export function AskPanel({ token, password, agency }: { token: string; password?
                                 </button>
                             </div>
                             {error !== null && <p className="ir-text-xs ir-text-danger">{apiErrorMessage(error, 'No pudimos enviarlo. Inténtalo de nuevo.')}</p>}
-                            {effectiveMode === 'ai' && <p className="ir-text-[11px] ir-text-muted-foreground">Las respuestas automáticas usan solo los datos de este informe.</p>}
+                            {effectiveMode === 'ai' && <p className="ir-text-[11px] ir-text-muted-foreground">Las respuestas automáticas usan los datos de tu sitio de este periodo y no inventan cifras.</p>}
                         </form>
                     </section>
                 </div>

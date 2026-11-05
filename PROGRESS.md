@@ -7,6 +7,22 @@
 ---
 
 ## Where I left off (read me first)
+**⏳ IA DE DISEÑO EN SEGUNDO PLANO + «PEDIR CAMBIOS» + MARKDOWN EN EL CHAT (2026-11-05, v1.39.0):** con v1.38.0 el owner
+obtuvo «La respuesta de la IA quedó incompleta» (stop_reason `max_tokens`: 16k no alcanzaba para razonamiento + un plan grande).
+Ahora: `AiClient::complete(..., int $maxTokens = 16000)`; `AnthropicAiClient` hace **streaming SSE** cuando `maxTokens > 16000`
+(junta solo los `text_delta`, lee `stop_reason` de `message_delta`, eventos `error` a mensaje claro) y nunca pide más que el techo del
+modelo (`max_output` de la Models API). El constructor pide 64k. Las peticiones de diseño corren en `App\Jobs\AiDesignJob` (timeout
+840 s < retry_after 900 s; estado en caché 1 h, ligado a la agencia): `POST sites/{site}/ai-template|ai-section|ai-adjust` → 202
+`{job,status}` (200 con el resultado si la cola es síncrona; 422 con el motivo si falla) y `GET ai-design/{job}` para consultar; el editor
+espera con `runAiDesign()` (cada 2,5 s, máx. 15 min) y muestra un contador. **«Pedir cambios»** (`AiReportBuilder::adjustTemplate`):
+`AiPlanLayout::toPlan()` convierte el lienzo en plan con `ref` por bloque (y `header_ref`/`ref` de portada), la IA devuelve el plan
+revisado y `build(..., $originals)` reutiliza los bloques que siguen mostrando lo mismo (conserva id, props, estilo y tamaño; aplica
+título/tipo de gráfico/texto/tamaño nuevos), reconstruye los cambiados y descarta los quitados; ítems `keep` para bloques no editables
+(imagen, CTA…). El editor guarda el lienzo anterior para «Deshacer el cambio de la IA» (también al generar un informe completo). Límite en
+el prompt: 10 páginas / 100 ítems. Chat del portal y vista de la agencia: `@shared/lib/markdown` (`SimpleMarkdown`: párrafos, listas,
+negritas, cursivas, código; sin HTML). Tests: AiSettingsTest (+2 streaming), AiReportBuilderTest (+1 ajustar), AiTemplateApiTest (+3),
+markdown.test.tsx (3).
+
 **🧠 «GENERAR CON IA» REHECHO + PREGUNTAS CON TODOS LOS DATOS (2026-11-05, v1.38.0):** el owner probó un prompt largo
 («informe muy completo, multipágina, todas las fuentes») y salió «La IA no pudo generar un borrador válido». Causas posibles (sin la clave
 real no se pudo reproducir): petición web cortada por el límite de 30 s de PHP con un modelo que razona, respuesta truncada o JSON
@@ -2687,6 +2703,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) La IA de diseño corre en la cola (no en la petición web) y con streaming: un informe grande puede tardar minutos y los límites de PHP/servidor cortaban la respuesta. «Pedir cambios» reutiliza los bloques que la IA deja igual (vía `ref`) para no perder ajustes manuales.
 - (2026-11-05) «Generar con IA» = la IA decide QUÉ (plan de páginas y métricas), el código decide CÓMO (bloques y distribución): más fiable y respuestas más cortas. «Pregúntale a tu reporte» lee todas las instantáneas del periodo (no solo los bloques); el owner dijo que sin eso no tenía utilidad.
 - (2026-11-05) Modelos de IA leídos en vivo de la Models API (no hay lista en código); elección por defecto `auto:opus` («el Opus más reciente»). Se elimina `ANTHROPIC_MODEL`: el owner quiere todo desde el panel y que los modelos se actualicen solos. El panel nunca menciona el `.env`.
 - (2026-11-05) Modelo de IA por defecto `claude-opus-5-5`; una agencia solo elige modelo con su propia clave — con la clave de la plataforma paga la plataforma, así que decide el superadmin. El `.env` queda como respaldo (clave y modelo).
