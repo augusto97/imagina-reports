@@ -7,6 +7,19 @@
 ---
 
 ## Where I left off (read me first)
+**🔄 MODELOS DE IA EN VIVO, TODO DESDE EL PANEL (2026-11-05, v1.37.3):** el owner pidió (1) no tener que tocar el `.env` nunca y
+(2) no dejar modelos fijos: que se actualicen solos. Ahora `App\Ai\AiModelCatalog` lee `GET /v1/models` de Anthropic (paginado, con
+beta `server-side-fallback-2026-06-01` para ver `allowed_fallback_models`; si ese beta da 400, repite sin él), por clave (hash sha256,
+nunca la clave), caché 12 h + «última lista buena» para sobrevivir caídas; `forget()` tras un 404 de modelo. De cada modelo guarda
+familia (de `display_name`), niveles de esfuerzo que acepta (`capabilities.effort.*.supported`) y si admite fallback. La elección es
+`auto:{familia}` («el más reciente», por defecto `auto:opus`) o un id fijo; un id retirado pasa al más nuevo de su familia; sin lista
+alguna → `AiModels::LAST_RESORT` sin extras. Cada petición solo lleva lo que el modelo acepta (esfuerzo elegido → `medium` → nada;
+`fallbacks:"default"` solo si lo admite). `AiModels` ya no tiene lista de modelos (solo vocabulario: etiquetas de esfuerzo, pistas por
+familia, `prettyId`). `AiPanel` arma la sección de ambos paneles; componente compartido `AiModelFields.tsx` (grupos «Se actualiza solo» /
+«Un modelo fijo», «Buscar modelos nuevos» → `POST /agency/ai/models/refresh` y `POST /platform/integrations/ai/models/refresh`).
+Se quitó `ANTHROPIC_MODEL` y toda mención a `.env` en el panel (Google/Meta dicen «(de la instalación)»); `ANTHROPIC_API_KEY` sigue como
+clave opcional de instalación y el panel solo dice «Ya hay una clave puesta durante la instalación». `AiSettingsTest` (15).
+
 **🎚️ NIVEL DE ESFUERZO DE LA IA (2026-11-05, v1.37.2):** junto al modelo, «Nivel de esfuerzo» (Bajo / Medio / Alto →
 `output_config.effort` low/medium/high; por defecto `medium`). Mismas reglas que el modelo: PlatformSetting `ai_effort` (superadmin) y
 `settings.ai_effort` de la agencia (solo con clave propia). `AiSettings::for()` devuelve también `effort`; `AnthropicAiClient` usa
@@ -2658,6 +2671,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) Modelos de IA leídos en vivo de la Models API (no hay lista en código); elección por defecto `auto:opus` («el Opus más reciente»). Se elimina `ANTHROPIC_MODEL`: el owner quiere todo desde el panel y que los modelos se actualicen solos. El panel nunca menciona el `.env`.
 - (2026-11-05) Modelo de IA por defecto `claude-opus-5-5`; una agencia solo elige modelo con su propia clave — con la clave de la plataforma paga la plataforma, así que decide el superadmin. El `.env` queda como respaldo (clave y modelo).
 - (2026-11-05) Aviso de conexión caída solo en la TRANSICIÓN a error (y como mucho cada 12 h por fuente): un aviso por cada reintento fallido enseña a ignorarlos. El correo va a owners+admins (es operativo), no al contacto público de la agencia.
 - (2026-11-05) «Pedir reconexión» reutiliza los enlaces de conexión (ConnectInvite) limitados a UNA fuente y 7 días, y nunca reenvía credenciales; solo aplica a fuentes con conexión de un clic (Google/Meta/Woo según la configuración).

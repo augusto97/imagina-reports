@@ -189,6 +189,16 @@ export function useTestAi() {
     });
 }
 
+/** «Buscar modelos nuevos»: read Anthropic's model list again now (with the agency's own key). */
+export function useRefreshAiModels() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<AgencySettings>('/agency/ai/models/refresh').then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['agency'], data),
+    });
+}
+
 export function useUpdateAgency() {
     const queryClient = useQueryClient();
 
@@ -534,6 +544,15 @@ export function useUpdatePlatformIntegrations() {
 
     return useMutation({
         mutationFn: (payload: Record<string, string>) => api.put<PlatformIntegrationsSettings>('/platform/integrations', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['platform-integrations'], data),
+    });
+}
+
+export function useRefreshPlatformAiModels() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post<PlatformIntegrationsSettings>('/platform/integrations/ai/models/refresh').then((r) => r.data),
         onSuccess: (data) => queryClient.setQueryData(['platform-integrations'], data),
     });
 }

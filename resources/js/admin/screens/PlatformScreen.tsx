@@ -29,10 +29,12 @@ import {
     useTestPlatformMail,
     useUpdatePlatformBillingSettings,
     useUpdatePlatformIntegrations,
+    useRefreshPlatformAiModels,
     useTestPlatformAi,
     useUpdatePlatformMailSettings,
 } from '../api';
 import { GoogleAdsSetupGuide, GoogleSetupGuide, MercadoPagoWebhookGuide, MetaSetupGuide, PayPalWebhookGuide } from '../components/OAuthSetupGuide';
+import { AiModelFields } from '../components/AiModelFields';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
@@ -1098,8 +1100,8 @@ function IntegrationsTab(): ReactElement {
         <div className="ir-flex ir-flex-col ir-gap-6">
             <SectionHeader tab="integrations" />
             <p className="ir-max-w-5xl ir-text-[13px] ir-leading-relaxed ir-text-muted-foreground">
-                Las apps OAuth de la conexión de un clic. Se guardan cifradas y tienen prioridad sobre el <code className="ir-rounded ir-bg-muted ir-px-1">.env</code>; el botón «Conectar con…»
-                aparece en cuanto quedan listas. Cada una trae su guía con las URLs de esta instalación para copiar.
+                Se guardan cifradas. El botón «Conectar con…» aparece en cuanto cada una queda lista, y cada una trae su guía con las URLs de esta
+                instalación para copiar.
             </p>
             <div className="ir-flex ir-max-w-5xl ir-flex-col ir-gap-6">
                 <SettingsRow
@@ -1107,7 +1109,7 @@ function IntegrationsTab(): ReactElement {
                     description="Una sola app de Google Cloud cubre Analytics 4, Search Console y Google Ads."
                     status={
                         <div className="ir-flex ir-flex-wrap ir-gap-2">
-                            <ConfigChip ready={settings?.google_connect_ready ?? false} note={settings?.google_from_env === true ? '(por .env)' : undefined} />
+                            <ConfigChip ready={settings?.google_connect_ready ?? false} note={settings?.google_from_env === true ? '(de la instalación)' : undefined} />
                             <ConfigChip ready={settings?.google_ads_developer_token_set ?? false} label="Google Ads" />
                         </div>
                     }
@@ -1141,7 +1143,7 @@ function IntegrationsTab(): ReactElement {
                 <SettingsRow
                     title="Meta"
                     description="Una app de Meta cubre Facebook Ads e Instagram."
-                    status={<ConfigChip ready={settings?.meta_connect_ready ?? false} note={settings?.meta_from_env === true ? '(por .env)' : undefined} />}
+                    status={<ConfigChip ready={settings?.meta_connect_ready ?? false} note={settings?.meta_from_env === true ? '(de la instalación)' : undefined} />}
                 >
                     <div className="ir-flex ir-flex-col ir-gap-4">
                         <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
@@ -1171,65 +1173,53 @@ function AiPlatformRow(): ReactElement {
     const { data: settings } = usePlatformIntegrations();
     const update = useUpdatePlatformIntegrations();
     const test = useTestPlatformAi();
+    const refresh = useRefreshPlatformAiModels();
     const [key, setKey] = useState('');
     const [saved, setSaved] = useState(false);
-
-    const models = settings?.ai_models ?? [];
-    const current = settings?.ai_model ?? '';
-    // A model set in .env that the panel doesn't list still shows as the current choice.
-    const listed = models.some((model) => model.id === current);
-    const hint = models.find((model) => model.id === current)?.hint;
-    const effort = settings?.ai_effort ?? 'medium';
-    const effortHint = settings?.ai_efforts.find((option) => option.id === effort)?.hint;
 
     return (
         <SettingsRow
             title="Inteligencia artificial (Claude)"
             description="La IA de las agencias que no ponen su propia clave: resúmenes de los informes, «Generar con IA», respuestas a clientes y propuestas. Una agencia con su clave paga su consumo y elige su modelo."
-            status={<ConfigChip ready={settings?.ai_ready ?? false} note={settings?.ai_from_env === true ? '(por .env)' : undefined} />}
+            status={<ConfigChip ready={settings?.ai_ready ?? false} />}
         >
             <div className="ir-flex ir-flex-col ir-gap-4">
-                <Field label="Clave de Anthropic" hint="Créala en console.anthropic.com → API Keys. Se guarda cifrada.">
+                <Field
+                    label="Clave de Anthropic"
+                    hint={
+                        settings?.ai_key_preinstalled === true
+                            ? 'Ya hay una clave puesta durante la instalación y funciona; si pegas otra aquí, la reemplaza.'
+                            : 'Créala en console.anthropic.com → API Keys. Se guarda cifrada.'
+                    }
+                >
                     <Input
                         type="password"
                         autoComplete="off"
                         value={key}
                         onChange={(e) => setKey(e.target.value)}
-                        placeholder={settings?.anthropic_key_set ? '•••••••• (déjalo vacío para conservarla)' : 'sk-ant-…'}
+                        placeholder={settings?.anthropic_key_set === true || settings?.ai_key_preinstalled === true ? '•••••••• (déjalo vacío para conservarla)' : 'sk-ant-…'}
                     />
                 </Field>
-                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
-                    <Field label="Modelo por defecto" hint={hint ?? 'El que usan las agencias sin clave propia.'}>
-                        <Select
-                            value={current}
-                            disabled={update.isPending || settings === undefined}
-                            onChange={(e) => update.mutate({ ai_model: e.target.value }, { onSuccess: () => setSaved(true) })}
-                        >
-                            {!listed && current !== '' && <option value={current}>{current} (del .env)</option>}
-                            {models.map((model) => (
-                                <option key={model.id} value={model.id}>
-                                    {model.label}
-                                </option>
-                            ))}
-                        </Select>
-                    </Field>
-                    <Field
-                        label="Nivel de esfuerzo"
-                        hint={settings?.ai_effort_applies === false ? 'Se aplica a los modelos de la lista; el del .env usa su nivel de siempre.' : (effortHint ?? 'Cuánto piensa la IA antes de escribir.')}
-                    >
-                        <Select
-                            value={effort}
-                            disabled={update.isPending || settings === undefined}
-                            onChange={(e) => update.mutate({ ai_effort: e.target.value }, { onSuccess: () => setSaved(true) })}
-                        >
-                            {(settings?.ai_efforts ?? []).map((option) => (
-                                <option key={option.id} value={option.id}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </Select>
-                    </Field>
-                </div>
+                {settings !== undefined && settings.ai_ready && (
+                    <AiModelFields
+                        choices={settings.ai_choices}
+                        model={settings.ai_model}
+                        onModel={(value) => update.mutate({ ai_model: value }, { onSuccess: () => setSaved(true) })}
+                        modelNow={settings.ai_model_now}
+                        efforts={settings.ai_efforts}
+                        effort={settings.ai_effort}
+                        onEffort={(value) => update.mutate({ ai_effort: value }, { onSuccess: () => setSaved(true) })}
+                        effortNow={settings.ai_effort_now}
+                        modelKnown={settings.ai_model_known}
+                        disabled={update.isPending}
+                        error={settings.ai_models_error}
+                        onRefresh={() => refresh.mutate()}
+                        refreshing={refresh.isPending}
+                    />
+                )}
+                {settings !== undefined && !settings.ai_ready && (
+                    <p className="ir-text-xs ir-text-muted-foreground">Al guardar la clave aparecen los modelos disponibles para elegir, leídos directamente de Anthropic.</p>
+                )}
                 <SaveBar
                     onSave={() => update.mutate({ anthropic_key: key.trim() }, { onSuccess: () => { setKey(''); setSaved(true); } })}
                     disabled={key.trim() === ''}
@@ -1242,7 +1232,7 @@ function AiPlatformRow(): ReactElement {
                         {test.isPending ? 'Probando…' : 'Probar la IA'}
                     </Button>
                     {test.data !== undefined && <span className={`ir-text-xs ${test.data.ok ? 'ir-text-success' : 'ir-text-danger'}`}>{test.data.message}</span>}
-                    {test.data === undefined && <span className="ir-text-xs ir-text-muted-foreground">Envía un mensaje corto con la clave y el modelo guardados.</span>}
+                    {test.data === undefined && <span className="ir-text-xs ir-text-muted-foreground">Envía un mensaje corto con la clave, el modelo y el esfuerzo guardados.</span>}
                 </div>
             </div>
         </SettingsRow>
@@ -1296,7 +1286,7 @@ function MailSettingsCard(): ReactElement {
     return (
         <SettingsRow
             title="Correo saliente"
-            description="El servidor SMTP con el que salen los reportes y avisos. Se guarda cifrado y sustituye al .env."
+            description="El servidor SMTP con el que salen los reportes y avisos. Se guarda cifrado."
             status={<ConfigChip ready={sends} note={sends ? `(${settings?.mail_mailer ?? ''})` : undefined} />}
         >
             <div className="ir-flex ir-flex-col ir-gap-4">

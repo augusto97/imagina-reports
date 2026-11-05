@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Platform;
 
+use App\Ai\AiModelCatalog;
 use App\Ai\AiModels;
+use App\Ai\AiPanel;
 use App\Ai\AiSettings;
 use App\Ai\AnthropicAiClient;
 use App\Enums\DataSourceType;
+use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
 use App\Services\Platform\OAuthCredentials;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 /**
  * Platform OAuth app credentials for the one-click connectors (Google + Meta). Stored in
@@ -45,8 +47,12 @@ final class PlatformIntegrationsController extends Controller
             OAuthCredentials::META_APP_SECRET => ['sometimes', 'nullable', 'string'],
             // Claude for every agency without its own key (falls back to .env).
             AiSettings::PLATFORM_KEY => ['sometimes', 'nullable', 'string', 'max:255'],
-            AiSettings::PLATFORM_MODEL => ['sometimes', 'nullable', 'string', Rule::in(AiModels::ids())],
-            AiSettings::PLATFORM_EFFORT => ['sometimes', 'nullable', 'string', Rule::in(AiModels::effortIds())],
+            AiSettings::PLATFORM_MODEL => ['sometimes', 'nullable', 'string', 'max:100', static function (string $attribute, mixed $value, \Closure $fail): void {
+                if (is_string($value) && ! AiModels::isValidChoice($value)) {
+                    $fail('Ese modelo no es válido.');
+                }
+            }],
+            AiSettings::PLATFORM_EFFORT => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^[a-z_]{2,20}$/'],
         ]);
 
         $settings = PlatformSetting::current();
@@ -72,11 +78,11 @@ final class PlatformIntegrationsController extends Controller
         }
         if ($request->has(AiSettings::PLATFORM_MODEL)) {
             $value = $request->input(AiSettings::PLATFORM_MODEL);
-            $settings->put(AiSettings::PLATFORM_MODEL, is_string($value) && AiModels::known($value) ? $value : null);
+            $settings->put(AiSettings::PLATFORM_MODEL, is_string($value) && AiModels::isValidChoice($value) ? $value : null);
         }
         if ($request->has(AiSettings::PLATFORM_EFFORT)) {
             $value = $request->input(AiSettings::PLATFORM_EFFORT);
-            $settings->put(AiSettings::PLATFORM_EFFORT, is_string($value) && AiModels::knownEffort($value) ? $value : null);
+            $settings->put(AiSettings::PLATFORM_EFFORT, is_string($value) && AiModels::isValidEffort($value) ? $value : null);
         }
 
         $settings->save();
@@ -84,25 +90,31 @@ final class PlatformIntegrationsController extends Controller
         return response()->json($this->present($settings));
     }
 
-    /** «Probar»: one tiny request with the platform key and default model. */
+    /** «Probar»: one tiny request with the platform key, model and effort. */
     public function testAi(AnthropicAiClient $client): JsonResponse
     {
         $key = AiSettings::platformKey();
-        $model = AiSettings::platformModel();
-        $effort = AiSettings::platformEffort();
         if ($key === null) {
             return response()->json(['ok' => false, 'message' => 'Aún no hay clave de la plataforma: pégala arriba.'], 422);
         }
 
-        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048, $effort);
+        $result = $client->send($key, AiSettings::platformModel(), 'Responde solo con la palabra OK.', 'OK', 2048, AiSettings::platformEffort());
 
         return response()->json([
             'ok' => $result['ok'],
-            'model' => $model,
-            'model_label' => AiModels::label($model),
-            'effort' => $effort,
-            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió (esfuerzo '.mb_strtolower(AiModels::effortLabel($effort)).').' : $result['error'],
+            'model' => $result['model'],
+            'model_label' => $result['label'],
+            'effort' => $result['effort'],
+            'message' => $result['ok'] ? AgencyController::worked($result['label'], $result['effort']) : $result['error'],
         ], $result['ok'] ? 200 : 422);
+    }
+
+    /** «Buscar modelos nuevos»: read Anthropic's list again now instead of waiting for the cache. */
+    public function refreshAiModels(AiModelCatalog $catalog): JsonResponse
+    {
+        AiPanel::platform($catalog, true);
+
+        return response()->json($this->present(PlatformSetting::current()));
     }
 
     /**
@@ -133,17 +145,9 @@ final class PlatformIntegrationsController extends Controller
             // Everything the operator must paste into Google Cloud / Meta, built from this
             // install's real URLs so the guide in the panel can't drift from the code.
             'setup' => self::setup(),
-            // Claude for agencies without their own key: key state, the default model and the choices.
-            'anthropic_key_set' => $settings->hasSecret(AiSettings::PLATFORM_KEY),
-            'ai_ready' => AiSettings::platformKey() !== null,
-            'ai_from_env' => AiSettings::platformKeyFromEnv(),
-            'ai_model' => AiSettings::platformModel(),
-            'ai_model_label' => AiModels::label(AiSettings::platformModel()),
-            'ai_models' => AiModels::options(),
-            'ai_effort' => AiSettings::platformEffort(),
-            'ai_efforts' => AiModels::effortOptions(),
-            // Effort only goes out with the models in the list (an .env-only id gets no extras).
-            'ai_effort_applies' => AiModels::known(AiSettings::platformModel()),
+            // Claude for agencies without their own key: key state, the choices from Anthropic's live
+            // model list, what the default means today and the effort levels that model accepts.
+            ...AiPanel::platform(app(AiModelCatalog::class)),
         ];
     }
 

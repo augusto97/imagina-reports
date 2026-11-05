@@ -8,13 +8,16 @@ use App\Models\Agency;
 use App\Models\PlatformSetting;
 
 /**
- * Which Claude key and model a call uses (§10.6).
+ * Which Claude key, model choice and effort a call uses (§10.6). Everything is set from the
+ * panels — nobody has to touch the server:
  *
- * - An agency with its OWN key uses its own model choice (or the platform default).
- * - Otherwise the platform's key and model: set in super-admin → Integraciones, falling back
- *   to .env (ANTHROPIC_API_KEY / ANTHROPIC_MODEL), then to AiModels::DEFAULT.
+ * - An agency with its OWN key uses its own choices (or the platform's when it hasn't chosen).
+ * - Otherwise the platform's key and choices, set in Superadmin → Integraciones.
  *
- * An agency without its own key can't pick a model: the platform pays for those calls.
+ * The model is a choice (`auto:opus` by default — «always the newest Opus»), resolved against
+ * Anthropic's live list by AiModelCatalog. An agency without its own key can't choose: the
+ * platform pays for those calls. A key left in the server config at install time still works
+ * until one is saved in the panel.
  */
 final class AiSettings
 {
@@ -48,20 +51,6 @@ final class AiSettings
         return ['key' => self::platformKey(), 'model' => self::platformModel(), 'effort' => self::platformEffort(), 'own_key' => false];
     }
 
-    public static function platformEffort(): string
-    {
-        $panel = PlatformSetting::current()->get(self::PLATFORM_EFFORT);
-
-        return is_string($panel) && AiModels::knownEffort($panel) ? $panel : AiModels::DEFAULT_EFFORT;
-    }
-
-    public static function agencyEffort(?Agency $agency): ?string
-    {
-        $effort = $agency?->settings[self::AGENCY_EFFORT] ?? null;
-
-        return is_string($effort) && AiModels::knownEffort($effort) ? $effort : null;
-    }
-
     public static function available(?Agency $agency): bool
     {
         return self::for($agency)['key'] !== null;
@@ -74,13 +63,14 @@ final class AiSettings
             return $panel;
         }
 
-        $env = config('services.anthropic.key');
+        // A key left in the server config at install time keeps working until one is saved here.
+        $installed = config('services.anthropic.key');
 
-        return is_string($env) && $env !== '' ? $env : null;
+        return is_string($installed) && $installed !== '' ? $installed : null;
     }
 
-    /** True when the platform key comes from .env (nothing saved in the panel). */
-    public static function platformKeyFromEnv(): bool
+    /** True when the key in use was set at install time (nothing saved in the panel yet). */
+    public static function platformKeyPreinstalled(): bool
     {
         return ! PlatformSetting::current()->hasSecret(self::PLATFORM_KEY) && self::platformKey() !== null;
     }
@@ -88,20 +78,29 @@ final class AiSettings
     public static function platformModel(): string
     {
         $panel = PlatformSetting::current()->get(self::PLATFORM_MODEL);
-        if (is_string($panel) && $panel !== '') {
-            return $panel;
-        }
 
-        $env = config('services.anthropic.model');
-
-        return is_string($env) && $env !== '' ? $env : AiModels::DEFAULT;
+        return is_string($panel) && AiModels::isValidChoice($panel) ? $panel : AiModels::DEFAULT_CHOICE;
     }
 
-    /** The agency's own choice (only meaningful with its own key), or null for "the platform's". */
+    public static function platformEffort(): string
+    {
+        $panel = PlatformSetting::current()->get(self::PLATFORM_EFFORT);
+
+        return is_string($panel) && AiModels::isValidEffort($panel) ? $panel : AiModels::DEFAULT_EFFORT;
+    }
+
+    /** The agency's own model choice (only meaningful with its own key), or null for "the platform's". */
     public static function agencyModel(?Agency $agency): ?string
     {
         $model = $agency?->settings[self::AGENCY_MODEL] ?? null;
 
-        return is_string($model) && AiModels::known($model) ? $model : null;
+        return is_string($model) && AiModels::isValidChoice($model) ? $model : null;
+    }
+
+    public static function agencyEffort(?Agency $agency): ?string
+    {
+        $effort = $agency?->settings[self::AGENCY_EFFORT] ?? null;
+
+        return is_string($effort) && AiModels::isValidEffort($effort) ? $effort : null;
     }
 }

@@ -100,24 +100,36 @@ export interface PlatformIntegrationsSettings {
         google_redirect_uris: string[];
         meta_redirect_uris: string[];
     };
-    /** Claude for agencies without their own key (panel key, else .env). */
+    /** Claude for agencies without their own key. Choices come live from Anthropic's model list. */
     anthropic_key_set: boolean;
     ai_ready: boolean;
-    ai_from_env: boolean;
+    /** A key was left at install time and is in use (nothing saved in the panel yet). */
+    ai_key_preinstalled: boolean;
+    /** `auto:{family}` (always the newest of that family) or a pinned model id. */
     ai_model: string;
-    ai_model_label: string;
-    ai_models: AiModelOption[];
-    /** How much the model thinks: low / medium / high. */
+    /** What that choice means today, e.g. «Claude Opus 5.5». */
+    ai_model_now: string;
+    ai_choices: AiChoice[];
     ai_effort: string;
+    /** The levels the model in use accepts (empty: it doesn't take one). */
     ai_efforts: AiModelOption[];
-    /** False when the default model comes from .env and isn't in the list (effort isn't sent then). */
-    ai_effort_applies: boolean;
+    /** The level that will actually be sent, or null. */
+    ai_effort_now: string | null;
+    /** False while Anthropic's list couldn't be read (what the model accepts isn't known yet). */
+    ai_model_known: boolean;
+    /** Why Anthropic's list couldn't be read (the last good one is still used). */
+    ai_models_error: string | null;
 }
 
 export interface AiModelOption {
     id: string;
     label: string;
     hint: string;
+}
+
+export interface AiChoice extends AiModelOption {
+    /** `auto`: always the newest of a family; `fixed`: one model. */
+    group: 'auto' | 'fixed';
 }
 
 /** Result of «Probar» on the AI key + model. */
@@ -552,16 +564,21 @@ export interface AgencySettings {
     logo_path: string | null;
     logo_url: string | null;
     ai_key_set: boolean;
-    /** The agency's own model (only used with its own key); null = the platform's. */
+    /** The agency's own model choice (only with its own key); null = the platform's. */
     ai_model: string | null;
-    ai_models: AiModelOption[];
-    /** The model the platform uses (label) and whether the platform has a key at all. */
+    /** Choices from Anthropic's live list for the agency's own key (empty without one). */
+    ai_choices: AiChoice[];
+    /** The model in use right now, and the platform's. */
+    ai_model_now: string;
     ai_platform_model: string;
     ai_platform_available: boolean;
     /** The agency's own effort level (only with its own key); null = the platform's. */
     ai_effort: string | null;
     ai_efforts: AiModelOption[];
+    ai_effort_now: string | null;
+    ai_model_known: boolean;
     ai_platform_effort: string;
+    ai_models_error: string | null;
     snapshot_retention_months: number | null;
     calculated_metrics: { key: string; label: string; formula: string }[];
     webhook_urls: string[];

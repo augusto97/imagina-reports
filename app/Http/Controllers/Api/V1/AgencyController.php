@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Ai\AiModelCatalog;
 use App\Ai\AiModels;
+use App\Ai\AiPanel;
 use App\Ai\AiSettings;
 use App\Ai\AnthropicAiClient;
 use App\Enums\UserRole;
@@ -112,7 +114,7 @@ final class AgencyController extends Controller
         if (array_key_exists('ai_model', $validated)) {
             $model = $validated['ai_model'];
             $aiSettings = $agency->settings ?? [];
-            if (is_string($model) && AiModels::known($model)) {
+            if (is_string($model) && AiModels::isValidChoice($model)) {
                 $aiSettings[AiSettings::AGENCY_MODEL] = $model;
             } else {
                 unset($aiSettings[AiSettings::AGENCY_MODEL]);
@@ -122,7 +124,7 @@ final class AgencyController extends Controller
         if (array_key_exists('ai_effort', $validated)) {
             $effort = $validated['ai_effort'];
             $aiSettings = $agency->settings ?? [];
-            if (is_string($effort) && AiModels::knownEffort($effort)) {
+            if (is_string($effort) && AiModels::isValidEffort($effort)) {
                 $aiSettings[AiSettings::AGENCY_EFFORT] = $effort;
             } else {
                 unset($aiSettings[AiSettings::AGENCY_EFFORT]);
@@ -223,21 +225,36 @@ final class AgencyController extends Controller
         $this->authorizePrivileged($request);
 
         $agency = $this->current($tenant);
-        ['key' => $key, 'model' => $model, 'effort' => $effort, 'own_key' => $own] = AiSettings::for($agency);
+        ['key' => $key, 'model' => $choice, 'effort' => $effort, 'own_key' => $own] = AiSettings::for($agency);
         if ($key === null) {
             return response()->json(['ok' => false, 'message' => 'Aún no hay clave de IA: pega la tuya arriba.'], 422);
         }
 
-        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048, $effort);
+        $result = $client->send($key, $choice, 'Responde solo con la palabra OK.', 'OK', 2048, $effort);
 
         return response()->json([
             'ok' => $result['ok'],
-            'model' => $model,
-            'model_label' => AiModels::label($model),
-            'effort' => $effort,
+            'model' => $result['model'],
+            'model_label' => $result['label'],
+            'effort' => $result['effort'],
             'own_key' => $own,
-            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió (esfuerzo '.mb_strtolower(AiModels::effortLabel($effort)).').' : $result['error'],
+            'message' => $result['ok'] ? self::worked($result['label'], $result['effort']) : $result['error'],
         ], $result['ok'] ? 200 : 422);
+    }
+
+    /** «Buscar modelos nuevos»: read Anthropic's list again now instead of waiting for the cache. */
+    public function refreshAiModels(Request $request, TenantContext $tenant, AiModelCatalog $catalog): JsonResponse
+    {
+        $this->authorizePrivileged($request);
+        $agency = $this->current($tenant);
+        AiPanel::agency($agency, $catalog, true);
+
+        return response()->json($this->present($agency));
+    }
+
+    public static function worked(string $label, ?string $effort): string
+    {
+        return 'Funciona: '.$label.' respondió'.($effort !== null ? ' (esfuerzo '.mb_strtolower(AiModels::effortLabel($effort)).').' : '.');
     }
 
     public function testWebhooks(Request $request, TenantContext $tenant, WebhookDispatcher $webhooks): JsonResponse
@@ -307,15 +324,8 @@ final class AgencyController extends Controller
             'default_locale' => $agency->default_locale,
             'logo_path' => $agency->logo_path,
             'logo_url' => $agency->logoUrl(),
-            'ai_key_set' => $agency->anthropicKey() !== null,
-            // The model: the agency's own choice (only with its own key) or the platform's.
-            'ai_model' => AiSettings::agencyModel($agency),
-            'ai_models' => AiModels::options(),
-            'ai_platform_model' => AiModels::label(AiSettings::platformModel()),
-            'ai_effort' => AiSettings::agencyEffort($agency),
-            'ai_efforts' => AiModels::effortOptions(),
-            'ai_platform_effort' => AiModels::effortLabel(AiSettings::platformEffort()),
-            'ai_platform_available' => AiSettings::platformKey() !== null,
+            // Key state, the model/effort choices from Anthropic's live list and what's in use now.
+            ...AiPanel::agency($agency, app(AiModelCatalog::class)),
             'snapshot_retention_months' => $agency->snapshot_retention_months,
             'calculated_metrics' => $agency->calculated_metrics ?? [],
             'webhook_urls' => $this->webhookUrls($agency),

@@ -7,7 +7,6 @@ namespace App\Http\Requests;
 use App\Ai\AiModels;
 use App\Http\Requests\Concerns\RequiresPrivilegedRole;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Validates agency settings edited from the "Ajustes" screen (CLAUDE.md §11.1):
@@ -44,9 +43,13 @@ final class UpdateAgencyRequest extends FormRequest
             // Sent only when (re)setting the key; empty string clears it. Never returned.
             'anthropic_key' => ['nullable', 'string', 'max:255'],
             // The model used with the agency's own key; null/empty = the platform's default.
-            'ai_model' => ['sometimes', 'nullable', 'string', Rule::in(AiModels::ids())],
+            'ai_model' => ['sometimes', 'nullable', 'string', 'max:100', static function (string $attribute, mixed $value, \Closure $fail): void {
+                if (is_string($value) && ! AiModels::isValidChoice($value)) {
+                    $fail('Ese modelo no es válido.');
+                }
+            }],
             // How much the model thinks (low/medium/high); null/empty = the platform's level.
-            'ai_effort' => ['sometimes', 'nullable', 'string', Rule::in(AiModels::effortIds())],
+            'ai_effort' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^[a-z_]{2,20}$/'],
             // Outbound webhook endpoints (integrations, §8). Sent → replace the list.
             'webhook_urls' => ['sometimes', 'array', 'max:20'],
             'webhook_urls.*' => ['string', 'url', 'max:2048'],
