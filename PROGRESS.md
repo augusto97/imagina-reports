@@ -7,6 +7,12 @@
 ---
 
 ## Where I left off (read me first)
+**💳 GUÍA DE WEBHOOKS DE COBROS (2026-11-05, v1.37.1):** el owner no entendía «Firma» en Superadmin → Cobros. El panel nunca mostraba la
+URL que hay que pegar en MercadoPago/PayPal. Ahora `PlatformBillingController` devuelve `mercadopago_webhook_url` / `paypal_webhook_url`
+(`APP_URL/api/v1/webhooks/billing/{provider}`) y `OAuthSetupGuide.tsx` tiene `MercadoPagoWebhookGuide` (qué es la firma, URL para copiar,
+evento «Planes y suscripciones», dónde sale la clave secreta, qué pasa sin ella; se abre sola si hay token pero no firma) y
+`PayPalWebhookGuide` (URL + los 7 eventos exactos que maneja `PayPalProvider` + Webhook ID).
+
 **🛠️ ETAPA 5 «OPERACIÓN DE LA AGENCIA» (2026-11-05, v1.37.0) — cierra las 5 etapas del análisis competitivo:**
 - **Conexión caída → aviso + reconexión por enlace.** `SyncService::recordOutcome()` detecta el paso a `error` (no en reintentos;
   `Cache::add('source-failed:{id}', 12 h)` evita repetir si la fuente parpadea) y despacha `NotifySourceFailure`: correo

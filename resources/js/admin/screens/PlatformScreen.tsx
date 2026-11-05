@@ -31,7 +31,7 @@ import {
     useUpdatePlatformIntegrations,
     useUpdatePlatformMailSettings,
 } from '../api';
-import { GoogleAdsSetupGuide, GoogleSetupGuide, MetaSetupGuide } from '../components/OAuthSetupGuide';
+import { GoogleAdsSetupGuide, GoogleSetupGuide, MercadoPagoWebhookGuide, MetaSetupGuide, PayPalWebhookGuide } from '../components/OAuthSetupGuide';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
 import {
@@ -1001,7 +1001,7 @@ function BillingTab(): ReactElement {
                     status={
                         <div className="ir-flex ir-flex-wrap ir-gap-2">
                             <ConfigChip ready={settings?.mercadopago_configured ?? false} />
-                            <ConfigChip ready={settings?.mercadopago_webhook_configured ?? false} label="Firma" />
+                            <ConfigChip ready={settings?.mercadopago_webhook_configured ?? false} label="Firma de avisos" />
                         </div>
                     }
                 >
@@ -1010,12 +1010,15 @@ function BillingTab(): ReactElement {
                             <Input type="password" autoComplete="off" value={mp} onChange={(e) => setMp(e.target.value)} placeholder={settings?.mercadopago_configured ? '•••••••• (déjalo vacío para conservarlo)' : 'APP_USR-…'} />
                         </Field>
                         <Field
-                            label="Clave secreta del webhook (opcional)"
-                            hint="MercadoPago → Tus integraciones → Webhooks. Valida la firma de cada aviso; sin ella el cobro sigue siendo seguro porque el estado siempre se consulta a MercadoPago."
+                            label="Clave secreta del webhook (recomendada)"
+                            hint="Sale en MercadoPago al configurar el webhook (pasos abajo). Sirve para comprobar que cada aviso viene de verdad de MercadoPago."
                         >
                             <Input type="password" autoComplete="off" value={mpHook} onChange={(e) => setMpHook(e.target.value)} placeholder={settings?.mercadopago_webhook_configured ? '••••••••' : 'clave del webhook'} />
                         </Field>
                         <SaveBar onSave={saveMp} disabled={mp === '' && mpHook === ''} busy={update.isPending} saved={savedWhat === 'mp'} />
+                        {settings?.mercadopago_webhook_url !== undefined && (
+                            <MercadoPagoWebhookGuide url={settings.mercadopago_webhook_url} open={(settings.mercadopago_configured ?? false) && !(settings.mercadopago_webhook_configured ?? false)} />
+                        )}
                     </div>
                 </SettingsRow>
 
@@ -1039,7 +1042,7 @@ function BillingTab(): ReactElement {
                             </Field>
                         </div>
                         {ppPairIncomplete && <p className="ir-text-xs ir-text-warning">El Client ID y el Secret se guardan juntos: completa los dos.</p>}
-                        <Field label="Webhook ID" hint="Tu app de PayPal → Webhooks. Obligatorio: sin él, PayPal no puede avisar de renovaciones ni cancelaciones.">
+                        <Field label="Webhook ID" hint="Sale en PayPal al crear el webhook (pasos abajo). Obligatorio: sin él, PayPal no puede avisar de renovaciones ni cancelaciones.">
                             <Input type="password" autoComplete="off" value={ppHook} onChange={(e) => setPpHook(e.target.value)} placeholder={settings?.paypal_webhook_configured ? '••••••••' : 'WH-…'} />
                         </Field>
                         <label className="ir-flex ir-items-start ir-gap-2.5 ir-rounded-lg ir-bg-muted/50 ir-p-3 ir-text-sm">
@@ -1050,6 +1053,7 @@ function BillingTab(): ReactElement {
                             </span>
                         </label>
                         <SaveBar onSave={savePp} disabled={ppPairIncomplete || (ppId === '' && ppHook === '')} busy={update.isPending} saved={savedWhat === 'pp'} />
+                        {settings?.paypal_webhook_url !== undefined && <PayPalWebhookGuide url={settings.paypal_webhook_url} />}
                     </div>
                 </SettingsRow>
             </div>

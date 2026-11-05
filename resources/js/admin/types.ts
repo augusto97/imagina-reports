@@ -74,6 +74,9 @@ export interface PlatformBillingSettings {
     paypal_configured: boolean;
     paypal_webhook_configured: boolean;
     billing_sandbox: boolean;
+    /** Where each provider must send its notifications (to paste in their panels). */
+    mercadopago_webhook_url?: string;
+    paypal_webhook_url?: string;
 }
 
 export interface PlatformIntegrationsSettings {

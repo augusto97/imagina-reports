@@ -289,3 +289,94 @@ export function MetaSetupGuide({ setup }: { setup: Setup }): ReactElement {
         </Guide>
     );
 }
+
+/**
+ * MercadoPago's notifications: the URL it must call, the events, and where the «firma» (the
+ * secret signing key) comes from. Without the URL MercadoPago never tells us about a renewal or a
+ * cancellation, and the app only catches up once a day.
+ */
+export function MercadoPagoWebhookGuide({ url, open = false }: { url: string; open?: boolean }): ReactElement {
+    return (
+        <details className="ir-rounded-md ir-border ir-bg-background" open={open}>
+            <summary className="ir-cursor-pointer ir-select-none ir-px-3 ir-py-2 ir-text-sm ir-font-medium">Cómo configurar los avisos (webhook) y la firma</summary>
+            <div className="ir-flex ir-flex-col ir-gap-4 ir-border-t ir-px-3 ir-py-4">
+                <p className="ir-text-sm ir-text-muted-foreground">
+                    <strong className="ir-font-medium ir-text-foreground">Qué es esto:</strong> MercadoPago avisa a la plataforma cada vez que una agencia se
+                    suscribe, renueva, falla un cobro o cancela. La <strong className="ir-font-medium ir-text-foreground">firma</strong> es una clave secreta
+                    que MercadoPago pone en cada aviso para demostrar que viene de verdad de ellos y no de otra persona.
+                </p>
+                <ol className="ir-flex ir-flex-col ir-gap-5">
+                    <Step n={1} title="Abre los webhooks de tu aplicación">
+                        <p>
+                            Entra en <Link href="https://www.mercadopago.com/developers/panel/app">MercadoPago Developers → Tus integraciones</Link>, abre la
+                            aplicación de la que sacaste el Access Token y ve a <strong>Webhooks → Configurar notificaciones</strong>.
+                        </p>
+                    </Step>
+                    <Step n={2} title="Pega esta URL">
+                        <CopyValue value={url} />
+                        <p>
+                            Ponla en <strong>Modo productivo</strong>. Si estás probando con un token <code>TEST-…</code>, ponla también en <strong>Modo de
+                            prueba</strong>.
+                        </p>
+                    </Step>
+                    <Step n={3} title="Elige los eventos">
+                        <p>
+                            Marca <strong>Planes y suscripciones</strong> (incluye las suscripciones y sus cobros mensuales). No hace falta ningún otro.
+                        </p>
+                    </Step>
+                    <Step n={4} title="Guarda y copia la clave secreta">
+                        <p>
+                            Al guardar, MercadoPago muestra una <strong>clave secreta</strong> para ese webhook (puede que tengas que pulsar «Revelar»). Cópiala y
+                            pégala arriba, en «Clave secreta del webhook», y pulsa «Guardar cambios». El indicador «Firma de avisos» pasará a «listo».
+                        </p>
+                    </Step>
+                </ol>
+                <p className="ir-rounded-md ir-bg-muted/60 ir-px-3 ir-py-2 ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
+                    <strong className="ir-font-medium ir-text-foreground">¿Y si no pongo la clave?</strong> Los cobros siguen siendo seguros: la plataforma nunca se
+                    fía del contenido del aviso y siempre le pregunta el estado a MercadoPago. La clave añade una capa más y frena tráfico falso. Lo
+                    importante es el paso 2: sin la URL, MercadoPago no avisa y las altas, renovaciones y cancelaciones se reflejan una vez al día (a las
+                    03:50), no al momento.
+                </p>
+            </div>
+        </details>
+    );
+}
+
+/** PayPal's notifications: the URL, the exact events the app handles, and the Webhook ID. */
+export function PayPalWebhookGuide({ url }: { url: string }): ReactElement {
+    const events = [
+        'BILLING.SUBSCRIPTION.ACTIVATED',
+        'BILLING.SUBSCRIPTION.RE-ACTIVATED',
+        'BILLING.SUBSCRIPTION.SUSPENDED',
+        'BILLING.SUBSCRIPTION.CANCELLED',
+        'BILLING.SUBSCRIPTION.EXPIRED',
+        'BILLING.SUBSCRIPTION.PAYMENT.FAILED',
+        'PAYMENT.SALE.COMPLETED',
+    ];
+
+    return (
+        <Guide title="Cómo configurar el webhook de PayPal">
+            <ol className="ir-flex ir-flex-col ir-gap-5">
+                <Step n={1} title="Abre tu app REST">
+                    <p>
+                        En <Link href="https://developer.paypal.com/dashboard/applications">PayPal Developer → Apps & Credentials</Link>, abre la app de la que
+                        sacaste el Client ID (en la pestaña Sandbox o Live, según el modo) y baja hasta <strong>Webhooks → Add Webhook</strong>.
+                    </p>
+                </Step>
+                <Step n={2} title="Pega esta URL">
+                    <CopyValue value={url} />
+                </Step>
+                <Step n={3} title="Marca estos eventos">
+                    <ul className="ir-flex ir-flex-col ir-gap-0.5 ir-font-mono ir-text-xs">
+                        {events.map((event) => (
+                            <li key={event}>{event}</li>
+                        ))}
+                    </ul>
+                </Step>
+                <Step n={4} title="Copia el Webhook ID">
+                    <p>Al guardar, PayPal muestra el <strong>Webhook ID</strong> (empieza por letras y números, p. ej. 5GP…). Pégalo arriba y guarda.</p>
+                </Step>
+            </ol>
+        </Guide>
+    );
+}

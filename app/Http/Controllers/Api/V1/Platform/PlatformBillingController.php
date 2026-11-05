@@ -64,6 +64,16 @@ final class PlatformBillingController extends Controller
             'paypal_configured' => $settings->hasSecret('paypal_client_id') && $settings->hasSecret('paypal_secret'),
             'paypal_webhook_configured' => $settings->hasSecret('paypal_webhook_id'),
             'billing_sandbox' => $settings->get('billing_sandbox') !== false,
+            // What to paste in each provider's webhook settings.
+            'mercadopago_webhook_url' => $this->webhookUrl('mercadopago'),
+            'paypal_webhook_url' => $this->webhookUrl('paypal'),
         ];
+    }
+
+    private function webhookUrl(string $provider): string
+    {
+        $base = config('app.url');
+
+        return rtrim(is_string($base) ? $base : '', '/').'/api/v1/webhooks/billing/'.$provider;
     }
 }

@@ -317,4 +317,18 @@ class BillingTest extends TestCase
         $this->assertNotSame('secret-token', PlatformSetting::current()->settings['mercadopago_access_token'] ?? null);
         $this->assertSame('secret-token', PlatformSetting::current()->secret('mercadopago_access_token'));
     }
+
+    public function test_the_panel_says_where_each_provider_must_send_its_notifications(): void
+    {
+        config(['app.url' => 'https://reports.example.com/']);
+        Sanctum::actingAs(User::factory()->create(['agency_id' => null, 'is_platform_admin' => true]));
+
+        $this->getJson('/api/v1/platform/billing-settings')
+            ->assertOk()
+            ->assertJsonPath('mercadopago_webhook_url', 'https://reports.example.com/api/v1/webhooks/billing/mercadopago')
+            ->assertJsonPath('paypal_webhook_url', 'https://reports.example.com/api/v1/webhooks/billing/paypal');
+
+        // And that URL is the one the webhook controller answers on.
+        $this->assertSame('/api/v1/webhooks/billing/mercadopago', route('api.webhooks.billing', ['provider' => 'mercadopago'], false));
+    }
 }
