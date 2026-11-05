@@ -84,7 +84,13 @@ final readonly class DeliveryService
         $delivery->recipient = $recipient;
 
         try {
-            Mail::to($recipient)->send(new ReportReadyMail($report));
+            // The agency's own mail server when it set one (full white-label), else the platform's.
+            $sender = $report->agency?->senderMailer();
+            if ($sender !== null) {
+                Mail::build($sender['mailer'])->to($recipient)->send(new ReportReadyMail($report));
+            } else {
+                Mail::to($recipient)->send(new ReportReadyMail($report));
+            }
             $delivery->status = DeliveryStatus::Sent;
             $delivery->sent_at = Date::now();
         } catch (Throwable $exception) {

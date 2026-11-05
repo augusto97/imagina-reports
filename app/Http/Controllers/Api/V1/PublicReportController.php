@@ -11,6 +11,7 @@ use App\Models\Report;
 use App\Models\User;
 use App\Reports\Sharing\ShareGate;
 use App\Services\ReportPdfService;
+use App\Support\CustomDomain;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -134,6 +135,11 @@ final class PublicReportController extends Controller
      */
     private function gate(Report $report, Request $request): ?JsonResponse
     {
+        // Opened through another agency's own domain: as if it didn't exist.
+        if (CustomDomain::blocks($request, $report->agency_id)) {
+            return response()->json(['message' => 'Not Found.'], 404);
+        }
+
         // Suspended (unpaid) agency → its whole public surface is dark, print included
         // (delivery is blocked for suspended agencies anyway). Checked on the report's own
         // agency so ad-hoc reports without a definition are covered too.

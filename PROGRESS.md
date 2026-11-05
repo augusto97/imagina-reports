@@ -7,6 +7,21 @@
 ---
 
 ## Where I left off (read me first)
+**🏷️ ETAPA 2 «MARCA BLANCA COMPLETA» (2026-11-05, v1.34.0):** plan feature `custom_domain` («Dominio propio») ahora cubre:
+- **Dominio propio** (Ajustes → Mi agencia → «Dominio propio»): `ir_agencies.domain` + `domain_status` (`pending_dns` → `pending_ssl` →
+  `active`), `domain_checked_at`, `domain_error`. `App\Services\Domains\DomainVerifier` comprueba DNS (CNAME al host de APP_URL o mismas IPs;
+  `DnsResolver` inyectable, `PhpDnsResolver` real) y HTTPS (`GET https://dominio/api/v1/domain-check` debe devolver nuestro `instance`).
+  `domains:check` cada 15 min (pendientes) y `--all` diario (un dominio que deja de responder vuelve a la URL de la plataforma).
+  Middleware global `ResolveCustomDomain`: en el host de una agencia solo responde portal/reports/dashboard/embed/connect/API pública/
+  assets; `/` → web de la agencia o `domain-home`; el resto redirige a APP_URL. `CustomDomain::blocks()` da 404 si se pide contenido de
+  OTRA agencia por ese dominio (API pública, dashboard, embed, enlaces de conexión). `Agency::publicBaseUrl()/publicUrl()` → enlaces del
+  correo y del diálogo «Compartir» (que ahora apunta al PORTAL, no a /reports).
+  **Paso manual del operador:** cuando un dominio queda en `pending_ssl`, añadirlo como alias de la app en ServerAvatar y emitir SSL
+  (Superadmin → Sistema → «Dominios de las agencias», con botón para copiar los pendientes). Se activa solo.
+- **Remitente propio** («Correo de envío»): SMTP de la agencia en `settings.sender` (contraseña cifrada con Crypt, nunca se devuelve),
+  prueba de envío, `Agency::senderMailer()`; `DeliveryService` usa `Mail::build()` con ese servidor y el correo sale desde su dirección.
+- «Reportes con Imagina Reports» de la página de conexión ahora respeta `remove_branding`.
+
 **🎯 ETAPA 1 «LO QUE VE EL CLIENTE» + SUPERADMIN + ANCHO FLUIDO (2026-11-04, v1.33.0):** tras el análisis competitivo (AgencyAnalytics,
 DashThis, Whatagraph, Swydo, Data Studio, WP Umbrella, MainWP Pro Reports, Modular DS) el owner pidió hacer toda la Etapa 1:
 - **Resumen sin IA** (`app/Reports/FallbackNarrative.php`): si la IA no responde/no está en el plan, el resumen se escribe con las cifras
@@ -2557,6 +2572,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) Dominio propio: la app valida DNS+HTTPS y restringe el host, pero el alias/SSL en ServerAvatar lo añade el operador (no automatizo la API de ServerAvatar sin especificación — ver Open questions). Los enlaces de conexión para clientes siguen en el dominio de la plataforma (OAuth + CSRF/sesión), el resto de páginas de cliente usan el dominio de la agencia.
+- (2026-11-05) Remitente propio vía SMTP de la agencia (Mail::build por envío) en vez de verificar dominios en un proveedor transaccional: funciona con cualquier proveedor sin depender de APIs de terceros.
 - (2026-11-04) Resumen de respaldo determinista (sin IA) en vez de dejar el bloque vacío: un reporte sin historia se ve roto y el cliente no lo entiende; el texto solo usa cifras resueltas (nunca inventa).
 - (2026-11-04) Ajuste de altura por contenido calculado (estimación en px → filas) y no con `grid-auto-rows: auto`: debe ser determinista para que el PDF escale la página igual que el portal.
 - (2026-11-04) Correo: remitente = dirección verificada de la plataforma con NOMBRE de la agencia + Reply-To de la agencia (entregabilidad sin dominio propio por agencia, que queda para la Etapa 2).
@@ -2732,6 +2749,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Open questions / blockers
+- (2026-11-05) ¿Automatizar el alta de dominios de agencias (alias + SSL) con la API de ServerAvatar? Hoy es manual desde el aviso del superadmin.
 - ~~`release.yml` no fija `target_commitish`~~ **RESUELTO (2026-08-05):** la etiqueta ya se ancla a `github.sha` (el commit desde el
   que se construye el ZIP), no a `main`. Se incluyó en la tanda del rediseño móvil del editor, como el owner pidió.
 - **MainWP v2 REST API contract (validate before production):** `MainWpConnector` assumes

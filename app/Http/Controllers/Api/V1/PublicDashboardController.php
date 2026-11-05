@@ -11,6 +11,7 @@ use App\Models\MetricSnapshot;
 use App\Models\ReportDefinition;
 use App\Reports\ReportGenerator;
 use App\Reports\Sharing\ShareGate;
+use App\Support\CustomDomain;
 use App\Support\PeriodLabel;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +35,8 @@ final class PublicDashboardController extends Controller
             ->where('dashboard_token', $token)
             ->where('dashboard_enabled', true)
             ->firstOrFail();
+
+        abort_if(CustomDomain::blocks($request, $definition->agency_id), 404);
 
         if (($denied = ShareGate::deny($definition, $request)) !== null) {
             return $denied;

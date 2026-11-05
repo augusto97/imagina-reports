@@ -180,6 +180,56 @@ export function useUpdateAgency() {
     });
 }
 
+/** Set (or clear with '') the agency's own domain; the server checks it right away. */
+export function useAgencyDomain() {
+    const queryClient = useQueryClient();
+    const merge = (data: Partial<AgencySettings>): void => {
+        queryClient.setQueryData<AgencySettings>(['agency'], (current) => (current !== undefined ? { ...current, ...data } : current));
+    };
+
+    return {
+        save: useMutation({
+            mutationFn: (domain: string) => api.put<Partial<AgencySettings>>('/agency/domain', { domain }).then((r) => r.data),
+            onSuccess: merge,
+        }),
+        check: useMutation({
+            mutationFn: () => api.post<Partial<AgencySettings>>('/agency/domain/check').then((r) => r.data),
+            onSuccess: merge,
+        }),
+    };
+}
+
+export interface AgencySenderInput {
+    from_address: string;
+    from_name: string;
+    host: string;
+    port: number;
+    username: string;
+    password?: string;
+    scheme: string;
+}
+
+export function useAgencySender() {
+    const queryClient = useQueryClient();
+    const merge = (data: Partial<AgencySettings>): void => {
+        queryClient.setQueryData<AgencySettings>(['agency'], (current) => (current !== undefined ? { ...current, ...data } : current));
+    };
+
+    return {
+        save: useMutation({
+            mutationFn: (input: AgencySenderInput) => api.put<Partial<AgencySettings>>('/agency/sender', input).then((r) => r.data),
+            onSuccess: merge,
+        }),
+        remove: useMutation({
+            mutationFn: () => api.put<Partial<AgencySettings>>('/agency/sender', { remove: true }).then((r) => r.data),
+            onSuccess: merge,
+        }),
+        test: useMutation({
+            mutationFn: (to: string) => api.post<{ sent: boolean; error?: string }>('/agency/sender/test', { to }).then((r) => r.data),
+        }),
+    };
+}
+
 export interface RetentionPreview {
     snapshots: number;
     bytes: number;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\BindTenant;
 use App\Http\Middleware\EnsureAgencyActive;
 use App\Http\Middleware\EnsurePlatformAdmin;
+use App\Http\Middleware\ResolveCustomDomain;
 use App\Http\Middleware\RestrictApiTokens;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Auth\Middleware\Authorize;
@@ -35,6 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // (SANCTUM_STATEFUL_DOMAINS) get session + CSRF, so the cookie authenticates
         // the /api/v1 routes (CLAUDE.md §2 — Sanctum, cookie sessions for own SPAs).
         $middleware->statefulApi();
+
+        // An agency's own domain (reportes.suagencia.com) answers only its client pages.
+        $middleware->prepend(ResolveCustomDomain::class);
 
         // Resolve the tenant from the authenticated user; apply after auth:sanctum.
         $middleware->alias([

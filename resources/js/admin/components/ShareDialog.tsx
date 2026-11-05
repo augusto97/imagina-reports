@@ -1,7 +1,7 @@
 import { Check, Copy, Globe, LayoutDashboard, Lock, RefreshCw, ShieldOff } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
-import { useRotateDashboardToken, useUpdateReportSharing } from '../api';
+import { useAgency, useRotateDashboardToken, useUpdateReportSharing } from '../api';
 import type { ReportDefinitionDto, ReportVisibility } from '../types';
 import { Button, Card, Field, Input, Modal } from './ui';
 
@@ -38,10 +38,14 @@ export function ShareDialog({
 
     const [embedCopied, setEmbedCopied] = useState(false);
 
-    const link = publicToken !== null ? `${window.location.origin}/reports/${publicToken}` : null;
+    // Client links go on the agency's own domain once it's live (white-label), and to the
+    // interactive portal (month selector, PDF, contact) rather than the bare print page.
+    const { data: agency } = useAgency();
+    const base = agency?.public_base_url ?? window.location.origin;
+    const link = publicToken !== null ? `${base}/portal/${publicToken}` : null;
     const embedCode =
         publicToken !== null
-            ? `<iframe src="${window.location.origin}/embed/${publicToken}" width="100%" height="800" frameborder="0" style="border:0"></iframe>`
+            ? `<iframe src="${base}/embed/${publicToken}" width="100%" height="800" frameborder="0" style="border:0"></iframe>`
             : null;
 
     const copyLink = async (): Promise<void> => {
@@ -64,7 +68,7 @@ export function ShareDialog({
 
     // The live dashboard link uses the definition's own token (set once enabled & saved).
     const dashboardToken = rotatedToken ?? definition.dashboard_token;
-    const dashboardLink = dashboardToken !== null ? `${window.location.origin}/dashboard/${dashboardToken}` : null;
+    const dashboardLink = dashboardToken !== null ? `${base}/dashboard/${dashboardToken}` : null;
 
     const rotateToken = (): void => {
         if (window.confirm('¿Regenerar el enlace? Los enlaces e incrustaciones anteriores dejarán de funcionar.')) {

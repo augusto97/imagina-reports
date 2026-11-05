@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Report;
+use App\Support\CustomDomain;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -18,13 +20,15 @@ use Illuminate\Http\Response;
  */
 final class EmbedController extends Controller
 {
-    public function show(string $token): Response
+    public function show(Request $request, string $token): Response
     {
         $report = Report::query()
             ->withoutGlobalScopes()
             ->with(['definition', 'agency'])
             ->where('public_token', $token)
             ->firstOrFail();
+
+        abort_if(CustomDomain::blocks($request, $report->agency_id), 404);
 
         // Suspended (unpaid) agency → no public embedding either (SaaS Fase 2).
         abort_if($report->agency?->isSuspended() === true, 402, 'Este informe no está disponible en este momento.');

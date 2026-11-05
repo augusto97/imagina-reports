@@ -398,6 +398,8 @@ export interface PlatformAgency {
     name: string;
     slug: string;
     status: string;
+    domain?: string | null;
+    domain_status?: 'pending_dns' | 'pending_ssl' | 'active' | null;
     plan: { id: number; name: string; slug: string } | null;
     plan_id: number | null;
     plan_overrides: Record<string, unknown> | null;
@@ -453,6 +455,15 @@ export interface AgencySettings {
     webhook_urls: string[];
     webhook_secret_set: boolean;
     slack_webhook_url: string;
+    /** Own domain for the client pages (plan `custom_domain`): set-up state + where links point. */
+    domain: string | null;
+    domain_status: 'pending_dns' | 'pending_ssl' | 'active' | null;
+    domain_error: string | null;
+    domain_checked_at: string | null;
+    domain_target: string;
+    public_base_url: string;
+    /** Own SMTP for report emails (the password is never sent back). */
+    sender: AgencySender | null;
     /** How clients reach the agency (portal "Escríbenos" + reply-to of the report email). */
     contact_email: string;
     contact_phone: string;
@@ -487,4 +498,14 @@ export interface AuditLogEntry {
 export interface Paginated<T> {
     data: T[];
     meta: { current_page: number; last_page: number; per_page: number; total: number };
+}
+
+export interface AgencySender {
+    from_address: string;
+    from_name: string;
+    host: string;
+    port: number | string;
+    username: string;
+    scheme: string;
+    password_set: boolean;
 }

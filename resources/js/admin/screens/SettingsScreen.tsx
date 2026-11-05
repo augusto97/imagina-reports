@@ -20,11 +20,13 @@ import {
     useStartTwoFactor,
     useSubscribe,
     useTestWebhooks,
+    useAgencyDomain,
+    useAgencySender,
     useUpdateAgency,
     useUpdateProfile,
     useUploadLogo,
 } from '../api';
-import { Badge, Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
+import { Badge, Button, Card, Field, Input, PageHeader, Select, StatusDot } from '../components/ui';
 import type { AgencySettings } from '../types';
 import { SiteAgentPluginCard } from './SystemScreen';
 
@@ -383,6 +385,273 @@ function ContactCard({ agency }: { agency: AgencySettings }): ReactElement {
                     {update.isSuccess && <span className="ir-text-xs ir-text-success">Contacto guardado.</span>}
                     {update.isError && <span className="ir-text-xs ir-text-danger">{apiErrorMessage(update.error, 'No se pudo guardar.')}</span>}
                 </div>
+            </div>
+        </Card>
+    );
+}
+
+/** Shown instead of a white-label card when the plan doesn't include it. */
+function PlanLocked({ title, description }: { title: string; description: string }): ReactElement {
+    return (
+        <Card title={title} description={description}>
+            <p className="ir-rounded-lg ir-bg-muted/60 ir-px-3 ir-py-2.5 ir-text-[13px] ir-text-muted-foreground">
+                Incluido en los planes con «Dominio propio». Mejora tu plan en «Plan y pagos» para activarlo.
+            </p>
+        </Card>
+    );
+}
+
+function CopyValue({ value }: { value: string }): ReactElement {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <button
+            type="button"
+            onClick={() => void navigator.clipboard?.writeText(value).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); })}
+            className="ir-inline-flex ir-items-center ir-gap-1 ir-rounded-md ir-border ir-bg-card ir-px-2 ir-py-1 ir-font-mono ir-text-xs hover:ir-bg-muted"
+            title="Copiar"
+        >
+            {value}
+            {copied ? <Check className="ir-size-3 ir-text-success" /> : <Copy className="ir-size-3 ir-text-muted-foreground" />}
+        </button>
+    );
+}
+
+/** reportes.tuagencia.com: the client pages (portal, report, dashboard) on the agency's own domain. */
+function DomainCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const { save, check } = useAgencyDomain();
+    const [domain, setDomain] = useState(agency.domain ?? '');
+    const allowed = agency.limits.features.custom_domain === true;
+    const title = 'Dominio propio';
+    const description = 'Tus clientes abren sus informes en tu dominio (p. ej. reportes.tuagencia.com) en lugar del de la plataforma.';
+
+    if (!allowed) {
+        return <PlanLocked title={title} description={description} />;
+    }
+
+    const status = agency.domain_status;
+    const label = agency.domain ?? '';
+    const sub = label.split('.')[0] ?? label;
+    const steps: { label: string; done: boolean; current: boolean; text: ReactNode }[] = [
+        {
+            label: 'Apunta el dominio',
+            done: status === 'pending_ssl' || status === 'active',
+            current: status === 'pending_dns',
+            text: (
+                <div className="ir-flex ir-flex-col ir-gap-2">
+                    <span>En el DNS de tu dominio crea este registro:</span>
+                    <div className="ir-grid ir-grid-cols-[auto_1fr] ir-items-center ir-gap-x-3 ir-gap-y-1.5 ir-rounded-lg ir-bg-muted/50 ir-p-3 ir-text-xs">
+                        <span className="ir-text-muted-foreground">Tipo</span>
+                        <span className="ir-font-mono">CNAME</span>
+                        <span className="ir-text-muted-foreground">Nombre</span>
+                        <span className="ir-flex ir-flex-wrap ir-items-center ir-gap-2">
+                            <CopyValue value={label} />
+                            <span className="ir-text-muted-foreground">(en muchos paneles basta con «{sub}»)</span>
+                        </span>
+                        <span className="ir-text-muted-foreground">Destino</span>
+                        <span><CopyValue value={agency.domain_target} /></span>
+                    </div>
+                    <span className="ir-text-xs ir-text-muted-foreground">Si usas Cloudflare, déjalo en «Solo DNS» (nube gris).</span>
+                </div>
+            ),
+        },
+        {
+            label: 'Certificado de seguridad (HTTPS)',
+            done: status === 'active',
+            current: status === 'pending_ssl',
+            text: 'Lo activamos nosotros en el servidor en cuanto el DNS apunta bien. No tienes que hacer nada.',
+        },
+        {
+            label: 'Listo',
+            done: status === 'active',
+            current: false,
+            text: status === 'active' ? `Los enlaces y correos a tus clientes ya usan ${agency.public_base_url}.` : 'Los enlaces que envías pasarán a usar tu dominio automáticamente.',
+        },
+    ];
+
+    return (
+        <Card
+            title={title}
+            description={description}
+            actions={
+                agency.domain !== null ? (
+                    <span className={`ir-inline-flex ir-items-center ir-gap-1.5 ir-text-xs ir-font-medium ${status === 'active' ? 'ir-text-success' : 'ir-text-warning'}`}>
+                        <StatusDot tone={status === 'active' ? 'success' : 'warning'} pulse={status !== 'active'} />
+                        {status === 'active' ? 'Activo' : 'Configurando'}
+                    </span>
+                ) : undefined
+            }
+        >
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <div className="ir-flex ir-flex-wrap ir-items-end ir-gap-2">
+                    <div className="ir-min-w-[16rem] ir-flex-1">
+                        <Field label="Dominio" hint="Usa un subdominio, como reportes.tuagencia.com: tu web principal no se toca.">
+                            <Input value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="reportes.tuagencia.com" />
+                        </Field>
+                    </div>
+                    <Button onClick={() => save.mutate(domain.trim())} disabled={save.isPending || domain.trim() === '' || domain.trim() === agency.domain}>
+                        {save.isPending ? 'Comprobando…' : agency.domain === null ? 'Conectar dominio' : 'Cambiar'}
+                    </Button>
+                </div>
+                {save.isError && <p className="ir-text-xs ir-text-danger">{apiErrorMessage(save.error, 'No se pudo guardar el dominio.')}</p>}
+
+                {agency.domain !== null && (
+                    <>
+                        <ol className="ir-flex ir-flex-col ir-gap-3">
+                            {steps.map((step, index) => (
+                                <li key={step.label} className="ir-flex ir-gap-3">
+                                    <span
+                                        className={`ir-flex ir-size-6 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-text-xs ir-font-semibold ${
+                                            step.done ? 'ir-bg-success ir-text-white' : step.current ? 'ir-bg-accent ir-text-accent-foreground' : 'ir-bg-muted ir-text-muted-foreground'
+                                        }`}
+                                    >
+                                        {step.done ? <Check className="ir-size-3.5" /> : index + 1}
+                                    </span>
+                                    <div className="ir-min-w-0 ir-flex-1 ir-pt-0.5">
+                                        <p className={`ir-text-sm ir-font-medium ${step.done || step.current ? '' : 'ir-text-muted-foreground'}`}>{step.label}</p>
+                                        {(step.current || (index === 0 && !step.done) || (index === 2 && step.done)) && <div className="ir-mt-1 ir-text-[13px] ir-text-muted-foreground">{step.text}</div>}
+                                    </div>
+                                </li>
+                            ))}
+                        </ol>
+                        {agency.domain_error !== null && status !== 'active' && (
+                            <p className="ir-rounded-lg ir-bg-warning/10 ir-px-3 ir-py-2 ir-text-xs ir-leading-relaxed ir-text-warning">{agency.domain_error}</p>
+                        )}
+                        <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3 ir-border-t ir-pt-4">
+                            <Button variant="ghost" size="sm" onClick={() => check.mutate()} disabled={check.isPending}>
+                                {check.isPending ? 'Comprobando…' : 'Comprobar ahora'}
+                            </Button>
+                            {agency.domain_checked_at !== null && (
+                                <span className="ir-text-xs ir-text-muted-foreground">
+                                    Última comprobación: {new Date(agency.domain_checked_at).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' })}. Se revisa sola cada 15 minutos.
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                className="ir-ml-auto ir-text-xs ir-text-muted-foreground hover:ir-text-danger"
+                                onClick={() => {
+                                    if (window.confirm('¿Quitar el dominio? Los enlaces nuevos volverán a usar la dirección de la plataforma.')) {
+                                        setDomain('');
+                                        save.mutate('');
+                                    }
+                                }}
+                            >
+                                Quitar dominio
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </Card>
+    );
+}
+
+/** The agency's own SMTP, so report emails come from its address. */
+function SenderCard({ agency }: { agency: AgencySettings }): ReactElement {
+    const { save, remove, test } = useAgencySender();
+    const current = agency.sender;
+    const [fromName, setFromName] = useState(current?.from_name ?? agency.name);
+    const [fromAddress, setFromAddress] = useState(current?.from_address ?? '');
+    const [host, setHost] = useState(current?.host ?? '');
+    const [port, setPort] = useState(String(current?.port ?? '587'));
+    const [username, setUsername] = useState(current?.username ?? '');
+    const [password, setPassword] = useState('');
+    const [scheme, setScheme] = useState(current?.scheme ?? '');
+    const [testTo, setTestTo] = useState('');
+    const allowed = agency.limits.features.custom_domain === true;
+    const title = 'Correo de envío';
+    const description = 'Los informes salen desde tu propia dirección (p. ej. informes@tuagencia.com) en vez de la de la plataforma.';
+
+    if (!allowed) {
+        return <PlanLocked title={title} description={description} />;
+    }
+
+    const submit = (): void => {
+        save.mutate({ from_name: fromName.trim(), from_address: fromAddress.trim(), host: host.trim(), port: Number(port) || 587, username: username.trim(), scheme, ...(password !== '' ? { password } : {}) }, { onSuccess: () => setPassword('') });
+    };
+
+    return (
+        <Card
+            title={title}
+            description={description}
+            actions={
+                <span className={`ir-inline-flex ir-items-center ir-gap-1.5 ir-text-xs ir-font-medium ${current !== null ? 'ir-text-success' : 'ir-text-muted-foreground'}`}>
+                    <StatusDot tone={current !== null ? 'success' : 'neutral'} />
+                    {current !== null ? 'Tu servidor' : 'Desde la plataforma'}
+                </span>
+            }
+        >
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                {current === null && (
+                    <p className="ir-rounded-lg ir-bg-muted/60 ir-px-3 ir-py-2.5 ir-text-[13px] ir-text-muted-foreground">
+                        Ahora los correos salen desde la plataforma con el nombre de tu agencia y las respuestas te llegan a ti. Para que salgan desde tu dominio, usa el SMTP de tu
+                        correo (Google Workspace, Microsoft 365, Zoho, tu hosting…).
+                    </p>
+                )}
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                    <Field label="Nombre del remitente">
+                        <Input value={fromName} onChange={(event) => setFromName(event.target.value)} placeholder={agency.name} />
+                    </Field>
+                    <Field label="Dirección de envío">
+                        <Input type="email" value={fromAddress} onChange={(event) => setFromAddress(event.target.value)} placeholder="informes@tuagencia.com" />
+                    </Field>
+                    <Field label="Servidor SMTP">
+                        <Input value={host} onChange={(event) => setHost(event.target.value)} placeholder="smtp.gmail.com" />
+                    </Field>
+                    <div className="ir-grid ir-grid-cols-2 ir-gap-3">
+                        <Field label="Puerto">
+                            <Input value={port} onChange={(event) => setPort(event.target.value)} placeholder="587" />
+                        </Field>
+                        <Field label="Cifrado">
+                            <Select value={scheme} onChange={(event) => setScheme(event.target.value)}>
+                                <option value="">Automático</option>
+                                <option value="smtp">STARTTLS (587)</option>
+                                <option value="smtps">SSL/TLS (465)</option>
+                            </Select>
+                        </Field>
+                    </div>
+                    <Field label="Usuario">
+                        <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="informes@tuagencia.com" autoComplete="off" />
+                    </Field>
+                    <Field label="Contraseña" hint={current?.password_set === true ? 'Déjala vacía para conservar la guardada.' : 'Con Google o Microsoft, usa una contraseña de aplicación.'}>
+                        <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={current?.password_set === true ? '••••••••' : ''} autoComplete="new-password" />
+                    </Field>
+                </div>
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">
+                    <Button onClick={submit} disabled={save.isPending || fromAddress.trim() === '' || host.trim() === ''}>
+                        {save.isPending ? 'Guardando…' : 'Guardar servidor'}
+                    </Button>
+                    {save.isSuccess && <span className="ir-text-xs ir-text-success">Guardado.</span>}
+                    {save.isError && <span className="ir-text-xs ir-text-danger">{apiErrorMessage(save.error, 'No se pudo guardar.')}</span>}
+                    {current !== null && (
+                        <button
+                            type="button"
+                            className="ir-ml-auto ir-text-xs ir-text-muted-foreground hover:ir-text-danger"
+                            onClick={() => {
+                                if (window.confirm('¿Volver a enviar desde la plataforma?')) remove.mutate();
+                            }}
+                        >
+                            Dejar de usar mi servidor
+                        </button>
+                    )}
+                </div>
+                {current !== null && (
+                    <div className="ir-flex ir-flex-col ir-gap-2 ir-border-t ir-pt-4">
+                        <p className="ir-text-xs ir-text-muted-foreground">Envía un correo de prueba para confirmar que funciona.</p>
+                        <div className="ir-flex ir-gap-2">
+                            <Input type="email" value={testTo} onChange={(event) => setTestTo(event.target.value)} placeholder="tu@correo.com" />
+                            <Button variant="ghost" onClick={() => test.mutate(testTo)} disabled={test.isPending || testTo === ''}>
+                                {test.isPending ? 'Enviando…' : 'Enviar prueba'}
+                            </Button>
+                        </div>
+                        {test.data?.sent === true && <p className="ir-text-xs ir-text-success">Enviado. Revisa la bandeja (y el spam).</p>}
+                        {test.data?.sent === false && (
+                            <p className="ir-rounded-lg ir-bg-danger/10 ir-p-2 ir-text-xs ir-text-danger">
+                                No se pudo enviar. Respuesta del servidor: <span className="ir-font-mono">{test.data.error}</span>
+                            </p>
+                        )}
+                    </div>
+                )}
             </div>
         </Card>
     );
@@ -1067,6 +1336,8 @@ export function SettingsScreen(): ReactElement {
             <>
                 <BrandingCard agency={agency} />
                 <ContactCard agency={agency} />
+                <DomainCard agency={agency} />
+                <SenderCard agency={agency} />
             </>
         ),
         billing: (

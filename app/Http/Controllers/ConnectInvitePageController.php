@@ -15,6 +15,7 @@ use App\Models\DataSource;
 use App\Models\Site;
 use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
+use App\Support\CustomDomain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -41,10 +42,10 @@ final class ConnectInvitePageController extends Controller
         private readonly ConnectIntents $intents,
     ) {}
 
-    public function show(Request $request, string $token): Response
+    public function show(Request $request, string $token, Entitlements $entitlements): Response
     {
         $invite = ConnectInvite::findActive($token);
-        if ($invite === null) {
+        if ($invite === null || CustomDomain::blocks($request, $invite->agency_id)) {
             return $this->invalid();
         }
 
@@ -104,6 +105,7 @@ final class ConnectInvitePageController extends Controller
             'connectedLabel' => is_string($connected) && $invite->allows($connected) ? (DataSourceType::tryFrom($connected)?->label() ?? $connected) : null,
             'error' => is_string($error) ? mb_substr($error, 0, 400) : null,
             'saved' => $request->query('saved') !== null,
+            'showBranding' => ! $entitlements->hasFeature($agency, 'remove_branding'),
         ])->withHeaders(self::HEADERS);
     }
 
@@ -111,7 +113,7 @@ final class ConnectInvitePageController extends Controller
     {
         $invite = ConnectInvite::findActive($token);
         $provider = $this->registry->for($type);
-        if ($invite === null || $provider === null || ! $invite->allows($type)) {
+        if ($invite === null || $provider === null || ! $invite->allows($type) || CustomDomain::blocks($request, $invite->agency_id)) {
             return $this->invalid();
         }
 
@@ -146,7 +148,7 @@ final class ConnectInvitePageController extends Controller
     public function select(Request $request, string $token, int $source): SymfonyResponse
     {
         $invite = ConnectInvite::findActive($token);
-        if ($invite === null) {
+        if ($invite === null || CustomDomain::blocks($request, $invite->agency_id)) {
             return $this->invalid();
         }
 

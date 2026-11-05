@@ -246,6 +246,8 @@ final class AgencyController extends Controller
             'webhook_urls' => $this->webhookUrls($agency),
             'webhook_secret_set' => is_string($agency->settings['webhook_secret'] ?? null) && $agency->settings['webhook_secret'] !== '',
             'slack_webhook_url' => is_string($agency->settings['slack_webhook_url'] ?? null) ? $agency->settings['slack_webhook_url'] : '',
+            ...AgencyBrandingController::presentDomain($agency),
+            ...AgencyBrandingController::presentSender($agency),
             'contact_email' => $agency->contact()['email'] ?? '',
             'contact_phone' => $agency->contact()['phone'] ?? '',
             'website' => $agency->contact()['website'] ?? '',

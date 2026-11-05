@@ -37,7 +37,11 @@ final class ReportReadyMail extends Mailable
     public function envelope(): Envelope
     {
         $agency = $this->report->agency;
-        $fromAddress = config('mail.from.address');
+        $sender = $agency?->senderMailer();
+        // The agency's own address when it has its own mail server; otherwise the platform's
+        // verified address under the agency's name (deliverability).
+        $fromAddress = $sender !== null ? $sender['from_address'] : config('mail.from.address');
+        $fromName = $sender !== null && $sender['from_name'] !== null ? $sender['from_name'] : $agency?->name;
         $replyTo = $this->replyAddress($agency);
 
         $subject = __('report.ready_subject_site', ['site' => $this->siteName(), 'period' => $this->periodLabel()], $this->locale);
@@ -45,7 +49,7 @@ final class ReportReadyMail extends Mailable
         return new Envelope(
             // The sending address stays the platform's verified one (deliverability); the
             // name the client sees is the agency's.
-            from: is_string($fromAddress) && $fromAddress !== '' ? new Address($fromAddress, $agency !== null ? $agency->name : null) : null,
+            from: is_string($fromAddress) && $fromAddress !== '' ? new Address($fromAddress, $fromName) : null,
             replyTo: $replyTo !== null ? [new Address($replyTo, $agency?->name)] : [],
             subject: is_string($subject) ? $subject : 'Informe',
         );
@@ -93,7 +97,8 @@ final class ReportReadyMail extends Mailable
                 'verdict' => $verdict,
                 'highlights' => ReportHighlights::from($this->report->resolved_blocks, $this->locale, $this->currency()),
                 'summary' => Str::limit($summary, 700),
-                'portalUrl' => route('portal', ['token' => $this->report->public_token]),
+                // On the agency's own domain once it's live (white-label), else the platform's.
+                'portalUrl' => $agency !== null ? $agency->publicUrl('portal/'.$this->report->public_token) : route('portal', ['token' => $this->report->public_token]),
                 'contact' => $agency?->contact() ?? [],
                 'showBranding' => $agency === null || ! app(Entitlements::class)->hasFeature($agency, 'remove_branding'),
                 'hasPdf' => $this->report->pdf_path !== null,

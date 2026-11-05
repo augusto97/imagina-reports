@@ -177,6 +177,10 @@ final class PlatformAgencyController extends Controller
             'name' => $agency->name,
             'slug' => $agency->slug,
             'status' => $agency->status,
+            // Own domain + where it is in the setup: `pending_ssl` = the operator must add it to the
+            // server (alias + certificate) for it to go live.
+            'domain' => $agency->domain,
+            'domain_status' => $agency->domain_status,
             'plan' => $agency->plan !== null ? ['id' => $agency->plan->id, 'name' => $agency->plan->name, 'slug' => $agency->plan->slug] : null,
             'plan_id' => $agency->plan_id,
             'plan_overrides' => $agency->plan_overrides,

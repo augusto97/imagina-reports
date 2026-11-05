@@ -27,3 +27,8 @@ Schedule::command('billing:reconcile')->dailyAt('03:50');
 // Cut access once a grace window elapsed: overdue past the grace days, or a cancelled
 // subscription whose already-paid period has ended (SaaS Fase 2).
 Schedule::command('billing:enforce-overdue')->dailyAt('04:00');
+
+// Agency custom domains: the pending ones go live by themselves once DNS + HTTPS are in place;
+// a daily full pass drops a domain that stopped answering back to the platform address.
+Schedule::command('domains:check')->everyFifteenMinutes();
+Schedule::command('domains:check --all')->dailyAt('05:10');

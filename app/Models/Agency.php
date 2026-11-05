@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,9 @@ use Throwable;
  * @property string|null $brand_color
  * @property string $default_locale
  * @property string|null $domain
+ * @property string|null $domain_status
+ * @property Carbon|null $domain_checked_at
+ * @property string|null $domain_error
  * @property array<string, mixed>|null $settings
  * @property int|null $snapshot_retention_months
  * @property array<int, mixed>|null $calculated_metrics
@@ -49,6 +53,9 @@ class Agency extends Model
         'brand_color',
         'default_locale',
         'domain',
+        'domain_status',
+        'domain_checked_at',
+        'domain_error',
         'settings',
         'snapshot_retention_months',
         'calculated_metrics',
@@ -64,6 +71,7 @@ class Agency extends Model
     {
         return [
             'settings' => 'array',
+            'domain_checked_at' => 'datetime',
             'snapshot_retention_months' => 'integer',
             'calculated_metrics' => 'array',
             'plan_overrides' => 'array',
@@ -73,6 +81,67 @@ class Agency extends Model
     public function isSuspended(): bool
     {
         return $this->status === 'suspended';
+    }
+
+    /**
+     * The agency's own mail server, ready for Mail::build(), or null when not configured.
+     *
+     * @return array{mailer: array<string, mixed>, from_address: string, from_name: string|null}|null
+     */
+    public function senderMailer(): ?array
+    {
+        $sender = $this->settings['sender'] ?? null;
+        if (! is_array($sender) || ! is_string($sender['host'] ?? null) || ! is_string($sender['from_address'] ?? null)) {
+            return null;
+        }
+
+        $password = null;
+        if (is_string($sender['password'] ?? null) && $sender['password'] !== '') {
+            try {
+                $password = Crypt::decryptString($sender['password']);
+            } catch (Throwable) {
+                $password = null;
+            }
+        }
+        $port = is_numeric($sender['port'] ?? null) ? (int) $sender['port'] : 587;
+        $scheme = is_string($sender['scheme'] ?? null) && $sender['scheme'] !== '' ? $sender['scheme'] : ($port === 465 ? 'smtps' : 'smtp');
+
+        return [
+            'mailer' => [
+                'transport' => 'smtp',
+                'scheme' => $scheme,
+                'host' => $sender['host'],
+                'port' => $port,
+                'username' => is_string($sender['username'] ?? null) ? $sender['username'] : null,
+                'password' => $password,
+                'timeout' => 20,
+            ],
+            'from_address' => $sender['from_address'],
+            'from_name' => is_string($sender['from_name'] ?? null) && $sender['from_name'] !== '' ? $sender['from_name'] : null,
+        ];
+    }
+
+    /** The agency's own domain, only once it is live (DNS + HTTPS verified). */
+    public function activeDomain(): ?string
+    {
+        return $this->domain !== null && $this->domain !== '' && $this->domain_status === 'active' ? $this->domain : null;
+    }
+
+    /** Where the agency's clients open their reports: its own domain when live, else the platform's. */
+    public function publicBaseUrl(): string
+    {
+        $domain = $this->activeDomain();
+        if ($domain !== null) {
+            return 'https://'.$domain;
+        }
+        $appUrl = config('app.url');
+
+        return rtrim(is_string($appUrl) ? $appUrl : '', '/');
+    }
+
+    public function publicUrl(string $path): string
+    {
+        return $this->publicBaseUrl().'/'.ltrim($path, '/');
     }
 
     /**

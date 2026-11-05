@@ -118,7 +118,9 @@
             <p>Este enlace es personal y vale hasta el {{ $expires }}. No lo reenvíes.</p>
         </div>
     </div>
-    <p class="powered">Reportes con {{ config('app.name', 'Imagina Reports') }}</p>
+    @if ($showBranding)
+        <p class="powered">Reportes con {{ config('app.name', 'Imagina Reports') }}</p>
+    @endif
 </main>
 </body>
 </html>

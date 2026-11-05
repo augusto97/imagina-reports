@@ -677,7 +677,10 @@ function AgenciesTab(): ReactElement {
                                             <Avatar name={agency.name} />
                                             <div className="ir-min-w-0">
                                                 <p className="ir-truncate ir-font-medium">{agency.name}</p>
-                                                <p className="ir-truncate ir-text-xs ir-text-muted-foreground">/{agency.slug}</p>
+                                                <p className="ir-truncate ir-text-xs ir-text-muted-foreground">
+                                                    /{agency.slug}
+                                                    {agency.domain != null && agency.domain !== '' && ` · ${agency.domain}`}
+                                                </p>
                                             </div>
                                         </div>
                                     </td>
@@ -1260,6 +1263,66 @@ function MailSettingsCard(): ReactElement {
     );
 }
 
+/**
+ * Agencies' own domains. One with DNS ready but no HTTPS needs the operator: add it to the
+ * application in ServerAvatar (domain alias) and issue its certificate — it then goes live by
+ * itself within 15 minutes (the domains:check schedule).
+ */
+function AgencyDomainsCard(): ReactElement {
+    const { data: agencies = [] } = usePlatformAgencies();
+    const withDomain = agencies.filter((agency) => agency.domain != null && agency.domain !== '');
+    const waiting = withDomain.filter((agency) => agency.domain_status === 'pending_ssl');
+    const [copied, setCopied] = useState(false);
+    const STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
+        active: { label: 'Activo', tone: 'success' },
+        pending_ssl: { label: 'Falta el certificado en el servidor', tone: 'warning' },
+        pending_dns: { label: 'Esperando el DNS de la agencia', tone: 'neutral' },
+    };
+
+    return (
+        <Card
+            className="ir-max-w-5xl"
+            title="Dominios de las agencias"
+            description="Cuando el DNS de una agencia ya apunta aquí, añade su dominio como alias de la aplicación en ServerAvatar y emite el certificado SSL. Se activa solo en menos de 15 minutos."
+            actions={
+                waiting.length > 0 ? (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void navigator.clipboard?.writeText(waiting.map((agency) => agency.domain).join('\n')).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); })}
+                    >
+                        {copied ? <Check className="ir-size-3.5" /> : null}
+                        {copied ? 'Copiados' : `Copiar ${waiting.length} por activar`}
+                    </Button>
+                ) : undefined
+            }
+        >
+            {withDomain.length === 0 ? (
+                <p className="ir-text-sm ir-text-muted-foreground">Ninguna agencia ha conectado su dominio todavía.</p>
+            ) : (
+                <div className="ir-flex ir-flex-col ir-divide-y">
+                    {withDomain.map((agency) => {
+                        const status = STATUS[agency.domain_status ?? 'pending_dns'] ?? STATUS.pending_dns;
+
+                        return (
+                            <div key={agency.id} className="ir-flex ir-flex-wrap ir-items-center ir-gap-3 ir-py-2.5">
+                                <div className="ir-min-w-0 ir-flex-1">
+                                    <p className="ir-truncate ir-font-mono ir-text-sm">{agency.domain}</p>
+                                    <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{agency.name}</p>
+                                </div>
+                                <span className="ir-inline-flex ir-items-center ir-gap-1.5 ir-text-xs ir-font-medium">
+                                    <StatusDot tone={status?.tone ?? 'neutral'} />
+                                    {status?.label}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </Card>
+    );
+}
+
 /* ---------------------------------- Screen --------------------------------- */
 
 /**
@@ -1326,6 +1389,7 @@ export function PlatformScreen({
                 <>
                     <SectionHeader tab="system" />
                     <SystemUpdatePanel />
+                    <AgencyDomainsCard />
                 </>
             )}
         </div>

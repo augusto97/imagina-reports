@@ -11,6 +11,8 @@ use App\Listeners\DetectReportAnomalies;
 use App\Listeners\DetectUpsellOpportunities;
 use App\Listeners\ReportWebhookSubscriber;
 use App\Models\User;
+use App\Services\Domains\DnsResolver;
+use App\Services\Domains\PhpDnsResolver;
 use App\Services\Pdf\BrowsershotPdfRenderer;
 use App\Services\Pdf\PdfRenderer;
 use App\Services\Platform\PlatformMail;
@@ -53,6 +55,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Outbound webhook delivery (CLAUDE.md §8); queues per-endpoint HTTP jobs.
         $this->app->bind(WebhookDispatcher::class, HttpWebhookDispatcher::class);
+
+        // Real DNS for the custom-domain check; tests swap in a fake.
+        $this->app->bind(DnsResolver::class, PhpDnsResolver::class);
     }
 
     /**

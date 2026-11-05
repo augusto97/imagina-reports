@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\AgencyBrandingController;
 use App\Http\Controllers\Api\V1\AgencyController;
 use App\Http\Controllers\Api\V1\AiTemplateController;
 use App\Http\Controllers\Api\V1\AnomalyController;
@@ -55,6 +56,7 @@ use App\Http\Controllers\Api\V1\WorkLogController;
 use App\Http\Controllers\McpController;
 use App\Http\Controllers\OAuth\OAuthRegistrationController;
 use App\Http\Controllers\OAuth\OAuthTokenController;
+use App\Services\Domains\DomainVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
@@ -81,6 +83,11 @@ Route::get('/health', static fn (): JsonResponse => response()->json([
 Route::get('/public/reports/{token}', [PublicReportController::class, 'show'])
     ->middleware('throttle:public-report')
     ->name('api.public.reports.show');
+// Answers "this is that installation" for the custom-domain HTTPS check (no secrets).
+Route::get('/domain-check', static fn (): JsonResponse => response()->json(['app' => 'imagina-reports', 'instance' => DomainVerifier::instance()]))
+    ->middleware('throttle:60,1')
+    ->name('api.domain-check');
+
 // The client's "Descargar PDF" (renders at most once per report change; tighter limit).
 Route::get('/public/reports/{token}/pdf', [PublicReportController::class, 'pdf'])
     ->middleware('throttle:10,1')
@@ -172,6 +179,11 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::get('agency', [AgencyController::class, 'show'])->name('api.agency.show');
     Route::put('agency', [AgencyController::class, 'update'])->name('api.agency.update');
     Route::post('agency/logo', [AgencyController::class, 'uploadLogo'])->name('api.agency.logo');
+    // Full white-label: own domain for client pages + own mail server (plan `custom_domain`).
+    Route::put('agency/domain', [AgencyBrandingController::class, 'domain'])->name('api.agency.domain');
+    Route::post('agency/domain/check', [AgencyBrandingController::class, 'checkDomain'])->middleware('throttle:12,1')->name('api.agency.domain.check');
+    Route::put('agency/sender', [AgencyBrandingController::class, 'sender'])->name('api.agency.sender');
+    Route::post('agency/sender/test', [AgencyBrandingController::class, 'testSender'])->middleware('throttle:6,1')->name('api.agency.sender.test');
     Route::post('uploads/image', [UploadController::class, 'image'])->name('api.uploads.image');
     Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
     Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
