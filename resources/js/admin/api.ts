@@ -19,6 +19,7 @@ import type {
     AgencySettings,
     AgencyTrends,
     AgencyUpsell,
+    AiTestResult,
     UpsellThresholds,
     AnomalyAlert,
     AuditLogEntry,
@@ -158,6 +159,7 @@ export interface AgencyUpdate {
     brand_color: string | null;
     default_locale: string;
     anthropic_key?: string;
+    ai_model?: string | null;
     webhook_urls?: string[];
     webhook_secret?: string;
     slack_webhook_url?: string;
@@ -172,6 +174,17 @@ export interface AgencyUpdate {
 export function useTestWebhooks() {
     return useMutation({
         mutationFn: () => api.post<{ sent: number }>('/agency/webhooks/test').then((r) => r.data),
+    });
+}
+
+/** «Probar» the AI key + model this agency's reports use. Errors carry the reason in `message`. */
+export function useTestAi() {
+    return useMutation({
+        mutationFn: () =>
+            api
+                .post<AiTestResult>('/agency/ai/test')
+                .then((r) => r.data)
+                .catch((error: unknown) => aiTestFailure(error)),
     });
 }
 
@@ -522,6 +535,23 @@ export function useUpdatePlatformIntegrations() {
         mutationFn: (payload: Record<string, string>) => api.put<PlatformIntegrationsSettings>('/platform/integrations', payload).then((r) => r.data),
         onSuccess: (data) => queryClient.setQueryData(['platform-integrations'], data),
     });
+}
+
+export function useTestPlatformAi() {
+    return useMutation({
+        mutationFn: () =>
+            api
+                .post<AiTestResult>('/platform/integrations/ai/test')
+                .then((r) => r.data)
+                .catch((error: unknown) => aiTestFailure(error)),
+    });
+}
+
+/** A 422 from «Probar» is an answer (bad key, no balance…), not a crash: return it as a result. */
+function aiTestFailure(error: unknown): AiTestResult {
+    const data = (error as { response?: { data?: Partial<AiTestResult> } }).response?.data;
+
+    return { ok: false, message: typeof data?.message === 'string' ? data.message : 'No se pudo probar ahora. Inténtalo de nuevo.' };
 }
 
 export function usePlatformMailSettings() {

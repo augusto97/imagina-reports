@@ -47,7 +47,9 @@ return [
     // AI report builder (CLAUDE.md §10.6). Uses the Claude API.
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
-        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+        // Fallback only: the super-admin panel (Integraciones → IA) and each agency with its own
+        // key choose the model there (App\Ai\AiSettings). Default: App\Ai\AiModels::DEFAULT.
+        'model' => env('ANTHROPIC_MODEL'),
     ],
 
     // One-click "Connect with Google" (§9). ONE OAuth app in Google Cloud covers GA4,

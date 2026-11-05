@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Platform;
 
+use App\Ai\AiModels;
+use App\Ai\AiSettings;
+use App\Ai\AnthropicAiClient;
 use App\Enums\DataSourceType;
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
 use App\Services\Platform\OAuthCredentials;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Platform OAuth app credentials for the one-click connectors (Google + Meta). Stored in
@@ -39,6 +43,9 @@ final class PlatformIntegrationsController extends Controller
             OAuthCredentials::GOOGLE_ADS_LOGIN_CUSTOMER_ID => ['sometimes', 'nullable', 'string'],
             OAuthCredentials::META_APP_ID => ['sometimes', 'nullable', 'string'],
             OAuthCredentials::META_APP_SECRET => ['sometimes', 'nullable', 'string'],
+            // Claude for every agency without its own key (falls back to .env).
+            AiSettings::PLATFORM_KEY => ['sometimes', 'nullable', 'string', 'max:255'],
+            AiSettings::PLATFORM_MODEL => ['sometimes', 'nullable', 'string', Rule::in(AiModels::ids())],
         ]);
 
         $settings = PlatformSetting::current();
@@ -58,9 +65,37 @@ final class PlatformIntegrationsController extends Controller
             }
         }
 
+        if ($request->has(AiSettings::PLATFORM_KEY)) {
+            $value = $request->input(AiSettings::PLATFORM_KEY);
+            $settings->putSecret(AiSettings::PLATFORM_KEY, is_string($value) ? trim($value) : null);
+        }
+        if ($request->has(AiSettings::PLATFORM_MODEL)) {
+            $value = $request->input(AiSettings::PLATFORM_MODEL);
+            $settings->put(AiSettings::PLATFORM_MODEL, is_string($value) && AiModels::known($value) ? $value : null);
+        }
+
         $settings->save();
 
         return response()->json($this->present($settings));
+    }
+
+    /** «Probar»: one tiny request with the platform key and default model. */
+    public function testAi(AnthropicAiClient $client): JsonResponse
+    {
+        $key = AiSettings::platformKey();
+        $model = AiSettings::platformModel();
+        if ($key === null) {
+            return response()->json(['ok' => false, 'message' => 'Aún no hay clave de la plataforma: pégala arriba.'], 422);
+        }
+
+        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048);
+
+        return response()->json([
+            'ok' => $result['ok'],
+            'model' => $model,
+            'model_label' => AiModels::label($model),
+            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió.' : $result['error'],
+        ], $result['ok'] ? 200 : 422);
     }
 
     /**
@@ -91,6 +126,13 @@ final class PlatformIntegrationsController extends Controller
             // Everything the operator must paste into Google Cloud / Meta, built from this
             // install's real URLs so the guide in the panel can't drift from the code.
             'setup' => self::setup(),
+            // Claude for agencies without their own key: key state, the default model and the choices.
+            'anthropic_key_set' => $settings->hasSecret(AiSettings::PLATFORM_KEY),
+            'ai_ready' => AiSettings::platformKey() !== null,
+            'ai_from_env' => AiSettings::platformKeyFromEnv(),
+            'ai_model' => AiSettings::platformModel(),
+            'ai_model_label' => AiModels::label(AiSettings::platformModel()),
+            'ai_models' => AiModels::options(),
         ];
     }
 

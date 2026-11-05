@@ -100,6 +100,27 @@ export interface PlatformIntegrationsSettings {
         google_redirect_uris: string[];
         meta_redirect_uris: string[];
     };
+    /** Claude for agencies without their own key (panel key, else .env). */
+    anthropic_key_set: boolean;
+    ai_ready: boolean;
+    ai_from_env: boolean;
+    ai_model: string;
+    ai_model_label: string;
+    ai_models: AiModelOption[];
+}
+
+export interface AiModelOption {
+    id: string;
+    label: string;
+    hint: string;
+}
+
+/** Result of «Probar» on the AI key + model. */
+export interface AiTestResult {
+    ok: boolean;
+    model?: string;
+    model_label?: string;
+    message: string;
 }
 
 export interface PlatformMailSettings {
@@ -526,6 +547,12 @@ export interface AgencySettings {
     logo_path: string | null;
     logo_url: string | null;
     ai_key_set: boolean;
+    /** The agency's own model (only used with its own key); null = the platform's. */
+    ai_model: string | null;
+    ai_models: AiModelOption[];
+    /** The model the platform uses (label) and whether the platform has a key at all. */
+    ai_platform_model: string;
+    ai_platform_available: boolean;
     snapshot_retention_months: number | null;
     calculated_metrics: { key: string; label: string; formula: string }[];
     webhook_urls: string[];

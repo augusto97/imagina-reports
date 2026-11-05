@@ -7,6 +7,20 @@
 ---
 
 ## Where I left off (read me first)
+**🤖 MODELO DE IA ELEGIBLE + «PROBAR» (2026-11-05, v1.37.1):** el owner no veía dónde elegir el modelo. Antes el modelo era fijo
+(`ANTHROPIC_MODEL`, por defecto `claude-sonnet-4-6`) y la clave de plataforma solo vivía en `.env`. Ahora: `App\Ai\AiModels` (catálogo:
+`claude-opus-5-5` por defecto, `claude-sonnet-5-5`, `claude-haiku-5-5`, con `output_config.effort=medium` y `fallbacks:"default"` +
+beta `server-side-fallback-2026-07-01` en Opus/Sonnet; un id desconocido del `.env` se usa tal cual, sin extras) y `App\Ai\AiSettings`
+(clave+modelo: agencia con clave propia → su modelo o el de la plataforma; sin clave propia → clave y modelo de la plataforma: panel
+superadmin → `.env` → `AiModels::DEFAULT`). `AnthropicAiClient` ahora junta los bloques `text` (con thinking el primero no es texto),
+trata `stop_reason=refusal`, `max_tokens` 16000, timeout 120 s, y `send()` devuelve `{ok,text,error}` con mensajes claros (clave inválida,
+sin saldo, sin acceso al modelo…) sin incluir la clave. Ajustes → Integraciones: tarjeta IA explica qué hace (resumen del informe,
+«Generar con IA», respuestas a clientes, propuestas), «Quitar mi clave», selector «Modelo» (solo con clave propia) y «Probar la IA»
+(`POST /agency/ai/test`, throttle 6/min, solo owner/admin). Superadmin → Integraciones: fila «Inteligencia artificial» con clave de la
+plataforma (cifrada en PlatformSetting `anthropic_key`), «Modelo por defecto» (`ai_model`) y «Probar» (`POST /platform/integrations/ai/test`).
+`ReportAssistant::available` usa `AiSettings`. Tests: `AiSettingsTest` (9). El resumen del informe sigue: IA si el plan tiene
+`ai_builder` y hay clave; si no, `FallbackNarrative` (texto con las cifras).
+
 **💳 GUÍA DE WEBHOOKS DE COBROS (2026-11-05, v1.37.1):** el owner no entendía «Firma» en Superadmin → Cobros. El panel nunca mostraba la
 URL que hay que pegar en MercadoPago/PayPal. Ahora `PlatformBillingController` devuelve `mercadopago_webhook_url` / `paypal_webhook_url`
 (`APP_URL/api/v1/webhooks/billing/{provider}`) y `OAuthSetupGuide.tsx` tiene `MercadoPagoWebhookGuide` (qué es la firma, URL para copiar,
@@ -2638,6 +2652,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) Modelo de IA por defecto `claude-opus-5-5`; una agencia solo elige modelo con su propia clave — con la clave de la plataforma paga la plataforma, así que decide el superadmin. El `.env` queda como respaldo (clave y modelo).
 - (2026-11-05) Aviso de conexión caída solo en la TRANSICIÓN a error (y como mucho cada 12 h por fuente): un aviso por cada reintento fallido enseña a ignorarlos. El correo va a owners+admins (es operativo), no al contacto público de la agencia.
 - (2026-11-05) «Pedir reconexión» reutiliza los enlaces de conexión (ConnectInvite) limitados a UNA fuente y 7 días, y nunca reenvía credenciales; solo aplica a fuentes con conexión de un clic (Google/Meta/Woo según la configuración).
 - (2026-11-05) Propuestas de venta como BORRADOR que la agencia envía desde su propio correo (copiar/mailto), no un envío automático al cliente: es comunicación comercial y debe pasar por una persona.

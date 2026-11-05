@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Reports;
 
 use App\Ai\AiClient;
+use App\Ai\AiSettings;
 use App\Enums\ReportMessageKind;
 use App\Enums\WorkLogStatus;
 use App\Models\Agency;
@@ -51,7 +52,7 @@ final readonly class ReportAssistant
             return false;
         }
 
-        return $agency->anthropicKey() !== null || (is_string(config('services.anthropic.key')) && config('services.anthropic.key') !== '');
+        return AiSettings::available($agency);
     }
 
     /** True when today's quota for this report or its agency is spent. */

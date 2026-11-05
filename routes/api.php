@@ -204,6 +204,7 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::get('agency/retention/preview', [AgencyController::class, 'retentionPreview'])->name('api.agency.retention.preview');
     Route::post('agency/retention/prune', [AgencyController::class, 'pruneSnapshots'])->name('api.agency.retention.prune');
     Route::post('agency/webhooks/test', [AgencyController::class, 'testWebhooks'])->name('api.agency.webhooks.test');
+    Route::post('agency/ai/test', [AgencyController::class, 'testAi'])->middleware('throttle:6,1')->name('api.agency.ai.test');
     // Danger zone: irreversibly delete the agency and all its data (owner only).
     Route::delete('agency', [AgencyController::class, 'destroy'])->name('api.agency.destroy');
 
@@ -329,6 +330,7 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
 
         Route::get('integrations', [PlatformIntegrationsController::class, 'show'])->name('api.platform.integrations.show');
         Route::put('integrations', [PlatformIntegrationsController::class, 'update'])->name('api.platform.integrations.update');
+        Route::post('integrations/ai/test', [PlatformIntegrationsController::class, 'testAi'])->middleware('throttle:6,1')->name('api.platform.integrations.ai.test');
 
         Route::get('mail-settings', [PlatformMailController::class, 'show'])->name('api.platform.mail-settings.show');
         Route::put('mail-settings', [PlatformMailController::class, 'update'])->name('api.platform.mail-settings.update');

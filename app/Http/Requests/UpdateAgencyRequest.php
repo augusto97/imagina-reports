@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Ai\AiModels;
 use App\Http\Requests\Concerns\RequiresPrivilegedRole;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Validates agency settings edited from the "Ajustes" screen (CLAUDE.md §11.1):
@@ -41,6 +43,8 @@ final class UpdateAgencyRequest extends FormRequest
             'default_locale' => ['nullable', 'string', 'in:es,en,pt_BR'],
             // Sent only when (re)setting the key; empty string clears it. Never returned.
             'anthropic_key' => ['nullable', 'string', 'max:255'],
+            // The model used with the agency's own key; null/empty = the platform's default.
+            'ai_model' => ['sometimes', 'nullable', 'string', Rule::in(AiModels::ids())],
             // Outbound webhook endpoints (integrations, §8). Sent → replace the list.
             'webhook_urls' => ['sometimes', 'array', 'max:20'],
             'webhook_urls.*' => ['string', 'url', 'max:2048'],

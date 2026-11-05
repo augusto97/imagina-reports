@@ -29,6 +29,7 @@ import {
     useTestPlatformMail,
     useUpdatePlatformBillingSettings,
     useUpdatePlatformIntegrations,
+    useTestPlatformAi,
     useUpdatePlatformMailSettings,
 } from '../api';
 import { GoogleAdsSetupGuide, GoogleSetupGuide, MercadoPagoWebhookGuide, MetaSetupGuide, PayPalWebhookGuide } from '../components/OAuthSetupGuide';
@@ -1156,9 +1157,77 @@ function IntegrationsTab(): ReactElement {
                     </div>
                 </SettingsRow>
 
+                <AiPlatformRow />
+
                 <MailSettingsCard />
             </div>
         </div>
+    );
+}
+
+/* ------------------------------- Claude (IA) ------------------------------- */
+
+function AiPlatformRow(): ReactElement {
+    const { data: settings } = usePlatformIntegrations();
+    const update = useUpdatePlatformIntegrations();
+    const test = useTestPlatformAi();
+    const [key, setKey] = useState('');
+    const [saved, setSaved] = useState(false);
+
+    const models = settings?.ai_models ?? [];
+    const current = settings?.ai_model ?? '';
+    // A model set in .env that the panel doesn't list still shows as the current choice.
+    const listed = models.some((model) => model.id === current);
+    const hint = models.find((model) => model.id === current)?.hint;
+
+    return (
+        <SettingsRow
+            title="Inteligencia artificial (Claude)"
+            description="La IA de las agencias que no ponen su propia clave: resúmenes de los informes, «Generar con IA», respuestas a clientes y propuestas. Una agencia con su clave paga su consumo y elige su modelo."
+            status={<ConfigChip ready={settings?.ai_ready ?? false} note={settings?.ai_from_env === true ? '(por .env)' : undefined} />}
+        >
+            <div className="ir-flex ir-flex-col ir-gap-4">
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                    <Field label="Clave de Anthropic" hint="Créala en console.anthropic.com → API Keys. Se guarda cifrada.">
+                        <Input
+                            type="password"
+                            autoComplete="off"
+                            value={key}
+                            onChange={(e) => setKey(e.target.value)}
+                            placeholder={settings?.anthropic_key_set ? '•••••••• (déjalo vacío para conservarla)' : 'sk-ant-…'}
+                        />
+                    </Field>
+                    <Field label="Modelo por defecto" hint={hint ?? 'El que usan las agencias sin clave propia.'}>
+                        <Select
+                            value={current}
+                            disabled={update.isPending || settings === undefined}
+                            onChange={(e) => update.mutate({ ai_model: e.target.value }, { onSuccess: () => setSaved(true) })}
+                        >
+                            {!listed && current !== '' && <option value={current}>{current} (del .env)</option>}
+                            {models.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                    {model.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                </div>
+                <SaveBar
+                    onSave={() => update.mutate({ anthropic_key: key.trim() }, { onSuccess: () => { setKey(''); setSaved(true); } })}
+                    disabled={key.trim() === ''}
+                    busy={update.isPending}
+                    saved={saved}
+                    label="Guardar clave"
+                />
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3 ir-border-t ir-pt-4">
+                    <Button variant="ghost" onClick={() => test.mutate()} disabled={test.isPending || settings?.ai_ready !== true}>
+                        {test.isPending ? 'Probando…' : 'Probar la IA'}
+                    </Button>
+                    {test.data !== undefined && <span className={`ir-text-xs ${test.data.ok ? 'ir-text-success' : 'ir-text-danger'}`}>{test.data.message}</span>}
+                    {test.data === undefined && <span className="ir-text-xs ir-text-muted-foreground">Envía un mensaje corto con la clave y el modelo guardados.</span>}
+                </div>
+            </div>
+        </SettingsRow>
     );
 }
 

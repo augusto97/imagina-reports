@@ -19,6 +19,7 @@ import {
     useRevokeApiToken,
     useStartTwoFactor,
     useSubscribe,
+    useTestAi,
     useTestWebhooks,
     useAgencyDomain,
     useAgencySender,
@@ -891,34 +892,99 @@ function NotifyCard({ agency }: { agency: AgencySettings }): ReactElement {
 
 function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
     const update = useUpdateAgency();
+    const test = useTestAi();
     const [apiKey, setApiKey] = useState('');
+    const own = agency.ai_key_set;
+    const selected = agency.ai_models.find((model) => model.id === agency.ai_model);
+
+    const status = own ? (
+        <Badge tone="success">Tu clave</Badge>
+    ) : agency.ai_platform_available ? (
+        <Badge tone="success">La de la plataforma</Badge>
+    ) : (
+        <Badge tone="warning">Sin configurar</Badge>
+    );
 
     return (
         <Card
             title="Inteligencia artificial (Claude)"
-            description="Necesaria para generar reportes y narrativas con IA. La clave se guarda cifrada y nunca se vuelve a mostrar."
-            actions={agency.ai_key_set ? <Badge tone="success">Configurada</Badge> : <Badge tone="warning">Sin configurar</Badge>}
+            description="Escribe el resumen de cada informe, arma plantillas con «Generar con IA», responde las preguntas de tus clientes y redacta tus propuestas."
+            actions={status}
         >
             <div className="ir-flex ir-flex-col ir-gap-4">
-                <Field label="Anthropic API key">
+                <p className="ir-rounded-lg ir-bg-muted/60 ir-px-3 ir-py-2 ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
+                    {own
+                        ? 'Usas tu propia clave: el consumo se cobra en tu cuenta de Anthropic y eliges el modelo aquí abajo.'
+                        : agency.ai_platform_available
+                          ? `Ahora usas la IA incluida en la plataforma (${agency.ai_platform_model}). Si pegas tu propia clave, el consumo va a tu cuenta de Anthropic y puedes elegir el modelo.`
+                          : 'Pega tu clave de Anthropic para activar la IA. Mientras tanto, el resumen de cada informe se escribe solo a partir de las cifras.'}
+                </p>
+                <Field label="Tu clave de Anthropic (opcional)" hint="Créala en console.anthropic.com → API Keys. Se guarda cifrada y nunca se vuelve a mostrar.">
                     <Input
                         type="password"
                         autoComplete="off"
-                        placeholder={agency.ai_key_set ? '•••••••• (deja en blanco para conservar)' : 'sk-ant-…'}
+                        placeholder={own ? '•••••••• (deja en blanco para conservar)' : 'sk-ant-…'}
                         value={apiKey}
                         onChange={(event) => setApiKey(event.target.value)}
                     />
                 </Field>
-                <div className="ir-flex ir-items-center ir-gap-3">
+                <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">
                     <Button
-                        onClick={() => update.mutate({ ...agencyBase(agency), anthropic_key: apiKey }, { onSuccess: () => setApiKey('') })}
-                        disabled={update.isPending || apiKey === ''}
+                        onClick={() => update.mutate({ ...agencyBase(agency), anthropic_key: apiKey.trim() }, { onSuccess: () => setApiKey('') })}
+                        disabled={update.isPending || apiKey.trim() === ''}
                     >
                         {update.isPending ? 'Guardando…' : 'Guardar clave'}
                     </Button>
+                    {own && (
+                        <Button
+                            variant="ghost"
+                            disabled={update.isPending}
+                            onClick={() => {
+                                if (window.confirm('¿Quitar tu clave? Volverás a usar la IA de la plataforma (si la hay).')) {
+                                    update.mutate({ ...agencyBase(agency), anthropic_key: '' });
+                                }
+                            }}
+                        >
+                            Quitar mi clave
+                        </Button>
+                    )}
                     {update.isSuccess && <span className="ir-text-xs ir-text-success">Guardado.</span>}
                     {update.isError && <span className="ir-text-xs ir-text-danger">No se pudo guardar.</span>}
                 </div>
+
+                <Field
+                    label="Modelo"
+                    hint={
+                        own
+                            ? (selected?.hint ?? `Sin elegir, usas el de la plataforma: ${agency.ai_platform_model}.`)
+                            : 'Para elegir el modelo necesitas tu propia clave: con la de la plataforma se usa el que ella define.'
+                    }
+                >
+                    <Select
+                        value={own ? (agency.ai_model ?? '') : ''}
+                        disabled={!own || update.isPending}
+                        onChange={(event) => update.mutate({ ...agencyBase(agency), ai_model: event.target.value === '' ? null : event.target.value })}
+                    >
+                        <option value="">El de la plataforma ({agency.ai_platform_model})</option>
+                        {agency.ai_models.map((model) => (
+                            <option key={model.id} value={model.id}>
+                                {model.label}
+                            </option>
+                        ))}
+                    </Select>
+                </Field>
+
+                {(own || agency.ai_platform_available) && (
+                    <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">
+                        <Button variant="ghost" onClick={() => test.mutate()} disabled={test.isPending}>
+                            {test.isPending ? 'Probando…' : 'Probar la IA'}
+                        </Button>
+                        {test.data !== undefined && (
+                            <span className={`ir-text-xs ${test.data.ok ? 'ir-text-success' : 'ir-text-danger'}`}>{test.data.message}</span>
+                        )}
+                    </div>
+                )}
+
                 <label className="ir-flex ir-items-start ir-gap-3 ir-border-t ir-pt-4">
                     <input
                         type="checkbox"
@@ -930,7 +996,7 @@ function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
                     <span>
                         <span className="ir-block ir-text-sm ir-font-medium">Respuestas automáticas a tus clientes</span>
                         <span className="ir-block ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
-                            En su informe, tus clientes pueden preguntar («¿por qué bajaron las visitas?») y la IA responde al instante solo con los datos del informe. Lo que preguntan lo ves en Reportes → Preguntas. Usa tu clave de IA (máximo 20 preguntas por informe al día).
+                            En su informe, tus clientes pueden preguntar («¿por qué bajaron las visitas?») y la IA responde al instante solo con los datos del informe. Lo que preguntan lo ves en Reportes → Preguntas. Máximo 20 preguntas por informe al día.
                         </span>
                     </span>
                 </label>

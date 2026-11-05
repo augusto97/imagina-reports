@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Ai\AiModels;
+use App\Ai\AiSettings;
+use App\Ai\AnthropicAiClient;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateAgencyRequest;
@@ -105,6 +108,18 @@ final class AgencyController extends Controller
             $agency->setAnthropicKey(is_string($key) ? $key : null);
         }
 
+        // The agency's model (only used with its own key). Empty/null = the platform's default.
+        if (array_key_exists('ai_model', $validated)) {
+            $model = $validated['ai_model'];
+            $aiSettings = $agency->settings ?? [];
+            if (is_string($model) && AiModels::known($model)) {
+                $aiSettings[AiSettings::AGENCY_MODEL] = $model;
+            } else {
+                unset($aiSettings[AiSettings::AGENCY_MODEL]);
+            }
+            $agency->settings = $aiSettings;
+        }
+
         // Webhook endpoints/secret live in the settings JSON (read by the dispatcher, §8).
         // Absent → leave as-is; present → replace. Empty secret clears it.
         $settings = $agency->settings ?? [];
@@ -188,6 +203,32 @@ final class AgencyController extends Controller
      * Send a `ping` test event to the configured webhook endpoints (§8) so the operator
      * can confirm the integration is wired up before relying on the real events.
      */
+    /**
+     * «Probar»: one tiny request with the key and model this agency's reports will use, so a
+     * wrong key, an empty balance or a model the account can't use shows here — not as a report
+     * that quietly comes out with the figures-only summary.
+     */
+    public function testAi(Request $request, TenantContext $tenant, AnthropicAiClient $client): JsonResponse
+    {
+        $this->authorizePrivileged($request);
+
+        $agency = $this->current($tenant);
+        ['key' => $key, 'model' => $model, 'own_key' => $own] = AiSettings::for($agency);
+        if ($key === null) {
+            return response()->json(['ok' => false, 'message' => 'Aún no hay clave de IA: pega la tuya arriba.'], 422);
+        }
+
+        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048);
+
+        return response()->json([
+            'ok' => $result['ok'],
+            'model' => $model,
+            'model_label' => AiModels::label($model),
+            'own_key' => $own,
+            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió.' : $result['error'],
+        ], $result['ok'] ? 200 : 422);
+    }
+
     public function testWebhooks(Request $request, TenantContext $tenant, WebhookDispatcher $webhooks): JsonResponse
     {
         $this->authorizePrivileged($request);
@@ -256,6 +297,11 @@ final class AgencyController extends Controller
             'logo_path' => $agency->logo_path,
             'logo_url' => $agency->logoUrl(),
             'ai_key_set' => $agency->anthropicKey() !== null,
+            // The model: the agency's own choice (only with its own key) or the platform's.
+            'ai_model' => AiSettings::agencyModel($agency),
+            'ai_models' => AiModels::options(),
+            'ai_platform_model' => AiModels::label(AiSettings::platformModel()),
+            'ai_platform_available' => AiSettings::platformKey() !== null,
             'snapshot_retention_months' => $agency->snapshot_retention_months,
             'calculated_metrics' => $agency->calculated_metrics ?? [],
             'webhook_urls' => $this->webhookUrls($agency),
