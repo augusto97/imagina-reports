@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\DataSourceStatus;
+use App\Enums\ReportMessageKind;
 use App\Enums\ReportStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AnomalyAlert;
@@ -12,6 +13,7 @@ use App\Models\Client;
 use App\Models\DataSource;
 use App\Models\Report;
 use App\Models\ReportDefinition;
+use App\Models\ReportMessage;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -87,6 +89,7 @@ final class OverviewController extends Controller
         }
 
         $openAlerts = AnomalyAlert::query()->whereNull('acknowledged_at')->count();
+        $pendingQuestions = ReportMessage::query()->where('kind', ReportMessageKind::Client->value)->whereNull('handled_at')->count();
 
         return response()->json([
             'counts' => [
@@ -99,6 +102,7 @@ final class OverviewController extends Controller
                 'approved' => $approved->count(),
                 'missing_reports' => $missing->count(),
                 'open_alerts' => $openAlerts,
+                'pending_questions' => $pendingQuestions,
                 'sites_without_sources' => collect($siteHealth)->where('sources', 0)->count(),
             ],
             'last_month' => $lastMonth->toDateString(),

@@ -188,6 +188,16 @@ class Report extends Model
     }
 
     /**
+     * The conversation with the client (Etapa 4), oldest first — it reads like a chat.
+     *
+     * @return HasMany<ReportMessage, $this>
+     */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(ReportMessage::class)->oldest()->orderBy('id');
+    }
+
+    /**
      * @return HasMany<ReportDelivery, $this>
      */
     public function deliveries(): HasMany

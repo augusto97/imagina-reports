@@ -37,16 +37,19 @@ import type {
     PlatformIntegrationsSettings,
     PlatformMailSettings,
     PlatformOverview,
+    QuestionInboxRow,
     ReportDefinitionDto,
     ReportSharingPayload,
     ReportDelivery,
     ReportSummary,
     ReportComment,
+    ReportMessageDto,
     ReportTemplateDto,
     ReportTheme,
     ScheduleCadence,
     ScheduleDto,
     Site,
+    SiteGoalDto,
     TeamMember,
     UpdateStatus,
     WorkLog,
@@ -159,6 +162,7 @@ export interface AgencyUpdate {
     contact_email?: string;
     contact_phone?: string;
     website?: string;
+    client_ai?: boolean;
 }
 
 /** Send a `ping` test event to the configured webhook endpoints (§8). */
@@ -594,6 +598,8 @@ export interface Overview {
         approved: number;
         missing_reports: number;
         open_alerts: number;
+        /** Client questions from the portal still unanswered (Etapa 4). */
+        pending_questions?: number;
         sites_without_sources: number;
     };
     last_month: string;
@@ -934,6 +940,80 @@ export function useRevokeConnectInvite(siteId: number) {
     return useMutation({
         mutationFn: (id: number) => api.delete(`/connect-invites/${id}`).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connect-invites', siteId] }),
+    });
+}
+
+/* ---------------------------- site goals (Etapa 4) ---------------------------- */
+
+export function useSiteGoals(siteId: number | null) {
+    return useQuery({
+        queryKey: ['site-goals', siteId],
+        queryFn: () => get<{ data: SiteGoalDto[] }>(`/sites/${siteId}/goals`).then((r) => r.data),
+        enabled: siteId !== null,
+    });
+}
+
+export type SiteGoalInput = Pick<SiteGoalDto, 'label' | 'source' | 'metric' | 'target' | 'direction' | 'format'>;
+
+export function useSaveSiteGoal(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, ...payload }: SiteGoalInput & { id?: number }) =>
+            (id === undefined ? api.post<{ data: SiteGoalDto }>(`/sites/${siteId}/goals`, payload) : api.put<{ data: SiteGoalDto }>(`/site-goals/${id}`, payload)).then((r) => r.data.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] }),
+    });
+}
+
+export function useDeleteSiteGoal(siteId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => api.delete(`/site-goals/${id}`).then((r) => r.data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] }),
+    });
+}
+
+/* ---------------------- client conversation (Etapa 4) ---------------------- */
+
+export function useReportMessages(reportId: number | null) {
+    return useQuery({
+        queryKey: ['report-messages', reportId],
+        queryFn: () => get<{ data: ReportMessageDto[] }>(`/reports/${reportId}/messages`).then((r) => r.data),
+        enabled: reportId !== null,
+    });
+}
+
+export function useQuestionInbox() {
+    return useQuery({
+        queryKey: ['question-inbox'],
+        queryFn: () => get<{ data: QuestionInboxRow[] }>('/report-messages/inbox').then((r) => r.data),
+        refetchInterval: 120_000,
+    });
+}
+
+function invalidateConversation(queryClient: ReturnType<typeof useQueryClient>, reportId: number): void {
+    void queryClient.invalidateQueries({ queryKey: ['report-messages', reportId] });
+    void queryClient.invalidateQueries({ queryKey: ['question-inbox'] });
+    void queryClient.invalidateQueries({ queryKey: ['reports'] });
+    void queryClient.invalidateQueries({ queryKey: ['overview'] });
+}
+
+export function useReplyToClient(reportId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (body: string) => api.post<{ data: ReportMessageDto }>(`/reports/${reportId}/messages`, { body }).then((r) => r.data.data),
+        onSuccess: () => invalidateConversation(queryClient, reportId),
+    });
+}
+
+export function useMarkQuestionsHandled(reportId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: () => api.post(`/reports/${reportId}/messages/handled`).then((r) => r.data),
+        onSuccess: () => invalidateConversation(queryClient, reportId),
     });
 }
 

@@ -12,6 +12,7 @@ import {
     Lightbulb,
     Lock,
     Mail,
+    MessageCircleQuestion,
     MessageSquare,
     Plus,
     Repeat,
@@ -58,9 +59,11 @@ import {
 } from '../api';
 import { apiErrorMessage } from '@shared/lib/api';
 import { RANGE_PRESETS } from '@shared/lib/dateRanges';
+import { ReportConversation } from '../components/ReportConversation';
 import { PeriodSyncMenu } from '../components/PeriodSyncMenu';
 import { ShareDialog } from '../components/ShareDialog';
 import { ActionMenu, Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Segmented, Select, Tabs } from '../components/ui';
+import { useAdminUi } from '../store';
 import type { ReportDefinitionDto, ReportSummary, ScheduleCadence, ScheduleDto } from '../types';
 
 const inputClass = 'ir-w-full ir-rounded-lg ir-border ir-bg-card ir-px-3 ir-py-2.5 ir-text-sm ir-leading-relaxed ir-shadow-ir-xs ir-outline-none ir-transition placeholder:ir-text-muted-foreground/70 focus:ir-border-accent focus:ir-ring-2 focus:ir-ring-ring/40';
@@ -448,7 +451,7 @@ function ReportDeliveriesPanel({ reportId }: { reportId: number }): ReactElement
     );
 }
 
-type ToolTab = 'summary' | 'advisory' | 'comments' | 'insights' | 'deliveries';
+type ToolTab = 'summary' | 'advisory' | 'questions' | 'comments' | 'insights' | 'deliveries';
 
 /**
  * The review window for one generated report: where it stands, the next step, and the
@@ -533,6 +536,7 @@ function ReportToolsModal({
                     items={[
                         { value: 'summary', label: 'Resumen', icon: FileText },
                         ...(hasAdvisory ? [{ value: 'advisory' as const, label: 'Diagnóstico', icon: Lightbulb }] : []),
+                        { value: 'questions', label: 'Preguntas', icon: MessageCircleQuestion, count: (report.pending_questions ?? 0) > 0 ? report.pending_questions : undefined },
                         { value: 'comments', label: 'Comentarios', icon: MessageSquare },
                         { value: 'insights', label: 'Ideas de la IA', icon: Sparkles },
                         { value: 'deliveries', label: 'Envíos', icon: Mail },
@@ -542,6 +546,7 @@ function ReportToolsModal({
                 <div className="ir-max-h-[55vh] ir-overflow-y-auto ir-px-5 ir-py-5">
                     {tab === 'summary' && <ReportNarrativePanel report={report} />}
                     {tab === 'advisory' && hasAdvisory && <ReportAdvisoryPanel report={report} />}
+                    {tab === 'questions' && <ReportConversation reportId={report.id} />}
                     {tab === 'comments' && <ReportCommentsPanel reportId={report.id} />}
                     {tab === 'insights' && <ReportInsightsPanel reportId={report.id} />}
                     {tab === 'deliveries' && <ReportDeliveriesPanel reportId={report.id} />}
@@ -1017,6 +1022,16 @@ function ReportConfigCard({
                                         </p>
                                         <p className="ir-mt-0.5 ir-flex ir-flex-wrap ir-items-center ir-gap-x-2 ir-text-xs ir-text-muted-foreground">
                                             <ViewedBadge report={report} />
+                                            {(report.pending_questions ?? 0) > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onTools(report, 'questions')}
+                                                    className="ir-inline-flex ir-items-center ir-gap-1 ir-rounded-full ir-bg-accent/10 ir-px-2 ir-py-0.5 ir-font-medium ir-text-accent hover:ir-bg-accent/15"
+                                                >
+                                                    <MessageCircleQuestion className="ir-size-3" />
+                                                    {report.pending_questions === 1 ? '1 pregunta sin responder' : `${report.pending_questions} preguntas sin responder`}
+                                                </button>
+                                            )}
                                             <span>Generado {formatGeneratedAt(report.created_at)}</span>
                                             {report.health_score !== null && <span>· Salud {report.health_score}/100</span>}
                                             {hidden.length > 0 && (
@@ -1042,6 +1057,7 @@ function ReportConfigCard({
                                             label="Más acciones del reporte"
                                             items={[
                                                 { label: 'Resumen, diagnóstico y comentarios', icon: Sparkles, onSelect: () => onTools(report, 'summary') },
+                                                { label: 'Preguntas del cliente', icon: MessageCircleQuestion, onSelect: () => onTools(report, 'questions') },
                                                 { label: busyPdf ? 'Preparando PDF…' : 'Descargar PDF', icon: FileDown, onSelect: () => downloadPdf.mutate(report.id), disabled: busyPdf },
                                                 report.status === 'sent' && { label: 'Reenviar por email', icon: Send, onSelect: () => send.mutate(report.id), disabled: send.isPending },
                                                 { label: 'Historial de envíos', icon: Mail, onSelect: () => onTools(report, 'deliveries') },
@@ -1122,6 +1138,22 @@ export function ReportsScreen(): ReactElement {
         reports
             .filter((report) => report.report_definition_id === definitionId)
             .sort((a, b) => b.period_start.localeCompare(a.period_start) || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+
+    // A report to open straight away: from Inicio, or the «new question» email
+    // (#/reports?report=12&tab=questions). Opens once its row has loaded.
+    const reportFocus = useAdminUi((state) => state.reportFocus);
+    const clearReportFocus = useAdminUi((state) => state.clearReportFocus);
+    useEffect(() => {
+        if (reportFocus === null) {
+            return;
+        }
+        const target = reports.find((report) => report.id === reportFocus.report);
+        if (target !== undefined) {
+            const tab = (['summary', 'questions', 'comments', 'deliveries'] as const).find((value) => value === reportFocus.tab) ?? 'summary';
+            setTools({ report: target, tab });
+            clearReportFocus();
+        }
+    }, [reportFocus, reports, clearReportFocus]);
 
     // Keep the tools modal's report in sync with fresh data (e.g. after regenerate).
     const toolsReport = tools !== null ? (reports.find((report) => report.id === tools.report.id) ?? tools.report) : null;

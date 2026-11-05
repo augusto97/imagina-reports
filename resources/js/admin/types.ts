@@ -250,12 +250,51 @@ export interface ReportSummary {
     first_viewed_at?: string | null;
     last_viewed_at?: string | null;
     view_count?: number;
+    /** Client questions from the portal still waiting for an answer (Etapa 4). */
+    pending_questions?: number;
 }
 
 export interface CatalogMeasure {
     key: string;
     label: string;
     unit: string | null;
+}
+
+/** A client's goal for one site (Etapa 4), shown by the «Metas» block. */
+export interface SiteGoalDto {
+    id: number;
+    site_id: number;
+    label: string;
+    source: string;
+    metric: string;
+    target: number;
+    direction: 'at_least' | 'at_most';
+    format: 'number' | 'percent' | 'currency' | 'duration' | null;
+    position: number;
+}
+
+/** One message in a report's conversation with the client (Etapa 4). */
+export interface ReportMessageDto {
+    id: number;
+    kind: 'client' | 'agency' | 'ai';
+    author: string | null;
+    body: string;
+    answer: string | null;
+    created_at: string;
+    author_email?: string | null;
+    handled_at?: string | null;
+}
+
+/** A report with client questions still waiting for the agency. */
+export interface QuestionInboxRow {
+    report_id: number;
+    report_definition_id: number;
+    site: string;
+    period: string;
+    count: number;
+    author: string | null;
+    excerpt: string;
+    created_at: string;
 }
 
 export interface CatalogEntry {
@@ -470,6 +509,8 @@ export interface AgencySettings {
     contact_email: string;
     contact_phone: string;
     website: string;
+    /** «Pregúntale a tu reporte» in the client portal (plan with AI). */
+    client_ai: boolean;
     plan: { name: string; slug: string } | null;
     status: string;
     limits: PlanLimits;

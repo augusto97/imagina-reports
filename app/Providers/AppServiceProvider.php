@@ -108,6 +108,15 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(120)->by($request->ip() ?? 'unknown');
         });
 
+        // What the client writes from the portal (questions, asking the AI): a person types a
+        // handful a minute; anything faster is a script. Per IP AND report, so one noisy link
+        // doesn't silence another client behind the same office network.
+        RateLimiter::for('report-conversation', static function (Request $request): Limit {
+            $token = $request->route('token');
+
+            return Limit::perMinute(6)->by('conv:'.($request->ip() ?? 'unknown').':'.(is_string($token) ? hash('sha256', $token) : ''));
+        });
+
         // AI endpoints spend real money on the agency's Anthropic key, so they are capped per
         // AGENCY (not per user): a runaway retry loop or an over-eager teammate can't burn the
         // budget. Generous enough for normal editing (a draft + a few regenerations).

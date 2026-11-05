@@ -139,6 +139,9 @@ final readonly class ReportGenerator
         // Page/dashboard filters cascade in; each block's own filters then override them.
         ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags, $this->pageFilters($definition));
 
+        // The «Metas» block shows THIS site's goals (Etapa 4), whatever template it uses.
+        ['blocks' => $visibleBlocks, 'data' => $data] = SiteGoals::apply($definition->site_id, $visibleBlocks, $data, $bags);
+
         // A block hidden because the site simply doesn't have that source (no WooCommerce →
         // no sales) is the template adapting, not a problem. Only a CONNECTED source that came
         // back empty deserves the agency's attention, so flag which is which.

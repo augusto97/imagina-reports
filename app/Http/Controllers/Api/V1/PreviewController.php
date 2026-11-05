@@ -15,6 +15,7 @@ use App\Reports\Calc\CalculatedMetrics;
 use App\Reports\HealthScoreCalculator;
 use App\Reports\MetricBagLoader;
 use App\Reports\ReportGenerator;
+use App\Reports\SiteGoals;
 use App\Reports\WorkLogMetrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -83,6 +84,7 @@ final class PreviewController extends Controller
         }
 
         ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags, $filtersByPage);
+        ['blocks' => $visibleBlocks, 'data' => $data] = SiteGoals::apply($site->id, $visibleBlocks, $data, $bags);
 
         return response()->json([
             'blocks' => $visibleBlocks,

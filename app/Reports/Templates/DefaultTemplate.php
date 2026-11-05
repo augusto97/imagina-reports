@@ -43,20 +43,23 @@ final class DefaultTemplate
             self::kpi('kpi_clicks', 'gsc', 'clicks', 'Clics en Google', 'number', ['x' => 6, 'y' => 14, 'w' => 3, 'h' => 4]),
             self::kpi('kpi_position', 'gsc', 'position', 'Posición media', 'number', ['x' => 9, 'y' => 14, 'w' => 3, 'h' => 4]),
 
-            self::block('security', BlockType::SecurityShield, props: ['title' => 'Seguridad'], layout: ['x' => 0, 'y' => 18, 'w' => 6, 'h' => 6]),
-            self::chart('traffic_chart', 'ga4', 'sessions_by_date', 'area', 'Visitas por día', ['x' => 6, 'y' => 18, 'w' => 6, 'h' => 6]),
+            // The client's own goals (Etapa 4); hidden for sites without goals.
+            self::block('goals', BlockType::Goals, props: ['title' => 'Metas del mes'], layout: ['x' => 0, 'y' => 18, 'w' => 12, 'h' => 6]),
 
-            self::table('top_pages', 'ga4', 'top_pages', 'Páginas más vistas', ['x' => 0, 'y' => 24, 'w' => 6, 'h' => 8], ['bars' => true]),
-            self::table('top_queries', 'gsc', 'top_queries', 'Búsquedas principales', ['x' => 6, 'y' => 24, 'w' => 6, 'h' => 8]),
+            self::block('security', BlockType::SecurityShield, props: ['title' => 'Seguridad'], layout: ['x' => 0, 'y' => 24, 'w' => 6, 'h' => 6]),
+            self::chart('traffic_chart', 'ga4', 'sessions_by_date', 'area', 'Visitas por día', ['x' => 6, 'y' => 24, 'w' => 6, 'h' => 6]),
+
+            self::table('top_pages', 'ga4', 'top_pages', 'Páginas más vistas', ['x' => 0, 'y' => 30, 'w' => 6, 'h' => 8], ['bars' => true]),
+            self::table('top_queries', 'gsc', 'top_queries', 'Búsquedas principales', ['x' => 6, 'y' => 30, 'w' => 6, 'h' => 8]),
 
             // "What we did this month" — the block that justifies the support plan (§11.5).
-            self::block('worklog', BlockType::WorklogTimeline, props: ['title' => 'Lo que hicimos este mes'], layout: ['x' => 0, 'y' => 32, 'w' => 12, 'h' => 6]),
+            self::block('worklog', BlockType::WorklogTimeline, props: ['title' => 'Lo que hicimos este mes'], layout: ['x' => 0, 'y' => 38, 'w' => 12, 'h' => 6]),
 
             // Sales detail (hidden automatically when there is no WooCommerce source).
-            self::chart('sales_chart', 'woocommerce', 'revenue_by_date', 'area', 'Ingresos por día', ['x' => 0, 'y' => 38, 'w' => 6, 'h' => 7], ['format' => 'currency']),
-            self::table('top_products', 'woocommerce', 'top_products', 'Productos más vendidos', ['x' => 6, 'y' => 38, 'w' => 6, 'h' => 7]),
+            self::chart('sales_chart', 'woocommerce', 'revenue_by_date', 'area', 'Ingresos por día', ['x' => 0, 'y' => 44, 'w' => 6, 'h' => 7], ['format' => 'currency']),
+            self::table('top_products', 'woocommerce', 'top_products', 'Productos más vendidos', ['x' => 6, 'y' => 44, 'w' => 6, 'h' => 7]),
 
-            self::block('footer', BlockType::Narrative, props: ['variant' => 'footer_cta'], layout: ['x' => 0, 'y' => 45, 'w' => 12, 'h' => 3]),
+            self::block('footer', BlockType::Narrative, props: ['variant' => 'footer_cta'], layout: ['x' => 0, 'y' => 51, 'w' => 12, 'h' => 3]),
         ];
     }
 

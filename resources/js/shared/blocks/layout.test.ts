@@ -78,6 +78,15 @@ describe('contentRows', () => {
         expect(contentRows(table, rows, 'print')).toBeGreaterThan(contentRows(table, rows, 'screen') ?? 0);
     });
 
+    it('sizes the goals block by how many goals the site has, two per line when wide', () => {
+        const goal = { label: 'Visitas', value: 10, target: 20, progress: 50, met: false };
+        const wide = block('g', 0, 0, 12, 6, 'goals');
+        const narrow = block('g', 0, 0, 6, 6, 'goals');
+
+        expect(contentRows(wide, [], 'screen')).toBeNull();
+        expect(contentRows(wide, [goal, goal, goal, goal], 'screen')).toBeLessThan(contentRows(narrow, [goal, goal, goal, goal], 'screen') ?? 0);
+    });
+
     it('leaves charts and KPIs without a daily series at their designed height', () => {
         expect(contentRows(block('c', 0, 0, 6, 6, 'chart'), [{ name: 'a', value: 1 }], 'screen')).toBeNull();
         expect(contentRows(block('k', 0, 0, 3, 4, 'kpi'), { value: 3 }, 'screen')).toBeNull();

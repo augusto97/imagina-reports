@@ -21,6 +21,7 @@ import {
     SlidersHorizontal,
     Table2,
     Target,
+    Trophy,
     Type,
 } from 'lucide-react';
 import { type ReactElement } from 'react';
@@ -44,6 +45,7 @@ export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon }> 
     worklog_timeline: { label: 'Trabajo', icon: ListChecks },
     sales_summary: { label: 'Ventas', icon: DollarSign },
     goal: { label: 'Meta', icon: Target },
+    goals: { label: 'Metas del cliente', icon: Trophy },
     control: { label: 'Filtro', icon: SlidersHorizontal },
     comments: { label: 'Comentarios', icon: MessageSquare },
     image: { label: 'Imagen', icon: ImageIcon },
@@ -55,7 +57,7 @@ export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon }> 
 
 /** Palette grouping — mirrors how the default narrative report reads top-to-bottom (§11.5). */
 const GROUPS: { title: string; types: BlockType[] }[] = [
-    { title: 'KPIs & datos', types: ['kpi', 'sales_summary', 'goal', 'healthscore'] },
+    { title: 'KPIs & datos', types: ['kpi', 'sales_summary', 'goal', 'goals', 'healthscore'] },
     { title: 'Gráficos & tablas', types: ['chart', 'table', 'funnel', 'geo_map'] },
     { title: 'Portada & cierre', types: ['cover', 'back_cover'] },
     { title: 'Texto & marca', types: ['header', 'narrative', 'advisory', 'cta', 'image'] },

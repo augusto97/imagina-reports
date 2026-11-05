@@ -1,4 +1,4 @@
-import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, Clock, Eye, Lightbulb, type LucideIcon, Mail, MousePointerClick, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldAlert, ShieldCheck, ShoppingBag, Target, Users, Wallet } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, CheckCircle2, Clock, Eye, Lightbulb, type LucideIcon, Mail, MousePointerClick, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldAlert, ShieldCheck, ShoppingBag, Target, Users, Wallet } from 'lucide-react';
 import { Component as ReactComponent, type CSSProperties, type ErrorInfo, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
@@ -342,7 +342,8 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
         case 'compact':
             return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
         case 'percent':
-            return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })}%`;
+            // 99,98 % must not round up to a «100 %» the site didn't reach (uptime, SLA).
+            return `${value.toLocaleString(locale, { maximumFractionDigits: value >= 99.95 && value < 100 ? 2 : 1 })}%`;
         case 'currency':
             return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
         case 'duration': {
@@ -1463,6 +1464,80 @@ function GoalBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
+/**
+ * The client's goals for the period (Etapa 4): each one its number against the target, with a
+ * progress bar — green once met, the accent while on the way, red when an «at most» limit was
+ * passed. Goals belong to the SITE (filled server-side from ir_site_goals), so one linked
+ * template shows every client their own targets.
+ */
+function GoalsBlock({ block, data }: BlockComponentProps): ReactElement | null {
+    const goals = asRecords(data);
+    const settings = useContext(ReportSettingsContext);
+    const locale = settings.locale ?? FALLBACK_LOCALE;
+
+    if (goals.length === 0) {
+        return null;
+    }
+
+    const twoColumns = (block.layout?.w ?? GRID_COLS) >= 8 && goals.length > 1;
+    const met = goals.filter((goal) => goal.met === true).length;
+    const percent = (value: number): string => `${Math.round(value).toLocaleString(locale)} %`;
+
+    return (
+        <Section
+            title={str(prop(block, 'title'), 'Metas del mes')}
+            style={block.style}
+            action={
+                <span className={cn('ir-shrink-0 ir-rounded-full ir-px-2 ir-py-0.5 ir-text-[11px] ir-font-semibold', met === goals.length ? 'ir-bg-emerald-500/10 ir-text-emerald-700' : 'ir-bg-muted ir-text-muted-foreground')}>
+                    {met} de {goals.length} cumplidas
+                </span>
+            }
+        >
+            <ul className={cn('ir-grid ir-gap-x-8 ir-gap-y-4', twoColumns && 'sm:ir-grid-cols-2')}>
+                {goals.map((goal, index) => {
+                    const value = Number(goal.value) || 0;
+                    const target = Number(goal.target) || 0;
+                    const format = str(goal.format);
+                    const progress = Number(goal.progress) || 0;
+                    const atMost = goal.direction === 'at_most';
+                    const isMet = goal.met === true;
+                    const fmt = (number: number): string => formatNumber(number, format, settings);
+
+                    const width = atMost ? (isMet ? Math.min(100, Math.max(4, progress)) : 100) : Math.min(100, Math.max(progress > 0 ? 4 : 0, progress));
+                    const caption = atMost
+                        ? isMet
+                            ? `Dentro del límite · margen de ${fmt(target - value)}`
+                            : `Se pasó del límite por ${fmt(value - target)}`
+                        : isMet
+                          ? progress >= 105
+                              ? `Meta cumplida · ${percent(progress - 100)} por encima`
+                              : 'Meta cumplida'
+                          : `${percent(progress)} de la meta · faltan ${fmt(target - value)}`;
+
+                    return (
+                        <li key={index} className="ir-min-w-0">
+                            <div className="ir-flex ir-items-baseline ir-justify-between ir-gap-3">
+                                <span className="ir-truncate ir-text-sm ir-font-medium">{str(goal.label, 'Meta')}</span>
+                                <span className="ir-shrink-0 ir-text-sm ir-tabular-nums">
+                                    <span className="ir-font-semibold">{fmt(value)}</span>
+                                    <span className="ir-text-muted-foreground"> / {fmt(target)}</span>
+                                </span>
+                            </div>
+                            <div className="ir-mt-2 ir-h-2 ir-overflow-hidden ir-rounded-full ir-bg-muted">
+                                <div className={cn('ir-h-full ir-rounded-full', isMet ? 'ir-bg-emerald-500' : atMost ? 'ir-bg-red-500' : 'ir-bg-primary')} style={{ width: `${width}%` }} />
+                            </div>
+                            <p className={cn('ir-mt-1.5 ir-flex ir-items-center ir-gap-1 ir-text-xs', isMet ? 'ir-text-emerald-700' : atMost ? 'ir-text-red-600' : 'ir-text-muted-foreground')}>
+                                {isMet && <CheckCircle2 className="ir-size-3.5 ir-shrink-0" />}
+                                {caption}
+                            </p>
+                        </li>
+                    );
+                })}
+            </ul>
+        </Section>
+    );
+}
+
 /** A4 page break for the PDF — forces a new printed page. The label is hidden in print. */
 function PageBreakBlock(): ReactElement {
     return (
@@ -1558,6 +1633,7 @@ const registry: Record<BlockType, (props: BlockComponentProps) => ReactElement |
     pagebreak: PageBreakBlock,
     sales_summary: SalesSummaryBlock,
     goal: GoalBlock,
+    goals: GoalsBlock,
     cta: CtaBlock,
     comments: CommentsBlock,
     control: ControlBlock,

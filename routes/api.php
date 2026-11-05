@@ -34,17 +34,20 @@ use App\Http\Controllers\Api\V1\Platform\PlatformUserController;
 use App\Http\Controllers\Api\V1\PreviewController;
 use App\Http\Controllers\Api\V1\PublicDashboardController;
 use App\Http\Controllers\Api\V1\PublicReportController;
+use App\Http\Controllers\Api\V1\PublicReportConversationController;
 use App\Http\Controllers\Api\V1\ReportCommentController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReportDefinitionController;
 use App\Http\Controllers\Api\V1\ReportDeliveryController;
 use App\Http\Controllers\Api\V1\ReportInsightsController;
+use App\Http\Controllers\Api\V1\ReportMessageController;
 use App\Http\Controllers\Api\V1\ReportNarrativeController;
 use App\Http\Controllers\Api\V1\ReportSharingController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SiteAgentController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\SiteGoalController;
 use App\Http\Controllers\Api\V1\SiteWorkLogController;
 use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\TeamController;
@@ -95,6 +98,17 @@ Route::get('/public/reports/{token}/pdf', [PublicReportController::class, 'pdf']
 Route::get('/public/reports/{token}/periods', [PublicReportController::class, 'periods'])
     ->middleware('throttle:public-report')
     ->name('api.public.reports.periods');
+
+// The client's conversation on a report (Etapa 4): questions to the agency and to the AI.
+Route::get('/public/reports/{token}/messages', [PublicReportConversationController::class, 'index'])
+    ->middleware('throttle:public-report')
+    ->name('api.public.reports.messages.index');
+Route::post('/public/reports/{token}/messages', [PublicReportConversationController::class, 'store'])
+    ->middleware('throttle:report-conversation')
+    ->name('api.public.reports.messages.store');
+Route::post('/public/reports/{token}/ask', [PublicReportConversationController::class, 'ask'])
+    ->middleware('throttle:report-conversation')
+    ->name('api.public.reports.ask');
 
 // Live dashboard data (Etapa D): a published definition re-resolved for a client-chosen
 // date range, from stored snapshots only (CLAUDE.md §3.1).
@@ -223,6 +237,11 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::get('sites/{site}/connect-invites', [ConnectInviteController::class, 'index'])->name('api.sites.connect-invites.index');
     Route::post('sites/{site}/connect-invites', [ConnectInviteController::class, 'store'])->name('api.sites.connect-invites.store');
     Route::delete('connect-invites/{connectInvite}', [ConnectInviteController::class, 'destroy'])->name('api.connect-invites.destroy');
+    // The client's goals for a site (Etapa 4), shown by the «Metas» block.
+    Route::get('sites/{site}/goals', [SiteGoalController::class, 'index'])->name('api.sites.goals.index');
+    Route::post('sites/{site}/goals', [SiteGoalController::class, 'store'])->name('api.sites.goals.store');
+    Route::put('site-goals/{goal}', [SiteGoalController::class, 'update'])->name('api.site-goals.update');
+    Route::delete('site-goals/{goal}', [SiteGoalController::class, 'destroy'])->name('api.site-goals.destroy');
     Route::get('sites/{site}/metric-catalog', [MetricCatalogController::class, 'show'])->name('api.sites.metric-catalog');
     // Real values of a dataset dimension, so the editor's filters are a picker
     // rather than a free-text box you can typo into an empty block.
@@ -327,6 +346,11 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::get('reports/{report}/comments', [ReportCommentController::class, 'index'])->name('api.reports.comments.index');
     Route::post('reports/{report}/comments', [ReportCommentController::class, 'store'])->name('api.reports.comments.store');
     Route::delete('comments/{comment}', [ReportCommentController::class, 'destroy'])->name('api.comments.destroy');
+    // The client's questions from the portal (Etapa 4) and the agency's answers.
+    Route::get('report-messages/inbox', [ReportMessageController::class, 'inbox'])->name('api.report-messages.inbox');
+    Route::get('reports/{report}/messages', [ReportMessageController::class, 'index'])->name('api.reports.messages.index');
+    Route::post('reports/{report}/messages', [ReportMessageController::class, 'reply'])->name('api.reports.messages.reply');
+    Route::post('reports/{report}/messages/handled', [ReportMessageController::class, 'handled'])->name('api.reports.messages.handled');
     Route::get('reports/{report}/work-logs', [WorkLogController::class, 'index'])->name('api.reports.work-logs.index');
     Route::post('reports/{report}/work-logs', [WorkLogController::class, 'store'])->name('api.reports.work-logs.store');
 

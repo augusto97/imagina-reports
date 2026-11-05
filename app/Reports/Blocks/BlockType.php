@@ -29,6 +29,8 @@ enum BlockType: string
     case PageBreak = 'pagebreak';
     case SalesSummary = 'sales_summary';
     case Goal = 'goal';
+    // The site's own goals (Etapa 4) — no binding: filled from ir_site_goals at generation.
+    case Goals = 'goals';
     case Cta = 'cta';
     case Comments = 'comments';
     case Control = 'control';

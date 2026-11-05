@@ -52,6 +52,8 @@ final class UpdateAgencyRequest extends FormRequest
             'contact_email' => ['sometimes', 'nullable', 'string', 'email', 'max:255'],
             'contact_phone' => ['sometimes', 'nullable', 'string', 'max:40', 'regex:/^[+0-9 ()-]{6,40}$/'],
             'website' => ['sometimes', 'nullable', 'string', 'url', 'max:255'],
+            // «Pregúntale a tu reporte» in the portal (spends the agency's AI budget).
+            'client_ai' => ['sometimes', 'boolean'],
         ];
     }
 }

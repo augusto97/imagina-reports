@@ -44,7 +44,7 @@ const LOCALES: { value: string; label: string }[] = [
     { value: 'pt_BR', label: 'Português (BR)' },
 ];
 
-const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected'];
+const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected', 'report.question'];
 
 /**
  * The agency's SAVED identity fields. Every card here saves on its own, and the update
@@ -876,9 +876,24 @@ function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
                     >
                         {update.isPending ? 'Guardando…' : 'Guardar clave'}
                     </Button>
-                    {update.isSuccess && <span className="ir-text-xs ir-text-success">Clave guardada.</span>}
+                    {update.isSuccess && <span className="ir-text-xs ir-text-success">Guardado.</span>}
                     {update.isError && <span className="ir-text-xs ir-text-danger">No se pudo guardar.</span>}
                 </div>
+                <label className="ir-flex ir-items-start ir-gap-3 ir-border-t ir-pt-4">
+                    <input
+                        type="checkbox"
+                        className="ir-mt-1"
+                        checked={agency.client_ai}
+                        disabled={update.isPending}
+                        onChange={(event) => update.mutate({ ...agencyBase(agency), client_ai: event.target.checked })}
+                    />
+                    <span>
+                        <span className="ir-block ir-text-sm ir-font-medium">Respuestas automáticas a tus clientes</span>
+                        <span className="ir-block ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
+                            En su informe, tus clientes pueden preguntar («¿por qué bajaron las visitas?») y la IA responde al instante solo con los datos del informe. Lo que preguntan lo ves en Reportes → Preguntas. Usa tu clave de IA (máximo 20 preguntas por informe al día).
+                        </span>
+                    </span>
+                </label>
             </div>
         </Card>
     );
@@ -956,7 +971,7 @@ function WebhooksCard({ agency }: { agency: AgencySettings }): ReactElement {
                     />
                 </Field>
 
-                <Field label="Slack (opcional)" hint="Pega la URL de un Incoming Webhook de Slack: recibirás un mensaje cuando se detecte una anomalía (caída de tráfico, pico de gasto, caída de conversiones…), se envíe un reporte o surja una oportunidad de venta.">
+                <Field label="Slack (opcional)" hint="Pega la URL de un Incoming Webhook de Slack: recibirás un mensaje cuando se detecte una anomalía (caída de tráfico, pico de gasto, caída de conversiones…), se envíe un reporte, surja una oportunidad de venta o un cliente te haga una pregunta desde su informe.">
                     <Input
                         type="url"
                         value={slackUrl}

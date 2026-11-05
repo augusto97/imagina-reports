@@ -49,6 +49,7 @@ final class ReportSummaryResource extends JsonResource
             'first_viewed_at' => $report->first_viewed_at?->toIso8601String(),
             'last_viewed_at' => $report->last_viewed_at?->toIso8601String(),
             'view_count' => $report->view_count,
+            'pending_questions' => is_numeric($report->getAttribute('pending_questions')) ? (int) $report->getAttribute('pending_questions') : 0,
         ];
     }
 }

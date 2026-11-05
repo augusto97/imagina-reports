@@ -7,6 +7,7 @@ import {
     Clock,
     FileBarChart,
     FilePlus2,
+    MessageCircleQuestion,
     Plug,
     Send,
     ShieldAlert,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 import { type ReactElement, type ReactNode } from 'react';
 
-import { useAuthUser, useOverview } from '../api';
+import { useAuthUser, useOverview, useQuestionInbox } from '../api';
 import { Button, Card, PageHeader, StatCard } from '../components/ui';
 import { monthLabel } from '../lib/months';
 import { type AdminView, useAdminUi } from '../store';
@@ -114,7 +115,9 @@ function Onboarding({ counts, go, onSite }: { counts: { clients: number; sites: 
 export function HomeScreen(): ReactElement {
     const { data: user } = useAuthUser();
     const { data, isLoading } = useOverview();
+    const { data: questions = [] } = useQuestionInbox();
     const setView = useAdminUi((state) => state.setView);
+    const focusReport = useAdminUi((state) => state.focusReport);
     const selectSite = useAdminUi((state) => state.selectSite);
     const firstName = (user?.name ?? '').split(' ')[0] ?? '';
 
@@ -127,6 +130,18 @@ export function HomeScreen(): ReactElement {
     const needsOnboarding = counts.sites === 0 || counts.sources === 0 || counts.definitions === 0;
 
     const tasks: ReactElement[] = [
+        // A client waiting for an answer comes first: that's the relationship.
+        ...questions.map((question) => (
+            <TaskRow
+                key={`q${question.report_id}`}
+                icon={MessageCircleQuestion}
+                tone="accent"
+                title={`${question.author ?? 'Tu cliente'} preguntó sobre ${question.site}${question.count > 1 ? ` (${question.count})` : ''}`}
+                detail={`«${question.excerpt}»`}
+                action="Responder"
+                onClick={() => focusReport(question.report_id, 'questions')}
+            />
+        )),
         ...data.failing_sources.map((source) => (
             <TaskRow
                 key={`s${source.id}`}

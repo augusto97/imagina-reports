@@ -22,5 +22,10 @@ return [
     'ready_cta_full' => 'View the full report',
     'ready_reply' => 'Questions? Just reply to this email.',
     'ready_sent_by' => 'Sent by :agency',
+    'answered_subject' => ':agency answered your question',
+    'answered_title' => ':agency answered your question',
+    'answered_lead' => 'About your :period report.',
+    'answered_you_asked' => 'Your question',
+    'answered_cta' => 'See the conversation',
     'verdicts' => ['Excellent', 'Very good', 'Room to improve', 'Needs attention'],
 ];

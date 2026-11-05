@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ReportMessageKind;
 use App\Enums\ReportStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerateReportRequest;
@@ -17,6 +18,7 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Services\ReportPdfService;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -50,6 +52,8 @@ final class ReportController extends Controller
                     'has_advisory', 'advisory', 'public_token', 'pdf_path', 'created_at',
                     'first_viewed_at', 'last_viewed_at', 'view_count',
                 ])
+                // Client questions still waiting for an answer (Etapa 4).
+                ->withCount(['messages as pending_questions' => static fn (Builder $query): Builder => $query->where('kind', ReportMessageKind::Client->value)->whereNull('handled_at')])
                 ->latest()
                 ->limit($limit)
                 ->get()

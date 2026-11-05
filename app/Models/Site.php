@@ -119,4 +119,14 @@ class Site extends Model
     {
         return $this->hasMany(WorkLog::class);
     }
+
+    /**
+     * The client's goals for this site (Etapa 4), in display order.
+     *
+     * @return HasMany<SiteGoal, $this>
+     */
+    public function goals(): HasMany
+    {
+        return $this->hasMany(SiteGoal::class)->orderBy('position')->orderBy('id');
+    }
 }

@@ -21,6 +21,7 @@ export type BlockType =
     | 'pagebreak'
     | 'sales_summary'
     | 'goal'
+    | 'goals'
     | 'cta'
     | 'comments'
     | 'control'

@@ -5,6 +5,8 @@ import { BlockList } from '@shared/blocks/BlockRenderer';
 import { PasswordPrompt } from '@shared/components/PasswordPrompt';
 import { applyBrandAccent, downloadReportPdf, isPasswordRequired, isPrivate, periodLabel, type PublicReport, usePublicReport, useReportPeriods } from '@shared/lib/publicReport';
 
+import { AskPanel } from './AskPanel';
+
 function capitalize(text: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -221,6 +223,8 @@ export function PortalApp({ token }: { token: string }): ReactElement {
                     </div>
                 </footer>
             </main>
+
+            <AskPanel token={current} password={password} agency={data.agency?.name ?? 'tu agencia'} />
         </div>
     );
 }

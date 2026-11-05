@@ -182,6 +182,17 @@ export function contentRows(block: Block, data: unknown, mode: FitMode, compact 
         }
         case 'healthscore':
             return rowsFor(chrome + (cols >= 6 ? 140 : 190));
+        case 'goals': {
+            const goals = Array.isArray(data) ? data.length : 0;
+            if (goals === 0) {
+                return null;
+            }
+            // Always titled («Metas del mes»); two goals per line on a wide block.
+            const lines = Math.ceil(goals / (cols >= 8 && goals > 1 ? 2 : 1));
+            const title = block.style?.hideTitle === true ? 0 : 32;
+
+            return rowsFor((compact ? 32 : 40) + title + lines * 58 + (lines - 1) * 16);
+        }
         case 'kpi': {
             // Room for the sparkline when the metric has a daily series; otherwise as designed.
             const series = data !== null && typeof data === 'object' ? (data as Record<string, unknown>).series : null;

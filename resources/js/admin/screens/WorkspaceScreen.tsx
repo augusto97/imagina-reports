@@ -14,6 +14,7 @@ import {
     useUpdateSite,
 } from '../api';
 import { SiteDataSources } from '../components/SiteDataSources';
+import { SiteGoalsCard } from '../components/SiteGoalsCard';
 import { ActionMenu, Badge, Button, Card, Field, Input, Modal, PageHeader, Segmented, Select, StatusDot } from '../components/ui';
 import { CURRENCIES } from '../currencies';
 import { useAdminUi } from '../store';
@@ -797,6 +798,9 @@ export function WorkspaceScreen(): ReactElement {
 
                     <div className="ir-px-5 ir-py-5">
                         <SiteDataSources siteId={selectedSite.id} siteName={selectedSite.name} />
+                    </div>
+                    <div className="ir-border-t ir-px-5 ir-py-5">
+                        <SiteGoalsCard siteId={selectedSite.id} />
                     </div>
                 </section>
             ) : (

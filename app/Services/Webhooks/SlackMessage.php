@@ -24,8 +24,25 @@ final class SlackMessage
             'anomaly.detected' => $this->anomaly($payload),
             'report.sent' => '✅ Reporte enviado'.$this->reportRef($payload).'.',
             'upsell.detected' => '💡 Oportunidad de venta detectada'.$this->siteRef($payload).'.',
+            'report.question' => $this->question($payload),
             default => null,
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function question(array $payload): string
+    {
+        $author = $this->toStr($payload['author'] ?? '');
+        $site = $this->toStr($payload['site'] ?? '');
+
+        return sprintf(
+            '💬 %s preguntó sobre el informe%s: «%s»',
+            $author !== '' ? '*'.$author.'*' : 'Un cliente',
+            $site !== '' ? ' de *'.$site.'*' : $this->reportRef($payload),
+            $this->toStr($payload['excerpt'] ?? ''),
+        );
     }
 
     /**

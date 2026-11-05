@@ -175,6 +175,7 @@ const TYPE_LABELS: Record<string, string> = {
     worklog_timeline: 'Trabajo del mes',
     sales_summary: 'Ventas',
     goal: 'Meta',
+    goals: 'Metas del cliente',
     image: 'Imagen',
     cta: 'Llamada a la acción',
     comments: 'Comentarios',
@@ -199,7 +200,7 @@ const TEXT_BLOCKS = new Set(['header', 'narrative', 'cta', 'custom', 'cover', 'b
  * (border / pad / radius / align / hide-title); the custom-layout blocks (header, cover,
  * back-cover, advisory, cta, image, divider) only honor what their renderer reads.
  */
-const SECTION_TYPES = ['kpi', 'sales_summary', 'goal', 'healthscore', 'security_shield', 'worklog_timeline', 'comments', 'control', 'custom', 'narrative', 'chart', 'table', 'funnel', 'geo_map'];
+const SECTION_TYPES = ['kpi', 'sales_summary', 'goal', 'goals', 'healthscore', 'security_shield', 'worklog_timeline', 'comments', 'control', 'custom', 'narrative', 'chart', 'table', 'funnel', 'geo_map'];
 const supportsColor = (type: string): boolean => SECTION_TYPES.includes(type) || ['header', 'cover', 'back_cover', 'advisory', 'cta'].includes(type);
 const supportsAlign = (type: string): boolean => SECTION_TYPES.includes(type) || ['cta', 'cover'].includes(type);
 const supportsBox = (type: string): boolean => SECTION_TYPES.includes(type) || type === 'cta'; // border + pad + radius
@@ -648,6 +649,12 @@ export function Inspector({
                                 </Select>
                             </Field>
                         </>
+                    )}
+
+                    {block.type === 'goals' && (
+                        <p className="ir-rounded-lg ir-bg-muted/60 ir-px-3 ir-py-2.5 ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
+                            Muestra las metas de <strong className="ir-font-medium ir-text-foreground">cada cliente</strong>: se definen en Clientes → el sitio → «Metas». Si un sitio no tiene metas, el bloque no aparece en su reporte.
+                        </p>
                     )}
 
                     {block.type === 'narrative' && (

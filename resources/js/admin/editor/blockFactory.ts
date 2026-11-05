@@ -28,6 +28,8 @@ export function defaultSize(type: BlockType): { w: number; h: number } {
             return { w: 4, h: 4 };
         case 'goal':
             return { w: 4, h: 5 };
+        case 'goals':
+            return { w: 12, h: 6 };
         case 'healthscore':
             return { w: 4, h: 7 };
         case 'chart':
@@ -69,6 +71,9 @@ export function makeBlock(type: BlockType): Block {
     }
     if (type === 'goal') {
         block.props = { label: 'Meta', target: 100 };
+    }
+    if (type === 'goals') {
+        block.props = { title: 'Metas del mes' };
     }
     if (type === 'advisory') {
         block.props = { title: 'Diagnóstico y recomendaciones' };
@@ -147,6 +152,8 @@ export const BLOCK_METRIC_TYPES: Partial<Record<BlockType, string[]>> = {
     // Single figures: a scalar, or a dataset aggregated down to one.
     kpi: ['scalar', 'number', 'dataset'],
     goal: ['scalar', 'number', 'dataset'],
+    // A site goal (Etapa 4) is measured against one plain number.
+    goals: ['scalar', 'number'],
     sales_summary: ['scalar', 'number', 'dataset'],
     // Anything with a shape over time or across categories.
     chart: ['series', 'table', 'dataset'],
@@ -196,6 +203,7 @@ export const PALETTE: { type: BlockType; label: string }[] = [
     { type: 'worklog_timeline', label: 'Trabajo' },
     { type: 'sales_summary', label: 'Ventas' },
     { type: 'goal', label: 'Meta' },
+    { type: 'goals', label: 'Metas del cliente' },
     { type: 'control', label: 'Filtro' },
     { type: 'comments', label: 'Comentarios' },
     { type: 'image', label: 'Imagen' },
@@ -255,6 +263,14 @@ export function sampleData(block: Block): unknown {
                 : '<p>Este mes tu sitio recibió <strong>7.607 visitas</strong> (+4,8%) y estuvo disponible el 100% del tiempo. Bloqueamos 3.662 ataques y aplicamos 17 actualizaciones de seguridad. Tus clics desde Google crecieron un 5%.</p>';
         case 'goal':
             return 720;
+        case 'goals':
+            // Each client's real goals come from its site; preview what the block looks like.
+            return [
+                { label: 'Visitas del mes', value: 4820, target: 5000, direction: 'at_least', format: 'number', progress: 96.4, met: false },
+                { label: 'Disponibilidad', value: 99.98, target: 99.9, direction: 'at_least', format: 'percent', progress: 100.1, met: true },
+                { label: 'Clics desde Google', value: 1310, target: 1200, direction: 'at_least', format: 'number', progress: 109.2, met: true },
+                { label: 'Tiempo de carga', value: 2.4, target: 2, direction: 'at_most', format: 'number', progress: 120, met: false },
+            ];
         case 'healthscore':
             return 87;
         case 'security_shield':

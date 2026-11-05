@@ -144,6 +144,10 @@ final class AgencyController extends Controller
             }
         }
 
+        if (array_key_exists('client_ai', $validated)) {
+            $settings['client_ai'] = (bool) $validated['client_ai'];
+        }
+
         $agency->settings = $settings;
         $agency->save();
 
@@ -251,6 +255,7 @@ final class AgencyController extends Controller
             'contact_email' => $agency->contact()['email'] ?? '',
             'contact_phone' => $agency->contact()['phone'] ?? '',
             'website' => $agency->contact()['website'] ?? '',
+            'client_ai' => ($agency->settings['client_ai'] ?? true) !== false,
             'plan' => $agency->plan !== null ? ['name' => $agency->plan->name, 'slug' => $agency->plan->slug] : null,
             'status' => $agency->status,
             'limits' => app(Entitlements::class)->limits($agency),

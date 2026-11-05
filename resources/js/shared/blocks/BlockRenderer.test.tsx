@@ -37,4 +37,32 @@ describe('BlockRenderer', () => {
         expect(screen.getByText(/te pasaste/)).toBeInTheDocument();
         expect(screen.getByText(/120% del presupuesto/)).toBeInTheDocument();
     });
+
+    it('renders the site goals with how far each one is', () => {
+        const block: Block = { id: 'g', type: 'goals', props: { title: 'Metas del mes' } };
+
+        render(
+            <BlockRenderer
+                block={block}
+                data={[
+                    { label: 'Visitas del mes', value: 4820, target: 5000, direction: 'at_least', format: 'number', progress: 96.4, met: false },
+                    { label: 'Disponibilidad', value: 99.98, target: 99.9, direction: 'at_least', format: 'percent', progress: 100.1, met: true },
+                    { label: 'Tiempo de carga', value: 2.4, target: 2, direction: 'at_most', format: 'number', progress: 120, met: false },
+                ]}
+            />,
+        );
+
+        expect(screen.getByText('1 de 3 cumplidas')).toBeInTheDocument();
+        expect(screen.getByText(/96 % de la meta/)).toBeInTheDocument();
+        expect(screen.getByText('Meta cumplida')).toBeInTheDocument();
+        // 99,98 % never reads as a rounded-up 100 %.
+        expect(screen.getByText('99,98%')).toBeInTheDocument();
+        expect(screen.getByText(/Se pasó del límite/)).toBeInTheDocument();
+    });
+
+    it('renders nothing for a goals block without goals', () => {
+        const { container } = render(<BlockRenderer block={{ id: 'g', type: 'goals' }} data={[]} />);
+
+        expect(container.textContent).toBe('');
+    });
 });

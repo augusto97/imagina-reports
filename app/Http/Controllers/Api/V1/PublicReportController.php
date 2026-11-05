@@ -9,9 +9,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
 use App\Models\User;
-use App\Reports\Sharing\ShareGate;
+use App\Reports\Sharing\PublicReportGate;
 use App\Services\ReportPdfService;
-use App\Support\CustomDomain;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -128,31 +127,8 @@ final class PublicReportController extends Controller
         return response()->json($periods->all());
     }
 
-    /**
-     * Enforce the definition's sharing settings (CLAUDE.md §10/Etapa D). The PDF renderer
-     * carries a server-only print token that bypasses the gate so protected reports still
-     * generate. Returns null when access is allowed, or the denial response otherwise.
-     */
     private function gate(Report $report, Request $request): ?JsonResponse
     {
-        // Opened through another agency's own domain: as if it didn't exist.
-        if (CustomDomain::blocks($request, $report->agency_id)) {
-            return response()->json(['message' => 'Not Found.'], 404);
-        }
-
-        // Suspended (unpaid) agency → its whole public surface is dark, print included
-        // (delivery is blocked for suspended agencies anyway). Checked on the report's own
-        // agency so ad-hoc reports without a definition are covered too.
-        if ($report->agency?->isSuspended() === true) {
-            return response()->json(['message' => 'Este informe no está disponible en este momento.'], 402);
-        }
-
-        // PDF generation (Browsershot) bypasses the gate with the server-only print token.
-        $print = $request->header('X-Print-Token') ?: $request->query('print');
-        if (is_string($print) && hash_equals($report->printToken(), $print)) {
-            return null;
-        }
-
-        return ShareGate::deny($report->definition, $request);
+        return PublicReportGate::deny($report, $request);
     }
 }

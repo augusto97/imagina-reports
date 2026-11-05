@@ -15,6 +15,13 @@ export function viewHash(view: AdminView): string {
     return `#/${view}`;
 }
 
+/**
+ * The query part of the address the app was OPENED with (`#/reports?report=12&tab=questions`
+ * from an email). Read once at load, before the hash router normalises the address to the
+ * bare section and before a login screen can get in the way.
+ */
+export const bootHashParams = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+
 /* ----------------------- Platform (super-admin) routes ---------------------- */
 
 export type PlatformTab = 'overview' | 'agencies' | 'plans' | 'billing' | 'integrations' | 'system';
@@ -60,6 +67,16 @@ interface AdminUiState {
     selectSite: (siteId: number) => void;
     editTemplate: (templateId: number | null) => void;
     setSuspended: (suspended: boolean) => void;
+    /** A report whose review window should open in Reportes (from Inicio or an email link). */
+    reportFocus: { report: number; tab: string } | null;
+    focusReport: (report: number, tab: string) => void;
+    clearReportFocus: () => void;
+}
+
+function bootReportFocus(): { report: number; tab: string } | null {
+    const report = Number(bootHashParams.get('report'));
+
+    return report > 0 ? { report, tab: bootHashParams.get('tab') ?? 'summary' } : null;
 }
 
 // The active section is restored from the URL hash and the auxiliary ids from
@@ -69,6 +86,9 @@ export const useAdminUi = create<AdminUiState>((set) => ({
     selectedSiteId: persistedId('ir-selected-site'),
     editingTemplateId: persistedId('ir-editing-template'),
     suspended: false,
+    reportFocus: bootReportFocus(),
+    focusReport: (report, tab) => set({ reportFocus: { report, tab }, view: 'reports' }),
+    clearReportFocus: () => set({ reportFocus: null }),
     setView: (view) => set({ view }),
     setSuspended: (suspended) => set({ suspended }),
     // Selecting a site focuses it in the unified Clientes workspace (master-detail).

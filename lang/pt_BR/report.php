@@ -22,5 +22,10 @@ return [
     'ready_cta_full' => 'Ver o relatório completo',
     'ready_reply' => 'Dúvidas? Responda a este e-mail.',
     'ready_sent_by' => 'Enviado por :agency',
+    'answered_subject' => ':agency respondeu sua pergunta',
+    'answered_title' => ':agency respondeu sua pergunta',
+    'answered_lead' => 'Sobre o seu relatório de :period.',
+    'answered_you_asked' => 'Sua pergunta',
+    'answered_cta' => 'Ver a conversa',
     'verdicts' => ['Excelente', 'Muito bom', 'Pode melhorar', 'Requer atenção'],
 ];

@@ -7,6 +7,28 @@
 ---
 
 ## Where I left off (read me first)
+**💬 ETAPA 4 «EL CLIENTE PARTICIPA» (2026-11-05, v1.36.0):**
+- **Preguntas desde el portal** (`ir_report_messages`: kind `client`/`agency`/`ai`, `author_name`, `author_email`, `answer`,
+  `handled_at`). Botón flotante «¿Tienes una pregunta?» en el portal (`resources/js/portal/AskPanel.tsx`, `?preguntas=1` lo abre):
+  el cliente escribe con su nombre (+ correo opcional, recordado en localStorage) → `POST /public/reports/{token}/messages`
+  (mismas reglas que el portal vía `App\Reports\Sharing\PublicReportGate`, que ahora comparte `PublicReportController`; honeypot
+  `website`; throttle `report-conversation` 6/min por IP+token; tope 30/día por reporte). `NotifyReportMessage` (cola): correo a la
+  agencia (`ClientQuestionMail`: a `contact_email` o, si no hay, owners+admins; Reply-To = el cliente) + webhook/Slack
+  `report.question`; cuando la agencia responde, `QuestionAnsweredMail` al cliente que preguntó (marca blanca, remitente propio si lo
+  hay). Panel: pestaña «Preguntas» en la ventana del reporte (`components/ReportConversation.tsx`), aviso «N preguntas sin
+  responder» en la fila (`pending_questions` en la lista), tarea en Inicio (`GET /report-messages/inbox`) y enlace del correo
+  `#/reports?report=ID&tab=questions` (`bootHashParams` + `reportFocus` en el store). «Marcar como resuelta» sin responder.
+- **«Pregúntale a tu reporte»** (`App\Reports\ReportAssistant`): la IA responde SOLO con las cifras congeladas del informe
+  (`ReportFacts` + cambios vs. anterior + top de tablas + resumen + trabajo del periodo), en el idioma del informe y con «tú». Requiere
+  `ai_builder` + clave, y la agencia puede apagarlo (`settings.client_ai`, Ajustes → IA). Topes: 20/día por informe y 300/día por
+  agencia (cache). Las preguntas a la IA se guardan (kind `ai`) y la agencia las ve en «Preguntas». Si la respuesta no sirve, «¿No te
+  sirvió? Pregúntale a {agencia}» pasa la pregunta al formulario de la agencia.
+- **Metas por sitio** (`ir_site_goals`: métrica, objetivo, `at_least`/`at_most`, formato). Clientes → sitio → «Metas del cliente»
+  (`components/SiteGoalsCard.tsx`, con el selector de métricas). Bloque nuevo `goals` («Metas del cliente»): no tiene binding; lo
+  llena `App\Reports\SiteGoals::apply()` en `ReportGenerator::compose()` y en la vista previa del editor, así una plantilla vinculada
+  muestra a cada cliente SUS metas; sin metas el bloque desaparece. Ya está en la plantilla por defecto (debajo de los KPI).
+- De paso: los porcentajes entre 99,95 y 100 se muestran con 2 decimales en todo el renderer (antes un 99,99 % de uptime salía «100%»).
+
 **✏️ ETAPA 3 «EDITOR FÁCIL» (2026-11-05, v1.35.0):**
 - **Pantalla de inicio** (`resources/js/admin/editor/TemplatePicker.tsx`): una plantilla nueva abre sola «¿Cómo quieres empezar?» con
   «Créala con IA», «Empezar en blanco», **«Tus plantillas»** (abre una COPIA «X (copia)» con ids nuevos: la original y sus clientes no
@@ -2587,6 +2609,9 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) Metas en el SITIO (`ir_site_goals`) y no en la plantilla: con plantillas vinculadas, un objetivo en la plantilla sería el mismo para todos los clientes. El bloque `goals` no tiene binding y se llena por sitio al generar.
+- (2026-11-05) «Pregúntale a tu reporte» responde solo con las cifras congeladas del informe (nunca llama a las APIs de las fuentes, §3.1) y tiene topes diarios por informe y agencia porque gasta la clave de IA de la agencia. Se guardan las preguntas para que la agencia vea qué le interesa a su cliente.
+- (2026-11-05) La conversación del cliente es una tabla nueva (`ir_report_messages`), separada de `ir_report_comments` (notas de la agencia que se imprimen en el reporte): mezclar ambas habría puesto preguntas del cliente en el PDF.
 - (2026-11-05) «Usar una plantilla tuya» desde el editor abre una COPIA, no la original vinculada: editarla por error cambiaría los reportes de todos los clientes que la siguen. Para cambiar la original se abre desde Plantillas, y el editor avisa cuántos clientes la usan.
 - (2026-11-05) «Ver como el cliente» en celular usa una container query con nombre (`@container phone`) que replica el `@media` del portal, en vez de un iframe: mismo `BlockList`, sin cargar otra página ni tocar el CSS del portal.
 - (2026-11-05) Dominio propio: la app valida DNS+HTTPS y restringe el host, pero el alias/SSL en ServerAvatar lo añade el operador (no automatizo la API de ServerAvatar sin especificación — ver Open questions). Los enlaces de conexión para clientes siguen en el dominio de la plataforma (OAuth + CSRF/sesión), el resto de páginas de cliente usan el dominio de la agencia.
