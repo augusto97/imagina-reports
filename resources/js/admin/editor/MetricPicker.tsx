@@ -118,6 +118,7 @@ export function MetricPicker({
             return (
                 entry.label.toLowerCase().includes(term) ||
                 entry.metric.toLowerCase().includes(term) ||
+                (entry.description ?? '').toLowerCase().includes(term) ||
                 sourceLabel(entry.source).toLowerCase().includes(term)
             );
         });
@@ -214,7 +215,7 @@ export function MetricPicker({
                                                     onPick(entry);
                                                     onClose();
                                                 }}
-                                                className={`ir-flex ir-w-full ir-items-center ir-gap-2.5 ir-rounded-md ir-px-2 ir-py-2 ir-text-left ir-transition ${
+                                                className={`ir-flex ir-w-full ir-items-start ir-gap-2.5 ir-rounded-md ir-px-2 ir-py-2 ir-text-left ir-transition ${
                                                     selected ? 'ir-bg-primary/10' : 'hover:ir-bg-muted'
                                                 }`}
                                             >
@@ -227,8 +228,13 @@ export function MetricPicker({
                                                         {sourceLabel(entry.source)} · {meta?.label}
                                                         {entry.type === 'dataset' && ' · se puede filtrar'}
                                                     </span>
+                                                    {entry.description && (
+                                                        <span className="ir-mt-0.5 ir-line-clamp-2 ir-block ir-text-[11px] ir-leading-snug ir-text-muted-foreground/80">
+                                                            {entry.description}
+                                                        </span>
+                                                    )}
                                                 </span>
-                                                {selected && <Check className="ir-size-4 ir-shrink-0 ir-text-primary" />}
+                                                {selected && <Check className="ir-mt-1.5 ir-size-4 ir-shrink-0 ir-text-primary" />}
                                             </button>
                                         );
                                     })}

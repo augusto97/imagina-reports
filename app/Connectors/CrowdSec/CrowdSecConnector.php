@@ -54,13 +54,13 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('crowdsec.alerts', 'Alertas', MetricType::Scalar, 'count'),
-            new MetricDefinition('crowdsec.attacks_blocked', 'Ataques bloqueados', MetricType::Scalar, 'count'),
-            new MetricDefinition('crowdsec.events', 'Eventos maliciosos', MetricType::Scalar, 'count'),
-            new MetricDefinition('crowdsec.unique_ips', 'IPs atacantes', MetricType::Scalar, 'count'),
-            new MetricDefinition('crowdsec.attack_types', 'Tipos de ataque', MetricType::Table, dimensions: ['scenario']),
-            new MetricDefinition('crowdsec.attacks_by_country', 'Ataques por país', MetricType::Table, dimensions: ['country']),
-            new MetricDefinition('crowdsec.top_attacker_ips', 'IPs más activas', MetricType::Table, dimensions: ['ip']),
+            new MetricDefinition('crowdsec.alerts', 'Ataques detectados', MetricType::Scalar, 'count', description: 'Veces que CrowdSec reconoció un comportamiento de ataque contra el servidor en el periodo.'),
+            new MetricDefinition('crowdsec.attacks_blocked', 'Atacantes bloqueados', MetricType::Scalar, 'count', description: 'Bloqueos que CrowdSec aplicó a los atacantes (por ejemplo, vetar su IP) para cortar el ataque.'),
+            new MetricDefinition('crowdsec.events', 'Intentos maliciosos', MetricType::Scalar, 'count', description: 'Intentos sueltos que formaron esos ataques (por ejemplo, cada contraseña probada en un ataque de fuerza bruta).'),
+            new MetricDefinition('crowdsec.unique_ips', 'Direcciones atacantes', MetricType::Scalar, 'count', description: 'Direcciones IP distintas desde las que se atacó el servidor en el periodo.'),
+            new MetricDefinition('crowdsec.attack_types', 'Tipos de ataque', MetricType::Table, dimensions: ['scenario'], description: 'Qué clase de ataques se detectaron (fuerza bruta, escaneos, bots…) y cuántas veces cada uno.'),
+            new MetricDefinition('crowdsec.attacks_by_country', 'Ataques por país', MetricType::Table, dimensions: ['country'], description: 'Desde qué países llegaron los ataques detectados, de más a menos.'),
+            new MetricDefinition('crowdsec.top_attacker_ips', 'Direcciones más insistentes', MetricType::Table, dimensions: ['ip'], description: 'Las direcciones IP que más veces atacaron el servidor en el periodo.'),
         );
     }
 

@@ -165,7 +165,10 @@ class ReportGeneratorTest extends TestCase
         // Health score: only the updates signal is present (3 pending → 85); security
         // (VirusDie) and the rest aren't connected, so it re-weights to 85.
         $this->assertSame(85, $report->health_score);
-        $this->assertSame(85, $data['health']);
+        // The gauge gets what the score is made of, to explain it in the report.
+        $this->assertSame(85, $data['health']['score']);
+        $this->assertSame(['updates'], array_column($data['health']['signals'], 'key'));
+        $this->assertSame('3 actualizaciones pendientes', $data['health']['signals'][0]['detail']);
 
         $visible = $this->visibleIds($report);
         $this->assertContains('header', $visible);

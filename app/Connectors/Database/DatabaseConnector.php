@@ -67,6 +67,7 @@ final class DatabaseConnector implements DataSourceConnector
                 "database.{$metric['key']}",
                 $metric['label'],
                 MetricType::tryFrom($metric['type']) ?? MetricType::Scalar,
+                description: 'Métrica propia de esta conexión: sale de una consulta a la base de datos configurada por la agencia.',
             );
         }
 

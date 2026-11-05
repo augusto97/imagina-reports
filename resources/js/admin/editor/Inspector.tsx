@@ -14,6 +14,7 @@ import {
 import { type ReactElement, useEffect, useRef, useState } from 'react';
 
 import type { Block, BlockBinding, DatasetFilter } from '@shared/blocks/types';
+import { columnLabel } from '@shared/blocks/columns';
 import { cn } from '@shared/lib/utils';
 
 import { useUploadImage } from '../api';
@@ -214,12 +215,15 @@ const supportsHideTitle = (type: string): boolean => SECTION_TYPES.includes(type
  */
 export function Inspector({
     block,
+    data,
     catalog,
     siteId,
     inheritedFilters = [],
     onChange,
 }: {
     block: Block | null;
+    /** What the block shows right now (preview or sample data): the real columns to sort by. */
+    data?: unknown;
     catalog: CatalogEntry[];
     /** Preview site — lets the filter rows list the values the data actually holds. */
     siteId?: number | null;
@@ -304,14 +308,20 @@ export function Inspector({
 
     // Columns a table can be ordered by (the predefined order). Datasets expose their
     // dimensions + measures; simpler tables fall back to label/value.
-    const tableSortColumns: string[] = isDataset
-        ? [...dimensions, ...measures.map((measure) => measure.key)]
-        : dimensions.length > 0
-          ? [...dimensions, 'value']
-          : ['label', 'value'];
+    // The columns the table really has (its rows' keys) — the catalog's dimension names don't
+    // match the row keys for every source, which made «Orden» offer columns that sorted nothing.
+    const firstRow = Array.isArray(data) && data[0] !== null && typeof data[0] === 'object' ? (data[0] as Record<string, unknown>) : null;
+    const tableSortColumns: string[] = firstRow !== null
+        ? Object.keys(firstRow)
+        : isDataset
+          ? [...dimensions, ...measures.map((measure) => measure.key)]
+          : dimensions.length > 0
+            ? [...dimensions, 'value']
+            : ['label', 'value'];
     const sortLabel = (key: string): string => {
         const measure = measures.find((entry) => entry.key === key);
         if (measure !== undefined) return measure.label;
+        if (firstRow !== null) return columnLabel(key);
         if (key === 'value') return 'Valor';
         if (key === 'label') return 'Etiqueta';
 
@@ -388,6 +398,24 @@ export function Inspector({
                         <Field label={titleKey === 'label' ? 'Etiqueta' : 'Título'}>
                             <Input value={str(block.props?.[titleKey])} onChange={(event) => setProp(titleKey, event.target.value)} />
                         </Field>
+                    )}
+
+                    {block.type === 'healthscore' && (
+                        <div className="ir-rounded-lg ir-border ir-bg-muted/40 ir-p-3 ir-text-xs ir-leading-relaxed">
+                            <p className="ir-mb-2 ir-font-semibold ir-text-foreground">¿Cómo se calcula?</p>
+                            <p className="ir-mb-2 ir-text-muted-foreground">
+                                Una nota de 0 a 100 que combina lo que las fuentes del sitio miden. Solo cuenta lo que está conectado: lo que falta no resta.
+                            </p>
+                            <ul className="ir-flex ir-flex-col ir-gap-1 ir-text-muted-foreground">
+                                <li><strong className="ir-text-foreground">Disponibilidad (25 %)</strong> · tiempo en línea, de Better Stack. 99,9 % ≈ 98 puntos; 99 % ≈ 80.</li>
+                                <li><strong className="ir-text-foreground">Actualizaciones (20 %)</strong> · cada actualización pendiente resta 5 (MainWP o el Agente).</li>
+                                <li><strong className="ir-text-foreground">Seguridad (20 %)</strong> · malware, vulnerabilidades y plugins abandonados (MainWP o el Agente).</li>
+                                <li><strong className="ir-text-foreground">Certificado SSL (10 %)</strong> · días para que venza; menos de 30 empieza a restar.</li>
+                                <li><strong className="ir-text-foreground">Respaldos (10 %)</strong> · días desde el último respaldo (Agente).</li>
+                                <li><strong className="ir-text-foreground">Rendimiento (15 %)</strong> · cuánto se sirve desde la caché de Cloudflare.</li>
+                            </ul>
+                            <p className="ir-mt-2 ir-text-muted-foreground">El bloque muestra al cliente el detalle de cada punto. Si ninguna fuente mide la salud, en el informe se oculta.</p>
+                        </div>
                     )}
 
                     {block.type === 'image' && (
@@ -475,6 +503,9 @@ export function Inspector({
                                 </span>
                                 <ChevronRight className="ir-size-4 ir-shrink-0 ir-text-muted-foreground" />
                             </button>
+                            {boundEntry?.description && (
+                                <p className="ir-mt-1.5 ir-text-[11px] ir-leading-snug ir-text-muted-foreground">{boundEntry.description}</p>
+                            )}
                             {datasetAlternative !== undefined && (
                                 <button
                                     type="button"
@@ -709,7 +740,7 @@ export function Inspector({
                                         value={str(block.style?.sort_col)}
                                         onChange={(event) => setStyle('sort_col', event.target.value === '' ? undefined : event.target.value)}
                                     >
-                                        <option value="">Por defecto (sin ordenar)</option>
+                                        <option value="">Automático (rankings: la primera cifra, de mayor a menor)</option>
                                         {tableSortColumns.map((col) => (
                                             <option key={col} value={col}>
                                                 {sortLabel(col)}

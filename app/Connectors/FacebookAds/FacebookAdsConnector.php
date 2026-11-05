@@ -88,6 +88,7 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
      *
      * @return array<string, array{
      *     label: string,
+     *     description: string,
      *     breakdowns: string,
      *     dimensions: array<string, array{label: string, field: string}>,
      * }>
@@ -96,7 +97,8 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
     {
         return [
             'campaigns' => [
-                'label' => 'Campañas (modelable)',
+                'label' => 'Campañas (Facebook e Instagram)',
+                'description' => 'Inversión, impresiones, clics y conversiones de cada campaña; puedes separar Facebook de Instagram.',
                 // Instagram ads ARE Meta ads: same account, same Insights API, told apart by
                 // the placement. This is what lets a block say "only Instagram".
                 'breakdowns' => 'publisher_platform',
@@ -106,7 +108,8 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
                 ],
             ],
             'by_country' => [
-                'label' => 'Anuncios por país (modelable)',
+                'label' => 'Anuncios por país',
+                'description' => 'Inversión, impresiones, clics y conversiones de los anuncios según el país de quien los vio.',
                 'breakdowns' => 'country',
                 'dimensions' => [
                     'campaign' => ['label' => 'Campaña', 'field' => 'campaign_name'],
@@ -114,7 +117,8 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
                 ],
             ],
             'by_device' => [
-                'label' => 'Anuncios por dispositivo (modelable)',
+                'label' => 'Anuncios por dispositivo',
+                'description' => 'Inversión, impresiones, clics y conversiones según el dispositivo en el que se vio el anuncio.',
                 'breakdowns' => 'impression_device',
                 'dimensions' => [
                     'campaign' => ['label' => 'Campaña', 'field' => 'campaign_name'],
@@ -122,7 +126,8 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
                 ],
             ],
             'by_demographics' => [
-                'label' => 'Anuncios por edad y género (modelable)',
+                'label' => 'Anuncios por edad y género',
+                'description' => 'Inversión, impresiones, clics y conversiones según la edad y el género de quien vio el anuncio.',
                 // Meta allows age+gender together; most other pairs it refuses.
                 'breakdowns' => 'age,gender',
                 'dimensions' => [
@@ -155,19 +160,19 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
         }
 
         $catalog = new MetricCatalog(
-            new MetricDefinition('facebook_ads.impressions', 'Impresiones', MetricType::Scalar, 'count'),
-            new MetricDefinition('facebook_ads.reach', 'Alcance', MetricType::Scalar, 'count'),
-            new MetricDefinition('facebook_ads.clicks', 'Clics', MetricType::Scalar, 'count'),
-            new MetricDefinition('facebook_ads.spend', 'Inversión', MetricType::Scalar, 'currency'),
-            new MetricDefinition('facebook_ads.ctr', 'CTR', MetricType::Scalar, 'percent'),
-            new MetricDefinition('facebook_ads.cpc', 'CPC', MetricType::Scalar, 'currency'),
-            new MetricDefinition('facebook_ads.cpm', 'CPM', MetricType::Scalar, 'currency'),
-            new MetricDefinition('facebook_ads.conversions', 'Conversiones', MetricType::Scalar, 'count'),
-            new MetricDefinition('facebook_ads.conversions_value', 'Valor de conversiones', MetricType::Scalar, 'currency'),
-            new MetricDefinition('facebook_ads.clicks_by_date', 'Clics por día', MetricType::Series, 'count'),
-            new MetricDefinition('facebook_ads.impressions_by_date', 'Impresiones por día', MetricType::Series, 'count'),
-            new MetricDefinition('facebook_ads.spend_by_date', 'Inversión por día', MetricType::Series, 'currency'),
-            new MetricDefinition('facebook_ads.top_campaigns', 'Campañas principales', MetricType::Table),
+            new MetricDefinition('facebook_ads.impressions', 'Impresiones', MetricType::Scalar, 'count', description: 'Veces que se mostraron tus anuncios en Facebook e Instagram (una misma persona puede verlos varias veces).'),
+            new MetricDefinition('facebook_ads.reach', 'Alcance (personas únicas)', MetricType::Scalar, 'count', description: 'Personas distintas que vieron tus anuncios al menos una vez en el periodo.'),
+            new MetricDefinition('facebook_ads.clicks', 'Clics', MetricType::Scalar, 'count', description: 'Clics en tus anuncios de Facebook e Instagram.'),
+            new MetricDefinition('facebook_ads.spend', 'Inversión', MetricType::Scalar, 'currency', description: 'Lo que se invirtió en anuncios de Meta (Facebook e Instagram) durante el periodo.'),
+            new MetricDefinition('facebook_ads.ctr', 'Porcentaje de clics (CTR)', MetricType::Scalar, 'percent', description: 'De cada 100 veces que se mostró un anuncio, cuántas recibieron un clic. Más alto es mejor.'),
+            new MetricDefinition('facebook_ads.cpc', 'Costo por clic (CPC)', MetricType::Scalar, 'currency', description: 'Lo que costó en promedio cada clic en los anuncios. Más bajo es mejor.'),
+            new MetricDefinition('facebook_ads.cpm', 'Costo por mil impresiones (CPM)', MetricType::Scalar, 'currency', description: 'Lo que cuesta mostrar los anuncios 1.000 veces. Más bajo es mejor.'),
+            new MetricDefinition('facebook_ads.conversions', 'Conversiones', MetricType::Scalar, 'count', description: 'Compras, contactos (leads) y registros logrados con los anuncios, según Meta.'),
+            new MetricDefinition('facebook_ads.conversions_value', 'Valor de las conversiones', MetricType::Scalar, 'currency', description: 'Valor económico de esas compras, contactos y registros, según lo que informa Meta.'),
+            new MetricDefinition('facebook_ads.clicks_by_date', 'Clics por día', MetricType::Series, 'count', description: 'Clics en tus anuncios de Meta, día a día.'),
+            new MetricDefinition('facebook_ads.impressions_by_date', 'Impresiones por día', MetricType::Series, 'count', description: 'Veces que se mostraron tus anuncios de Meta, día a día.'),
+            new MetricDefinition('facebook_ads.spend_by_date', 'Inversión por día', MetricType::Series, 'currency', description: 'Lo invertido en anuncios de Meta, día a día.'),
+            new MetricDefinition('facebook_ads.top_campaigns', 'Campañas con más inversión', MetricType::Table, description: 'Las 10 campañas con más inversión del periodo, con sus clics e impresiones.'),
         );
 
         foreach ($this->datasetSpecs() as $key => $spec) {
@@ -182,7 +187,7 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
                 MetricType::Dataset,
                 null,
                 array_keys($spec['dimensions']),
-                null,
+                $spec['description'],
                 $measures,
                 $labels,
             ));

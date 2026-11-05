@@ -56,15 +56,15 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('betteruptime.uptime_percent', 'Disponibilidad', MetricType::Scalar, 'percent'),
-            new MetricDefinition('betteruptime.incidents', 'Incidentes', MetricType::Scalar, 'count'),
-            new MetricDefinition('betteruptime.total_downtime', 'Tiempo caído', MetricType::Scalar, 'duration', description: 'Segundos de caída en el periodo; usa el formato «duración» en el bloque para verlo en min/h.'),
-            new MetricDefinition('betteruptime.longest_incident', 'Incidente más largo', MetricType::Scalar, 'duration', description: 'Duración en segundos del incidente más largo; formatéalo como «duración».'),
-            new MetricDefinition('betteruptime.average_incident', 'Incidente medio', MetricType::Scalar, 'duration', description: 'Duración media de los incidentes, en segundos; formatéalo como «duración».'),
-            new MetricDefinition('betteruptime.avg_response_time', 'Tiempo de respuesta medio (ms)', MetricType::Scalar, 'ms'),
-            new MetricDefinition('betteruptime.response_times', 'Tiempo de respuesta (ms/día)', MetricType::Series, dimensions: ['date']),
-            new MetricDefinition('betteruptime.incidents_list', 'Incidentes (detalle)', MetricType::Table, description: 'Cada caída del periodo con inicio, duración, causa y estado.'),
-            new MetricDefinition('betteruptime.uptime_by_date', 'Disponibilidad por día (%)', MetricType::Series, dimensions: ['date'], description: 'Disponibilidad diaria calculada de los incidentes — la barra verde/roja del status page.'),
+            new MetricDefinition('betteruptime.uptime_percent', 'Disponibilidad', MetricType::Scalar, 'percent', description: 'Porcentaje del tiempo que el sitio estuvo en línea este mes, según el monitor de Better Stack. Lo esperado es 99,9 % o más.'),
+            new MetricDefinition('betteruptime.incidents', 'Caídas registradas', MetricType::Scalar, 'count', description: 'Veces que el monitor de Better Stack encontró el sitio caído o sin responder este mes.'),
+            new MetricDefinition('betteruptime.total_downtime', 'Tiempo total caído', MetricType::Scalar, 'duration', description: 'Suma del tiempo que el sitio estuvo caído este mes, en segundos: usa el formato «duración» para verlo en minutos u horas.'),
+            new MetricDefinition('betteruptime.longest_incident', 'Caída más larga', MetricType::Scalar, 'duration', description: 'Lo que duró la caída más larga del mes, en segundos: con el formato «duración» se ve en minutos u horas.'),
+            new MetricDefinition('betteruptime.average_incident', 'Duración media de las caídas', MetricType::Scalar, 'duration', description: 'Lo que duró en promedio cada caída del mes, en segundos: con el formato «duración» se ve en minutos u horas.'),
+            new MetricDefinition('betteruptime.avg_response_time', 'Tiempo de respuesta (ms)', MetricType::Scalar, 'ms', description: 'Lo que tarda en promedio el servidor en responder a los chequeos de Better Stack, en milisegundos. Menos es mejor.'),
+            new MetricDefinition('betteruptime.response_times', 'Tiempo de respuesta por día (ms)', MetricType::Series, dimensions: ['date'], description: 'Tiempo medio de respuesta del servidor cada día, en milisegundos. Los picos indican días con el sitio más lento.'),
+            new MetricDefinition('betteruptime.incidents_list', 'Caídas del mes (detalle)', MetricType::Table, description: 'Cada caída del mes con su inicio, duración, causa y estado.'),
+            new MetricDefinition('betteruptime.uptime_by_date', 'Disponibilidad por día (%)', MetricType::Series, dimensions: ['date'], description: 'Porcentaje de tiempo en línea de cada día, calculado a partir de las caídas. 100 % significa que ese día no hubo caídas.'),
         );
     }
 

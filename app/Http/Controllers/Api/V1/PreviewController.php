@@ -69,7 +69,7 @@ final class PreviewController extends Controller
         $bags = $this->withCalc($bags, $calcValues);
         $previousBags = $this->withCalc($previousBags, $calculated->compute($calcDefs, $previousBags));
 
-        $score = $health->calculate($bags);
+        ['score' => $score, 'signals' => $signals] = $health->breakdown($bags);
 
         // Page/dashboard filters being edited cascade into the preview (block filters win),
         // so the live preview matches exactly what the generated report will show.
@@ -83,7 +83,7 @@ final class PreviewController extends Controller
             }
         }
 
-        ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags, $filtersByPage);
+        ['blocks' => $visibleBlocks, 'data' => $data] = $resolver->resolve($blocks, $bags, $score, $previousBags, $filtersByPage, ['signals' => $signals]);
         ['blocks' => $visibleBlocks, 'data' => $data] = SiteGoals::apply($site->id, $visibleBlocks, $data, $bags);
 
         return response()->json([

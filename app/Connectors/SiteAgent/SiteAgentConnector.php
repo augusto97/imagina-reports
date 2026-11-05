@@ -78,61 +78,61 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
     {
         return new MetricCatalog(
             // Backups (lo que MainWP no ve).
-            new MetricDefinition('site_agent.backups_count', 'Respaldos en el periodo', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.backups_total', 'Respaldos totales', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.last_backup_days', 'Días desde el último respaldo', MetricType::Scalar, 'days'),
-            new MetricDefinition('site_agent.last_backup_size_mb', 'Tamaño del último respaldo', MetricType::Scalar, 'MB'),
-            new MetricDefinition('site_agent.backups_total_size_mb', 'Tamaño total de respaldos', MetricType::Scalar, 'MB'),
-            new MetricDefinition('site_agent.backup_status', 'Estado de respaldos', MetricType::Table),
-            new MetricDefinition('site_agent.recent_backups', 'Respaldos recientes', MetricType::Table),
+            new MetricDefinition('site_agent.backups_count', 'Respaldos este mes', MetricType::Scalar, 'count', description: 'Copias de seguridad hechas este mes, contadas en las carpetas del plugin de respaldos del sitio (WPvivid, UpdraftPlus…).'),
+            new MetricDefinition('site_agent.backups_total', 'Respaldos guardados', MetricType::Scalar, 'count', description: 'Copias de seguridad guardadas ahora mismo en el propio servidor del sitio. Las que solo están en la nube no se cuentan.'),
+            new MetricDefinition('site_agent.last_backup_days', 'Días desde el último respaldo', MetricType::Scalar, 'days', description: 'Días que pasaron desde la copia de seguridad más reciente que hay en el servidor. Cuanto menos, mejor.'),
+            new MetricDefinition('site_agent.last_backup_size_mb', 'Tamaño del último respaldo', MetricType::Scalar, 'MB', description: 'Peso en MB de la copia de seguridad más reciente encontrada en el servidor.'),
+            new MetricDefinition('site_agent.backups_total_size_mb', 'Espacio que ocupan los respaldos', MetricType::Scalar, 'MB', description: 'Suma en MB de todas las copias de seguridad guardadas en el servidor del sitio.'),
+            new MetricDefinition('site_agent.backup_status', 'Estado de los respaldos', MetricType::Table, description: 'Resumen de las copias de seguridad: plugin que las hace, destino, fecha, antigüedad y tamaño de la última y cuántas hay.'),
+            new MetricDefinition('site_agent.recent_backups', 'Respaldos recientes', MetricType::Table, description: 'Las últimas copias de seguridad encontradas en el servidor, con fecha, tamaño, plugin y destino.'),
             // Salud del sitio.
-            new MetricDefinition('site_agent.site_health', 'Estado del sitio', MetricType::Table),
-            new MetricDefinition('site_agent.plugins_active', 'Plugins activos', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.plugins_inactive', 'Plugins inactivos', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.plugins_total', 'Plugins instalados', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.updates_pending', 'Actualizaciones pendientes', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.updates_core', 'Actualizaciones de núcleo', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.updates_plugins', 'Actualizaciones de plugins', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.updates_themes', 'Actualizaciones de temas', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.site_health', 'Ficha técnica del sitio', MetricType::Table, description: 'Versiones de WordPress, PHP y base de datos, tema activo, idioma y si el sitio usa HTTPS.'),
+            new MetricDefinition('site_agent.plugins_active', 'Plugins activos', MetricType::Scalar, 'count', description: 'Plugins instalados que están en uso en el sitio.'),
+            new MetricDefinition('site_agent.plugins_inactive', 'Plugins sin usar', MetricType::Scalar, 'count', description: 'Plugins instalados pero apagados. Conviene borrarlos: aunque no se usen pueden tener fallos de seguridad.'),
+            new MetricDefinition('site_agent.plugins_total', 'Plugins instalados', MetricType::Scalar, 'count', description: 'Total de plugins instalados en el sitio, estén activos o no.'),
+            new MetricDefinition('site_agent.updates_pending', 'Actualizaciones pendientes', MetricType::Scalar, 'count', description: 'Plugins, temas y WordPress con una versión nueva que aún no se instaló. Lo ideal es 0.'),
+            new MetricDefinition('site_agent.updates_core', 'WordPress por actualizar', MetricType::Scalar, 'count', description: 'Vale 1 si hay una versión nueva de WordPress sin instalar y 0 si el sitio ya tiene la última.'),
+            new MetricDefinition('site_agent.updates_plugins', 'Plugins por actualizar', MetricType::Scalar, 'count', description: 'Plugins con una versión nueva disponible que todavía no se instaló.'),
+            new MetricDefinition('site_agent.updates_themes', 'Temas por actualizar', MetricType::Scalar, 'count', description: 'Temas con una versión nueva disponible que todavía no se instaló.'),
             // Historial de actualizaciones APLICADAS (registro local del agente, desde su instalación).
-            new MetricDefinition('site_agent.updates_applied', 'Actualizaciones aplicadas (periodo)', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.updates_log', 'Actualizaciones aplicadas (detalle)', MetricType::Table),
-            new MetricDefinition('site_agent.abandoned_count', 'Plugins abandonados', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.abandoned_plugins', 'Detalle de plugins abandonados', MetricType::Table),
-            new MetricDefinition('site_agent.db_size_mb', 'Tamaño de la base de datos', MetricType::Scalar, 'MB'),
-            new MetricDefinition('site_agent.uploads_size_mb', 'Tamaño de archivos subidos', MetricType::Scalar, 'MB'),
+            new MetricDefinition('site_agent.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Plugins, temas y versiones de WordPress actualizados este mes, según el historial que guarda el Agente Imagina en el sitio.'),
+            new MetricDefinition('site_agent.updates_log', 'Actualizaciones aplicadas (detalle)', MetricType::Table, description: 'Cada actualización del mes con su fecha, tipo (plugin, tema o WordPress), nombre y versión.'),
+            new MetricDefinition('site_agent.abandoned_count', 'Plugins abandonados', MetricType::Scalar, 'count', description: 'Plugins del directorio de WordPress que llevan más de 2 años sin actualizarse: ya no reciben parches de seguridad. Lo ideal es 0.'),
+            new MetricDefinition('site_agent.abandoned_plugins', 'Plugins abandonados (detalle)', MetricType::Table, description: 'Qué plugins llevan más de 2 años sin actualizarse en el directorio de WordPress y desde cuándo.'),
+            new MetricDefinition('site_agent.db_size_mb', 'Tamaño de la base de datos', MetricType::Scalar, 'MB', description: 'Lo que ocupa en MB la base de datos del sitio (contenidos, ajustes, pedidos…).'),
+            new MetricDefinition('site_agent.uploads_size_mb', 'Tamaño de los archivos subidos', MetricType::Scalar, 'MB', description: 'Lo que ocupan en MB las imágenes y archivos subidos al sitio (carpeta de medios).'),
             // SSL (monitor de certificado, equivalente a MainWP).
-            new MetricDefinition('site_agent.ssl_days_remaining', 'SSL: días para caducar', MetricType::Scalar, 'days'),
-            new MetricDefinition('site_agent.ssl_status', 'Estado del certificado SSL', MetricType::Table),
+            new MetricDefinition('site_agent.ssl_days_remaining', 'Días para que caduque el SSL', MetricType::Scalar, 'days', description: 'Días que faltan para que caduque el certificado SSL (el candado del navegador). Si llega a 0, el navegador avisa que el sitio no es seguro.'),
+            new MetricDefinition('site_agent.ssl_status', 'Certificado SSL (detalle)', MetricType::Table, description: 'Si el certificado SSL es válido, quién lo emitió, cuándo caduca y cuántos días le quedan.'),
             // Seguridad activa.
-            new MetricDefinition('site_agent.spam_blocked', 'Spam bloqueado (periodo)', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.spam_blocked_total', 'Spam bloqueado (total)', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.admin_users', 'Administradores', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.users_new', 'Usuarios nuevos', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.security_audit', 'Auditoría de seguridad', MetricType::Table),
+            new MetricDefinition('site_agent.spam_blocked', 'Spam bloqueado este mes', MetricType::Scalar, 'count', description: 'Comentarios basura que se marcaron como spam este mes en lugar de publicarse en el sitio.'),
+            new MetricDefinition('site_agent.spam_blocked_total', 'Spam bloqueado (total)', MetricType::Scalar, 'count', description: 'Comentarios spam que Akismet bloqueó desde que se instaló en el sitio.'),
+            new MetricDefinition('site_agent.admin_users', 'Administradores', MetricType::Scalar, 'count', description: 'Cuentas con permisos de administrador en el sitio. Cuantas menos, menos riesgo si una contraseña se filtra.'),
+            new MetricDefinition('site_agent.users_new', 'Usuarios nuevos', MetricType::Scalar, 'count', description: 'Cuentas de usuario creadas en el sitio este mes.'),
+            new MetricDefinition('site_agent.security_audit', 'Revisión de seguridad', MetricType::Table, description: 'Comprobaciones básicas: visible en buscadores, HTTPS activo, edición de archivos y modo depuración desactivados, y número de administradores.'),
             // Rendimiento y limpieza.
-            new MetricDefinition('site_agent.cron_overdue', 'Tareas cron atrasadas', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.db_autoload_mb', 'Autoload de la BD', MetricType::Scalar, 'MB'),
-            new MetricDefinition('site_agent.revisions', 'Revisiones de contenido', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.disk_free_mb', 'Espacio libre en disco', MetricType::Scalar, 'MB'),
-            new MetricDefinition('site_agent.performance_status', 'Estado de rendimiento', MetricType::Table),
-            new MetricDefinition('site_agent.db_cleanup', 'Limpieza de base de datos', MetricType::Table),
+            new MetricDefinition('site_agent.cron_overdue', 'Tareas programadas atrasadas', MetricType::Scalar, 'count', description: 'Tareas automáticas de WordPress (cron: publicar a una hora, enviar correos…) que ya debieron ejecutarse y no lo hicieron. Lo ideal es 0.'),
+            new MetricDefinition('site_agent.db_autoload_mb', 'Ajustes que carga cada página', MetricType::Scalar, 'MB', description: 'MB de ajustes («autoload») que WordPress lee en cada visita. Si crece demasiado (más de 1 MB), el sitio se vuelve más lento.'),
+            new MetricDefinition('site_agent.revisions', 'Revisiones guardadas', MetricType::Scalar, 'count', description: 'Versiones antiguas de entradas y páginas que WordPress guarda. Muchas engordan la base de datos y se pueden limpiar.'),
+            new MetricDefinition('site_agent.disk_free_mb', 'Espacio libre en disco', MetricType::Scalar, 'MB', description: 'MB libres en el disco del servidor del sitio. Si se acaba, el sitio puede dejar de funcionar o de guardar respaldos.'),
+            new MetricDefinition('site_agent.performance_status', 'Estado de rendimiento', MetricType::Table, description: 'Si el sitio usa caché de página y de objetos (lo que lo hace rápido) y si hay tareas programadas atrasadas.'),
+            new MetricDefinition('site_agent.db_cleanup', 'Limpieza de base de datos', MetricType::Table, description: 'Lo que se puede limpiar de la base de datos: ajustes autoload, revisiones, papelera, comentarios spam y datos temporales caducados.'),
             // Contenido y actividad.
-            new MetricDefinition('site_agent.posts_published', 'Publicaciones del periodo', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.pages_published', 'Páginas publicadas', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.comments_received', 'Comentarios recibidos', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.posts_published', 'Entradas publicadas este mes', MetricType::Scalar, 'count', description: 'Entradas de blog publicadas en el sitio este mes.'),
+            new MetricDefinition('site_agent.pages_published', 'Páginas publicadas este mes', MetricType::Scalar, 'count', description: 'Páginas nuevas publicadas en el sitio este mes.'),
+            new MetricDefinition('site_agent.comments_received', 'Comentarios recibidos', MetricType::Scalar, 'count', description: 'Comentarios que dejaron los visitantes este mes (aprobados o pendientes, sin contar el spam).'),
             // Captación / leads.
-            new MetricDefinition('site_agent.leads', 'Solicitudes recibidas (periodo)', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.leads_total', 'Solicitudes recibidas (total)', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.leads', 'Formularios recibidos (este mes)', MetricType::Scalar, 'count', description: 'Mensajes enviados por los formularios del sitio este mes (Contact Form 7 con Flamingo, Fluent Forms, Elementor Pro, Bit Form o JetFormBuilder).'),
+            new MetricDefinition('site_agent.leads_total', 'Formularios recibidos (total)', MetricType::Scalar, 'count', description: 'Todos los mensajes de formularios guardados en el sitio (Contact Form 7 con Flamingo, Fluent Forms, Elementor Pro, Bit Form o JetFormBuilder).'),
             // E-commerce operativo.
-            new MetricDefinition('site_agent.out_of_stock', 'Productos agotados', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.low_stock', 'Productos con stock bajo', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.pending_orders', 'Pedidos por atender', MetricType::Scalar, 'count'),
+            new MetricDefinition('site_agent.out_of_stock', 'Productos agotados', MetricType::Scalar, 'count', description: 'Productos de la tienda WooCommerce que están sin existencias ahora mismo.'),
+            new MetricDefinition('site_agent.low_stock', 'Productos con pocas existencias', MetricType::Scalar, 'count', description: 'Productos de WooCommerce con existencias en o por debajo del aviso de stock bajo de la tienda.'),
+            new MetricDefinition('site_agent.pending_orders', 'Pedidos pendientes de pago', MetricType::Scalar, 'count', description: 'Pedidos de WooCommerce pendientes de pago o en espera: necesitan que alguien los revise.'),
             // Logins (Wordfence) e imágenes (ShortPixel).
-            new MetricDefinition('site_agent.failed_logins', 'Inicios de sesión fallidos', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.logins_blocked', 'Bloqueos de acceso', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.images_optimized', 'Imágenes optimizadas', MetricType::Scalar, 'count'),
-            new MetricDefinition('site_agent.images_saved_mb', 'Espacio ahorrado en imágenes', MetricType::Scalar, 'MB'),
+            new MetricDefinition('site_agent.failed_logins', 'Accesos fallidos', MetricType::Scalar, 'count', description: 'Intentos de entrar al panel con usuario o contraseña incorrectos este mes (Wordfence o Limit Login Attempts).'),
+            new MetricDefinition('site_agent.logins_blocked', 'Accesos bloqueados', MetricType::Scalar, 'count', description: 'Veces que se bloqueó a alguien este mes por intentar entrar al panel demasiadas veces (Wordfence o Limit Login Attempts).'),
+            new MetricDefinition('site_agent.images_optimized', 'Imágenes optimizadas', MetricType::Scalar, 'count', description: 'Imágenes del sitio comprimidas con ShortPixel para que pesen menos y la web cargue más rápido.'),
+            new MetricDefinition('site_agent.images_saved_mb', 'Espacio ahorrado en imágenes', MetricType::Scalar, 'MB', description: 'MB que se ahorraron al comprimir las imágenes con ShortPixel: menos peso, páginas más rápidas.'),
         );
     }
 
@@ -263,7 +263,11 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         $logins = $this->arrayOf(Arr::get($data, 'logins'));
         $images = $this->arrayOf(Arr::get($data, 'images'));
 
-        $hasLeads = $this->toStr(Arr::get($leads, 'provider')) !== '';
+        // Form submissions only mean something when a form plugin that STORES them was found
+        // and has stored at least one: with no plugin (or one installed but never saving any
+        // entry) a «0» would read as «nobody wrote to you», so the block hides instead.
+        $hasLeads = $this->toStr(Arr::get($leads, 'provider')) !== ''
+            && $this->toInt(Arr::get($leads, 'count_total')) > 0;
         $hasStore = Arr::get($ecommerce, 'active') === true;
         $hasLogins = $this->toStr(Arr::get($logins, 'provider')) !== '';
         $hasImages = $this->toStr(Arr::get($images, 'provider')) !== '';
@@ -323,7 +327,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.posts_published' => $this->toInt(Arr::get($content, 'posts_published')),
             'site_agent.pages_published' => $this->toInt(Arr::get($content, 'pages_published')),
             'site_agent.comments_received' => $this->toInt(Arr::get($content, 'comments_received')),
-            // Leads (ocultos si no hay plugin de formularios detectado).
+            // Formularios (ocultos sin plugin de formularios que guarde envíos).
             'site_agent.leads' => $hasLeads ? $this->toInt(Arr::get($leads, 'count_period')) : null,
             'site_agent.leads_total' => $hasLeads ? $this->toInt(Arr::get($leads, 'count_total')) : null,
             // E-commerce (ocultos si no hay WooCommerce).

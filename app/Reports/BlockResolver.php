@@ -40,16 +40,18 @@ final readonly class BlockResolver
      * @param  array<array-key, list<array<array-key, mixed>>>  $filtersByPage  Page/dashboard
      *                                                                          filters keyed by page index, plus 'all' applied to every page (CLAUDE.md §10
      *                                                                          dashboards). Block-level filters override these per dimension.
+     * @param  array<string, mixed>|null  $health  The health score's breakdown (HealthScoreCalculator::breakdown), shown by the gauge.
+     * @param  string  $locale  For readable hour/weekday labels.
      * @return Resolved
      */
-    public function resolve(array $blocks, array $bags, int $score, array $previousBags = [], array $filtersByPage = []): array
+    public function resolve(array $blocks, array $bags, int $score, array $previousBags = [], array $filtersByPage = [], ?array $health = null, string $locale = 'es'): array
     {
         $visibleBlocks = [];
         $data = [];
         $diagnostics = [];
 
         foreach ($blocks as $block) {
-            $value = $this->resolveBlock($block, $bags, $previousBags, $score, $filtersByPage);
+            $value = $this->resolveBlock($block, $bags, $previousBags, $score, $filtersByPage, $health, $locale);
 
             if ($value === self::HIDDEN) {
                 // A bound block disappeared because its metric had no data for the period.
@@ -84,9 +86,10 @@ final readonly class BlockResolver
      * @param  MetricBags  $bags
      * @param  MetricBags  $previousBags
      * @param  array<array-key, list<array<array-key, mixed>>>  $filtersByPage
+     * @param  array<string, mixed>|null  $health  The health score's breakdown (signals), for the gauge block.
      * @return mixed|self::HIDDEN resolved value, null (render from props), or HIDDEN
      */
-    private function resolveBlock(Block $block, array $bags, array $previousBags, int $score, array $filtersByPage = []): mixed
+    private function resolveBlock(Block $block, array $bags, array $previousBags, int $score, array $filtersByPage = [], ?array $health = null, string $locale = 'es'): mixed
     {
         $binding = $block->binding;
         $source = is_array($binding) ? ($binding['source'] ?? null) : null;
@@ -94,7 +97,8 @@ final readonly class BlockResolver
 
         if (is_string($source) && is_string($metric)) {
             $key = "{$source}.{$metric}";
-            $value = $bags[$source][$key] ?? null;
+            // Hour/weekday series read as random numbers raw: give them order and names.
+            $value = SeriesLabels::apply($key, $bags[$source][$key] ?? null, $locale);
 
             if ($value === null) {
                 return self::HIDDEN;
@@ -126,7 +130,9 @@ final readonly class BlockResolver
         }
 
         return match ($block->type) {
-            BlockType::HealthScore => $score,
+            // With the breakdown, the block can say what the score is made of (not just a number).
+            // No source measures anything yet: hide the gauge rather than show a 100 that means nothing.
+            BlockType::HealthScore => $health === null ? $score : (($health['signals'] ?? []) === [] ? self::HIDDEN : ['score' => $score, ...$health]),
             BlockType::SecurityShield => $this->securityMetrics($bags),
             BlockType::WorklogTimeline => [], // populated from ir_report_work_logs later
             default => null,

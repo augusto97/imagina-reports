@@ -7,6 +7,28 @@
 ---
 
 ## Where I left off (read me first)
+**📊 MÉTRICAS QUE SE ENTIENDEN (2026-11-05, v1.40.0):** el owner dijo que las métricas de horas y días salían como números sueltos,
+que el orden de algunas tablas no servía, que «Solicitudes recibidas» no se entendía, que no sabía cómo se mide el health score y que
+muchas métricas no estaban pensadas para verse bien en el editor. Ahora: `App\Reports\SeriesLabels` (en `BlockResolver`, con el idioma del
+informe) ordena y nombra `*_by_hour` («00 h»…«23 h», orden numérico; GA4 los manda en orden de texto) y `*_by_weekday` (Lun…Dom, lunes
+primero; 0 = domingo) — también arregla instantáneas viejas. `HealthScoreCalculator::breakdown()` devuelve `{score, signals[]}` con 6 señales
+(disponibilidad 25, actualizaciones 20, seguridad 20, SSL 10, respaldos 10, rendimiento 15) que leen MainWP **o** el Agente, cada una con
+una frase; se re-pondera si falta alguna; sin señales el bloque se oculta en el informe y el editor explica qué fuentes lo alimentan.
+**Bug corregido:** `cloudflare.cache_ratio` ya viene en 0–100 y se multiplicaba ×100 (cualquier ratio ≥1 % daba 100). El bloque muestra la
+lista de señales y el inspector «¿Cómo se calcula?». Tablas: `@shared/blocks/columns.ts` traduce las columnas (clicks → Clics, impressions →
+Apariciones, ctr → % de clics…) y da formato (% y posición con 1 decimal; las tasas se guardan en 0–100, nunca se multiplican); un ranking
+sin orden elegido se ordena por la primera cifra de mayor a menor; el «Orden» del inspector sale de las columnas reales de los datos.
+Catálogos: todos los conectores tienen `description` en cada métrica y nombres más claros (Cloudflare «Solicitudes al sitio», «Contenido
+servido desde caché», «Datos transferidos»; GSC «Apariciones en Google»; Mailchimp «Personas que abrieron»; Agente «Formularios recibidos
+(este mes)/(total)», que se omiten si no hay proveedor de formularios o el total es 0; «Ficha técnica del sitio»…). La API del catálogo sirve
+`description`; el selector de datos la muestra (y busca en ella) y el inspector la pone bajo «Dato». La galería usa los nombres nuevos. El
+lienzo del editor ya rellena `{{agency}}`, `{{client}}`, `{{site}}` y `{{period}}` (`ReportBrandProvider`; `BlockRenderer` aplica los campos
+del contexto) con la agencia, el cliente y el sitio reales; los datos de ejemplo de horas/días/health score imitan los reales.
+Tests: SeriesLabelsTest (3), HealthScoreCalculatorTest (desglose), ReportGeneratorTest, SiteAgentConnectorTest (+2), columns.test.ts (4).
+**Pendiente con el owner:** `mainwp.malware_found` lee el token de Pro Reports `[virusdie.scan.count]`, que probablemente cuenta
+ESCANEOS y no infecciones (como los contadores de respaldos/mantenimiento). Si es así, el health score y el escudo mostrarían malware falso.
+No se cambió: se pidió al owner verificarlo con un sitio real.
+
 **⏳ IA DE DISEÑO EN SEGUNDO PLANO + «PEDIR CAMBIOS» + MARKDOWN EN EL CHAT (2026-11-05, v1.39.0):** con v1.38.0 el owner
 obtuvo «La respuesta de la IA quedó incompleta» (stop_reason `max_tokens`: 16k no alcanzaba para razonamiento + un plan grande).
 Ahora: `AiClient::complete(..., int $maxTokens = 16000)`; `AnthropicAiClient` hace **streaming SSE** cuando `maxTokens > 16000`
@@ -2703,6 +2725,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-05) Las series por hora y por día de la semana se ordenan y nombran al resolver el informe (no en el conector): así también se arreglan las instantáneas ya guardadas y el idioma sale del informe. El health score solo usa señales que alguna fuente mide y cada una se explica en una frase: un número sin explicación no le sirve al cliente.
 - (2026-11-05) La IA de diseño corre en la cola (no en la petición web) y con streaming: un informe grande puede tardar minutos y los límites de PHP/servidor cortaban la respuesta. «Pedir cambios» reutiliza los bloques que la IA deja igual (vía `ref`) para no perder ajustes manuales.
 - (2026-11-05) «Generar con IA» = la IA decide QUÉ (plan de páginas y métricas), el código decide CÓMO (bloques y distribución): más fiable y respuestas más cortas. «Pregúntale a tu reporte» lee todas las instantáneas del periodo (no solo los bloques); el owner dijo que sin eso no tenía utilidad.
 - (2026-11-05) Modelos de IA leídos en vivo de la Models API (no hay lista en código); elección por defecto `auto:opus` («el Opus más reciente»). Se elimina `ANTHROPIC_MODEL`: el owner quiere todo desde el panel y que los modelos se actualicen solos. El panel nunca menciona el `.env`.
@@ -2893,6 +2916,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Open questions / blockers
+- (2026-11-05) ¿`[virusdie.scan.count]` (Pro Reports) cuenta infecciones o escaneos? `mainwp.malware_found` lo usa como malware encontrado; si son escaneos, el health score y el escudo marcarían malware falso. Pendiente de que el owner lo vea en un sitio real.
+- (2026-11-05) `ga4.devices` se usa como clave de una tabla y de un dataset a la vez (entrada duplicada en el catálogo). Sin impacto visible hoy; revisar al tocar GA4.
 - (2026-11-05) ¿Automatizar el alta de dominios de agencias (alias + SSL) con la API de ServerAvatar? Hoy es manual desde el aviso del superadmin.
 - ~~`release.yml` no fija `target_commitish`~~ **RESUELTO (2026-08-05):** la etiqueta ya se ancla a `github.sha` (el commit desde el
   que se construye el ZIP), no a `main`. Se incluyó en la tanda del rediseño móvil del editor, como el owner pidió.

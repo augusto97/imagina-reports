@@ -132,12 +132,12 @@ final readonly class ReportGenerator
         $bags = $this->withCalc($bags, $this->calculated->compute($calcDefs, $bags));
         $previousBags = $this->withCalc($previousBags, $this->calculated->compute($calcDefs, $previousBags));
 
-        $score = $this->health->calculate($bags);
+        ['score' => $score, 'signals' => $signals] = $this->health->breakdown($bags);
 
         // Resolve blocks→data via the shared resolver — the same logic the live
         // editor preview uses, so the preview matches the generated report exactly.
         // Page/dashboard filters cascade in; each block's own filters then override them.
-        ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags, $this->pageFilters($definition));
+        ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics] = $this->resolver->resolve($blocks, $bags, $score, $previousBags, $this->pageFilters($definition), ['signals' => $signals], $this->locale($definition));
 
         // The «Metas» block shows THIS site's goals (Etapa 4), whatever template it uses.
         ['blocks' => $visibleBlocks, 'data' => $data] = SiteGoals::apply($definition->site_id, $visibleBlocks, $data, $bags);

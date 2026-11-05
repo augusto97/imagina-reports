@@ -63,6 +63,7 @@ final class EndpointConnector implements DataSourceConnector
                 "endpoint.{$metric['key']}",
                 $metric['label'],
                 MetricType::tryFrom($metric['type']) ?? MetricType::Scalar,
+                description: 'Métrica propia de esta conexión: sale de la URL o archivo de datos configurado por la agencia.',
             );
         }
 

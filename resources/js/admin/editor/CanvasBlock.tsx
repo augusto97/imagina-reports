@@ -48,7 +48,7 @@ export function CanvasBlock({
     // honest placeholder (keeps the block visible/selectable) instead of letting the
     // renderer hide it — and never fake sample rows, which would contradict the KPIs.
     const isEmpty = data === undefined || data === null || (Array.isArray(data) && data.length === 0);
-    const showEmptyState = isEmpty && DATA_BLOCKS.includes(block.type);
+    const showEmptyState = isEmpty && (DATA_BLOCKS.includes(block.type) || block.type === 'healthscore');
     const emptyTitle =
         typeof block.props?.title === 'string' && block.props.title !== ''
             ? block.props.title
@@ -60,7 +60,9 @@ export function CanvasBlock({
     const emptyMessage =
         block.binding?.source === 'mainwp' && block.binding?.metric === 'work_log'
             ? 'Sin historial. Instala el plugin «MainWP Child Reports» en el sitio para registrar las actualizaciones aplicadas.'
-            : 'Sin datos para este periodo';
+            : block.type === 'healthscore'
+              ? 'Ninguna fuente de este sitio mide la salud todavía. Se calcula con la disponibilidad (Better Stack), las actualizaciones y la seguridad (MainWP o el Agente), el SSL, los respaldos (Agente) y el rendimiento (Cloudflare). En el informe del cliente se oculta hasta tener datos.'
+              : 'Sin datos para este periodo';
 
     return (
         <div

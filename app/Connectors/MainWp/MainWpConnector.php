@@ -108,37 +108,37 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // The real "what we did this month" number: the count of updates actually
             // applied in the period, from the MainWP Pro Reports activity log. Falls back
             // to a snapshot diff (MaintenanceDeltaCalculator) only if the log is empty.
-            new MetricDefinition('mainwp.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Actualizaciones realmente aplicadas en el periodo (registro de actividad de MainWP Pro Reports).'),
-            new MetricDefinition('mainwp.work_log', 'Trabajo realizado (actualizaciones)', MetricType::Table, dimensions: ['type'], description: 'Detalle fechado de cada plugin/tema/núcleo actualizado en el periodo, con su versión anterior y nueva.'),
-            new MetricDefinition('mainwp.updates_available', 'Actualizaciones pendientes', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.plugin_updates', 'Plugins por actualizar', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.theme_updates', 'Temas por actualizar', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.core_updates', 'Núcleo WordPress por actualizar', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.pending_updates', 'Actualizaciones pendientes (detalle)', MetricType::Table, dimensions: ['type']),
-            new MetricDefinition('mainwp.plugins_total', 'Plugins instalados', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.plugins_active', 'Plugins activos', MetricType::Scalar, 'count'),
-            new MetricDefinition('mainwp.health_score', 'Salud del sitio', MetricType::Scalar, 'score'),
-            new MetricDefinition('mainwp.child_reports_active', 'MainWP Child Reports activo', MetricType::Scalar, 'bool', description: 'Indica si el sitio hijo registra el historial de actividad (necesario para «Lo que hicimos este mes»).'),
+            new MetricDefinition('mainwp.updates_applied', 'Actualizaciones aplicadas', MetricType::Scalar, 'count', description: 'Plugins, temas y versiones de WordPress que actualizamos este mes, según el historial de actividad de MainWP.'),
+            new MetricDefinition('mainwp.work_log', 'Actualizaciones aplicadas (detalle)', MetricType::Table, dimensions: ['type'], description: 'Cada plugin, tema o versión de WordPress actualizada este mes, con su fecha y la versión anterior y nueva.'),
+            new MetricDefinition('mainwp.updates_available', 'Actualizaciones pendientes', MetricType::Scalar, 'count', description: 'Plugins, temas y WordPress con una versión nueva que aún no se instaló (según MainWP). Lo ideal es 0.'),
+            new MetricDefinition('mainwp.plugin_updates', 'Plugins por actualizar', MetricType::Scalar, 'count', description: 'Plugins con una versión nueva disponible que todavía no se instaló.'),
+            new MetricDefinition('mainwp.theme_updates', 'Temas por actualizar', MetricType::Scalar, 'count', description: 'Temas con una versión nueva disponible que todavía no se instaló.'),
+            new MetricDefinition('mainwp.core_updates', 'WordPress por actualizar', MetricType::Scalar, 'count', description: 'Vale 1 si hay una versión nueva de WordPress sin instalar y 0 si el sitio ya tiene la última.'),
+            new MetricDefinition('mainwp.pending_updates', 'Actualizaciones pendientes (detalle)', MetricType::Table, dimensions: ['type'], description: 'Lo que falta actualizar: tipo (plugin, tema o WordPress), nombre, versión instalada y versión nueva.'),
+            new MetricDefinition('mainwp.plugins_total', 'Plugins instalados', MetricType::Scalar, 'count', description: 'Total de plugins instalados en el sitio, estén activos o no (inventario de MainWP).'),
+            new MetricDefinition('mainwp.plugins_active', 'Plugins activos', MetricType::Scalar, 'count', description: 'Plugins instalados que están en uso. Los que no se usan conviene borrarlos.'),
+            new MetricDefinition('mainwp.health_score', 'Salud de WordPress (MainWP)', MetricType::Scalar, 'score', description: 'Puntuación de 0 a 100 de la «Salud del sitio» de WordPress que informa MainWP. Cuanto más alta, mejor.'),
+            new MetricDefinition('mainwp.child_reports_active', 'Registro de actividad activo', MetricType::Scalar, 'bool', description: 'Vale 1 si el plugin MainWP Child Reports está activo en el sitio: sin él no hay historial de «lo que hicimos este mes».'),
             // SSL Monitor + Domain Monitor extensions (read via the dashboard's
             // dedicated /ssl-monitor/info and /domain-monitor/profiles endpoints).
-            new MetricDefinition('mainwp.ssl_days_remaining', 'Días para que caduque el SSL', MetricType::Scalar, 'days', description: 'Días restantes hasta que expire el certificado SSL (extensión MainWP SSL Monitor).'),
-            new MetricDefinition('mainwp.domain_days_remaining', 'Días para que caduque el dominio', MetricType::Scalar, 'days', description: 'Días restantes hasta que expire el registro del dominio (extensión MainWP Domain Monitor).'),
-            new MetricDefinition('mainwp.ssl_domain', 'SSL y dominio (detalle)', MetricType::Table, dimensions: ['concepto'], description: 'Certificado SSL y registro de dominio: proveedor, fecha de caducidad y días restantes.'),
+            new MetricDefinition('mainwp.ssl_days_remaining', 'Días para que caduque el SSL', MetricType::Scalar, 'days', description: 'Días que faltan para que caduque el certificado SSL (el candado del navegador), según MainWP SSL Monitor.'),
+            new MetricDefinition('mainwp.domain_days_remaining', 'Días para que caduque el dominio', MetricType::Scalar, 'days', description: 'Días que faltan para que caduque el registro del dominio (MainWP Domain Monitor). Si llega a 0, el sitio deja de verse.'),
+            new MetricDefinition('mainwp.ssl_domain', 'SSL y dominio (detalle)', MetricType::Table, dimensions: ['concepto'], description: 'Proveedor, fecha de caducidad y días restantes del certificado SSL y del registro del dominio.'),
             // Vulnerability Checker extension (Pro Reports `vulnerable` endpoint).
-            new MetricDefinition('mainwp.vulnerabilities_count', 'Vulnerabilidades detectadas', MetricType::Scalar, 'count', description: 'Nº de vulnerabilidades conocidas (CVE) en plugins/temas del sitio (extensión MainWP Vulnerability Checker).'),
-            new MetricDefinition('mainwp.vulnerabilities_list', 'Vulnerabilidades (detalle)', MetricType::Table, dimensions: ['elemento'], description: 'Plugins/temas con vulnerabilidades conocidas y su fecha de detección.'),
+            new MetricDefinition('mainwp.vulnerabilities_count', 'Vulnerabilidades conocidas', MetricType::Scalar, 'count', description: 'Fallos de seguridad públicos (CVE) que afectan a plugins o temas instalados, según MainWP Vulnerability Checker. Lo ideal es 0.'),
+            new MetricDefinition('mainwp.vulnerabilities_list', 'Vulnerabilidades (detalle)', MetricType::Table, dimensions: ['elemento'], description: 'Qué plugin o tema tiene un fallo de seguridad conocido y cuándo se detectó.'),
             // Wordfence extension (Pro Reports `wordfence` endpoint, action=scan).
-            new MetricDefinition('mainwp.wordfence_scans_count', 'Escaneos de Wordfence', MetricType::Scalar, 'count', description: 'Nº de escaneos de seguridad de Wordfence ejecutados en el periodo.'),
-            new MetricDefinition('mainwp.wordfence_scans', 'Escaneos de Wordfence (detalle)', MetricType::Table, dimensions: ['fecha'], description: 'Registro de escaneos de Wordfence: fecha y resultado del análisis.'),
+            new MetricDefinition('mainwp.wordfence_scans_count', 'Escaneos de seguridad (Wordfence)', MetricType::Scalar, 'count', description: 'Veces que Wordfence revisó el sitio en busca de malware y archivos alterados este mes.'),
+            new MetricDefinition('mainwp.wordfence_scans', 'Escaneos de Wordfence (detalle)', MetricType::Table, dimensions: ['fecha'], description: 'Cada escaneo de Wordfence del mes con su fecha y resultado.'),
             // The MainWP Maintenance tool (`maintenance`, action=process). NOTE: there is
             // deliberately no backups metric — MainWP's Pro Reports `backups` token only
             // counts MainWP-managed backups, never third-party plugins (WPvivid/UpdraftPlus)
             // that back up independently on the child, so it would always mislead with 0.
-            new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Nº de tareas de mantenimiento ejecutadas en el periodo (herramienta de mantenimiento de MainWP).'),
-            new MetricDefinition('mainwp.malware_found', 'Malware detectado', MetricType::Scalar, 'count', description: 'Amenazas/malware detectados por Virusdie en el sitio (extensión Virusdie de MainWP, último escaneo).'),
+            new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Limpiezas y optimizaciones ejecutadas este mes con la herramienta de mantenimiento de MainWP.'),
+            new MetricDefinition('mainwp.malware_found', 'Malware detectado (Virusdie)', MetricType::Scalar, 'count', description: 'Amenazas que encontró Virusdie al revisar el sitio este mes, leídas a través de MainWP. Lo normal es 0.'),
             // MainWP per-site security/hardening checklist (/sites/{id}/security).
-            new MetricDefinition('mainwp.security_issues_count', 'Puntos de seguridad por revisar', MetricType::Scalar, 'count', description: 'Nº de comprobaciones de seguridad de MainWP que no están en verde (endurecimiento del sitio).'),
-            new MetricDefinition('mainwp.security_checklist', 'Estado de seguridad', MetricType::Table, dimensions: ['comprobacion'], description: 'Lista de verificación de seguridad de MainWP: WordPress al día, SSL, depuración, plugins/temas obsoletos o inactivos.'),
+            new MetricDefinition('mainwp.security_issues_count', 'Puntos de seguridad por revisar', MetricType::Scalar, 'count', description: 'Comprobaciones de seguridad de MainWP que no están en verde (versión de WordPress y PHP, SSL, depuración, plugins sin usar…).'),
+            new MetricDefinition('mainwp.security_checklist', 'Estado de seguridad', MetricType::Table, dimensions: ['comprobacion'], description: 'Comprobaciones de seguridad de MainWP y su estado: WordPress y PHP al día, SSL, errores ocultos, plugins y temas sin usar.'),
         );
     }
 

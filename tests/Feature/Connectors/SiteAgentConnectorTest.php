@@ -273,6 +273,32 @@ class SiteAgentConnectorTest extends TestCase
         $this->assertNull($set->get('site_agent.updates_log'));
     }
 
+    public function test_forms_hide_when_the_form_plugin_never_stored_a_submission(): void
+    {
+        // A form plugin is installed (e.g. Elementor Pro) but saves no entries: a «0» this
+        // month would read as «nobody wrote», so the forms blocks hide instead.
+        $payload = $this->payload();
+        $payload['leads'] = ['provider' => 'Elementor Pro', 'count_total' => 0, 'count_period' => 0];
+        Http::fake(['*' => Http::response($payload)]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertNull($set->get('site_agent.leads'));
+        $this->assertNull($set->get('site_agent.leads_total'));
+    }
+
+    public function test_forms_show_a_real_zero_once_the_plugin_has_stored_submissions(): void
+    {
+        $payload = $this->payload();
+        $payload['leads'] = ['provider' => 'Elementor Pro', 'count_total' => 12, 'count_period' => 0];
+        Http::fake(['*' => Http::response($payload)]);
+
+        $set = (new SiteAgentConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertSame(0, $set->get('site_agent.leads'));
+        $this->assertSame(12, $set->get('site_agent.leads_total'));
+    }
+
     public function test_leads_and_ecommerce_hide_when_absent(): void
     {
         $payload = $this->payload();

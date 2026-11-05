@@ -104,21 +104,21 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
         return new MetricCatalog(
             new MetricDefinition(
                 'instagram.media',
-                'Publicaciones (modelable)',
+                'Rendimiento de cada publicación',
                 MetricType::Dataset,
                 null,
                 array_keys($dataset['dimensions']),
-                null,
+                'Alcance, me gusta, comentarios y guardados de las publicaciones del periodo; puedes agruparlas por tipo (imagen, vídeo, carrusel).',
                 $measures,
                 $dataset['dimensions'],
             ),
-            new MetricDefinition('instagram.followers', 'Seguidores', MetricType::Scalar, 'count'),
-            new MetricDefinition('instagram.media_count', 'Publicaciones', MetricType::Scalar, 'count'),
-            new MetricDefinition('instagram.new_followers', 'Nuevos seguidores (periodo)', MetricType::Scalar, 'count'),
-            new MetricDefinition('instagram.reach', 'Alcance', MetricType::Scalar, 'count'),
-            new MetricDefinition('instagram.profile_views', 'Visitas al perfil', MetricType::Scalar, 'count'),
-            new MetricDefinition('instagram.website_clicks', 'Clics al sitio web', MetricType::Scalar, 'count'),
-            new MetricDefinition('instagram.reach_by_date', 'Alcance por día', MetricType::Series, 'count'),
+            new MetricDefinition('instagram.followers', 'Seguidores', MetricType::Scalar, 'count', description: 'Total de seguidores de la cuenta de Instagram al sincronizar.'),
+            new MetricDefinition('instagram.media_count', 'Publicaciones totales', MetricType::Scalar, 'count', description: 'Cantidad total de publicaciones que tiene la cuenta.'),
+            new MetricDefinition('instagram.new_followers', 'Seguidores nuevos', MetricType::Scalar, 'count', description: 'Seguidores que ganó la cuenta durante el periodo.'),
+            new MetricDefinition('instagram.reach', 'Alcance', MetricType::Scalar, 'count', description: 'Cuentas que vieron tu contenido, sumando las de cada día del periodo. Más alto es mejor.'),
+            new MetricDefinition('instagram.profile_views', 'Visitas al perfil', MetricType::Scalar, 'count', description: 'Veces que alguien abrió el perfil de la cuenta en el periodo.'),
+            new MetricDefinition('instagram.website_clicks', 'Clics al sitio web', MetricType::Scalar, 'count', description: 'Clics en el enlace del perfil que llevan a tu sitio web.'),
+            new MetricDefinition('instagram.reach_by_date', 'Alcance por día', MetricType::Series, 'count', description: 'Cuentas que vieron tu contenido cada día del periodo.'),
         );
     }
 

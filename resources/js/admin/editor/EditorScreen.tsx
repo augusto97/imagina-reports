@@ -33,6 +33,7 @@ import {
     type ReactElement,
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from "react";
@@ -152,6 +153,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 import {
+    ReportBrandProvider,
     ReportPageNav,
     ReportSettingsProvider,
 } from "@shared/blocks/BlockRenderer";
@@ -161,6 +163,7 @@ import type { Block, BlockType } from "@shared/blocks/types";
 import {
     type PreviewResult,
     useAgency,
+    useClients,
     AiDesignTimeout,
     useAiAdjust,
     useAiSection,
@@ -263,6 +266,7 @@ function aiErrorText(error: unknown, fallback: string): string {
 
 export function EditorScreen(): ReactElement {
     const { data: sites = [] } = useSites();
+    const { data: clients = [] } = useClients();
     const [siteId, setSiteId] = useState<number | null>(null);
     const { data: catalog = [] } = useMetricCatalog(siteId);
     const create = useCreateReportTemplate();
@@ -965,6 +969,20 @@ export function EditorScreen(): ReactElement {
                   month: "long",
                   year: "numeric",
               });
+    /** What {{agency}}/{{client}}/{{site}}/{{period}} read as in the canvas and the client preview. */
+    const previewSite = sites.find((item) => item.id === siteId);
+    const siteName = previewSite?.name;
+    const clientName = clients.find((item) => item.id === previewSite?.client_id)?.name;
+    const mergeContext = useMemo<Record<string, string>>(
+        () => ({
+            agency: agency?.name ?? "Tu agencia",
+            site: siteName ?? "misitio.com",
+            client: clientName ?? "Tu cliente",
+            period: monthLabel !== "" ? monthLabel : "este mes",
+            score: "",
+        }),
+        [agency?.name, siteName, clientName, monthLabel],
+    );
     /** "ago 2026" — the toolbar chip's version, where the long form wouldn't fit. */
     const shortMonthLabel =
         month === ""
@@ -2098,6 +2116,10 @@ export function EditorScreen(): ReactElement {
                                     </div>
                                 )}
                                 <div data-report-style={theme.style ?? "modern"} className="ir-r-page ir-border ir-p-6 ir-shadow-sm">
+                                    <ReportBrandProvider
+                                        agency={agency !== undefined ? { name: agency.name, logo_url: agency.logo_url } : null}
+                                        context={mergeContext}
+                                    >
                                     <ReportSettingsProvider
                                         currency={siteCurrency}
                                         locale="es"
@@ -2168,6 +2190,7 @@ export function EditorScreen(): ReactElement {
                                             ))}
                                         </Grid>
                                     </ReportSettingsProvider>
+                                    </ReportBrandProvider>
                                     {pageBlocks.length === 0 && (
                                         <div className="ir-flex ir-flex-col ir-items-center ir-justify-center ir-gap-3 ir-py-16 ir-text-center">
                                             <span className="ir-flex ir-size-12 ir-items-center ir-justify-center ir-rounded-xl ir-bg-muted ir-text-muted-foreground">
@@ -2245,6 +2268,7 @@ export function EditorScreen(): ReactElement {
                             {rightTab === "block" && selectedBlock !== null ? (
                                 <Inspector
                                     block={selectedBlock}
+                                    data={renderData[selectedBlock.id]}
                                     catalog={fullCatalog}
                                     siteId={siteId}
                                     inheritedFilters={inheritedFilters}
@@ -2431,13 +2455,7 @@ export function EditorScreen(): ReactElement {
                     theme={{ ...theme, accent: theme.accent ?? agency?.brand_color ?? null }}
                     pages={pageNames.map((pageName) => ({ name: pageName }))}
                     agency={agency !== undefined ? { name: agency.name, logo_url: agency.logo_url } : null}
-                    context={{
-                        agency: agency?.name ?? "Tu agencia",
-                        site: sites.find((item) => item.id === siteId)?.name ?? "misitio.com",
-                        client: "Tu cliente",
-                        period: monthLabel,
-                        score: "",
-                    }}
+                    context={mergeContext}
                     onClose={() => setClientPreview(false)}
                 />
             )}

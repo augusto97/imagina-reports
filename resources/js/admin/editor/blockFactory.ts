@@ -241,12 +241,10 @@ export function sampleData(block: Block): unknown {
             // The real text is written by the AI at generation; show a representative sample
             // so the editor previews how the insight reads.
             return 'Este mes tus ventas subieron un 30% y las visitas un 40%. Aplicamos 6 actualizaciones de seguridad y tu sitio estuvo disponible el 99,8% del tiempo, con 4 breves caídas. Ante este crecimiento de tráfico, recomendamos una revisión de rendimiento para que el sitio lo soporte con holgura.';
-        case 'header': {
-            // Realistic preview so merge-field headers read as a real cover in the editor.
-            const headerTitle = typeof block.props?.title === 'string' && block.props.title !== '' ? block.props.title : 'Informe mensual';
-
-            return { title: headerTitle, eyebrow: 'Tu Agencia', subtitle: 'Cliente · misitio.com · junio 2026' };
-        }
+        case 'header':
+            // The header shows its own props; the canvas fills {{agency}}/{{client}}/{{site}}/
+            // {{period}} from the editor's context, so there's no sample to invent.
+            return undefined;
         case 'kpi':
         case 'sales_summary': {
             // Believable numbers per kind of metric: a 1.234% uptime read as broken.
@@ -272,14 +270,38 @@ export function sampleData(block: Block): unknown {
                 { label: 'Tiempo de carga', value: 2.4, target: 2, direction: 'at_most', format: 'number', progress: 120, met: false },
             ];
         case 'healthscore':
-            return 87;
+            // What the score is made of, so the preview explains itself like the real report.
+            return {
+                score: 87,
+                signals: [
+                    { key: 'uptime', label: 'Disponibilidad', detail: '99,9 % del tiempo en línea', score: 98, weight: 25 },
+                    { key: 'updates', label: 'Actualizaciones', detail: '2 actualizaciones pendientes', score: 90, weight: 20 },
+                    { key: 'security', label: 'Seguridad', detail: 'Sin malware ni puntos débiles conocidos', score: 100, weight: 20 },
+                    { key: 'ssl', label: 'Certificado SSL', detail: 'Vence en 21 días', score: 70, weight: 10 },
+                    { key: 'performance', label: 'Rendimiento', detail: '62 % servido desde la caché (carga más rápido)', score: 62, weight: 15 },
+                ],
+            };
         case 'security_shield':
             return { threats_blocked: 1840, attacks_blocked: 96, malware_found: 0 };
-        case 'chart':
+        case 'chart': {
+            // Hours of the day and days of the week preview with the same labels the report uses.
+            const metric = typeof block.binding?.metric === 'string' ? block.binding.metric : '';
+            if (metric.endsWith('_by_hour')) {
+                const curve = [3, 2, 1, 1, 1, 2, 5, 9, 14, 18, 21, 22, 20, 19, 21, 22, 20, 18, 16, 15, 14, 12, 9, 6];
+
+                return curve.map((weight, hour) => ({ date: `${String(hour).padStart(2, '0')} h`, value: weight * 12 }));
+            }
+            if (metric.endsWith('_by_weekday')) {
+                const week: [string, number][] = [['Lun', 1320], ['Mar', 1410], ['Mié', 1380], ['Jue', 1290], ['Vie', 1105], ['Sáb', 520], ['Dom', 410]];
+
+                return week.map(([day, value]) => ({ date: day, value }));
+            }
+
             return Array.from({ length: 30 }, (_, day) => ({
                 date: `202606${String(day + 1).padStart(2, '0')}`,
                 value: Math.round(220 + 60 * Math.sin(day / 3) + (day % 7) * 9),
             }));
+        }
         case 'table': {
             // Binding-aware placeholders so structured tables (e.g. the MainWP work log)
             // preview with their real columns, not a generic label/value pair.

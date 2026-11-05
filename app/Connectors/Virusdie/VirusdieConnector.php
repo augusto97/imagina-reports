@@ -57,7 +57,7 @@ final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('virusdie.malware_found', 'Malware detectado', MetricType::Scalar, 'count', description: 'Amenazas/malware detectados por Virusdie en el sitio (extensión Virusdie de MainWP, último escaneo).'),
+            new MetricDefinition('virusdie.malware_found', 'Malware detectado', MetricType::Scalar, 'count', description: 'Amenazas que encontró Virusdie al revisar el sitio este mes, leídas a través de la extensión de MainWP. Lo normal es 0.'),
         );
     }
 

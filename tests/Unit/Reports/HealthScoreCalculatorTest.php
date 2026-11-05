@@ -38,23 +38,51 @@ class HealthScoreCalculatorTest extends TestCase
 
     public function test_it_reweights_over_only_the_present_signals(): void
     {
-        // uptime 99 (w .30) + updates 100 (w .25) => (29.7 + 25) / .55 ≈ 99.
+        // uptime 99 % → 80 (w 25) + updates 0 pending → 100 (w 20) => (2000 + 2000) / 45 ≈ 89.
         $score = $this->calculator->calculate([
             'betteruptime' => ['betteruptime.uptime_percent' => 99],
             'mainwp' => ['mainwp.updates_available' => 0],
         ]);
 
-        $this->assertSame(99, $score);
+        $this->assertSame(89, $score);
     }
 
     public function test_a_fully_healthy_stack_scores_100(): void
     {
         $score = $this->calculator->calculate([
             'betteruptime' => ['betteruptime.uptime_percent' => 100],
-            'mainwp' => ['mainwp.updates_available' => 0, 'mainwp.malware_found' => 0],
-            'cloudflare' => ['cloudflare.cache_ratio' => 1],
+            'mainwp' => ['mainwp.updates_available' => 0, 'mainwp.malware_found' => 0, 'mainwp.ssl_days_remaining' => 80],
+            'cloudflare' => ['cloudflare.cache_ratio' => 100],
         ]);
 
         $this->assertSame(100, $score);
+    }
+
+    public function test_the_breakdown_explains_each_signal_in_plain_words(): void
+    {
+        $result = $this->calculator->breakdown([
+            'betteruptime' => ['betteruptime.uptime_percent' => 99.9],
+            'site_agent' => ['site_agent.updates_pending' => 3, 'site_agent.ssl_days_remaining' => 10, 'site_agent.last_backup_days' => 2, 'site_agent.abandoned_count' => 1],
+            'cloudflare' => ['cloudflare.cache_ratio' => 62.5],
+        ]);
+
+        $byKey = array_column($result['signals'], null, 'key');
+        $this->assertSame(['uptime', 'updates', 'security', 'ssl', 'backups', 'performance'], array_column($result['signals'], 'key'));
+        $this->assertSame('99,9 % del tiempo en línea', $byKey['uptime']['detail']);
+        $this->assertSame(98, $byKey['uptime']['score']);
+        $this->assertSame('3 actualizaciones pendientes', $byKey['updates']['detail']);
+        $this->assertSame(85, $byKey['updates']['score']);
+        $this->assertSame('1 plugin abandonado', $byKey['security']['detail']);
+        $this->assertSame('Vence en 10 días', $byKey['ssl']['detail']);
+        $this->assertSame(40, $byKey['ssl']['score']);
+        $this->assertSame('Último respaldo hace 2 días', $byKey['backups']['detail']);
+        $this->assertSame(63, $byKey['performance']['score'], 'the cache ratio is already a percentage');
+        // (98·25 + 85·20 + 90·20 + 40·10 + 90·10 + 63·15) / 100 = 81.95 → 82
+        $this->assertSame(82, $result['score']);
+    }
+
+    public function test_without_any_signal_the_breakdown_is_empty(): void
+    {
+        $this->assertSame(['score' => 100, 'signals' => []], $this->calculator->breakdown(['ga4' => ['ga4.sessions' => 10]]));
     }
 }

@@ -349,6 +349,8 @@ export interface CatalogEntry {
     type: string;
     unit: string | null;
     dimensions: string[];
+    // One plain sentence on what the number means (null when the connector doesn't say).
+    description?: string | null;
     // Dataset metadata (empty for plain metrics): the measures a block can pick and the
     // human labels for each dimension key — drives the editor's modeling panel.
     measures?: CatalogMeasure[];

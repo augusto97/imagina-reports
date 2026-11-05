@@ -64,15 +64,15 @@ final class TikTokAdsConnector implements DataSourceConnector, ProvidesSetupGuid
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('tiktok_ads.spend', 'Inversión', MetricType::Scalar, 'currency'),
-            new MetricDefinition('tiktok_ads.impressions', 'Impresiones', MetricType::Scalar, 'count'),
-            new MetricDefinition('tiktok_ads.clicks', 'Clics', MetricType::Scalar, 'count'),
-            new MetricDefinition('tiktok_ads.conversions', 'Conversiones', MetricType::Scalar, 'count'),
-            new MetricDefinition('tiktok_ads.ctr', 'CTR', MetricType::Scalar, 'percent'),
-            new MetricDefinition('tiktok_ads.cpc', 'CPC', MetricType::Scalar, 'currency'),
-            new MetricDefinition('tiktok_ads.spend_by_date', 'Inversión por día', MetricType::Series, 'currency'),
-            new MetricDefinition('tiktok_ads.clicks_by_date', 'Clics por día', MetricType::Series, 'count'),
-            new MetricDefinition('tiktok_ads.top_campaigns', 'Campañas principales', MetricType::Table),
+            new MetricDefinition('tiktok_ads.spend', 'Inversión', MetricType::Scalar, 'currency', description: 'Lo que se invirtió en anuncios de TikTok durante el periodo.'),
+            new MetricDefinition('tiktok_ads.impressions', 'Impresiones', MetricType::Scalar, 'count', description: 'Veces que se mostraron tus anuncios en TikTok.'),
+            new MetricDefinition('tiktok_ads.clicks', 'Clics', MetricType::Scalar, 'count', description: 'Clics en tus anuncios de TikTok.'),
+            new MetricDefinition('tiktok_ads.conversions', 'Conversiones', MetricType::Scalar, 'count', description: 'Acciones valiosas logradas con los anuncios (compras, formularios…), según lo configurado en TikTok.'),
+            new MetricDefinition('tiktok_ads.ctr', 'Porcentaje de clics (CTR)', MetricType::Scalar, 'percent', description: 'De cada 100 veces que se mostró un anuncio, cuántas recibieron un clic. Más alto es mejor.'),
+            new MetricDefinition('tiktok_ads.cpc', 'Costo por clic (CPC)', MetricType::Scalar, 'currency', description: 'Lo que costó en promedio cada clic en los anuncios. Más bajo es mejor.'),
+            new MetricDefinition('tiktok_ads.spend_by_date', 'Inversión por día', MetricType::Series, 'currency', description: 'Lo invertido en anuncios de TikTok, día a día.'),
+            new MetricDefinition('tiktok_ads.clicks_by_date', 'Clics por día', MetricType::Series, 'count', description: 'Clics en tus anuncios de TikTok, día a día.'),
+            new MetricDefinition('tiktok_ads.top_campaigns', 'Campañas con más inversión', MetricType::Table, description: 'Las 10 campañas con más inversión del periodo, con sus clics e impresiones.'),
         );
     }
 

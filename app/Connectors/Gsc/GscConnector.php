@@ -93,17 +93,18 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
 
     public function metricCatalog(DataSource $source): MetricCatalog
     {
+        // Labels and descriptions in plain words: the client reads «apariciones», not «impresiones».
         $catalog = new MetricCatalog(
-            new MetricDefinition('gsc.clicks', 'Clics en Google', MetricType::Scalar, 'count'),
-            new MetricDefinition('gsc.impressions', 'Impresiones', MetricType::Scalar, 'count'),
-            new MetricDefinition('gsc.ctr', 'CTR', MetricType::Scalar, 'percent'),
-            new MetricDefinition('gsc.position', 'Posición media', MetricType::Scalar, 'position'),
-            new MetricDefinition('gsc.clicks_by_date', 'Clics por día', MetricType::Series, 'count'),
-            new MetricDefinition('gsc.impressions_by_date', 'Impresiones por día', MetricType::Series, 'count'),
-            new MetricDefinition('gsc.top_queries', 'Búsquedas top', MetricType::Table, dimensions: ['query']),
-            new MetricDefinition('gsc.top_pages', 'Páginas top', MetricType::Table, dimensions: ['page']),
-            new MetricDefinition('gsc.by_country', 'Por país', MetricType::Table, dimensions: ['country']),
-            new MetricDefinition('gsc.by_device', 'Por dispositivo', MetricType::Table, dimensions: ['device']),
+            new MetricDefinition('gsc.clicks', 'Clics en Google', MetricType::Scalar, 'count', description: 'Veces que alguien hizo clic en tu web desde los resultados de búsqueda de Google.'),
+            new MetricDefinition('gsc.impressions', 'Apariciones en Google', MetricType::Scalar, 'count', description: 'Veces que tu web apareció en los resultados de Google, aunque no hicieran clic.'),
+            new MetricDefinition('gsc.ctr', 'Porcentaje de clics (CTR)', MetricType::Scalar, 'percent', description: 'De cada 100 veces que tu web aparece en Google, cuántas personas hacen clic.'),
+            new MetricDefinition('gsc.position', 'Posición media en Google', MetricType::Scalar, 'position', description: 'Puesto promedio de tu web en los resultados de Google: más bajo es mejor (1 = primer resultado).'),
+            new MetricDefinition('gsc.clicks_by_date', 'Clics desde Google por día', MetricType::Series, 'count', description: 'Clics desde los resultados de Google de cada día del periodo.'),
+            new MetricDefinition('gsc.impressions_by_date', 'Apariciones en Google por día', MetricType::Series, 'count', description: 'Veces que tu web apareció en los resultados de Google cada día del periodo.'),
+            new MetricDefinition('gsc.top_queries', 'Búsquedas que más te encuentran', MetricType::Table, dimensions: ['query'], description: 'Las 10 búsquedas de Google con las que más te encuentran, con sus clics y apariciones.'),
+            new MetricDefinition('gsc.top_pages', 'Páginas con más clics desde Google', MetricType::Table, dimensions: ['page'], description: 'Las 10 páginas de tu web que más clics reciben desde Google, con sus apariciones.'),
+            new MetricDefinition('gsc.by_country', 'Países desde donde te buscan', MetricType::Table, dimensions: ['country'], description: 'Clics y apariciones en Google según el país de quien busca (los 10 principales).'),
+            new MetricDefinition('gsc.by_device', 'Dispositivos desde donde te buscan', MetricType::Table, dimensions: ['device'], description: 'Clics y apariciones en Google desde móvil, ordenador o tablet.'),
         );
 
         foreach ($this->datasetSpecs() as $key => $spec) {
@@ -123,7 +124,7 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
                 MetricType::Dataset,
                 null,
                 array_keys($spec['dimensions']),
-                null,
+                $spec['description'],
                 $measures,
                 $dimensionLabels,
             ));
@@ -141,6 +142,7 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
      *
      * @return array<string, array{
      *     label: string,
+     *     description: string,
      *     dimensions: array<string, array{label: string, api: string}>,
      *     measures: array<string, array{label: string, field: string, unit: string|null}>,
      *     limit: int,
@@ -150,7 +152,8 @@ final class GscConnector implements DataSourceConnector, ListsConnectableResourc
     {
         return [
             'gsc.search' => [
-                'label' => 'Búsqueda (query/página/país/dispositivo)',
+                'label' => 'Búsquedas en Google (detalle)',
+                'description' => 'Clics y apariciones en Google por búsqueda, página, país o dispositivo; puedes filtrar y elegir el desglose.',
                 'dimensions' => [
                     'query' => ['label' => 'Búsqueda', 'api' => 'query'],
                     'page' => ['label' => 'Página', 'api' => 'page'],

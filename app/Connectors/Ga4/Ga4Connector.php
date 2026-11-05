@@ -120,12 +120,61 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             : ConnectionResult::failure('GA4 responded with HTTP '.$response->status());
     }
 
+    /**
+     * What each metric means, in plain words for the agency and its client (shown in the
+     * editor's metric picker). Kept apart from specs() so the fetch shape stays untouched.
+     *
+     * @var array<string, string>
+     */
+    private const DESCRIPTIONS = [
+        'ga4.sessions' => 'Número de visitas a tu web en el periodo; una misma persona puede hacer varias visitas.',
+        'ga4.users' => 'Personas distintas que visitaron tu web en el periodo.',
+        'ga4.new_users' => 'Personas que visitaron tu web por primera vez en el periodo.',
+        'ga4.active_users' => 'Personas que usaron tu web de forma activa en el periodo (criterio de Google Analytics).',
+        'ga4.screen_page_views' => 'Total de páginas vistas en tu web, contando cada vez que se abre una página.',
+        'ga4.engaged_sessions' => 'Visitas con interacción real: duraron más de 10 segundos, vieron 2 o más páginas o completaron una conversión.',
+        'ga4.engagement_rate' => 'Porcentaje de visitas con interacción real; cuanto más alto, más interesa tu contenido.',
+        'ga4.bounce_rate' => 'Porcentaje de visitas sin interacción (lo contrario de la tasa de interacción); cuanto más bajo, mejor.',
+        'ga4.avg_session_duration' => 'Tiempo promedio que dura cada visita a tu web.',
+        'ga4.views_per_session' => 'Promedio de páginas vistas en cada visita; más alto suele indicar más interés.',
+        'ga4.conversions' => 'Acciones clave marcadas como objetivo en Google Analytics, como formularios enviados o compras.',
+        'ga4.event_count' => 'Total de acciones que registra Google Analytics: páginas vistas, clics, desplazamientos y más.',
+        'ga4.revenue' => 'Ingresos totales que registra Google Analytics: compras, suscripciones y publicidad.',
+        'ga4.purchase_revenue' => 'Ingresos solo por compras realizadas en tu web, según Google Analytics.',
+        'ga4.transactions' => 'Número de compras completadas que registra Google Analytics.',
+        'ga4.purchases' => 'Veces que se completó una compra en tu web.',
+        'ga4.avg_purchase_revenue' => 'Importe promedio de cada compra.',
+        'ga4.items_purchased' => 'Unidades de productos vendidas en total.',
+        'ga4.items_viewed' => 'Veces que se vieron fichas de productos en tu tienda.',
+        'ga4.purchaser_conversion_rate' => 'Porcentaje de usuarios activos que hicieron al menos una compra.',
+        'ga4.sessions_by_date' => 'Visitas de cada día del periodo, para ver cómo evolucionan.',
+        'ga4.users_by_date' => 'Personas activas en tu web cada día del periodo.',
+        'ga4.revenue_by_date' => 'Ingresos totales de cada día del periodo.',
+        'ga4.purchases_by_date' => 'Compras completadas cada día del periodo.',
+        'ga4.top_pages' => 'Las 10 páginas de tu web con más vistas en el periodo.',
+        'ga4.top_landing_pages' => 'Las 10 páginas por las que más visitas llegan a tu web (la primera que ven).',
+        'ga4.traffic_sources' => 'De dónde llegan las visitas: buscadores, acceso directo, redes sociales, otras webs…',
+        'ga4.top_countries' => 'Los 10 países desde los que más te visitan.',
+        'ga4.top_cities' => 'Las 10 ciudades desde las que más te visitan.',
+        'ga4.by_region' => 'Las 10 regiones (estados, provincias o departamentos) desde las que más te visitan.',
+        'ga4.by_language' => 'Idioma configurado en el navegador de tus visitantes.',
+        'ga4.devices' => 'Visitas desde móvil, ordenador o tablet.',
+        'ga4.top_products' => 'Los 10 productos que más ingresos generaron en el periodo.',
+        'ga4.by_gender' => 'Visitantes por género; requiere Google Signals activado en Analytics (si no, el bloque se oculta).',
+        'ga4.by_age' => 'Visitantes por rango de edad; requiere Google Signals activado en Analytics (si no, el bloque se oculta).',
+        'ga4.sessions_by_hour' => 'A qué horas del día llegan más visitas (según la zona horaria de tu Google Analytics).',
+        'ga4.sessions_by_weekday' => 'Qué días de la semana llegan más visitas.',
+        'ga4.geo' => 'Visitas y usuarios por país, región y ciudad; puedes filtrar y elegir cómo desglosarlo.',
+        'ga4.traffic' => 'Visitas, usuarios y conversiones según el canal, la fuente y el medio por el que llegan.',
+        'ga4.pages' => 'Vistas y visitas por página o por página de entrada; puedes filtrar y elegir el desglose.',
+    ];
+
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         $definitions = [];
 
         foreach ($this->specs() as $key => $spec) {
-            $definitions[] = new MetricDefinition($key, $spec['label'], $spec['type'], $spec['unit'], $spec['dimensions']);
+            $definitions[] = new MetricDefinition($key, $spec['label'], $spec['type'], $spec['unit'], $spec['dimensions'], self::DESCRIPTIONS[$key] ?? null);
         }
 
         // Datasets (multi-dimension, multi-measure) expose their filterable dimensions and
@@ -148,7 +197,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 MetricType::Dataset,
                 null,
                 array_keys($spec['dimensions']),
-                null,
+                self::DESCRIPTIONS[$key] ?? null,
                 $measures,
                 $dimensionLabels,
             );
@@ -429,7 +478,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             'ga4.engaged_sessions' => ['label' => 'Sesiones con interacción', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['engagedSessions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.engagement_rate' => ['label' => 'Tasa de interacción', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['engagementRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
             'ga4.bounce_rate' => ['label' => 'Tasa de rebote', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['bounceRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
-            'ga4.avg_session_duration' => ['label' => 'Duración media de sesión (s)', 'type' => MetricType::Scalar, 'unit' => 'seconds', 'metrics' => ['averageSessionDuration'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.avg_session_duration' => ['label' => 'Tiempo medio por visita', 'type' => MetricType::Scalar, 'unit' => 'seconds', 'metrics' => ['averageSessionDuration'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.views_per_session' => ['label' => 'Páginas por sesión', 'type' => MetricType::Scalar, 'unit' => 'ratio', 'metrics' => ['screenPageViewsPerSession'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
             'ga4.conversions' => ['label' => 'Conversiones', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['conversions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.event_count' => ['label' => 'Eventos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['eventCount'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
@@ -442,7 +491,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             'ga4.avg_purchase_revenue' => ['label' => 'Ticket medio', 'type' => MetricType::Scalar, 'unit' => 'currency', 'metrics' => ['averagePurchaseRevenue'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
             'ga4.items_purchased' => ['label' => 'Artículos comprados', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['itemsPurchased'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.items_viewed' => ['label' => 'Artículos vistos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['itemsViewed'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
-            'ga4.purchaser_conversion_rate' => ['label' => 'Conversión a compra', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['purchaserConversionRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
+            'ga4.purchaser_conversion_rate' => ['label' => 'Usuarios que compran (%)', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['purchaserConversionRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
 
             // ---- Time series ----
             'ga4.sessions_by_date' => ['label' => 'Sesiones por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1],
@@ -452,22 +501,22 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
 
             // ---- Top-N tables ----
             'ga4.top_pages' => ['label' => 'Páginas más vistas', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['screenPageViews'], 'dimensions' => ['pagePath'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
-            'ga4.top_landing_pages' => ['label' => 'Páginas de entrada', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['landingPage'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.top_landing_pages' => ['label' => 'Páginas por las que entran', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['landingPage'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.traffic_sources' => ['label' => 'Fuentes de tráfico', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['sessionDefaultChannelGroup'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.top_countries' => ['label' => 'Países', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['country'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.top_cities' => ['label' => 'Ciudades', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['city'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.by_region' => ['label' => 'Regiones', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['region'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.by_language' => ['label' => 'Idiomas', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['language'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
             'ga4.devices' => ['label' => 'Dispositivos', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['deviceCategory'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
-            'ga4.top_products' => ['label' => 'Productos top (ingresos)', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['itemRevenue'], 'dimensions' => ['itemName'], 'limit' => 10, 'cast' => 'float', 'scale' => 1],
+            'ga4.top_products' => ['label' => 'Productos con más ingresos', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['itemRevenue'], 'dimensions' => ['itemName'], 'limit' => 10, 'cast' => 'float', 'scale' => 1],
 
             // ---- Demographics (require Google Signals; empty otherwise → block hides) ----
-            'ga4.by_gender' => ['label' => 'Género', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['activeUsers'], 'dimensions' => ['userGender'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
-            'ga4.by_age' => ['label' => 'Edad', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['activeUsers'], 'dimensions' => ['userAgeBracket'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.by_gender' => ['label' => 'Visitantes por género', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['activeUsers'], 'dimensions' => ['userGender'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
+            'ga4.by_age' => ['label' => 'Visitantes por edad', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['activeUsers'], 'dimensions' => ['userAgeBracket'], 'limit' => 10, 'cast' => 'int', 'scale' => 1],
 
             // ---- By time-of-day / weekday ----
-            'ga4.sessions_by_hour' => ['label' => 'Visitas por hora', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['hour'], 'limit' => 24, 'cast' => 'int', 'scale' => 1],
-            'ga4.sessions_by_weekday' => ['label' => 'Visitas por día de semana', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['dayOfWeek'], 'limit' => 7, 'cast' => 'int', 'scale' => 1],
+            'ga4.sessions_by_hour' => ['label' => 'Visitas por hora del día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['hour'], 'limit' => 24, 'cast' => 'int', 'scale' => 1],
+            'ga4.sessions_by_weekday' => ['label' => 'Visitas por día de la semana', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['dayOfWeek'], 'limit' => 7, 'cast' => 'int', 'scale' => 1],
         ];
     }
 
@@ -489,7 +538,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
     {
         return [
             'ga4.geo' => [
-                'label' => 'Geografía',
+                'label' => 'Ubicación de las visitas',
                 'dimensions' => [
                     'country' => ['label' => 'País', 'api' => 'country'],
                     'region' => ['label' => 'Región', 'api' => 'region'],
@@ -502,7 +551,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 'limit' => 250,
             ],
             'ga4.traffic' => [
-                'label' => 'Tráfico (canal/fuente/medio)',
+                'label' => 'Origen de las visitas (detalle)',
                 'dimensions' => [
                     'channel' => ['label' => 'Canal', 'api' => 'sessionDefaultChannelGroup'],
                     'source' => ['label' => 'Fuente', 'api' => 'sessionSource'],
@@ -516,7 +565,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 'limit' => 250,
             ],
             'ga4.devices' => [
-                'label' => 'Dispositivos',
+                'label' => 'Dispositivos y navegadores',
                 'dimensions' => [
                     'device' => ['label' => 'Dispositivo', 'api' => 'deviceCategory'],
                     'browser' => ['label' => 'Navegador', 'api' => 'browser'],
@@ -530,7 +579,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 'limit' => 250,
             ],
             'ga4.pages' => [
-                'label' => 'Páginas',
+                'label' => 'Páginas (detalle)',
                 'dimensions' => [
                     'page' => ['label' => 'Página', 'api' => 'pagePath'],
                     'landing' => ['label' => 'Página de entrada', 'api' => 'landingPage'],

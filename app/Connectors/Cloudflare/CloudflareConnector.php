@@ -56,19 +56,19 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('cloudflare.requests', 'Peticiones', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.cached_requests', 'Peticiones en caché', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.threats_blocked', 'Amenazas bloqueadas', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.page_views', 'Páginas vistas', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.encrypted_requests', 'Peticiones cifradas (HTTPS)', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.unique_visitors', 'Visitantes únicos', MetricType::Scalar, 'count'),
-            new MetricDefinition('cloudflare.cache_ratio', 'Ratio de caché', MetricType::Scalar, 'percent'),
-            new MetricDefinition('cloudflare.bandwidth', 'Ancho de banda', MetricType::Scalar, 'bytes'),
-            new MetricDefinition('cloudflare.requests_by_date', 'Peticiones por día', MetricType::Series, 'count'),
-            new MetricDefinition('cloudflare.threats_by_date', 'Amenazas por día', MetricType::Series, 'count'),
-            new MetricDefinition('cloudflare.bandwidth_by_date', 'Ancho de banda por día', MetricType::Series, 'bytes'),
-            new MetricDefinition('cloudflare.threats_by_country', 'Amenazas por país', MetricType::Table, dimensions: ['country']),
-            new MetricDefinition('cloudflare.requests_by_country', 'Peticiones por país', MetricType::Table, dimensions: ['country']),
+            new MetricDefinition('cloudflare.requests', 'Solicitudes al sitio', MetricType::Scalar, 'count', description: 'Todas las veces que navegadores y bots pidieron algo al sitio (páginas, imágenes, archivos) a través de Cloudflare.'),
+            new MetricDefinition('cloudflare.cached_requests', 'Solicitudes servidas desde caché', MetricType::Scalar, 'count', description: 'Solicitudes que Cloudflare respondió con su copia guardada, sin cargar tu servidor: cuantas más, más rápido.'),
+            new MetricDefinition('cloudflare.threats_blocked', 'Amenazas bloqueadas', MetricType::Scalar, 'count', description: 'Solicitudes peligrosas (ataques, bots maliciosos) que el firewall de Cloudflare frenó antes de llegar al sitio.'),
+            new MetricDefinition('cloudflare.page_views', 'Páginas vistas', MetricType::Scalar, 'count', description: 'Páginas completas que se abrieron, según Cloudflare (no cuenta imágenes ni archivos sueltos).'),
+            new MetricDefinition('cloudflare.encrypted_requests', 'Solicitudes seguras (HTTPS)', MetricType::Scalar, 'count', description: 'Solicitudes que viajaron cifradas con HTTPS (el candado del navegador).'),
+            new MetricDefinition('cloudflare.unique_visitors', 'Visitantes únicos', MetricType::Scalar, 'count', description: 'Direcciones IP distintas que visitaron el sitio en el periodo, según Cloudflare.'),
+            new MetricDefinition('cloudflare.cache_ratio', 'Contenido servido desde caché', MetricType::Scalar, 'percent', description: 'Porcentaje de solicitudes que Cloudflare respondió desde su caché: cuanto más alto, más rápido carga y menos trabaja el servidor.'),
+            new MetricDefinition('cloudflare.bandwidth', 'Datos transferidos', MetricType::Scalar, 'bytes', description: 'Cantidad de datos que el sitio envió a los visitantes en el periodo (ancho de banda).'),
+            new MetricDefinition('cloudflare.requests_by_date', 'Solicitudes por día', MetricType::Series, 'count', description: 'Cuántas solicitudes recibió el sitio cada día del periodo.'),
+            new MetricDefinition('cloudflare.threats_by_date', 'Amenazas bloqueadas por día', MetricType::Series, 'count', description: 'Cuántas amenazas frenó Cloudflare cada día: un pico suele indicar un ataque.'),
+            new MetricDefinition('cloudflare.bandwidth_by_date', 'Datos transferidos por día', MetricType::Series, 'bytes', description: 'Cantidad de datos que el sitio envió cada día del periodo.'),
+            new MetricDefinition('cloudflare.threats_by_country', 'Amenazas por país', MetricType::Table, dimensions: ['country'], description: 'Desde qué países llegaron las amenazas bloqueadas, de más a menos.'),
+            new MetricDefinition('cloudflare.requests_by_country', 'Solicitudes por país', MetricType::Table, dimensions: ['country'], description: 'Desde qué países se visita el sitio, según las solicitudes recibidas.'),
         );
     }
 

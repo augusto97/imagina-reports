@@ -60,19 +60,19 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         $catalog = new MetricCatalog(
-            new MetricDefinition('woocommerce.revenue', 'Ingresos (brutos)', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.net_revenue', 'Ingresos netos', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.orders', 'Pedidos', MetricType::Scalar, 'count'),
-            new MetricDefinition('woocommerce.items_sold', 'Artículos vendidos', MetricType::Scalar, 'count'),
-            new MetricDefinition('woocommerce.average_sales', 'Venta media diaria', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.tax', 'Impuestos', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.shipping', 'Envíos', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.discount', 'Descuentos', MetricType::Scalar, 'currency'),
-            new MetricDefinition('woocommerce.refunds', 'Reembolsos', MetricType::Scalar, 'count'),
-            new MetricDefinition('woocommerce.new_customers', 'Clientes nuevos', MetricType::Scalar, 'count'),
-            new MetricDefinition('woocommerce.revenue_by_date', 'Ingresos por día', MetricType::Series, 'currency'),
-            new MetricDefinition('woocommerce.orders_by_date', 'Pedidos por día', MetricType::Series, 'count'),
-            new MetricDefinition('woocommerce.top_products', 'Productos más vendidos', MetricType::Table),
+            new MetricDefinition('woocommerce.revenue', 'Ventas totales', MetricType::Scalar, 'currency', description: 'Todo lo que pagaron los clientes en el periodo, con impuestos y envíos incluidos.'),
+            new MetricDefinition('woocommerce.net_revenue', 'Ventas netas', MetricType::Scalar, 'currency', description: 'Lo que vendiste en el periodo sin contar impuestos ni envíos: el ingreso real de la tienda.'),
+            new MetricDefinition('woocommerce.orders', 'Pedidos', MetricType::Scalar, 'count', description: 'Cuántos pedidos se hicieron en la tienda durante el periodo.'),
+            new MetricDefinition('woocommerce.items_sold', 'Artículos vendidos', MetricType::Scalar, 'count', description: 'Unidades vendidas en total: un pedido con 3 productos suma 3.'),
+            new MetricDefinition('woocommerce.average_sales', 'Venta media por día', MetricType::Scalar, 'currency', description: 'Lo que vende la tienda en un día normal del periodo (ventas netas divididas entre los días).'),
+            new MetricDefinition('woocommerce.tax', 'Impuestos cobrados', MetricType::Scalar, 'currency', description: 'Impuestos incluidos en las ventas del periodo.'),
+            new MetricDefinition('woocommerce.shipping', 'Envíos cobrados', MetricType::Scalar, 'currency', description: 'Lo que pagaron los clientes por el envío de sus pedidos en el periodo.'),
+            new MetricDefinition('woocommerce.discount', 'Descuentos aplicados', MetricType::Scalar, 'currency', description: 'Dinero descontado con cupones y rebajas en el periodo.'),
+            new MetricDefinition('woocommerce.refunds', 'Reembolsos', MetricType::Scalar, 'count', description: 'Cuántos pedidos se devolvieron (reembolsaron) en el periodo.'),
+            new MetricDefinition('woocommerce.new_customers', 'Clientes nuevos', MetricType::Scalar, 'count', description: 'Clientes que crearon su cuenta en la tienda durante el periodo.'),
+            new MetricDefinition('woocommerce.revenue_by_date', 'Ventas por día', MetricType::Series, 'currency', description: 'Cuánto se vendió cada día del periodo, para ver los días fuertes y flojos.'),
+            new MetricDefinition('woocommerce.orders_by_date', 'Pedidos por día', MetricType::Series, 'count', description: 'Cuántos pedidos llegaron cada día del periodo.'),
+            new MetricDefinition('woocommerce.top_products', 'Productos más vendidos', MetricType::Table, description: 'Los productos que más unidades vendieron en el periodo, de más a menos.'),
         );
 
         // Datasets (multi-measure, bounded top-N) from the WC Analytics API, so the editor
@@ -94,7 +94,7 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
                 MetricType::Dataset,
                 null,
                 array_keys($spec['dimensions']),
-                null,
+                $spec['description'],
                 $measures,
                 $dimensionLabels,
             ));
@@ -113,6 +113,7 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
      *
      * @return array<string, array{
      *     label: string,
+     *     description: string,
      *     endpoint: string,
      *     order_by: string,
      *     dimensions: array<string, array{label: string, path: string}>,
@@ -124,7 +125,8 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
     {
         return [
             'woocommerce.products' => [
-                'label' => 'Productos (ventas)',
+                'label' => 'Ventas por producto',
+                'description' => 'Unidades, ventas netas y pedidos de cada producto en el periodo; puedes ordenarlos o filtrarlos.',
                 'endpoint' => '/reports/products',
                 'order_by' => 'items_sold',
                 'dimensions' => [
@@ -138,7 +140,8 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
                 'limit' => 100,
             ],
             'woocommerce.categories' => [
-                'label' => 'Categorías (ventas)',
+                'label' => 'Ventas por categoría',
+                'description' => 'Unidades, ventas netas y pedidos de cada categoría de productos en el periodo.',
                 'endpoint' => '/reports/categories',
                 'order_by' => 'items_sold',
                 'dimensions' => [
@@ -152,7 +155,8 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
                 'limit' => 100,
             ],
             'woocommerce.coupons' => [
-                'label' => 'Cupones (uso)',
+                'label' => 'Uso de cupones',
+                'description' => 'Qué cupones de descuento se usaron, en cuántos pedidos y cuánto descontaron.',
                 'endpoint' => '/reports/coupons',
                 'order_by' => 'orders_count',
                 'dimensions' => [
@@ -165,7 +169,8 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
                 'limit' => 100,
             ],
             'woocommerce.customers' => [
-                'label' => 'Clientes (gasto)',
+                'label' => 'Gasto por cliente',
+                'description' => 'Los clientes que más compraron: gasto total, número de pedidos y compra media.',
                 'endpoint' => '/reports/customers',
                 'order_by' => 'total_spend',
                 'dimensions' => [
@@ -175,7 +180,7 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
                 'measures' => [
                     'total_spend' => ['label' => 'Gasto total', 'path' => 'total_spend', 'unit' => 'currency', 'cast' => 'float'],
                     'orders_count' => ['label' => 'Pedidos', 'path' => 'orders_count', 'unit' => 'count', 'cast' => 'int'],
-                    'avg_order_value' => ['label' => 'Ticket medio', 'path' => 'avg_order_value', 'unit' => 'currency', 'cast' => 'float'],
+                    'avg_order_value' => ['label' => 'Compra media', 'path' => 'avg_order_value', 'unit' => 'currency', 'cast' => 'float'],
                 ],
                 'limit' => 100,
             ],

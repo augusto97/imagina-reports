@@ -21,6 +21,8 @@ import {
 import { htmlToText, sanitizeReportHtml } from '@shared/lib/html';
 import { cn } from '@shared/lib/utils';
 
+import { columnLabel, formatColumnValue } from './columns';
+
 import { hexToHslString } from '@shared/lib/color';
 
 import { matchCountry } from './geo';
@@ -89,8 +91,6 @@ function rendersEmpty(block: Block, data: unknown): boolean {
     return htmlToText(sanitizeReportHtml(raw)) === '';
 }
 
-/** Friendly table headers for the generic row keys connectors emit. */
-const COLUMN_LABELS: Record<string, string> = { label: 'Nombre', value: 'Valor', date: 'Fecha', name: 'Nombre', count: 'Total', total: 'Total' };
 
 /** "2026-06-10" → "10 jun 2026"; anything else is returned unchanged. */
 function prettyDate(value: string): string {
@@ -292,6 +292,27 @@ interface ReportBrand {
 const ReportBrandContext = createContext<ReportBrand>({ agencyName: '', logoUrl: null, context: {} });
 
 /**
+ * Brand + merge fields for surfaces that render blocks one by one instead of through
+ * `BlockList` (the editor canvas): every `BlockRenderer` inside fills {{agency}}, {{client}},
+ * {{site}} and {{period}} the same way the portal does, so the editor never shows raw tokens.
+ */
+export function ReportBrandProvider({
+    agency,
+    context,
+    children,
+}: {
+    agency?: { name?: string | null; logo_url?: string | null } | null;
+    context: Record<string, string>;
+    children: ReactNode;
+}): ReactElement {
+    const agencyName = agency?.name ?? '';
+    const logoUrl = agency?.logo_url ?? null;
+    const value = useMemo<ReportBrand>(() => ({ agencyName, logoUrl, context }), [agencyName, logoUrl, context]);
+
+    return <ReportBrandContext.Provider value={value}>{children}</ReportBrandContext.Provider>;
+}
+
+/**
  * Active page-level filters (CLAUDE.md §11.3): a map of row-field → selected value, set
  * by `control` blocks and applied to the list blocks on the page. Empty by default, so
  * with no control present every block renders exactly as before (no regression). This is
@@ -454,25 +475,62 @@ function Gauge({ score, id }: { score: number; id: string }): ReactElement {
     );
 }
 
+interface HealthSignal {
+    key: string;
+    label: string;
+    detail: string;
+    score: number;
+    weight: number;
+}
+
+/** The score and, when the report carries it, what it's made of (a frozen old report has just the number). */
+function asHealth(data: unknown): { score: number; signals: HealthSignal[] } {
+    if (data !== null && typeof data === 'object' && 'score' in data) {
+        const record = data as { score?: unknown; signals?: unknown };
+        const signals = Array.isArray(record.signals)
+            ? record.signals.filter((signal): signal is HealthSignal => signal !== null && typeof signal === 'object' && typeof (signal as HealthSignal).label === 'string')
+            : [];
+
+        return { score: Number(record.score) || 0, signals };
+    }
+
+    return { score: typeof data === 'number' ? data : Number(data) || 0, signals: [] };
+}
+
 function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
-    const score = typeof data === 'number' ? data : Number(data) || 0;
+    const { score, signals } = asHealth(data);
     const verdict =
         score >= 90 ? { label: 'Excelente', text: 'Todo funciona como debe.', tone: 'ir-bg-success/10 ir-text-success' }
         : score >= 75 ? { label: 'Muy bien', text: 'Estable, con detalles menores.', tone: 'ir-bg-success/10 ir-text-success' }
         : score >= 50 ? { label: 'Mejorable', text: 'Hay puntos que conviene atender.', tone: 'ir-bg-warning/10 ir-text-warning' }
         : { label: 'Requiere atención', text: 'Recomendamos actuar pronto.', tone: 'ir-bg-danger/10 ir-text-danger' };
+    const dot = (value: number): string => (value >= 80 ? 'ir-bg-success' : value >= 50 ? 'ir-bg-warning' : 'ir-bg-danger');
 
     return (
         <Section title={str(prop(block, 'title'), 'Estado general')} style={block.style}>
             {/* Stacks in a narrow cell; side by side when the block spans the page. */}
-            <div className="ir-flex ir-h-full ir-flex-wrap ir-items-center ir-justify-center ir-gap-x-8 ir-gap-y-2">
-                <div className="ir-w-[220px] ir-max-w-full">
-                    <Gauge score={score} id={block.id} />
-                </div>
+            <div className="ir-flex ir-h-full ir-flex-wrap ir-items-center ir-justify-center ir-gap-x-8 ir-gap-y-3">
                 <div className="ir-flex ir-flex-col ir-items-center ir-gap-1.5">
+                    <div className="ir-w-[200px] ir-max-w-full">
+                        <Gauge score={score} id={block.id} />
+                    </div>
                     <span className={cn('ir-rounded-full ir-px-2.5 ir-py-0.5 ir-text-xs ir-font-semibold', verdict.tone)}>{verdict.label}</span>
-                    <p className="ir-max-w-[14rem] ir-text-center ir-text-xs ir-text-muted-foreground">{verdict.text}</p>
+                    {signals.length === 0 && <p className="ir-max-w-[14rem] ir-text-center ir-text-xs ir-text-muted-foreground">{verdict.text}</p>}
                 </div>
+                {/* What the number is made of, in plain words: the client sees why it's 87, not just 87. */}
+                {signals.length > 0 && (
+                    <ul className="ir-flex ir-min-w-[12rem] ir-max-w-sm ir-flex-1 ir-flex-col ir-gap-1.5">
+                        {signals.map((signal) => (
+                            <li key={signal.key} className="ir-flex ir-items-start ir-gap-2 ir-text-xs">
+                                <span className={cn('ir-mt-1 ir-size-2 ir-shrink-0 ir-rounded-full', dot(signal.score))} aria-hidden />
+                                <span className="ir-min-w-0">
+                                    <span className="ir-font-semibold">{signal.label}</span>
+                                    <span className="ir-text-muted-foreground"> · {signal.detail}</span>
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
         </Section>
     );
@@ -746,7 +804,21 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
         return col === '' ? null : { col, dir: block.style?.sort_dir === 'asc' ? 1 : -1 };
     }, [block.style?.sort_col, block.style?.sort_dir]);
     const [userSort, setUserSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
-    const sort = userSort ?? predefinedSort;
+    // A ranking (one name column + numbers) with no order chosen reads best by its first figure,
+    // highest first — sources don't always send it that way (search queries came alphabetical).
+    const rankingSort = useMemo<{ col: string; dir: 1 | -1 } | null>(() => {
+        const first = rows[0];
+        if (first === undefined) {
+            return null;
+        }
+        const keys = Object.keys(first);
+        const isNumber = (col: string): boolean => rows.every((row) => row[col] === undefined || typeof row[col] === 'number' || (row[col] !== '' && !Number.isNaN(Number(row[col]))));
+        const text = keys.filter((col) => !isNumber(col));
+        const numbers = keys.filter(isNumber);
+
+        return text.length === 1 && numbers.length > 0 && numbers[0] !== undefined ? { col: numbers[0], dir: -1 } : null;
+    }, [rows]);
+    const sort = userSort ?? predefinedSort ?? rankingSort;
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(0);
 
@@ -780,7 +852,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const numeric = new Set(columns.filter((col) => rows.every((row) => row[col] === undefined || typeof row[col] === 'number' || (row[col] !== '' && !Number.isNaN(Number(row[col]))))));
     const bars = block.style?.bars === true;
     // Top-N lists (one label + numbers) get a rank number; structured tables (work log…) don't.
-    const rankable = columns.length <= 3 && columns.filter((col) => !numeric.has(col)).length === 1 && sort === null;
+    const rankable = columns.length <= 4 && columns.filter((col) => !numeric.has(col)).length === 1 && (sort === null || sort === rankingSort);
     const max = bars ? Math.max(0, ...rows.map((row) => Number(row.value) || 0)) : 0;
     const toggleSort = (col: string): void =>
         setUserSort((current) => {
@@ -841,7 +913,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                                     className="ir-inline-flex ir-max-w-full ir-items-center ir-gap-1 ir-truncate hover:ir-text-foreground"
                                     onClick={() => toggleSort(col)}
                                 >
-                                    {COLUMN_LABELS[col] ?? col}
+                                    {columnLabel(col)}
                                     {sort?.col === col && <span className="ir-text-[10px]">{sort.dir === 1 ? '▲' : '▼'}</span>}
                                 </button>
                             </th>
@@ -878,7 +950,7 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                                             <span className="ir-min-w-0 ir-break-words">{humanLabel(String(row[col] ?? ''))}</span>
                                         </span>
                                     ) : numeric.has(col) ? (
-                                        Number(row[col]).toLocaleString(FALLBACK_LOCALE)
+                                        formatColumnValue(col, Number(row[col]), FALLBACK_LOCALE) ?? Number(row[col]).toLocaleString(FALLBACK_LOCALE)
                                     ) : (
                                         humanLabel(String(row[col] ?? ''))
                                     )}
@@ -1675,10 +1747,14 @@ class BlockErrorBoundary extends ReactComponent<{ children: ReactNode }, { faile
 
 export function BlockRenderer({ block, data }: BlockComponentProps): ReactElement | null {
     const Component = registry[block.type] ?? CustomBlock;
+    // Merge fields come from the surrounding brand context (BlockList or ReportBrandProvider).
+    // Already-merged text has no tokens left, so merging twice is harmless.
+    const { context } = useContext(ReportBrandContext);
+    const merged = useMemo(() => (Object.keys(context).length === 0 ? block : applyContext(block, context)), [block, context]);
 
     return (
         <BlockErrorBoundary>
-            <Component block={block} data={data} />
+            <Component block={merged} data={data} />
         </BlockErrorBoundary>
     );
 }
