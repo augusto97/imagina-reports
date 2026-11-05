@@ -23,20 +23,43 @@ final class AiSettings
 
     public const PLATFORM_MODEL = 'ai_model';
 
-    /** Agency settings key for its own model choice. */
+    public const PLATFORM_EFFORT = 'ai_effort';
+
+    /** Agency settings keys for its own choices (used only with its own key). */
     public const AGENCY_MODEL = 'ai_model';
 
+    public const AGENCY_EFFORT = 'ai_effort';
+
     /**
-     * @return array{key: string|null, model: string, own_key: bool}
+     * @return array{key: string|null, model: string, effort: string, own_key: bool}
      */
     public static function for(?Agency $agency): array
     {
         $own = $agency?->anthropicKey();
         if (is_string($own) && $own !== '') {
-            return ['key' => $own, 'model' => self::agencyModel($agency) ?? self::platformModel(), 'own_key' => true];
+            return [
+                'key' => $own,
+                'model' => self::agencyModel($agency) ?? self::platformModel(),
+                'effort' => self::agencyEffort($agency) ?? self::platformEffort(),
+                'own_key' => true,
+            ];
         }
 
-        return ['key' => self::platformKey(), 'model' => self::platformModel(), 'own_key' => false];
+        return ['key' => self::platformKey(), 'model' => self::platformModel(), 'effort' => self::platformEffort(), 'own_key' => false];
+    }
+
+    public static function platformEffort(): string
+    {
+        $panel = PlatformSetting::current()->get(self::PLATFORM_EFFORT);
+
+        return is_string($panel) && AiModels::knownEffort($panel) ? $panel : AiModels::DEFAULT_EFFORT;
+    }
+
+    public static function agencyEffort(?Agency $agency): ?string
+    {
+        $effort = $agency?->settings[self::AGENCY_EFFORT] ?? null;
+
+        return is_string($effort) && AiModels::knownEffort($effort) ? $effort : null;
     }
 
     public static function available(?Agency $agency): bool

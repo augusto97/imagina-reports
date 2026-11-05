@@ -1179,6 +1179,8 @@ function AiPlatformRow(): ReactElement {
     // A model set in .env that the panel doesn't list still shows as the current choice.
     const listed = models.some((model) => model.id === current);
     const hint = models.find((model) => model.id === current)?.hint;
+    const effort = settings?.ai_effort ?? 'medium';
+    const effortHint = settings?.ai_efforts.find((option) => option.id === effort)?.hint;
 
     return (
         <SettingsRow
@@ -1187,16 +1189,16 @@ function AiPlatformRow(): ReactElement {
             status={<ConfigChip ready={settings?.ai_ready ?? false} note={settings?.ai_from_env === true ? '(por .env)' : undefined} />}
         >
             <div className="ir-flex ir-flex-col ir-gap-4">
+                <Field label="Clave de Anthropic" hint="Créala en console.anthropic.com → API Keys. Se guarda cifrada.">
+                    <Input
+                        type="password"
+                        autoComplete="off"
+                        value={key}
+                        onChange={(e) => setKey(e.target.value)}
+                        placeholder={settings?.anthropic_key_set ? '•••••••• (déjalo vacío para conservarla)' : 'sk-ant-…'}
+                    />
+                </Field>
                 <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
-                    <Field label="Clave de Anthropic" hint="Créala en console.anthropic.com → API Keys. Se guarda cifrada.">
-                        <Input
-                            type="password"
-                            autoComplete="off"
-                            value={key}
-                            onChange={(e) => setKey(e.target.value)}
-                            placeholder={settings?.anthropic_key_set ? '•••••••• (déjalo vacío para conservarla)' : 'sk-ant-…'}
-                        />
-                    </Field>
                     <Field label="Modelo por defecto" hint={hint ?? 'El que usan las agencias sin clave propia.'}>
                         <Select
                             value={current}
@@ -1207,6 +1209,22 @@ function AiPlatformRow(): ReactElement {
                             {models.map((model) => (
                                 <option key={model.id} value={model.id}>
                                     {model.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                    <Field
+                        label="Nivel de esfuerzo"
+                        hint={settings?.ai_effort_applies === false ? 'Se aplica a los modelos de la lista; el del .env usa su nivel de siempre.' : (effortHint ?? 'Cuánto piensa la IA antes de escribir.')}
+                    >
+                        <Select
+                            value={effort}
+                            disabled={update.isPending || settings === undefined}
+                            onChange={(e) => update.mutate({ ai_effort: e.target.value }, { onSuccess: () => setSaved(true) })}
+                        >
+                            {(settings?.ai_efforts ?? []).map((option) => (
+                                <option key={option.id} value={option.id}>
+                                    {option.label}
                                 </option>
                             ))}
                         </Select>

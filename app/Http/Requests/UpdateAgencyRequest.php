@@ -45,6 +45,8 @@ final class UpdateAgencyRequest extends FormRequest
             'anthropic_key' => ['nullable', 'string', 'max:255'],
             // The model used with the agency's own key; null/empty = the platform's default.
             'ai_model' => ['sometimes', 'nullable', 'string', Rule::in(AiModels::ids())],
+            // How much the model thinks (low/medium/high); null/empty = the platform's level.
+            'ai_effort' => ['sometimes', 'nullable', 'string', Rule::in(AiModels::effortIds())],
             // Outbound webhook endpoints (integrations, §8). Sent → replace the list.
             'webhook_urls' => ['sometimes', 'array', 'max:20'],
             'webhook_urls.*' => ['string', 'url', 'max:2048'],

@@ -119,6 +119,16 @@ final class AgencyController extends Controller
             }
             $agency->settings = $aiSettings;
         }
+        if (array_key_exists('ai_effort', $validated)) {
+            $effort = $validated['ai_effort'];
+            $aiSettings = $agency->settings ?? [];
+            if (is_string($effort) && AiModels::knownEffort($effort)) {
+                $aiSettings[AiSettings::AGENCY_EFFORT] = $effort;
+            } else {
+                unset($aiSettings[AiSettings::AGENCY_EFFORT]);
+            }
+            $agency->settings = $aiSettings;
+        }
 
         // Webhook endpoints/secret live in the settings JSON (read by the dispatcher, §8).
         // Absent → leave as-is; present → replace. Empty secret clears it.
@@ -213,19 +223,20 @@ final class AgencyController extends Controller
         $this->authorizePrivileged($request);
 
         $agency = $this->current($tenant);
-        ['key' => $key, 'model' => $model, 'own_key' => $own] = AiSettings::for($agency);
+        ['key' => $key, 'model' => $model, 'effort' => $effort, 'own_key' => $own] = AiSettings::for($agency);
         if ($key === null) {
             return response()->json(['ok' => false, 'message' => 'Aún no hay clave de IA: pega la tuya arriba.'], 422);
         }
 
-        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048);
+        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048, $effort);
 
         return response()->json([
             'ok' => $result['ok'],
             'model' => $model,
             'model_label' => AiModels::label($model),
+            'effort' => $effort,
             'own_key' => $own,
-            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió.' : $result['error'],
+            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió (esfuerzo '.mb_strtolower(AiModels::effortLabel($effort)).').' : $result['error'],
         ], $result['ok'] ? 200 : 422);
     }
 
@@ -301,6 +312,9 @@ final class AgencyController extends Controller
             'ai_model' => AiSettings::agencyModel($agency),
             'ai_models' => AiModels::options(),
             'ai_platform_model' => AiModels::label(AiSettings::platformModel()),
+            'ai_effort' => AiSettings::agencyEffort($agency),
+            'ai_efforts' => AiModels::effortOptions(),
+            'ai_platform_effort' => AiModels::effortLabel(AiSettings::platformEffort()),
             'ai_platform_available' => AiSettings::platformKey() !== null,
             'snapshot_retention_months' => $agency->snapshot_retention_months,
             'calculated_metrics' => $agency->calculated_metrics ?? [],

@@ -82,10 +82,52 @@ class AiSettingsTest extends TestCase
             && $request->header('anthropic-beta') === []);
     }
 
+    public function test_the_effort_level_is_the_agencys_with_its_own_key_or_the_platforms(): void
+    {
+        $this->platform('sk-platform', 'claude-opus-5-5');
+        $settings = PlatformSetting::current();
+        $settings->put(AiSettings::PLATFORM_EFFORT, 'low');
+        $settings->save();
+
+        $agency = Agency::factory()->create(['settings' => [AiSettings::AGENCY_EFFORT => 'high']]);
+        app(TenantContext::class)->set($agency->id);
+        Http::fake(['api.anthropic.com/*' => $this->answer()]);
+
+        // Without its own key the agency's choice is ignored: the platform's level applies.
+        app(AnthropicAiClient::class)->complete('s', 'p');
+        Http::assertSent(fn (Request $request): bool => $request['output_config'] === ['effort' => 'low']);
+
+        $agency->setAnthropicKey('sk-agency');
+        $agency->save();
+        app(AnthropicAiClient::class)->complete('s', 'p');
+        Http::assertSent(fn (Request $request): bool => $request->header('x-api-key')[0] === 'sk-agency' && $request['output_config'] === ['effort' => 'high']);
+    }
+
+    public function test_the_agency_and_the_superadmin_pick_the_effort_level(): void
+    {
+        $agency = Agency::factory()->create();
+        Sanctum::actingAs(User::factory()->create(['agency_id' => $agency->id, 'role' => UserRole::Owner]));
+
+        $this->getJson('/api/v1/agency')
+            ->assertOk()
+            ->assertJsonPath('ai_effort', null)
+            ->assertJsonPath('ai_efforts.1.id', 'medium')
+            ->assertJsonPath('ai_platform_effort', 'Medio');
+        $this->putJson('/api/v1/agency', ['name' => $agency->name, 'ai_effort' => 'max'])->assertStatus(422)->assertJsonValidationErrors('ai_effort');
+        $this->putJson('/api/v1/agency', ['name' => $agency->name, 'ai_effort' => 'high'])->assertOk()->assertJsonPath('ai_effort', 'high');
+
+        Sanctum::actingAs(User::factory()->create(['agency_id' => null, 'is_platform_admin' => true]));
+        $this->putJson('/api/v1/platform/integrations', ['ai_effort' => 'low'])
+            ->assertOk()
+            ->assertJsonPath('ai_effort', 'low')
+            ->assertJsonPath('ai_efforts.0.label', 'Bajo');
+        $this->assertSame('low', AiSettings::platformEffort());
+    }
+
     public function test_the_platform_falls_back_to_env_then_to_the_default_model(): void
     {
         config(['services.anthropic.key' => 'sk-env', 'services.anthropic.model' => null]);
-        $this->assertSame(['key' => 'sk-env', 'model' => AiModels::DEFAULT, 'own_key' => false], AiSettings::for(null));
+        $this->assertSame(['key' => 'sk-env', 'model' => AiModels::DEFAULT, 'effort' => 'medium', 'own_key' => false], AiSettings::for(null));
         $this->assertTrue(AiSettings::platformKeyFromEnv());
 
         // A model set only in .env (not in the panel's list) is still used as-is, without extras.
@@ -94,7 +136,7 @@ class AiSettingsTest extends TestCase
         $this->assertSame(['body' => [], 'beta' => null], AiModels::extras('claude-sonnet-4-6'));
 
         $this->platform('sk-panel', 'claude-opus-5-5');
-        $this->assertSame(['key' => 'sk-panel', 'model' => 'claude-opus-5-5', 'own_key' => false], AiSettings::for(null));
+        $this->assertSame(['key' => 'sk-panel', 'model' => 'claude-opus-5-5', 'effort' => 'medium', 'own_key' => false], AiSettings::for(null));
         $this->assertFalse(AiSettings::platformKeyFromEnv());
     }
 
@@ -154,7 +196,7 @@ class AiSettingsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('model', 'claude-sonnet-5-5')
-            ->assertJsonPath('message', 'Funciona: Claude Sonnet 5.5 respondió.');
+            ->assertJsonPath('message', 'Funciona: Claude Sonnet 5.5 respondió (esfuerzo medio).');
 
         $response = $this->postJson('/api/v1/agency/ai/test')->assertStatus(422)->assertJsonPath('ok', false);
         $this->assertStringContainsString('La clave no es válida', (string) $response->json('message'));

@@ -896,6 +896,7 @@ function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
     const [apiKey, setApiKey] = useState('');
     const own = agency.ai_key_set;
     const selected = agency.ai_models.find((model) => model.id === agency.ai_model);
+    const selectedEffort = agency.ai_efforts.find((effort) => effort.id === agency.ai_effort);
 
     const status = own ? (
         <Badge tone="success">Tu clave</Badge>
@@ -914,9 +915,9 @@ function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
             <div className="ir-flex ir-flex-col ir-gap-4">
                 <p className="ir-rounded-lg ir-bg-muted/60 ir-px-3 ir-py-2 ir-text-xs ir-leading-relaxed ir-text-muted-foreground">
                     {own
-                        ? 'Usas tu propia clave: el consumo se cobra en tu cuenta de Anthropic y eliges el modelo aquí abajo.'
+                        ? 'Usas tu propia clave: el consumo se cobra en tu cuenta de Anthropic y eliges el modelo y el nivel de esfuerzo aquí abajo.'
                         : agency.ai_platform_available
-                          ? `Ahora usas la IA incluida en la plataforma (${agency.ai_platform_model}). Si pegas tu propia clave, el consumo va a tu cuenta de Anthropic y puedes elegir el modelo.`
+                          ? `Ahora usas la IA incluida en la plataforma (${agency.ai_platform_model}). Si pegas tu propia clave, el consumo va a tu cuenta de Anthropic y puedes elegir el modelo y el nivel de esfuerzo.`
                           : 'Pega tu clave de Anthropic para activar la IA. Mientras tanto, el resumen de cada informe se escribe solo a partir de las cifras.'}
                 </p>
                 <Field label="Tu clave de Anthropic (opcional)" hint="Créala en console.anthropic.com → API Keys. Se guarda cifrada y nunca se vuelve a mostrar.">
@@ -952,27 +953,50 @@ function AiCard({ agency }: { agency: AgencySettings }): ReactElement {
                     {update.isError && <span className="ir-text-xs ir-text-danger">No se pudo guardar.</span>}
                 </div>
 
-                <Field
-                    label="Modelo"
-                    hint={
-                        own
-                            ? (selected?.hint ?? `Sin elegir, usas el de la plataforma: ${agency.ai_platform_model}.`)
-                            : 'Para elegir el modelo necesitas tu propia clave: con la de la plataforma se usa el que ella define.'
-                    }
-                >
-                    <Select
-                        value={own ? (agency.ai_model ?? '') : ''}
-                        disabled={!own || update.isPending}
-                        onChange={(event) => update.mutate({ ...agencyBase(agency), ai_model: event.target.value === '' ? null : event.target.value })}
+                <div className="ir-grid ir-gap-4 sm:ir-grid-cols-2">
+                    <Field
+                        label="Modelo"
+                        hint={
+                            own
+                                ? (selected?.hint ?? `Sin elegir, usas el de la plataforma: ${agency.ai_platform_model}.`)
+                                : 'Para elegirlo necesitas tu propia clave: con la de la plataforma se usa el que ella define.'
+                        }
                     >
-                        <option value="">El de la plataforma ({agency.ai_platform_model})</option>
-                        {agency.ai_models.map((model) => (
-                            <option key={model.id} value={model.id}>
-                                {model.label}
-                            </option>
-                        ))}
-                    </Select>
-                </Field>
+                        <Select
+                            value={own ? (agency.ai_model ?? '') : ''}
+                            disabled={!own || update.isPending}
+                            onChange={(event) => update.mutate({ ...agencyBase(agency), ai_model: event.target.value === '' ? null : event.target.value })}
+                        >
+                            <option value="">El de la plataforma ({agency.ai_platform_model})</option>
+                            {agency.ai_models.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                    {model.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                    <Field
+                        label="Nivel de esfuerzo"
+                        hint={
+                            own
+                                ? (selectedEffort?.hint ?? `Sin elegir, usas el de la plataforma: ${agency.ai_platform_effort.toLowerCase()}.`)
+                                : 'Cuánto piensa la IA antes de escribir. Con tu propia clave lo eliges tú.'
+                        }
+                    >
+                        <Select
+                            value={own ? (agency.ai_effort ?? '') : ''}
+                            disabled={!own || update.isPending}
+                            onChange={(event) => update.mutate({ ...agencyBase(agency), ai_effort: event.target.value === '' ? null : event.target.value })}
+                        >
+                            <option value="">El de la plataforma ({agency.ai_platform_effort.toLowerCase()})</option>
+                            {agency.ai_efforts.map((effort) => (
+                                <option key={effort.id} value={effort.id}>
+                                    {effort.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                </div>
 
                 {(own || agency.ai_platform_available) && (
                     <div className="ir-flex ir-flex-wrap ir-items-center ir-gap-3">

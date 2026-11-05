@@ -7,6 +7,12 @@
 ---
 
 ## Where I left off (read me first)
+**🎚️ NIVEL DE ESFUERZO DE LA IA (2026-11-05, v1.37.2):** junto al modelo, «Nivel de esfuerzo» (Bajo / Medio / Alto →
+`output_config.effort` low/medium/high; por defecto `medium`). Mismas reglas que el modelo: PlatformSetting `ai_effort` (superadmin) y
+`settings.ai_effort` de la agencia (solo con clave propia). `AiSettings::for()` devuelve también `effort`; `AnthropicAiClient` usa
+timeout 180 s con `high`. Solo se envía con los modelos del catálogo (un id del `.env` fuera de la lista va sin extras, y el panel lo dice).
+`AiSettingsTest` (11).
+
 **🤖 MODELO DE IA ELEGIBLE + «PROBAR» (2026-11-05, v1.37.1):** el owner no veía dónde elegir el modelo. Antes el modelo era fijo
 (`ANTHROPIC_MODEL`, por defecto `claude-sonnet-4-6`) y la clave de plataforma solo vivía en `.env`. Ahora: `App\Ai\AiModels` (catálogo:
 `claude-opus-5-5` por defecto, `claude-sonnet-5-5`, `claude-haiku-5-5`, con `output_config.effort=medium` y `fallbacks:"default"` +

@@ -107,6 +107,11 @@ export interface PlatformIntegrationsSettings {
     ai_model: string;
     ai_model_label: string;
     ai_models: AiModelOption[];
+    /** How much the model thinks: low / medium / high. */
+    ai_effort: string;
+    ai_efforts: AiModelOption[];
+    /** False when the default model comes from .env and isn't in the list (effort isn't sent then). */
+    ai_effort_applies: boolean;
 }
 
 export interface AiModelOption {
@@ -553,6 +558,10 @@ export interface AgencySettings {
     /** The model the platform uses (label) and whether the platform has a key at all. */
     ai_platform_model: string;
     ai_platform_available: boolean;
+    /** The agency's own effort level (only with its own key); null = the platform's. */
+    ai_effort: string | null;
+    ai_efforts: AiModelOption[];
+    ai_platform_effort: string;
     snapshot_retention_months: number | null;
     calculated_metrics: { key: string; label: string; formula: string }[];
     webhook_urls: string[];

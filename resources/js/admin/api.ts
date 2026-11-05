@@ -160,6 +160,7 @@ export interface AgencyUpdate {
     default_locale: string;
     anthropic_key?: string;
     ai_model?: string | null;
+    ai_effort?: string | null;
     webhook_urls?: string[];
     webhook_secret?: string;
     slack_webhook_url?: string;

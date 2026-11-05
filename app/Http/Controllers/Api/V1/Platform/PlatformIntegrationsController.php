@@ -46,6 +46,7 @@ final class PlatformIntegrationsController extends Controller
             // Claude for every agency without its own key (falls back to .env).
             AiSettings::PLATFORM_KEY => ['sometimes', 'nullable', 'string', 'max:255'],
             AiSettings::PLATFORM_MODEL => ['sometimes', 'nullable', 'string', Rule::in(AiModels::ids())],
+            AiSettings::PLATFORM_EFFORT => ['sometimes', 'nullable', 'string', Rule::in(AiModels::effortIds())],
         ]);
 
         $settings = PlatformSetting::current();
@@ -73,6 +74,10 @@ final class PlatformIntegrationsController extends Controller
             $value = $request->input(AiSettings::PLATFORM_MODEL);
             $settings->put(AiSettings::PLATFORM_MODEL, is_string($value) && AiModels::known($value) ? $value : null);
         }
+        if ($request->has(AiSettings::PLATFORM_EFFORT)) {
+            $value = $request->input(AiSettings::PLATFORM_EFFORT);
+            $settings->put(AiSettings::PLATFORM_EFFORT, is_string($value) && AiModels::knownEffort($value) ? $value : null);
+        }
 
         $settings->save();
 
@@ -84,17 +89,19 @@ final class PlatformIntegrationsController extends Controller
     {
         $key = AiSettings::platformKey();
         $model = AiSettings::platformModel();
+        $effort = AiSettings::platformEffort();
         if ($key === null) {
             return response()->json(['ok' => false, 'message' => 'Aún no hay clave de la plataforma: pégala arriba.'], 422);
         }
 
-        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048);
+        $result = $client->send($key, $model, 'Responde solo con la palabra OK.', 'OK', 2048, $effort);
 
         return response()->json([
             'ok' => $result['ok'],
             'model' => $model,
             'model_label' => AiModels::label($model),
-            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió.' : $result['error'],
+            'effort' => $effort,
+            'message' => $result['ok'] ? 'Funciona: '.AiModels::label($model).' respondió (esfuerzo '.mb_strtolower(AiModels::effortLabel($effort)).').' : $result['error'],
         ], $result['ok'] ? 200 : 422);
     }
 
@@ -133,6 +140,10 @@ final class PlatformIntegrationsController extends Controller
             'ai_model' => AiSettings::platformModel(),
             'ai_model_label' => AiModels::label(AiSettings::platformModel()),
             'ai_models' => AiModels::options(),
+            'ai_effort' => AiSettings::platformEffort(),
+            'ai_efforts' => AiModels::effortOptions(),
+            // Effort only goes out with the models in the list (an .env-only id gets no extras).
+            'ai_effort_applies' => AiModels::known(AiSettings::platformModel()),
         ];
     }
 

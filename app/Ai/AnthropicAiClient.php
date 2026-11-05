@@ -25,9 +25,9 @@ final class AnthropicAiClient implements AiClient
 
     public function complete(string $system, string $prompt): string
     {
-        ['key' => $key, 'model' => $model] = AiSettings::for($this->agency());
+        ['key' => $key, 'model' => $model, 'effort' => $effort] = AiSettings::for($this->agency());
 
-        return $this->send($key ?? '', $model, $system, $prompt)['text'];
+        return $this->send($key ?? '', $model, $system, $prompt, 16000, $effort)['text'];
     }
 
     /**
@@ -36,13 +36,13 @@ final class AnthropicAiClient implements AiClient
      *
      * @return array{ok: bool, text: string, error: string|null}
      */
-    public function send(string $key, string $model, string $system, string $prompt, int $maxTokens = 16000): array
+    public function send(string $key, string $model, string $system, string $prompt, int $maxTokens = 16000, string $effort = AiModels::DEFAULT_EFFORT): array
     {
         if ($key === '') {
             return ['ok' => false, 'text' => '', 'error' => 'No hay clave de IA configurada.'];
         }
 
-        $extras = AiModels::extras($model);
+        $extras = AiModels::extras($model, $effort);
         $headers = ['x-api-key' => $key, 'anthropic-version' => self::VERSION];
         if ($extras['beta'] !== null) {
             $headers['anthropic-beta'] = $extras['beta'];
@@ -50,7 +50,7 @@ final class AnthropicAiClient implements AiClient
 
         try {
             $response = Http::withHeaders($headers)
-                ->timeout(120)
+                ->timeout($effort === 'high' ? 180 : 120)
                 ->post(self::ENDPOINT, [
                     'model' => $model,
                     'max_tokens' => $maxTokens,

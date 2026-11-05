@@ -21,26 +21,37 @@ final class AiModels
 
     public const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
+    public const DEFAULT_EFFORT = 'medium';
+
     /**
-     * @var array<string, array{label: string, hint: string, effort: string, fallbacks: bool}>
+     * How much the model thinks before answering (`output_config.effort`). Higher = better
+     * reasoning but slower and more tokens; for a report summary «medio» is plenty.
+     *
+     * @var array<string, array{label: string, hint: string}>
+     */
+    private const EFFORTS = [
+        'low' => ['label' => 'Bajo', 'hint' => 'Responde más rápido y gasta menos; textos más directos.'],
+        'medium' => ['label' => 'Medio', 'hint' => 'El equilibrio entre calidad, tiempo y costo. Recomendado.'],
+        'high' => ['label' => 'Alto', 'hint' => 'Piensa más cada texto: algo mejor en informes complejos, pero más lento y más caro.'],
+    ];
+
+    /**
+     * @var array<string, array{label: string, hint: string, fallbacks: bool}>
      */
     private const MODELS = [
         'claude-opus-5-5' => [
             'label' => 'Claude Opus 5.5',
             'hint' => 'El más capaz: los mejores resúmenes y plantillas. Recomendado.',
-            'effort' => 'medium',
             'fallbacks' => true,
         ],
         'claude-sonnet-5-5' => [
             'label' => 'Claude Sonnet 5.5',
             'hint' => 'Muy bueno y cuesta la mitad que Opus.',
-            'effort' => 'medium',
             'fallbacks' => true,
         ],
         'claude-haiku-5-5' => [
             'label' => 'Claude Haiku 5.5',
             'hint' => 'El más rápido y económico (unas 40 veces más barato que Opus); textos más sencillos.',
-            'effort' => 'medium',
             'fallbacks' => false,
         ],
     ];
@@ -75,18 +86,47 @@ final class AiModels
     }
 
     /**
+     * @return list<array{id: string, label: string, hint: string}>
+     */
+    public static function effortOptions(): array
+    {
+        $out = [];
+        foreach (self::EFFORTS as $id => $effort) {
+            $out[] = ['id' => $id, 'label' => $effort['label'], 'hint' => $effort['hint']];
+        }
+
+        return $out;
+    }
+
+    /** @return list<string> */
+    public static function effortIds(): array
+    {
+        return array_keys(self::EFFORTS);
+    }
+
+    public static function knownEffort(string $id): bool
+    {
+        return isset(self::EFFORTS[$id]);
+    }
+
+    public static function effortLabel(string $id): string
+    {
+        return self::EFFORTS[$id]['label'] ?? $id;
+    }
+
+    /**
      * Extra body fields and beta header for a model we know (nothing for any other id).
      *
      * @return array{body: array<string, mixed>, beta: string|null}
      */
-    public static function extras(string $id): array
+    public static function extras(string $id, string $effort = self::DEFAULT_EFFORT): array
     {
         $model = self::MODELS[$id] ?? null;
         if ($model === null) {
             return ['body' => [], 'beta' => null];
         }
 
-        $body = ['output_config' => ['effort' => $model['effort']]];
+        $body = ['output_config' => ['effort' => self::knownEffort($effort) ? $effort : self::DEFAULT_EFFORT]];
         if ($model['fallbacks']) {
             $body['fallbacks'] = 'default';
         }
