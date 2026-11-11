@@ -8,6 +8,7 @@ use App\Connectors\Connect\ConnectRegistry;
 use App\Enums\DataSourceType;
 use App\Enums\UserRole;
 use App\Models\Agency;
+use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\ConnectInvite;
@@ -165,6 +166,8 @@ class ConnectInviteTest extends TestCase
         $this->assertSame('rt_client', $source->credentials['oauth_refresh_token']);
         $this->assertSame($site->agency_id, $source->agency_id);
         $this->assertTrue(AuditLog::query()->where('action', 'connect_invite.used')->exists());
+        // Still a property to pick: the team hears about it once it's complete, not before.
+        $this->assertSame(0, AppNotification::query()->withoutGlobalScopes()->count());
         $this->assertNotNull(ConnectInvite::query()->withoutGlobalScopes()->firstOrFail()->last_used_at);
 
         // Two properties → the page asks the client to choose; only listed values are accepted.
@@ -175,6 +178,10 @@ class ConnectInviteTest extends TestCase
         $this->post("/connect/{$token}/select/{$source->id}", ['value' => '222'])->assertRedirect();
         $fresh = $source->fresh();
         $this->assertSame('222', $fresh?->config['property_id']);
+        $this->assertSame(
+            ['El cliente conectó Google Analytics 4 en panaderiasol.com'],
+            AppNotification::query()->withoutGlobalScopes()->pluck('title')->all(),
+        );
         $this->assertArrayNotHasKey('connect_options', $fresh->meta ?? []);
         $this->get("/connect/{$token}")->assertSee('Conectado');
     }

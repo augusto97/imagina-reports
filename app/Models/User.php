@@ -27,6 +27,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string|null $pending_email
  * @property string|null $pending_email_token
  * @property Carbon|null $pending_email_sent_at
+ * @property array<string, mixed>|null $notification_prefs which notices this person wants (see NotificationPrefs)
  */
 class User extends Authenticatable
 {
@@ -82,6 +83,7 @@ class User extends Authenticatable
             'role' => UserRole::class,
             'is_platform_admin' => 'boolean',
             'impersonating_agency_id' => 'integer',
+            'notification_prefs' => 'array',
         ];
     }
 

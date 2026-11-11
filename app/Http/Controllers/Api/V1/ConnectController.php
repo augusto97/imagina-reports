@@ -10,9 +10,11 @@ use App\Connectors\Connect\ConnectRegistry;
 use App\Connectors\Connect\ResourceDiscovery;
 use App\Enums\DataSourceStatus;
 use App\Http\Controllers\Controller;
+use App\Jobs\NotifySourceEvent;
 use App\Models\Agency;
 use App\Models\DataSource;
 use App\Models\Site;
+use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
@@ -56,7 +58,8 @@ final class ConnectController extends Controller
         $input = is_array($validated['input'] ?? null) ? $validated['input'] : [];
 
         $returnUrl = $this->safeReturnUrl(is_string($validated['return_url'] ?? null) ? $validated['return_url'] : null);
-        $nonce = $this->intents->create($type, $site->id, $agency->id, $input, $returnUrl);
+        $user = $request->user();
+        $nonce = $this->intents->create($type, $site->id, $agency->id, $input, $returnUrl, userId: $user instanceof User ? $user->id : null);
 
         return response()->json([
             'redirect_url' => $provider->redirectUrl($input, $nonce, $this->callbackUrl($type), $returnUrl),
@@ -128,6 +131,16 @@ final class ConnectController extends Controller
                 ['invite_id' => $intent['invite_id'], 'type' => $type],
                 agencyId: $agencyId,
             );
+        }
+
+        // Tell the team — unless there's still an account to pick (GA4 property, ad account…):
+        // the connection is complete, and announced, once that's chosen.
+        if (! is_array($source->meta['connect_options'] ?? null)) {
+            $byClient = is_int($intent['invite_id'] ?? null);
+            $actor = ! $byClient && is_int($intent['user_id'] ?? null)
+                ? User::query()->where('agency_id', $agencyId)->find($intent['user_id'])
+                : null;
+            NotifySourceEvent::connected($source, $actor, $byClient, again: ! $source->wasRecentlyCreated);
         }
 
         if ($isBrowser) {

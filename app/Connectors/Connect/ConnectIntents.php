@@ -21,7 +21,7 @@ final class ConnectIntents
      * @param  array<string, mixed>  $input
      * @return string The one-time nonce.
      */
-    public function create(string $type, int $siteId, int $agencyId, array $input, string $returnUrl, ?int $inviteId = null): string
+    public function create(string $type, int $siteId, int $agencyId, array $input, string $returnUrl, ?int $inviteId = null, ?int $userId = null): string
     {
         $nonce = Str::random(48);
 
@@ -32,6 +32,8 @@ final class ConnectIntents
             'input' => $input,
             'return_url' => $returnUrl,
             'invite_id' => $inviteId,
+            // Who started it from the panel (null when the client did, from a connection link).
+            'user_id' => $userId,
         ], now()->addMinutes(self::TTL_MINUTES));
 
         return $nonce;

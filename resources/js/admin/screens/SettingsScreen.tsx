@@ -1,4 +1,4 @@
-import { Bot, Building2, Check, Copy, CreditCard, Plug, Plus, Send, ShieldCheck, Trash2, User, Webhook } from 'lucide-react';
+import { Bell, Bot, Building2, Check, Copy, CreditCard, Plug, Plus, Send, ShieldCheck, Trash2, User, Webhook } from 'lucide-react';
 import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
 
 import { apiErrorMessage } from '@shared/lib/api';
@@ -29,6 +29,7 @@ import {
     useUploadLogo,
 } from '../api';
 import { AiModelFields } from '../components/AiModelFields';
+import { NotificationSettingsSection } from '../components/NotificationSettings';
 import { Badge, Button, Card, Field, Input, PageHeader, Select, StatusDot } from '../components/ui';
 import type { AgencySettings } from '../types';
 import { SiteAgentPluginCard } from './SystemScreen';
@@ -47,7 +48,7 @@ const LOCALES: { value: string; label: string }[] = [
     { value: 'pt_BR', label: 'Português (BR)' },
 ];
 
-const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected', 'report.question', 'source.failed'];
+const WEBHOOK_EVENTS = ['report.generated', 'report.sent', 'anomaly.detected', 'upsell.detected', 'report.question', 'source.connected', 'source.failed', 'source.recovered', 'source.removed'];
 
 /**
  * The agency's SAVED identity fields. Every card here saves on its own, and the update
@@ -852,15 +853,10 @@ function BillingCard(): ReactElement | null {
 /* ------------------------------ Integraciones ------------------------------ */
 
 /** The agency's own Anthropic key for the AI builder. Saves on its own. */
-/** Which emails the team gets (Etapa 5). Each switch saves on its own. */
+/** Which agency emails go out (Etapa 5). Each switch saves on its own. Connection alerts are per person (Ajustes → Avisos). */
 function NotifyCard({ agency }: { agency: AgencySettings }): ReactElement {
     const update = useUpdateAgency();
     const items: { key: keyof AgencySettings['notify']; title: string; text: string }[] = [
-        {
-            key: 'source_failures',
-            title: 'Cuando una conexión deja de funcionar',
-            text: 'Un correo a los dueños y administradores, una sola vez por caída, con el botón para pedirle al cliente que la reconecte.',
-        },
         {
             key: 'client_questions',
             title: 'Cuando un cliente pregunta desde su informe',
@@ -869,7 +865,10 @@ function NotifyCard({ agency }: { agency: AgencySettings }): ReactElement {
     ];
 
     return (
-        <Card title="Avisos por correo" description="Slack y los webhooks reciben estos eventos siempre; aquí decides qué llega también por correo.">
+        <Card
+            title="Avisos por correo"
+            description="Slack y los webhooks reciben estos eventos siempre; aquí decides qué llega también por correo. Los avisos de conexiones (conectada, caída, recuperada, quitada) los elige cada persona en Ajustes → Avisos."
+        >
             <div className="ir-flex ir-flex-col ir-divide-y">
                 {items.map((item) => (
                     <label key={item.key} className="ir-flex ir-items-start ir-gap-3 ir-py-3 first:ir-pt-0 last:ir-pb-0">
@@ -1412,7 +1411,7 @@ function DangerZoneCard({ agency }: { agency: AgencySettings }): ReactElement {
 
 /* ---------------------------------- Screen --------------------------------- */
 
-type SectionKey = 'account' | 'agency' | 'billing' | 'integrations' | 'assistants' | 'security';
+type SectionKey = 'account' | 'notifications' | 'agency' | 'billing' | 'integrations' | 'assistants' | 'security';
 
 /**
  * Settings used to be one long scroll of ten cards, which put the login email and the
@@ -1421,9 +1420,10 @@ type SectionKey = 'account' | 'agency' | 'billing' | 'integrations' | 'assistant
  */
 const SECTIONS: { key: SectionKey; label: string; icon: typeof User; heading: string; blurb: string }[] = [
     { key: 'account', label: 'Mi cuenta', icon: User, heading: 'Mi cuenta', blurb: 'Tus datos personales: nombre, email de acceso, contraseña y verificación en dos pasos.' },
+    { key: 'notifications', label: 'Avisos', icon: Bell, heading: 'Avisos', blurb: 'Qué te avisamos cuando se conecta, falla, vuelve a funcionar o se quita una fuente: en la campana del panel, por correo y de qué sitios.' },
     { key: 'agency', label: 'Mi agencia', icon: Building2, heading: 'Mi agencia', blurb: 'Cómo se ve tu agencia en los reportes: nombre, idioma, color y logo.' },
     { key: 'billing', label: 'Plan y pagos', icon: CreditCard, heading: 'Plan y pagos', blurb: 'Tu consumo, tu suscripción y el email con el que se te cobra.' },
-    { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, avisos por correo, plugin del agente para WordPress, webhooks salientes y avisos por Slack.' },
+    { key: 'integrations', label: 'Integraciones', icon: Plug, heading: 'Integraciones', blurb: 'Clave de IA, correo de preguntas de clientes, plugin del agente para WordPress, webhooks salientes y avisos por Slack.' },
     { key: 'assistants', label: 'Asistentes IA', icon: Bot, heading: 'Asistentes IA', blurb: 'Conecta Claude, ChatGPT u otro asistente para trabajar con Imagina Reports hablando.' },
     { key: 'security', label: 'Seguridad', icon: ShieldCheck, heading: 'Seguridad', blurb: 'Registro de actividad de tu equipo y eliminación de la cuenta.' },
 ];
@@ -1456,6 +1456,7 @@ export function SettingsScreen(): ReactElement {
                 <TwoFactorCard />
             </>
         ),
+        notifications: <NotificationSettingsSection />,
         agency: (
             <>
                 <BrandingCard agency={agency} />

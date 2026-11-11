@@ -8,8 +8,9 @@ use App\Connectors\Support\ParsesValues;
 
 /**
  * Formats an outbound event into a human Slack message (CLAUDE.md §8). Only the events worth
- * a proactive ping to the team are formatted — anomalies, a sent report, an upsell signal;
- * everything else returns null so Slack stays signal, not noise.
+ * a proactive ping to the team are formatted — anomalies, a sent report, an upsell signal, a
+ * connection that is connected, fails, works again or is removed; everything else returns null so
+ * Slack stays signal, not noise.
  */
 final class SlackMessage
 {
@@ -31,6 +32,24 @@ final class SlackMessage
                 $this->toStr($payload['site'] ?? 'un sitio'),
                 $this->toStr($payload['error'] ?? ''),
                 ($payload['reconnectable'] ?? false) === true ? ' — puedes pedirle al cliente que la reconecte desde el panel.' : '',
+            ),
+            'source.connected' => sprintf(
+                '🔗 %s %s %s en *%s*.',
+                $this->toStr($payload['by'] ?? '') !== '' ? $this->toStr($payload['by']) : 'Alguien',
+                ($payload['again'] ?? false) === true ? 'volvió a conectar' : 'conectó',
+                $this->toStr($payload['label'] ?? 'una fuente'),
+                $this->toStr($payload['site'] ?? 'un sitio'),
+            ),
+            'source.recovered' => sprintf(
+                '✅ %s volvió a funcionar en *%s*.',
+                $this->toStr($payload['label'] ?? 'Una fuente'),
+                $this->toStr($payload['site'] ?? 'un sitio'),
+            ),
+            'source.removed' => sprintf(
+                '🗑️ %s quitó %s de *%s*.',
+                $this->toStr($payload['by'] ?? '') !== '' ? $this->toStr($payload['by']) : 'Alguien',
+                $this->toStr($payload['label'] ?? 'una fuente'),
+                $this->toStr($payload['site'] ?? 'un sitio'),
             ),
             default => null,
         };

@@ -58,6 +58,7 @@ import type {
     WorkLog,
     WorkLogStatus,
 } from './types';
+import type { NoticeList, NotificationSettings } from './types';
 
 async function get<T>(url: string): Promise<T> {
     const { data } = await api.get<T>(url);
@@ -102,6 +103,52 @@ export function useUpdateProfile() {
     return useMutation({
         mutationFn: (payload: { name: string; email: string; current_password?: string }) => api.put('/user/profile', payload).then((r) => r.data),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth-user'] }),
+    });
+}
+
+/* ------------------------------ notices (bell) ------------------------------ */
+
+/** The person's bell: checked every minute while the panel is open. */
+export function useNotifications(enabled = true) {
+    return useQuery({
+        queryKey: ['notifications'],
+        queryFn: () => get<NoticeList>('/notifications'),
+        enabled,
+        refetchInterval: 60_000,
+        refetchOnWindowFocus: true,
+    });
+}
+
+/** Mark some notices (ids) or all of them as read. */
+export function useMarkNotificationsRead() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (ids?: number[]) => api.post<{ unread: number }>('/notifications/read', ids !== undefined ? { ids } : {}).then((r) => r.data),
+        onMutate: (ids) => {
+            // Feels instant: flip them locally, the server confirms.
+            queryClient.setQueryData<NoticeList>(['notifications'], (current) => {
+                if (current === undefined) return current;
+                const data = current.data.map((notice) => (ids === undefined || ids.includes(notice.id) ? { ...notice, read: true } : notice));
+
+                return { data, unread: data.filter((notice) => !notice.read).length };
+            });
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    });
+}
+
+export function useNotificationSettings() {
+    return useQuery({ queryKey: ['notification-settings'], queryFn: () => get<NotificationSettings>('/user/notification-settings') });
+}
+
+export function useUpdateNotificationSettings() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: { events?: Record<string, { app?: boolean; email?: boolean }>; sites: number[] | null }) =>
+            api.put<NotificationSettings>('/user/notification-settings', payload).then((r) => r.data),
+        onSuccess: (data) => queryClient.setQueryData(['notification-settings'], data),
     });
 }
 

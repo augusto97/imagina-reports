@@ -9,14 +9,18 @@ use App\Connectors\ConnectorRegistry;
 use App\Connectors\Contracts\ReceivesPushedData;
 use App\Enums\DataSourceStatus;
 use App\Enums\DataSourceType;
+use App\Enums\SourceEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDataSourceRequest;
 use App\Http\Requests\UpdateDataSourceRequest;
 use App\Http\Resources\DataSourceResource;
+use App\Jobs\NotifySourceEvent;
 use App\Models\Agency;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
 use App\Models\Site;
+use App\Models\User;
+use App\Services\Notices\SourceNotifier;
 use App\Services\Platform\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -212,6 +216,8 @@ final class DataSourceController extends Controller
         // Mint the push token immediately so the install snippet is available right away.
         $this->decoratePush($source);
 
+        NotifySourceEvent::connected($source, $this->actor($request));
+
         return DataSourceResource::make($source)->response()->setStatusCode(201);
     }
 
@@ -219,6 +225,7 @@ final class DataSourceController extends Controller
     {
         $data = $request->validated();
         $changes = [];
+        $answered = false;
 
         if (array_key_exists('type', $data) && $data['type'] !== null) {
             $changes['type'] = $data['type'];
@@ -236,6 +243,7 @@ final class DataSourceController extends Controller
                 $meta = $dataSource->meta ?? [];
                 unset($meta['connect_options']);
                 $changes['meta'] = $meta;
+                $answered = true;
             }
         }
 
@@ -259,6 +267,11 @@ final class DataSourceController extends Controller
 
         $dataSource->update($changes);
 
+        // The OAuth connection is complete once its account is picked: that's «connected».
+        if ($answered) {
+            NotifySourceEvent::connected($dataSource, $this->actor($request), again: $dataSource->last_synced_at !== null);
+        }
+
         return new DataSourceResource($dataSource);
     }
 
@@ -266,8 +279,13 @@ final class DataSourceController extends Controller
     {
         $this->authorizePrivileged($request);
 
+        // Read what the notice says before the source is gone.
+        $notice = SourceNotifier::describe($dataSource, $this->actor($request));
+
         // Snapshots cascade on delete (FK), so this removes the source and its history.
         $dataSource->delete();
+
+        NotifySourceEvent::dispatch(SourceEvent::Removed, $notice);
 
         return response()->json(null, 204);
     }
@@ -297,5 +315,12 @@ final class DataSourceController extends Controller
             'message' => $outcome->message,
             'data_source' => new DataSourceResource($dataSource->refresh()),
         ]);
+    }
+
+    private function actor(Request $request): ?User
+    {
+        $user = $request->user();
+
+        return $user instanceof User ? $user : null;
     }
 }

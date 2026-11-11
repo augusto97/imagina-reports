@@ -52,7 +52,7 @@ final class SourceFailedMail extends Mailable
                 'replyLabel' => null,
                 'ctaUrl' => $link,
                 'ctaLabel' => $this->reconnectable ? 'Pedir reconexión al cliente' : 'Revisar la conexión',
-                'note' => 'Te avisamos una sola vez por caída. Puedes apagar estos avisos en Ajustes → Integraciones → Avisos por correo.',
+                'note' => 'Te avisamos una sola vez por caída. Eliges qué avisos te llegan, y de qué sitios, en Ajustes → Avisos.',
                 'footer' => 'Aviso de '.($agency !== null ? $agency->name : 'tu agencia').' en '.(is_string($app) ? $app : 'Imagina Reports').'.',
                 'showBranding' => false,
                 'logo' => $logo !== null && $logo !== '' ? (str_starts_with($logo, 'http') ? $logo : url($logo)) : null,

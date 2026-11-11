@@ -8,6 +8,7 @@ use App\Connectors\Connect\ConnectIntents;
 use App\Connectors\Connect\ConnectRegistry;
 use App\Enums\DataSourceStatus;
 use App\Enums\DataSourceType;
+use App\Jobs\NotifySourceEvent;
 use App\Models\Agency;
 use App\Models\Client;
 use App\Models\ConnectInvite;
@@ -185,6 +186,8 @@ final class ConnectInvitePageController extends Controller
             ['invite_id' => $invite->id, 'type' => $dataSource->type->value],
             agencyId: $invite->agency_id,
         );
+
+        NotifySourceEvent::connected($dataSource, null, byClient: true, again: $dataSource->last_synced_at !== null);
 
         return $this->back($token, ['saved' => '1']);
     }

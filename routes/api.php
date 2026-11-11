@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\DimensionValuesController;
 use App\Http\Controllers\Api\V1\Ga4DatasetController;
 use App\Http\Controllers\Api\V1\IngestController;
 use App\Http\Controllers\Api\V1\MetricCatalogController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OverviewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
@@ -167,6 +168,12 @@ Route::middleware(['auth:sanctum', 'token.scope', 'tenant', 'active'])->group(fu
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
     Route::put('/user/profile', [AccountController::class, 'updateProfile'])->name('api.user.profile');
     Route::put('/user/password', [AccountController::class, 'updatePassword'])->name('api.user.password');
+
+    // The person's bell (connections connected / failing / back / removed) and what reaches them.
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('api.notifications.index');
+    Route::post('/notifications/read', [NotificationController::class, 'read'])->name('api.notifications.read');
+    Route::get('/user/notification-settings', [NotificationController::class, 'settings'])->name('api.user.notification-settings');
+    Route::put('/user/notification-settings', [NotificationController::class, 'updateSettings'])->name('api.user.notification-settings.update');
 
     // Two-factor enrolment for the signed-in user (§11.1). Enable → confirm → (later) disable.
     Route::post('/user/two-factor', [TwoFactorController::class, 'store'])->name('api.user.2fa.store');

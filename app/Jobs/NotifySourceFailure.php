@@ -6,20 +6,20 @@ namespace App\Jobs;
 
 use App\Connectors\Connect\ConnectRegistry;
 use App\Enums\DataSourceStatus;
+use App\Enums\SourceEvent;
 use App\Mail\SourceFailedMail;
 use App\Models\DataSource;
+use App\Services\Notices\SourceNotifier;
 use App\Services\Webhooks\WebhookDispatcher;
-use App\Support\AgencyMail;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 /**
  * A connection just stopped working (Etapa 5): tell the agency before the month-end report
- * comes out with holes in it — by email to owners/admins and as `source.failed` (webhooks and
- * Slack). Says whether the client can fix it from a link, which is the usual case for an
- * expired Google/Meta authorisation.
+ * comes out with holes in it — in each team member's bell and by email, as each one chose
+ * (NotificationPrefs), and as `source.failed` (webhooks and Slack). Says whether the client can
+ * fix it from a link, which is the usual case for an expired Google/Meta authorisation.
  */
 final class NotifySourceFailure implements ShouldQueue
 {
@@ -29,7 +29,7 @@ final class NotifySourceFailure implements ShouldQueue
 
     public function __construct(public readonly int $dataSourceId) {}
 
-    public function handle(WebhookDispatcher $webhooks, ConnectRegistry $connect): void
+    public function handle(WebhookDispatcher $webhooks, ConnectRegistry $connect, SourceNotifier $notifier): void
     {
         $source = DataSource::query()->withoutGlobalScopes()->with(['agency', 'site.client'])->find($this->dataSourceId);
 
@@ -39,14 +39,10 @@ final class NotifySourceFailure implements ShouldQueue
         }
 
         $reconnectable = $connect->for($source->type->value) !== null;
-        $agency = $source->agency;
 
-        if (AgencyMail::wants($agency, AgencyMail::SOURCE_FAILURES)) {
-            $team = AgencyMail::team($agency);
-            if ($team !== []) {
-                Mail::to($team)->send(new SourceFailedMail($source, $reconnectable));
-            }
-        }
+        $notice = SourceNotifier::describe($source);
+        $notice['reconnectable'] = $reconnectable;
+        $notifier->notify(SourceEvent::Failed, $notice, static fn (): SourceFailedMail => new SourceFailedMail($source, $reconnectable));
 
         $webhooks->dispatch($source->agency_id, 'source.failed', [
             'data_source_id' => $source->id,

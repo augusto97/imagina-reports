@@ -644,3 +644,29 @@ export interface AgencySender {
     scheme: string;
     password_set: boolean;
 }
+
+/** One notice in the person's bell: something happened to a client's connection. */
+export interface AppNotice {
+    id: number;
+    kind: 'source_connected' | 'source_failed' | 'source_recovered' | 'source_removed' | string;
+    title: string;
+    body: string | null;
+    site_id: number | null;
+    data_source_id: number | null;
+    /** Admin hash route, e.g. "#/clients?site=12&reconnect=40". */
+    link: string | null;
+    read: boolean;
+    created_at: string | null;
+}
+
+export interface NoticeList {
+    data: AppNotice[];
+    unread: number;
+}
+
+/** What reaches this person, per event (bell / email), and from which sites (null = all). */
+export interface NotificationSettings {
+    events: { key: string; label: string; help: string; app: boolean; email: boolean }[];
+    sites: number[] | null;
+    email: string;
+}

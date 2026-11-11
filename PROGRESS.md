@@ -7,6 +7,23 @@
 ---
 
 ## Where I left off (read me first)
+**🔔 AVISOS DE FUENTES POR PERSONA (2026-11-11, v1.41.0):** el owner pidió recibir avisos cuando alguien de su cuenta conecta
+una fuente, solo de los sitios que lleva, y cuando una se desconecta. Ahora cada persona del equipo tiene una **campana** (barra lateral,
+«Avisos», contador de no leídos; el panel se renderiza en un portal porque el sidebar usa `transform`) y elige en **Ajustes → Avisos** qué
+eventos ve en el panel y cuáles le llegan por correo, y de qué sitios (todos o una lista). Eventos (`App\Enums\SourceEvent`):
+**conectada** (alta manual en `DataSourceController::store`, conexión de un clic en `ConnectController::callback` — por el equipo, el
+intent ahora guarda `user_id`, o por el cliente desde su enlace — y la elección de la cuenta GA4/Ads en `update`/`ConnectInvitePageController::select`;
+si falta elegir la cuenta, se avisa al elegirla, no antes; deduplicado 10 min por fuente), **dejó de funcionar** (la transición a error que ya
+existía en `SyncService`), **volvió a funcionar** (OK tras un fallo avisado: `meta.failure_notified`) y **quitada** (`destroy`, con quién lo
+hizo). A quien hace la acción no se le avisa. Tabla `ir_notifications` (por persona; `data_source_id` sin FK para que el aviso sobreviva a la
+fuente; se guardan los 200 más recientes) y `ir_users.notification_prefs`. `App\Support\NotificationPrefs`: por defecto todo en la campana;
+correo para dueños/admins (el de caídas respeta el viejo interruptor de la agencia `notify.source_failures`), nada por correo para
+colaboradores. `App\Services\Notices\SourceNotifier` reparte (campana + correo `SourceActivityMail`; las caídas siguen con
+`SourceFailedMail` y su botón de reconexión, ahora una por persona) y emite webhooks/Slack `source.connected|recovered|removed`
+(`source.failed` sigue saliendo de `NotifySourceFailure`). Jobs en cola: `NotifySourceEvent`. API: `GET /notifications`, `POST /notifications/read`,
+`GET|PUT /user/notification-settings`. Al tocar un aviso se abre el sitio (y la reconexión, si aplica). La tarjeta de la agencia ya no tiene
+el interruptor de caídas (solo preguntas de clientes). Tests: SourceNoticesTest (7), ConnectInviteTest ampliado, notices.test.ts (3).
+
 **📊 MÉTRICAS QUE SE ENTIENDEN (2026-11-05, v1.40.0):** el owner dijo que las métricas de horas y días salían como números sueltos,
 que el orden de algunas tablas no servía, que «Solicitudes recibidas» no se entendía, que no sabía cómo se mide el health score y que
 muchas métricas no estaban pensadas para verse bien en el editor. Ahora: `App\Reports\SeriesLabels` (en `BlockResolver`, con el idioma del
@@ -2725,6 +2742,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-11) Los avisos de conexiones son por persona (campana + correo opcional + filtro de sitios), no por agencia: el owner quiere enterarse solo de los sitios que lleva. «Conectada» se avisa cuando la conexión queda lista (si falta elegir la propiedad, al elegirla) y nunca a quien la hizo; «volvió a funcionar» solo cierra una caída que sí se avisó, para no hacer ruido.
 - (2026-11-05) Las series por hora y por día de la semana se ordenan y nombran al resolver el informe (no en el conector): así también se arreglan las instantáneas ya guardadas y el idioma sale del informe. El health score solo usa señales que alguna fuente mide y cada una se explica en una frase: un número sin explicación no le sirve al cliente.
 - (2026-11-05) La IA de diseño corre en la cola (no en la petición web) y con streaming: un informe grande puede tardar minutos y los límites de PHP/servidor cortaban la respuesta. «Pedir cambios» reutiliza los bloques que la IA deja igual (vía `ref`) para no perder ajustes manuales.
 - (2026-11-05) «Generar con IA» = la IA decide QUÉ (plan de páginas y métricas), el código decide CÓMO (bloques y distribución): más fiable y respuestas más cortas. «Pregúntale a tu reporte» lee todas las instantáneas del periodo (no solo los bloques); el owner dijo que sin eso no tenía utilidad.

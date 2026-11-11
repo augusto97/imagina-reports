@@ -30,6 +30,7 @@ import { setApiErrorHandlers } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 
 import { useAgency, useAnomalies, useAuthUser, useLogout, useStopImpersonating } from "./api";
+import { NotificationBell } from "./components/NotificationBell";
 import { ActionMenu, Avatar } from "./components/ui";
 import { EditorScreen } from "./editor/EditorScreen";
 import { useMediaQuery } from "./hooks/useMediaQuery";
@@ -563,7 +564,13 @@ function AuthenticatedApp({ email, version, impersonating, role }: { email: stri
                     })}
                 </nav>
 
-                <div className={cn("ir-mt-auto ir-border-t ir-pt-3", iconOnly && "lg:ir-flex lg:ir-justify-center")}>
+                <div className={cn("ir-mt-auto ir-border-t ir-pt-3", iconOnly && "lg:ir-flex lg:ir-flex-col lg:ir-items-center")}>
+                    <NotificationBell
+                        iconOnly={iconOnly}
+                        panelLeft={iconOnly ? "4.75rem" : "14.75rem"}
+                        onOpenSettings={() => openSettings("notifications")}
+                        onNavigate={() => setMobileOpen(false)}
+                    />
                     <ActionMenu
                         align="left"
                         block={!iconOnly}

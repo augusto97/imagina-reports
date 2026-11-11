@@ -8,9 +8,12 @@ use App\Connectors\ConnectorRegistry;
 use App\Connectors\MetricSet;
 use App\Connectors\Period;
 use App\Enums\DataSourceStatus;
+use App\Enums\SourceEvent;
+use App\Jobs\NotifySourceEvent;
 use App\Jobs\NotifySourceFailure;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
+use App\Services\Notices\SourceNotifier;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 
@@ -82,16 +85,34 @@ final readonly class SyncService
         // Connector-reported source metadata (e.g. the agent plugin version) — merged onto
         // the source so the card can show it without re-testing. Merge (not replace) so a
         // failed/partial sync that reports nothing doesn't wipe a previously-known value.
-        if ($metricSet->meta !== []) {
-            $attributes['meta'] = array_merge($source->meta ?? [], $metricSet->meta);
+        $before = $source->meta ?? [];
+        $meta = $metricSet->meta !== [] ? array_merge($before, $metricSet->meta) : $before;
+
+        // It just stopped working (Etapa 5): tell the agency once, not on every retry. A source
+        // flapping between ok and error doesn't ping more than twice a day.
+        $failed = ! $wasFailing && $metricSet->isFailed() && Cache::add('source-failed:'.$source->id, true, now()->addHours(12));
+        if ($failed) {
+            $meta['failure_notified'] = true;
+        }
+
+        // Data flows again after a failure the team was told about (by itself or after the
+        // client reconnected): close the loop with a «works again».
+        $recovered = ! $metricSet->isFailed() && ($meta['failure_notified'] ?? false) === true;
+        if ($recovered) {
+            unset($meta['failure_notified']);
+        }
+
+        if ($meta !== $before) {
+            $attributes['meta'] = $meta;
         }
 
         $source->forceFill($attributes)->save();
 
-        // It just stopped working (Etapa 5): tell the agency once, not on every retry. A source
-        // flapping between ok and error doesn't ping more than twice a day.
-        if (! $wasFailing && $metricSet->isFailed() && Cache::add('source-failed:'.$source->id, true, now()->addHours(12))) {
+        if ($failed) {
             NotifySourceFailure::dispatch($source->id);
+        }
+        if ($recovered) {
+            NotifySourceEvent::dispatch(SourceEvent::Recovered, SourceNotifier::describe($source));
         }
     }
 }
