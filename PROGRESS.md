@@ -7,6 +7,12 @@
 ---
 
 ## Where I left off (read me first)
+**↔️ REORDENAR PÁGINAS DEL REPORTE (2026-11-12, v1.44.1):** el owner no encontraba cómo cambiar el orden de las pestañas en el editor (no
+existía). Ahora una pestaña se arrastra sobre otra para mover la página entera (sus bloques, su nombre y sus filtros de página), y la pestaña
+abierta tiene flechas ‹ › para moverla un paso (sirve también en pantallas táctiles). Lógica pura en `resources/js/admin/editor/pageOrder.ts`
+(`movePage`, `removePage`, con tests). De paso: borrar una página ya re-numera sus filtros de página (antes quedaban en la página equivocada)
+y deshacer/rehacer guarda también los nombres y filtros de las páginas (antes deshacer un borrado o una portada dejaba los nombres corridos).
+
 **📏 AUDITORÍA DE MÉTRICAS Y GRÁFICOS (2026-11-12, v1.44.0):** el owner pidió buscar fallas de visualización y de medición. Tres
 revisores leyeron todos los conectores y el motor; se corrigió lo confirmado. **Visualización** (commit 2f86ade): `MetricUnits` llena
 `style.format` según la unidad del catálogo cuando el bloque no tiene uno (kpi/chart/sales_summary/goal/table); formatos nuevos en el

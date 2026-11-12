@@ -1,6 +1,8 @@
 import {
     BookOpen,
     Calendar,
+    ChevronLeft,
+    ChevronRight,
     Copy,
     Filter,
     Flag,
@@ -145,6 +147,13 @@ function SheetAction({
 }
 
 /** Left-panel sections, in panel order — also what the collapsed icon rail offers. */
+/** One undo step: the blocks with the page names and page filters they were laid out with. */
+interface CanvasSnapshot {
+    blocks: Block[];
+    names: string[];
+    filters: PageFilters;
+}
+
 const LEFT_SECTIONS: { key: "blocks" | "layers"; title: string; icon: LucideIcon }[] = [
     { key: "blocks", title: "Insertar bloque", icon: Shapes },
     { key: "layers", title: "Capas", icon: Layers },
@@ -199,6 +208,7 @@ import {
 } from "./blockFactory";
 import { BlockPalette, BLOCK_META } from "./BlockPalette";
 import { PageFiltersPanel } from "./PageFiltersPanel";
+import { movePage as movePageIn, removePage as removePageIn } from "./pageOrder";
 import { CalcMetricsModal } from "../components/CalcMetricsModal";
 import { Inspector } from "./Inspector";
 import {
@@ -340,6 +350,9 @@ export function EditorScreen(): ReactElement {
     // indexed by page. Empty string falls back to "Página N". Editing index for inline rename.
     const [pageNames, setPageNames] = useState<string[]>([]);
     const [renamingPage, setRenamingPage] = useState<number | null>(null);
+    // Page tab being dragged to a new position, and the tab it's over (drop target).
+    const [draggingPage, setDraggingPage] = useState<number | null>(null);
+    const [pageDropTarget, setPageDropTarget] = useState<number | null>(null);
     // Collapsible side panels — let the canvas take (almost) the whole workspace.
     // Panels start open on desktop, closed on phones (they overlay the canvas there).
     const wideViewport =
@@ -366,16 +379,29 @@ export function EditorScreen(): ReactElement {
     const [periodOpen, setPeriodOpen] = useState(false);
     // The block type being dragged from the palette onto the canvas (null = none).
     const [draggingType, setDraggingType] = useState<BlockType | null>(null);
-    // Undo/redo history — snapshots of the blocks array.
-    const [past, setPast] = useState<Block[][]>([]);
-    const [future, setFuture] = useState<Block[][]>([]);
+    // Undo/redo history — snapshots of the blocks plus the page names and page filters, so
+    // undoing a page move/delete puts every page back with its own name and filters.
+    const [past, setPast] = useState<CanvasSnapshot[]>([]);
+    const [future, setFuture] = useState<CanvasSnapshot[]>([]);
     // Unsaved-work flag (FE-1): set by any canvas edit, cleared on load/save. Drives the
     // beforeunload guard so a reload/close doesn't silently discard an unsaved layout.
     const [dirty, setDirty] = useState(false);
 
+    const snapshot = (): CanvasSnapshot => ({ blocks, names: pageNames, filters: pageFilters });
+
+    /** Put a snapshot back on the canvas (undo/redo). */
+    const restore = (state: CanvasSnapshot): void => {
+        setBlocks(state.blocks);
+        setPageNames(state.names);
+        setPageFilters(state.filters);
+        const pages = Math.max(1, state.names.length, ...state.blocks.map((block) => (block.page ?? 0) + 1));
+        setPageCount(pages);
+        setCurrentPage((current) => Math.min(current, pages - 1));
+    };
+
     /** Apply a structural change to the canvas, recording it for undo. */
     const commit = (next: Block[]): void => {
-        setPast((stack) => [...stack, blocks]);
+        setPast((stack) => [...stack, snapshot()]);
         setFuture([]);
         setBlocks(next);
         setDirty(true);
@@ -398,20 +424,20 @@ export function EditorScreen(): ReactElement {
         if (past.length === 0) {
             return;
         }
-        const previous = past[past.length - 1] as Block[];
+        const previous = past[past.length - 1] as CanvasSnapshot;
         setPast(past.slice(0, -1));
-        setFuture((stack) => [blocks, ...stack]);
-        setBlocks(previous);
+        setFuture((stack) => [snapshot(), ...stack]);
+        restore(previous);
     };
 
     const redo = (): void => {
         if (future.length === 0) {
             return;
         }
-        const next = future[0] as Block[];
+        const next = future[0] as CanvasSnapshot;
         setFuture(future.slice(1));
-        setPast((stack) => [...stack, blocks]);
-        setBlocks(next);
+        setPast((stack) => [...stack, snapshot()]);
+        restore(next);
     };
 
     useEffect(() => {
@@ -806,25 +832,32 @@ export function EditorScreen(): ReactElement {
     const hasCover = blocks.some((block) => block.type === "cover");
     const hasBackCover = blocks.some((block) => block.type === "back_cover");
 
-    /** Delete a page: drop its blocks and renumber the pages after it. */
+    /** Delete a page: drop its blocks and filters and renumber the pages after it. */
     const removePage = (page: number): void => {
         if (pageCount <= 1) {
             return;
         }
-        commit(
-            blocks
-                .filter((block) => (block.page ?? 0) !== page)
-                .map((block) =>
-                    (block.page ?? 0) > page
-                        ? { ...block, page: (block.page ?? 0) - 1 }
-                        : block,
-                ),
-        );
-        setPageCount((count) => Math.max(1, count - 1));
-        setPageNames((names) => names.filter((_, index) => index !== page));
+        const next = removePageIn({ blocks, names: pageNames, filters: pageFilters, pageCount }, page);
+        commit(next.blocks);
+        setPageNames(next.names);
+        setPageFilters(next.filters);
+        setPageCount(next.pageCount);
         setCurrentPage((current) =>
             current >= page && current > 0 ? current - 1 : current,
         );
+        setSelectedId(null);
+    };
+
+    /** Move a whole page (blocks, name, filters) to another position; the editor follows it. */
+    const movePage = (from: number, to: number): void => {
+        if (from === to || to < 0 || to >= pageCount) {
+            return;
+        }
+        const next = movePageIn({ blocks, names: pageNames, filters: pageFilters, pageCount }, from, to);
+        commit(next.blocks);
+        setPageNames(next.names);
+        setPageFilters(next.filters);
+        setCurrentPage(to);
         setSelectedId(null);
     };
 
@@ -1841,8 +1874,58 @@ export function EditorScreen(): ReactElement {
                             {Array.from({ length: pageCount }, (_, index) => (
                                 <div
                                     key={index}
-                                    className="ir-group ir-relative ir-shrink-0"
+                                    // Drag a tab onto another to move the whole page there.
+                                    draggable={pageCount > 1 && renamingPage !== index}
+                                    onDragStart={(event) => {
+                                        setDraggingPage(index);
+                                        event.dataTransfer.effectAllowed = "move";
+                                        event.dataTransfer.setData("text/plain", String(index));
+                                    }}
+                                    onDragOver={(event) => {
+                                        if (draggingPage === null) {
+                                            return;
+                                        }
+                                        event.preventDefault();
+                                        event.dataTransfer.dropEffect = "move";
+                                        setPageDropTarget(index);
+                                    }}
+                                    onDragLeave={() => setPageDropTarget((target) => (target === index ? null : target))}
+                                    onDrop={(event) => {
+                                        event.preventDefault();
+                                        if (draggingPage !== null) {
+                                            movePage(draggingPage, index);
+                                        }
+                                        setDraggingPage(null);
+                                        setPageDropTarget(null);
+                                    }}
+                                    onDragEnd={() => {
+                                        setDraggingPage(null);
+                                        setPageDropTarget(null);
+                                    }}
+                                    className={cn(
+                                        "ir-group ir-relative ir-flex ir-shrink-0 ir-items-center ir-gap-0.5",
+                                        draggingPage === index && "ir-opacity-40",
+                                        pageDropTarget === index && draggingPage !== null && draggingPage !== index &&
+                                            (draggingPage < index
+                                                ? "after:ir-absolute after:-ir-right-1 after:ir-top-0 after:ir-h-full after:ir-w-0.5 after:ir-rounded after:ir-bg-primary"
+                                                : "before:ir-absolute before:-ir-left-1 before:ir-top-0 before:ir-h-full before:ir-w-0.5 before:ir-rounded before:ir-bg-primary"),
+                                    )}
                                 >
+                                    {/* The open page can also move one step with the arrows (touch, keyboard). */}
+                                    {index === currentPage && pageCount > 1 && renamingPage !== index && (
+                                        <button
+                                            type="button"
+                                            title="Mover a la izquierda"
+                                            aria-label="Mover página a la izquierda"
+                                            disabled={index === 0}
+                                            onClick={() => movePage(index, index - 1)}
+                                            className="ir-flex ir-size-6 ir-items-center ir-justify-center ir-rounded ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground disabled:ir-opacity-30 disabled:hover:ir-bg-transparent"
+                                        >
+                                            <ChevronLeft className="ir-size-3.5" />
+                                        </button>
+                                    )}
+                                    {/* The tab and its delete «×» (pinned to the tab's corner, not the arrows'). */}
+                                    <span className="ir-relative">
                                     {renamingPage === index ? (
                                         <input
                                             autoFocus
@@ -1875,7 +1958,7 @@ export function EditorScreen(): ReactElement {
                                             onDoubleClick={() =>
                                                 setRenamingPage(index)
                                             }
-                                            title="Doble clic para renombrar"
+                                            title={pageCount > 1 ? "Arrastra para cambiar el orden · doble clic para renombrar" : "Doble clic para renombrar"}
                                             className={cn(
                                                 // whitespace-nowrap: "Tráfico y SEO" was
                                                 // breaking inside its own chip, making the
@@ -1904,6 +1987,19 @@ export function EditorScreen(): ReactElement {
                                                 ×
                                             </button>
                                         )}
+                                    </span>
+                                    {index === currentPage && pageCount > 1 && renamingPage !== index && (
+                                        <button
+                                            type="button"
+                                            title="Mover a la derecha"
+                                            aria-label="Mover página a la derecha"
+                                            disabled={index === pageCount - 1}
+                                            onClick={() => movePage(index, index + 1)}
+                                            className="ir-flex ir-size-6 ir-items-center ir-justify-center ir-rounded ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground disabled:ir-opacity-30 disabled:hover:ir-bg-transparent"
+                                        >
+                                            <ChevronRight className="ir-size-3.5" />
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                             <Button
