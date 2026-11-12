@@ -22,6 +22,8 @@ import { htmlToText, sanitizeReportHtml } from '@shared/lib/html';
 import { cn } from '@shared/lib/utils';
 
 import { columnLabel, formatColumnValue } from './columns';
+import { countryForMap, countryLabel } from './countries';
+import { formatBytes } from './units';
 
 import { hexToHslString } from '@shared/lib/color';
 
@@ -105,7 +107,13 @@ function prettyDate(value: string): string {
 
 /** Chart axis label: "20261014" / "2026-10-14" → "14 oct"; anything else unchanged. */
 function axisLabel(value: string): string {
-    const match = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(value);
+    // A month («2026-06» / «202606»): «jun 2026».
+    const month = /^(\d{4})-?(\d{2})$/.exec(value);
+    if (month !== null && Number(month[2]) >= 1 && Number(month[2]) <= 12) {
+        return new Date(Number(month[1]), Number(month[2]) - 1, 1).toLocaleDateString(FALLBACK_LOCALE, { month: 'short', year: 'numeric' }).replace('.', '');
+    }
+    // A day, also when it comes as a full timestamp («2026-06-01T00:00:00Z»).
+    const match = /^(\d{4})-?(\d{2})-?(\d{2})(?:[T ][\d:.]+(?:Z|[+-][\d:]+)?)?$/.exec(value);
     if (match === null) {
         return humanLabel(value);
     }
@@ -117,6 +125,24 @@ function axisLabel(value: string): string {
 /** 12500 → "12,5 mil" style compact axis numbers. */
 function compactNumber(value: number): string {
     return new Intl.NumberFormat(FALLBACK_LOCALE, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+/** A chart's axis ticks in the block's unit: money stays money, a rate keeps its %, a size its GB. */
+function axisNumber(value: number, format: string, settings: ReportSettings): string {
+    switch (format) {
+        case 'currency':
+            return new Intl.NumberFormat(settings.locale ?? FALLBACK_LOCALE, { style: 'currency', currency: settings.currency, notation: 'compact', maximumFractionDigits: 1 }).format(value);
+        case 'percent':
+            return `${value.toLocaleString(settings.locale ?? FALLBACK_LOCALE, { maximumFractionDigits: 1 })}%`;
+        case 'bytes':
+        case 'mb':
+        case 'ms':
+        case 'seconds':
+        case 'days':
+            return formatNumber(value, format, settings);
+        default:
+            return compactNumber(value);
+    }
 }
 
 /** Connector dimension values clients shouldn't see raw ("mobile", "Organic Search"). */
@@ -367,6 +393,23 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
             return `${value.toLocaleString(locale, { maximumFractionDigits: value >= 99.95 && value < 100 ? 2 : 1 })}%`;
         case 'currency':
             return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+        case 'ms':
+            // A response or load time: «310 ms»; from a second up, «1,2 s».
+            return Math.abs(value) < 1000 ? `${Math.round(value).toLocaleString(locale)} ms` : `${(value / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
+        case 'days': {
+            const days = Math.round(value);
+            return `${days.toLocaleString(locale)} ${Math.abs(days) === 1 ? 'día' : 'días'}`;
+        }
+        case 'bytes':
+            return formatBytes(value, locale);
+        case 'mb':
+            return formatBytes(value * 1024 * 1024, locale);
+        case 'position':
+            return value.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        case 'ratio':
+            return value.toLocaleString(locale, { maximumFractionDigits: 2 });
+        case 'bool':
+            return value > 0 ? 'Sí' : 'No';
         case 'seconds':
             // Short timings (page load): «2,4 s», keeping the decimal that matters. From a minute
             // up (a visit's average length) it reads like a duration: «4 min».
@@ -655,7 +698,8 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
 }
 
 function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
-    const rows = useFilteredRows(asChartRows(data));
+    const isCountry = /country/.test(str(block.binding?.metric));
+    const rows = useFilteredRows(asChartRows(data)).map((row) => (isCountry ? { ...row, name: countryLabel(row.name) } : row));
     const settings = useContext(ReportSettingsContext);
     const chartType = str(prop(block, 'chartType'), 'line');
     const legend = block.style?.legend === true;
@@ -673,7 +717,7 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     const axis = { stroke: 'hsl(var(--ir-muted-foreground))', fontSize: 11, tickLine: false, axisLine: false } as const;
     const grid = <CartesianGrid vertical={false} stroke="hsl(var(--ir-border))" strokeDasharray="3 4" />;
     const xAxis = <XAxis dataKey="name" {...axis} tickFormatter={axisLabel} minTickGap={18} tickMargin={8} />;
-    const yAxis = <YAxis {...axis} width={54} tickFormatter={(value: number) => compactNumber(value)} domain={threshold !== null ? [0, 100] : undefined} />;
+    const yAxis = <YAxis {...axis} width={54} tickFormatter={(value: number) => axisNumber(value, format, settings)} domain={threshold !== null ? [0, 100] : undefined} />;
     const tooltip = (
         <Tooltip
             cursor={{ fill: 'hsl(var(--ir-muted) / 0.6)', stroke: 'hsl(var(--ir-border))' }}
@@ -807,6 +851,21 @@ const STATUS_TONE: Record<string, string> = {
 
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const rows = useFilteredRows(asRecords(data));
+    const settings = useContext(ReportSettingsContext);
+    // A ranking of countries (by_country, threats_by_country…): its names column may come as
+    // ISO codes or in English — show the country's name in the report's language.
+    const countryRanking = /country/.test(str(block.binding?.metric));
+    const cellText = (col: string, value: unknown): string => {
+        const text = String(value ?? '');
+
+        return col === 'country' || col === 'pais' || (countryRanking && col === 'label') ? countryLabel(text) : humanLabel(text);
+    };
+    // The «value» of a {label, value} ranking follows the block's format (money, %, ms…).
+    const blockFormat = str(block.style?.format);
+    const numberText = (col: string, value: number): string =>
+        (col === 'value' && blockFormat !== '' ? formatNumber(value, blockFormat, settings) : null) ??
+        formatColumnValue(col, value, settings.locale ?? FALLBACK_LOCALE, settings.currency) ??
+        value.toLocaleString(settings.locale ?? FALLBACK_LOCALE);
     // Interactive sort/search/paginate for the portal. A predefined order (set in the editor
     // via style.sort_col/sort_dir) is the DEFAULT — so the PDF and first view come pre-sorted;
     // a visitor clicking a header overrides it for their session (userSort). The PDF prints
@@ -954,23 +1013,23 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                                                     style={{ width: `${max > 0 ? ((Number(row[col]) || 0) / max) * 100 : 0}%` }}
                                                 />
                                             </div>
-                                            <span className="ir-tabular-nums">{Number(row[col]).toLocaleString(FALLBACK_LOCALE)}</span>
+                                            <span className="ir-tabular-nums">{numberText(col, Number(row[col]))}</span>
                                         </div>
                                     ) : col === columns[0] && !numeric.has(col) && rankable ? (
                                         <span className="ir-flex ir-items-center ir-gap-2.5">
                                             <span className="ir-flex ir-size-5 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-md ir-bg-muted ir-text-[10px] ir-font-semibold ir-tabular-nums ir-text-muted-foreground">
                                                 {index + 1}
                                             </span>
-                                            <span className="ir-min-w-0 ir-break-words">{humanLabel(String(row[col] ?? ''))}</span>
+                                            <span className="ir-min-w-0 ir-break-words">{cellText(col, row[col])}</span>
                                         </span>
                                     ) : numeric.has(col) ? (
-                                        formatColumnValue(col, Number(row[col]), FALLBACK_LOCALE) ?? Number(row[col]).toLocaleString(FALLBACK_LOCALE)
+                                        numberText(col, Number(row[col]))
                                     ) : STATUS_TONE[String(row[col] ?? '')] !== undefined ? (
                                         <span className={cn('ir-inline-flex ir-rounded-full ir-px-2 ir-py-0.5 ir-text-xs ir-font-medium', STATUS_TONE[String(row[col] ?? '')])}>
                                             {String(row[col] ?? '')}
                                         </span>
                                     ) : (
-                                        humanLabel(String(row[col] ?? ''))
+                                        cellText(col, row[col])
                                     )}
                                 </td>
                             ))}
@@ -1094,7 +1153,9 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
     // country (otherwise it's cities/regions and the ranked list alone is the honest view).
     // `display` lets the editor force 'map' / 'list' / 'both' (default: auto = both).
     const display = str(prop(block, 'display'), 'auto');
-    const matched = rows.filter((row) => matchCountry(row.label) !== null).length;
+    // Codes («col», «CO») become names the atlas knows; the list shows them in Spanish.
+    const mapRows = rows.map((row) => ({ ...row, label: countryForMap(row.label) }));
+    const matched = mapRows.filter((row) => matchCountry(row.label) !== null).length;
     const showMap = display !== 'list' && matched > 0 && (display === 'map' || display === 'both' || matched >= Math.ceil(rows.length / 2));
     const showList = display !== 'map';
 
@@ -1102,7 +1163,7 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
         <Section title={str(prop(block, 'title'))} style={block.style}>
             {showMap && (
                 <div className="ir-mb-4">
-                    <WorldChoropleth rows={rows} />
+                    <WorldChoropleth rows={mapRows} />
                 </div>
             )}
             {showList && (
@@ -1110,7 +1171,7 @@ function GeoMapBlock({ block, data }: BlockComponentProps): ReactElement | null 
                 {rows.map((row, index) => (
                     <div key={index} className="ir-flex ir-items-center ir-gap-3 ir-text-sm">
                         <span className="ir-w-5 ir-shrink-0 ir-text-right ir-text-xs ir-tabular-nums ir-text-muted-foreground">{index + 1}</span>
-                        <span className="ir-w-32 ir-shrink-0 ir-truncate ir-font-medium">{row.label}</span>
+                        <span className="ir-w-32 ir-shrink-0 ir-truncate ir-font-medium">{countryLabel(row.label)}</span>
                         <div className="ir-h-2 ir-flex-1 ir-overflow-hidden ir-rounded ir-bg-muted">
                             <div className="ir-h-full ir-rounded ir-bg-accent" style={{ width: `${max > 0 ? (row.value / max) * 100 : 0}%` }} />
                         </div>

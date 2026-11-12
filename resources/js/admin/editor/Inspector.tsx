@@ -15,6 +15,7 @@ import { type ReactElement, useEffect, useRef, useState } from 'react';
 
 import type { Block, BlockBinding, DatasetFilter } from '@shared/blocks/types';
 import { columnLabel } from '@shared/blocks/columns';
+import { formatForUnit } from '@shared/blocks/units';
 import { cn } from '@shared/lib/utils';
 
 import { useUploadImage } from '../api';
@@ -155,8 +156,22 @@ function BackgroundControl({ style, setStyle }: { style: Record<string, unknown>
     );
 }
 
-/** Number format implied by a catalog unit (the rest read fine as plain numbers). */
-const UNIT_FORMATS: Record<string, string> = { percent: 'percent', currency: 'currency', duration: 'duration', seconds: 'seconds' };
+/** Every number format a block can use, with an example of how it reads. */
+const NUMBER_FORMATS: { value: string; label: string }[] = [
+    { value: 'number', label: 'Número (1.234)' },
+    { value: 'compact', label: 'Compacto (1,2 mil)' },
+    { value: 'percent', label: 'Porcentaje (95 %)' },
+    { value: 'currency', label: 'Moneda ($ 1.234)' },
+    { value: 'duration', label: 'Duración (1 h 30 min)' },
+    { value: 'seconds', label: 'Segundos (2,5 s)' },
+    { value: 'ms', label: 'Milisegundos (310 ms)' },
+    { value: 'days', label: 'Días (45 días)' },
+    { value: 'bytes', label: 'Tamaño (1,2 GB)' },
+    { value: 'mb', label: 'Tamaño en MB (850 MB)' },
+    { value: 'position', label: 'Posición (3,4)' },
+    { value: 'ratio', label: 'Decimal (2,35)' },
+    { value: 'bool', label: 'Sí / No' },
+];
 
 /** Visual chart-type gallery (CLAUDE.md §11.3) — every option renders for single-series data. */
 const CHART_TYPES: { type: string; label: string; Icon: LucideIcon }[] = [
@@ -361,7 +376,7 @@ export function Inspector({
                     onPick={(entry) => {
                         // The metric's unit says how to read it (a %, money, seconds): set that
                         // format so the number shows right without a trip to «Estilo».
-                        const unitFormat = UNIT_FORMATS[entry.unit ?? ''];
+                        const unitFormat = formatForUnit(entry.unit);
                         onChange({
                             ...block,
                             // A different metric invalidates the old measure/breakdown/filters,
@@ -843,18 +858,20 @@ export function Inspector({
 
                     {isData && (
                         <Section title="Formato de número">
-                            <SegmentedControl
-                                value={str(block.style?.format) || 'number'}
-                                onChange={(value) => setStyle('format', value)}
-                                options={[
-                                    { value: 'number', label: '1,234' },
-                                    { value: 'compact', label: '1.2K' },
-                                    { value: 'percent', label: '95%' },
-                                    { value: 'currency', label: '$' },
-                                    { value: 'duration', label: '1 h 30 min' },
-                                    { value: 'seconds', label: '2,5 s' },
-                                ]}
-                            />
+                            <select
+                                value={str(block.style?.format) || formatForUnit(boundEntry?.unit) || 'number'}
+                                onChange={(event) => setStyle('format', event.target.value)}
+                                className="ir-h-9 ir-w-full ir-rounded-md ir-border ir-bg-background ir-px-2.5 ir-text-sm"
+                            >
+                                {NUMBER_FORMATS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                            {!str(block.style?.format) && formatForUnit(boundEntry?.unit) !== undefined && (
+                                <p className="ir-mt-1 ir-text-[11px] ir-text-muted-foreground">Automático según el dato.</p>
+                            )}
                         </Section>
                     )}
                 </div>

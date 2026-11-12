@@ -31,7 +31,10 @@ final readonly class BlockResolver
 {
     private const HIDDEN = '__hidden__';
 
-    public function __construct(private DatasetEngine $engine = new DatasetEngine) {}
+    /** Blocks whose number follows `style.format` (filled from the metric's unit when unset). */
+    private const FORMATTED = [BlockType::Kpi, BlockType::Chart, BlockType::SalesSummary, BlockType::Goal, BlockType::Table];
+
+    public function __construct(private DatasetEngine $engine = new DatasetEngine, private MetricUnits $units = new MetricUnits) {}
 
     /**
      * @param  list<Block>  $blocks
@@ -72,7 +75,7 @@ final readonly class BlockResolver
                 continue;
             }
 
-            $visibleBlocks[] = $block->toArray();
+            $visibleBlocks[] = $this->withUnitFormat($block);
 
             if ($value !== null) {
                 $data[$block->id] = $value;
@@ -80,6 +83,37 @@ final readonly class BlockResolver
         }
 
         return ['blocks' => $visibleBlocks, 'data' => $data, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * The block as stored, with a number format when it has none and its metric's unit asks
+     * for one (a rate → %, money → currency, a load time → ms…): blocks made before formats
+     * followed units, or by hand without picking one, still read right in the report.
+     *
+     * @return array<string, mixed>
+     */
+    private function withUnitFormat(Block $block): array
+    {
+        $array = $block->toArray();
+        $binding = $block->binding;
+        $source = is_array($binding) ? ($binding['source'] ?? null) : null;
+        $metric = is_array($binding) ? ($binding['metric'] ?? null) : null;
+        $format = $block->style['format'] ?? null;
+
+        if (! in_array($block->type, self::FORMATTED, true) || ! is_string($source) || ! is_string($metric) || (is_string($format) && $format !== '')) {
+            return $array;
+        }
+        // A dataset block shows a chosen measure, not the metric itself: leave it alone.
+        if (DatasetQuery::fromBinding($binding)->isDataset()) {
+            return $array;
+        }
+
+        $default = $this->units->formatFor("{$source}.{$metric}");
+        if ($default !== null) {
+            $array['style'] = [...$block->style, 'format' => $default];
+        }
+
+        return $array;
     }
 
     /**

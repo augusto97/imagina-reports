@@ -22,6 +22,14 @@ describe('formatColumnValue', () => {
         expect(formatColumnValue('ctr', 0.5, 'es')).toBe('0,5 %');
     });
 
+    it('shows money columns in the report currency', () => {
+        // Intl separates the symbol with a non-breaking space.
+        expect(formatColumnValue('cost', 1520.5, 'es', 'USD')).toMatch(/^1521\sUS\$$/);
+        expect(formatColumnValue('cpc', 0.85, 'es', 'USD')).toMatch(/^0,85\sUS\$$/);
+        expect(formatColumnValue('clicks', 1520, 'es', 'USD')).toBeNull();
+        expect(formatColumnValue('roas', 3.25, 'es')).toBe('3,25×');
+    });
+
     it('gives a position one decimal and leaves other columns alone', () => {
         expect(formatColumnValue('position', 3, 'es')).toBe('3,0');
         expect(formatColumnValue('clicks', 1200, 'es')).toBeNull();

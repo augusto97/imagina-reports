@@ -354,13 +354,7 @@ final class AiPlanLayout
 
     private function format(?string $unit): ?string
     {
-        return match ($unit) {
-            'currency' => 'currency',
-            'percent' => 'percent',
-            'duration' => 'duration',
-            'seconds' => 'seconds',
-            default => null,
-        };
+        return $unit !== null ? (MetricUnits::FORMATS[$unit] ?? null) : null;
     }
 
     /**

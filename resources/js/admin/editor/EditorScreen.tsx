@@ -158,6 +158,7 @@ import {
     ReportSettingsProvider,
 } from "@shared/blocks/BlockRenderer";
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT } from "@shared/blocks/types";
+import { formatForUnit } from "@shared/blocks/units";
 import type { Block, BlockType } from "@shared/blocks/types";
 
 import {
@@ -269,6 +270,27 @@ export function EditorScreen(): ReactElement {
     const { data: clients = [] } = useClients();
     const [siteId, setSiteId] = useState<number | null>(null);
     const { data: catalog = [] } = useMetricCatalog(siteId);
+    // A block with no number format reads by its metric's unit (as the server does for reports).
+    const unitFormats = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const entry of catalog) {
+            const format = formatForUnit(entry.unit);
+            if (format !== undefined && entry.type !== 'dataset') map.set(`${entry.source}.${entry.metric}`, format);
+        }
+
+        return map;
+    }, [catalog]);
+    const withUnitFormat = useCallback(
+        (block: Block): Block => {
+            if (block.binding == null || (typeof block.style?.format === 'string' && block.style.format !== '')) return block;
+            if (!['kpi', 'chart', 'sales_summary', 'goal', 'table'].includes(block.type)) return block;
+            if (block.binding.measure != null || block.binding.breakdown != null) return block;
+            const format = unitFormats.get(`${block.binding.source}.${block.binding.metric}`);
+
+            return format === undefined ? block : { ...block, style: { ...block.style, format } };
+        },
+        [unitFormats],
+    );
     const create = useCreateReportTemplate();
     const defaultTpl = useDefaultTemplateBlocks();
     const ai = useAiTemplate(siteId ?? 0);
@@ -2162,7 +2184,7 @@ export function EditorScreen(): ReactElement {
                                                     className="ir-h-full"
                                                 >
                                                     <CanvasBlock
-                                                        block={block}
+                                                        block={withUnitFormat(block)}
                                                         data={
                                                             renderData[block.id]
                                                         }
@@ -2450,7 +2472,7 @@ export function EditorScreen(): ReactElement {
 
             {clientPreview && (
                 <ClientPreview
-                    blocks={blocks}
+                    blocks={blocks.map(withUnitFormat)}
                     data={renderData}
                     theme={{ ...theme, accent: theme.accent ?? agency?.brand_color ?? null }}
                     pages={pageNames.map((pageName) => ({ name: pageName }))}
