@@ -19,6 +19,7 @@ use App\Connectors\SetupGuide;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -97,10 +98,7 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
     public function fetch(DataSource $source, Period $period, array $requestedMetrics): MetricSet
     {
         try {
-            $response = $this->client($source)->get('/alerts', [
-                'since' => $period->start->toIso8601String(),
-                'until' => $period->end->toIso8601String(),
-            ]);
+            $response = $this->client($source)->get('/alerts', $this->rangeQuery($period));
         } catch (Throwable $e) {
             return MetricSet::failed('CrowdSec request error: '.$e->getMessage());
         }
@@ -110,6 +108,26 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
         }
 
         return $this->normalizeAlerts($this->listOf($response->json()));
+    }
+
+    /**
+     * The LAPI reads `since`/`until` as durations back from now («720h»), not dates, and
+     * returns 100 alerts unless told otherwise (`limit=0` is all of them, as `cscli --limit 0`).
+     *
+     * @return array<string, string|int>
+     */
+    private function rangeQuery(Period $period): array
+    {
+        $now = CarbonImmutable::now();
+        $hoursSince = (int) ceil(max(0, $now->getTimestamp() - $period->start->startOfDay()->getTimestamp()) / 3600);
+        $query = ['since' => max(1, $hoursSince).'h', 'limit' => 0];
+
+        $end = $period->end->endOfDay();
+        if ($end->lessThan($now)) {
+            $query['until'] = (int) floor(($now->getTimestamp() - $end->getTimestamp()) / 3600).'h';
+        }
+
+        return $query;
     }
 
     /**
@@ -152,7 +170,8 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
 
             $scenario = $this->toStr(Arr::get($alert, 'scenario'));
             if ($scenario !== '') {
-                $byScenario[$scenario] = ($byScenario[$scenario] ?? 0) + 1;
+                $type = self::attackType($scenario);
+                $byScenario[$type] = ($byScenario[$type] ?? 0) + 1;
             }
 
             $country = $this->toStr(Arr::get($alert, 'source.cn'));
@@ -175,6 +194,46 @@ final class CrowdSecConnector implements DataSourceConnector, ProvidesSetupGuide
             'crowdsec.attacks_by_country' => $this->topTable($byCountry),
             'crowdsec.top_attacker_ips' => $this->topTable($byIp),
         ]);
+    }
+
+    /**
+     * A CrowdSec scenario («crowdsecurity/http-bf-wordpress_bf») in words a client reads, so
+     * the attack-types table says «Fuerza bruta contra el acceso de WordPress». Scenarios of
+     * the same kind share a name and add up; an unknown one is tidied up, never dropped.
+     */
+    public static function attackType(string $scenario): string
+    {
+        $name = strtolower(trim($scenario));
+        $name = str_contains($name, '/') ? substr($name, (int) strrpos($name, '/') + 1) : $name;
+
+        foreach ([
+            '/wordpress.*bf|wp.*bf|bf.*wordpress|wp-login/' => 'Fuerza bruta contra el acceso de WordPress',
+            '/ssh/' => 'Fuerza bruta por SSH',
+            '/(mysql|mariadb|postgres|mssql|mongo).*(bf|brute)/' => 'Fuerza bruta contra la base de datos',
+            '/(ftp|smtp|postfix|dovecot|imap|pop3|exim).*(bf|brute|auth)/' => 'Fuerza bruta contra el correo o el FTP',
+            '/(^|[-_])bf($|[-_])|brute/' => 'Fuerza bruta (contraseñas)',
+            '/user-?enum/' => 'Búsqueda de usuarios del sitio',
+            '/sqli/' => 'Intento de inyección SQL',
+            '/xss/' => 'Intento de inyección de código (XSS)',
+            '/path-traversal|lfi|rfi/' => 'Intento de leer archivos del servidor',
+            '/sensitive-files|backdoor|wpconfig|webshell/' => 'Búsqueda de archivos sensibles',
+            '/cve|vpatch|appsec|exploit|log4j|spring4shell|(^|[-_])rce/' => 'Intento de explotar una vulnerabilidad conocida',
+            '/admin-interface/' => 'Búsqueda de paneles de administración',
+            '/wordpress|wp-/' => 'Escaneo de WordPress',
+            '/req-limit|dos|flood/' => 'Exceso de peticiones',
+            '/open-proxy/' => 'Intento de usar el sitio como proxy',
+            '/bad-user-agent|bot|crawl/' => 'Bots maliciosos',
+            '/prob|scan/' => 'Escaneo del sitio',
+            '/spam/' => 'Spam',
+        ] as $pattern => $label) {
+            if (preg_match($pattern, $name) === 1) {
+                return $label;
+            }
+        }
+
+        $words = trim((string) preg_replace('/[-_]+/', ' ', $name));
+
+        return $words === '' ? 'Otro' : ucfirst($words);
     }
 
     /**

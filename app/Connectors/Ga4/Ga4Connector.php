@@ -23,6 +23,7 @@ use App\Connectors\SetupGuide;
 use App\Connectors\Support\DescribesApiErrors;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -345,7 +346,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
 
                 $metrics[$key] = $isDataset
                     ? $this->parseDataset($datasets[$key], $response->json())
-                    : $this->parse($specs[$key], $response->json());
+                    : $this->parse($specs[$key], $response->json(), $period);
 
                 if ($key === 'ga4.ai_sources' && is_array($metrics[$key])) {
                     $metrics[$key] = $this->assistants($metrics[$key]);
@@ -389,7 +390,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             return null;
         }
 
-        $value = $this->parse($spec, $response->json());
+        $value = $this->parse($spec, $response->json(), $period);
 
         return is_array($value) ? null : $value;
     }
@@ -578,7 +579,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             'ga4.bounce_rate' => ['label' => 'Tasa de rebote', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['bounceRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
             'ga4.avg_session_duration' => ['label' => 'Tiempo medio por visita', 'type' => MetricType::Scalar, 'unit' => 'seconds', 'metrics' => ['averageSessionDuration'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.views_per_session' => ['label' => 'Páginas por sesión', 'type' => MetricType::Scalar, 'unit' => 'ratio', 'metrics' => ['screenPageViewsPerSession'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
-            'ga4.conversions' => ['label' => 'Conversiones', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['conversions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
+            'ga4.conversions' => ['label' => 'Conversiones', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['keyEvents'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.event_count' => ['label' => 'Eventos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['eventCount'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
 
             // ---- Ecommerce ----
@@ -589,7 +590,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             'ga4.avg_purchase_revenue' => ['label' => 'Ticket medio', 'type' => MetricType::Scalar, 'unit' => 'currency', 'metrics' => ['averagePurchaseRevenue'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 1],
             'ga4.items_purchased' => ['label' => 'Artículos comprados', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['itemsPurchased'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
             'ga4.items_viewed' => ['label' => 'Artículos vistos', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['itemsViewed'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1],
-            'ga4.purchaser_conversion_rate' => ['label' => 'Usuarios que compran (%)', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['purchaserConversionRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
+            'ga4.purchaser_conversion_rate' => ['label' => 'Usuarios que compran (%)', 'type' => MetricType::Scalar, 'unit' => 'percent', 'metrics' => ['purchaserRate'], 'dimensions' => [], 'limit' => 1, 'cast' => 'float', 'scale' => 100],
 
             // ---- Time series ----
             'ga4.sessions_by_date' => ['label' => 'Sesiones por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1],
@@ -618,7 +619,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
 
             // ---- Visits from AI assistants (filtered by session source, see AI_SOURCES) ----
             'ga4.ai_sessions' => ['label' => 'Visitas que llegan desde IA', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1, 'ai' => true],
-            'ga4.ai_conversions' => ['label' => 'Conversiones de visitas desde IA', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['conversions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1, 'ai' => true],
+            'ga4.ai_conversions' => ['label' => 'Conversiones de visitas desde IA', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['keyEvents'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1, 'ai' => true],
             'ga4.ai_sessions_by_date' => ['label' => 'Visitas desde IA por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1, 'ai' => true],
             'ga4.ai_sources' => ['label' => 'Asistentes de IA que te envían visitas', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['sessionSource'], 'limit' => 50, 'cast' => 'int', 'scale' => 1, 'ai' => true],
             'ga4.ai_landing_pages' => ['label' => 'Páginas a las que llegan desde IA', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['landingPage'], 'limit' => 10, 'cast' => 'int', 'scale' => 1, 'ai' => true],
@@ -665,7 +666,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 'measures' => [
                     'sessions' => ['label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
                     'users' => ['label' => 'Usuarios', 'api' => 'totalUsers', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
-                    'conversions' => ['label' => 'Conversiones', 'api' => 'conversions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'conversions' => ['label' => 'Conversiones', 'api' => 'keyEvents', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
                 ],
                 'limit' => 250,
             ],
@@ -679,7 +680,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 'measures' => [
                     'sessions' => ['label' => 'Sesiones', 'api' => 'sessions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
                     'users' => ['label' => 'Usuarios', 'api' => 'totalUsers', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
-                    'conversions' => ['label' => 'Conversiones', 'api' => 'conversions', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
+                    'conversions' => ['label' => 'Conversiones', 'api' => 'keyEvents', 'unit' => 'count', 'cast' => 'int', 'scale' => 1],
                 ],
                 'limit' => 250,
             ],
@@ -901,7 +902,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
      * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int, ai?: bool}  $spec
      * @return int|float|list<array{label: string, value: int|float}>|list<array{date: string, value: int|float}>
      */
-    private function parse(array $spec, mixed $json): int|float|array
+    private function parse(array $spec, mixed $json, ?Period $period = null): int|float|array
     {
         $rows = $this->rows($json);
         $apply = function (float $raw) use ($spec): int|float {
@@ -912,10 +913,10 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
 
         return match ($spec['type']) {
             MetricType::Scalar => $apply(array_sum(array_map($this->numericValue(...), $rows))),
-            MetricType::Series => array_map(
+            MetricType::Series => $this->withEmptyDays($spec, array_map(
                 fn (array $row): array => ['date' => $this->dimensionValue($row), 'value' => $apply($this->numericValue($row))],
                 $rows,
-            ),
+            ), $period),
             MetricType::Table => array_map(
                 fn (array $row): array => ['label' => $this->dimensionValue($row), 'value' => $apply($this->numericValue($row))],
                 $rows,
@@ -924,6 +925,37 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             // single-dimension parser — unreachable here.
             MetricType::Dataset => [],
         };
+    }
+
+    /**
+     * GA4 leaves days without data out of a daily series, so a chart would join the days
+     * around a gap as if nothing happened. Fill every day of the period up to today with 0.
+     *
+     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int, ai?: bool}  $spec
+     * @param  list<array{date: string, value: int|float}>  $series
+     * @return list<array{date: string, value: int|float}>
+     */
+    private function withEmptyDays(array $spec, array $series, ?Period $period): array
+    {
+        if ($period === null || ($spec['dimensions'][0] ?? null) !== 'date' || $period->start->diffInDays($period->end) > 400) {
+            return $series;
+        }
+
+        $byDate = [];
+        foreach ($series as $point) {
+            $byDate[$point['date']] = $point['value'];
+        }
+        $zero = $spec['cast'] === 'int' ? 0 : 0.0;
+        // Days still to come aren't a zero: a month in progress stops at today.
+        $last = $period->end->min(CarbonImmutable::today());
+
+        $out = [];
+        for ($day = $period->start->startOfDay(); $day->lessThanOrEqualTo($last); $day = $day->addDay()) {
+            $key = $day->format('Ymd');
+            $out[] = ['date' => $key, 'value' => $byDate[$key] ?? $zero];
+        }
+
+        return $out;
     }
 
     /**

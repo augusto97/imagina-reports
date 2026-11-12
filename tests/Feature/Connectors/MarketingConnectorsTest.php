@@ -43,8 +43,9 @@ class MarketingConnectorsTest extends TestCase
             }
             if (str_contains($url, 'stat_time_day')) {
                 return Http::response(['code' => 0, 'data' => ['list' => [
-                    ['dimensions' => ['stat_time_day' => '2026-06-01'], 'metrics' => ['spend' => '50', 'clicks' => '80']],
-                    ['dimensions' => ['stat_time_day' => '2026-06-02'], 'metrics' => ['spend' => '100', 'clicks' => '170']],
+                    // TikTok's own stamp, out of order.
+                    ['dimensions' => ['stat_time_day' => '2026-06-02 00:00:00'], 'metrics' => ['spend' => '100', 'clicks' => '170']],
+                    ['dimensions' => ['stat_time_day' => '2026-06-01 00:00:00'], 'metrics' => ['spend' => '50', 'clicks' => '80']],
                 ]]]);
             }
 
@@ -63,7 +64,7 @@ class MarketingConnectorsTest extends TestCase
         $this->assertSame(150.0, $set->get('tiktok_ads.spend'));
         $this->assertSame(250, $set->get('tiktok_ads.clicks'));
         $this->assertSame(12.0, $set->get('tiktok_ads.conversions'));
-        $this->assertCount(2, $set->get('tiktok_ads.spend_by_date'));
+        $this->assertSame([['date' => '2026-06-01', 'value' => 50.0], ['date' => '2026-06-02', 'value' => 100.0]], $set->get('tiktok_ads.spend_by_date'));
         $this->assertSame('Verano', $set->get('tiktok_ads.top_campaigns')[0]['campaign']);
 
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('Access-Token', 'tt-token'));
@@ -85,8 +86,8 @@ class MarketingConnectorsTest extends TestCase
     public function test_mailchimp_aggregates_campaign_reports_over_the_period(): void
     {
         Http::fake(['us21.api.mailchimp.com/*' => Http::response(['reports' => [
-            ['emails_sent' => 1000, 'campaign_title' => 'Boletín junio', 'opens' => ['unique_opens' => 300, 'open_rate' => 0.3], 'clicks' => ['clicks_total' => 120, 'click_rate' => 0.12], 'unsubscribed' => 5],
-            ['emails_sent' => 500, 'campaign_title' => 'Oferta', 'opens' => ['unique_opens' => 100, 'open_rate' => 0.2], 'clicks' => ['clicks_total' => 30, 'click_rate' => 0.06], 'unsubscribed' => 2],
+            ['emails_sent' => 1000, 'campaign_title' => 'Boletín junio', 'bounces' => ['hard_bounces' => 30, 'soft_bounces' => 20, 'syntax_errors' => 0], 'opens' => ['unique_opens' => 300, 'open_rate' => 0.3158], 'clicks' => ['clicks_total' => 120, 'unique_subscriber_clicks' => 80, 'click_rate' => 0.0842], 'unsubscribed' => 5],
+            ['emails_sent' => 500, 'campaign_title' => 'Oferta', 'bounces' => ['hard_bounces' => 0, 'soft_bounces' => 0, 'syntax_errors' => 0], 'opens' => ['unique_opens' => 100, 'open_rate' => 0.2], 'clicks' => ['clicks_total' => 30, 'unique_subscriber_clicks' => 20, 'click_rate' => 0.04], 'unsubscribed' => 2],
         ]])]);
 
         $set = (new MailchimpConnector)->fetch(
@@ -99,7 +100,10 @@ class MarketingConnectorsTest extends TestCase
         $this->assertSame(2, $set->get('mailchimp.campaigns_sent'));
         $this->assertSame(1500, $set->get('mailchimp.emails_sent'));
         $this->assertSame(400, $set->get('mailchimp.opens'));
-        $this->assertEqualsWithDelta(26.7, $set->get('mailchimp.open_rate'), 0.1); // 400/1500
+        // Like Mailchimp: over delivered mail (1500 − 50 bounces), people counted once.
+        $this->assertEqualsWithDelta(27.6, $set->get('mailchimp.open_rate'), 0.05); // 400/1450
+        $this->assertEqualsWithDelta(6.9, $set->get('mailchimp.click_rate'), 0.05); // 100/1450
+        $this->assertSame(150, $set->get('mailchimp.clicks')); // total clicks stay a total
         $this->assertSame('Boletín junio', $set->get('mailchimp.top_campaigns')[0]['campaign']);
 
         // The datacenter suffix of the key selects the API host.

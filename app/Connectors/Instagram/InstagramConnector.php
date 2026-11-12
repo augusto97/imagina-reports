@@ -21,6 +21,7 @@ use App\Connectors\Support\DescribesApiErrors;
 use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -174,41 +175,80 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
     }
 
     /**
-     * Sum the day-period insights over the report window and expose the reach series. A
-     * single failing metric only degrades to partial — the follower/media scalars still show.
+     * Sum the day-period insights over the report window and expose the reach series. Each
+     * metric is asked on its own: Meta rejects the WHOLE call when one name is retired, and
+     * one rejected metric must not blank the others. A metric that fails is left out (its
+     * block hides) rather than stored as 0; the follower/media scalars still show.
      *
      * @param  array<string, mixed>  $metrics
      * @param  list<string>  $errors
      */
     private function collectInsights(PendingRequest $client, string $igUserId, Period $period, array &$metrics, array &$errors): void
     {
-        try {
-            $response = $client->get('/'.$igUserId.'/insights', [
-                'metric' => implode(',', self::PERIOD_METRICS),
-                'period' => 'day',
-                'since' => $period->start->timestamp,
-                'until' => $period->end->timestamp,
-            ]);
+        $keys = [
+            'reach' => 'instagram.reach',
+            'follower_count' => 'instagram.new_followers',
+            'profile_views' => 'instagram.profile_views',
+            'website_clicks' => 'instagram.website_clicks',
+        ];
 
-            if ($response->failed()) {
-                $errors[] = 'insights: HTTP '.$response->status();
-
-                return;
+        foreach (self::PERIOD_METRICS as $metric) {
+            $values = $this->dailyInsight($client, $igUserId, $period, $metric, $errors);
+            if ($values === null) {
+                continue;
             }
 
-            $byName = [];
-            foreach ($this->listOf($response->json('data')) as $entry) {
-                $byName[$this->toStr(Arr::get($entry, 'name'))] = $this->listOf(Arr::get($entry, 'values'));
+            $metrics[$keys[$metric]] = $this->sumValues($values);
+            if ($metric === 'reach') {
+                $metrics['instagram.reach_by_date'] = $this->series($values);
             }
-
-            $metrics['instagram.reach'] = $this->sumValues($byName['reach'] ?? []);
-            $metrics['instagram.new_followers'] = $this->sumValues($byName['follower_count'] ?? []);
-            $metrics['instagram.profile_views'] = $this->sumValues($byName['profile_views'] ?? []);
-            $metrics['instagram.website_clicks'] = $this->sumValues($byName['website_clicks'] ?? []);
-            $metrics['instagram.reach_by_date'] = $this->series($byName['reach'] ?? []);
-        } catch (Throwable $e) {
-            $errors[] = 'insights: '.$e->getMessage();
         }
+    }
+
+    /**
+     * One metric's daily values over the period. Meta allows at most 30 days between `since`
+     * and `until`, so a long period is read in 30-day windows (`until` is exclusive: the last
+     * day is included). Null when any window fails.
+     *
+     * @param  list<string>  $errors
+     * @return list<array<array-key, mixed>>|null
+     */
+    private function dailyInsight(PendingRequest $client, string $igUserId, Period $period, string $metric, array &$errors): ?array
+    {
+        $values = [];
+        $from = $period->start->startOfDay();
+        $last = $period->end->startOfDay()->addDay();
+
+        try {
+            while ($from->lessThan($last)) {
+                $to = $from->addDays(30)->min($last);
+                $response = $client->get('/'.$igUserId.'/insights', [
+                    'metric' => $metric,
+                    'period' => 'day',
+                    'since' => $from->timestamp,
+                    'until' => $to->timestamp,
+                ]);
+
+                if ($response->failed()) {
+                    $errors[] = "{$metric}: HTTP ".$response->status().' '.$this->apiError($response->json());
+
+                    return null;
+                }
+
+                foreach ($this->listOf($response->json('data')) as $entry) {
+                    if ($this->toStr(Arr::get($entry, 'name')) === $metric) {
+                        array_push($values, ...$this->listOf(Arr::get($entry, 'values')));
+                    }
+                }
+                $from = $to;
+            }
+        } catch (Throwable $e) {
+            $errors[] = "{$metric}: ".$e->getMessage();
+
+            return null;
+        }
+
+        return $values;
     }
 
     /**
@@ -317,10 +357,16 @@ final class InstagramConnector implements DataSourceConnector, ListsConnectableR
      */
     private function series(array $values): array
     {
-        return array_map(fn (array $point): array => [
-            'date' => substr($this->toStr(Arr::get($point, 'end_time')), 0, 10),
-            'value' => $this->toInt(Arr::get($point, 'value')),
-        ], $values);
+        // A day's value carries the END of that day as end_time (the next day's start in the
+        // account's time zone), so the day it measures is the one before.
+        return array_map(function (array $point): array {
+            $end = $this->toStr(Arr::get($point, 'end_time'));
+
+            return [
+                'date' => $end !== '' ? CarbonImmutable::parse($end)->subDay()->toDateString() : '',
+                'value' => $this->toInt(Arr::get($point, 'value')),
+            ];
+        }, $values);
     }
 
     /**

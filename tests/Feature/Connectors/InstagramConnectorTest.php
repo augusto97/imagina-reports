@@ -37,28 +37,53 @@ class InstagramConnectorTest extends TestCase
     public function test_fetch_maps_account_fields_and_period_insights(): void
     {
         Http::fake([
-            'graph.facebook.com/*/178414/insights*' => Http::response([
-                'data' => [
-                    ['name' => 'reach', 'values' => [['value' => 100, 'end_time' => '2026-06-01T07:00:00+0000'], ['value' => 150, 'end_time' => '2026-06-02T07:00:00+0000']]],
-                    ['name' => 'follower_count', 'values' => [['value' => 5], ['value' => 8]]],
-                    ['name' => 'profile_views', 'values' => [['value' => 20], ['value' => 25]]],
-                    ['name' => 'website_clicks', 'values' => [['value' => 2], ['value' => 3]]],
-                ],
-            ]),
+            'graph.facebook.com/*/178414/insights?metric=reach*' => Http::response(['data' => [
+                ['name' => 'reach', 'values' => [['value' => 100, 'end_time' => '2026-06-02T07:00:00+0000'], ['value' => 150, 'end_time' => '2026-06-03T07:00:00+0000']]],
+            ]]),
+            'graph.facebook.com/*/178414/insights?metric=follower_count*' => Http::response(['data' => [
+                ['name' => 'follower_count', 'values' => [['value' => 5], ['value' => 8]]],
+            ]]),
+            'graph.facebook.com/*/178414/insights?metric=profile_views*' => Http::response(['data' => [
+                ['name' => 'profile_views', 'values' => [['value' => 20], ['value' => 25]]],
+            ]]),
+            // A metric Meta retired rejects its own call only.
+            'graph.facebook.com/*/178414/insights?metric=website_clicks*' => Http::response(['error' => ['message' => 'metric not supported']], 400),
+            'graph.facebook.com/*/178414/media*' => Http::response(['data' => []]),
             'graph.facebook.com/*/178414*' => Http::response(['followers_count' => 4820, 'media_count' => 312]),
         ]);
 
         $set = (new InstagramConnector)->fetch($this->source(), Period::make('2026-06-01', '2026-06-30'), []);
 
-        $this->assertTrue($set->isOk());
+        $this->assertTrue($set->isPartial());
         $this->assertSame(4820, $set->get('instagram.followers'));
         $this->assertSame(312, $set->get('instagram.media_count'));
         $this->assertSame(250, $set->get('instagram.reach')); // 100 + 150
         $this->assertSame(13, $set->get('instagram.new_followers')); // 5 + 8
         $this->assertSame(45, $set->get('instagram.profile_views'));
+        // Left out, not a misleading 0.
+        $this->assertFalse($set->has('instagram.website_clicks'));
 
+        // The value that ends at the start of 2 June measures 1 June.
         $series = $set->get('instagram.reach_by_date');
         $this->assertSame(['date' => '2026-06-01', 'value' => 100], $series[0]);
+    }
+
+    public function test_a_31_day_month_is_read_in_windows_meta_accepts(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/178414/insights*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/178414/media*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/178414*' => Http::response(['followers_count' => 1, 'media_count' => 1]),
+        ]);
+
+        (new InstagramConnector)->fetch($this->source(), Period::make('2026-07-01', '2026-07-31'), ['instagram.reach']);
+
+        $windows = Http::recorded(fn ($request) => str_contains($request->url(), 'metric=reach'));
+        $this->assertCount(2, $windows);
+        foreach ($windows as [$request]) {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+            $this->assertLessThanOrEqual(30 * 86400, (int) $query['until'] - (int) $query['since']);
+        }
     }
 
     public function test_insights_failure_degrades_to_partial_but_keeps_followers(): void

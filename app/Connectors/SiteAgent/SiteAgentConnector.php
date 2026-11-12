@@ -105,7 +105,7 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.ssl_days_remaining', 'Días para que caduque el SSL', MetricType::Scalar, 'days', description: 'Días que faltan para que caduque el certificado SSL (el candado del navegador). Si llega a 0, el navegador avisa que el sitio no es seguro.'),
             new MetricDefinition('site_agent.ssl_status', 'Certificado SSL (detalle)', MetricType::Table, description: 'Si el certificado SSL es válido, quién lo emitió, cuándo caduca y cuántos días le quedan.'),
             // Seguridad activa.
-            new MetricDefinition('site_agent.spam_blocked', 'Spam bloqueado este mes', MetricType::Scalar, 'count', description: 'Comentarios basura que se marcaron como spam este mes en lugar de publicarse en el sitio.'),
+            new MetricDefinition('site_agent.spam_blocked', 'Spam bloqueado este mes', MetricType::Scalar, 'count', description: 'Comentarios basura del mes que siguen guardados como spam en lugar de publicarse. Akismet borra el spam antiguo y descarta el más evidente sin guardarlo, así que el total real puede ser mayor.'),
             new MetricDefinition('site_agent.spam_blocked_total', 'Spam bloqueado (total)', MetricType::Scalar, 'count', description: 'Comentarios spam que Akismet bloqueó desde que se instaló en el sitio.'),
             new MetricDefinition('site_agent.admin_users', 'Administradores', MetricType::Scalar, 'count', description: 'Cuentas con permisos de administrador en el sitio. Cuantas menos, menos riesgo si una contraseña se filtra.'),
             new MetricDefinition('site_agent.users_new', 'Usuarios nuevos', MetricType::Scalar, 'count', description: 'Cuentas de usuario creadas en el sitio este mes.'),
@@ -129,8 +129,8 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             new MetricDefinition('site_agent.low_stock', 'Productos con pocas existencias', MetricType::Scalar, 'count', description: 'Productos de WooCommerce con existencias en o por debajo del aviso de stock bajo de la tienda.'),
             new MetricDefinition('site_agent.pending_orders', 'Pedidos pendientes de pago', MetricType::Scalar, 'count', description: 'Pedidos de WooCommerce pendientes de pago o en espera: necesitan que alguien los revise.'),
             // Logins (Wordfence) e imágenes (ShortPixel).
-            new MetricDefinition('site_agent.failed_logins', 'Accesos fallidos', MetricType::Scalar, 'count', description: 'Intentos de entrar al panel con usuario o contraseña incorrectos este mes (Wordfence o Limit Login Attempts).'),
-            new MetricDefinition('site_agent.logins_blocked', 'Accesos bloqueados', MetricType::Scalar, 'count', description: 'Veces que se bloqueó a alguien este mes por intentar entrar al panel demasiadas veces (Wordfence o Limit Login Attempts).'),
+            new MetricDefinition('site_agent.failed_logins', 'Accesos fallidos', MetricType::Scalar, 'count', description: 'Intentos de entrar al panel con usuario o contraseña incorrectos este mes, según Wordfence.'),
+            new MetricDefinition('site_agent.logins_blocked', 'Accesos bloqueados', MetricType::Scalar, 'count', description: 'Veces que se bloqueó a alguien este mes por intentar entrar al panel demasiadas veces, según Wordfence.'),
             new MetricDefinition('site_agent.images_optimized', 'Imágenes optimizadas', MetricType::Scalar, 'count', description: 'Imágenes del sitio comprimidas con ShortPixel para que pesen menos y la web cargue más rápido.'),
             new MetricDefinition('site_agent.images_saved_mb', 'Espacio ahorrado en imágenes', MetricType::Scalar, 'MB', description: 'MB que se ahorraron al comprimir las imágenes con ShortPixel: menos peso, páginas más rápidas.'),
         );
@@ -269,7 +269,9 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
         $hasLeads = $this->toStr(Arr::get($leads, 'provider')) !== ''
             && $this->toInt(Arr::get($leads, 'count_total')) > 0;
         $hasStore = Arr::get($ecommerce, 'active') === true;
-        $hasLogins = $this->toStr(Arr::get($logins, 'provider')) !== '';
+        // Only Wordfence gives per-period login counts; Limit Login Attempts keeps a lifetime
+        // total only, so with it «0 failed logins this month» would be a guess, not a measure.
+        $hasLogins = $this->toStr(Arr::get($logins, 'provider')) === 'Wordfence';
         $hasImages = $this->toStr(Arr::get($images, 'provider')) !== '';
         $sslChecked = Arr::get($ssl, 'checked') === true;
 
@@ -295,8 +297,10 @@ final class SiteAgentConnector implements DataSourceConnector, ProvidesSetupGuid
             'site_agent.plugins_active' => $this->toInt(Arr::get($plugins, 'active')),
             'site_agent.plugins_inactive' => $this->toInt(Arr::get($plugins, 'inactive')),
             'site_agent.plugins_total' => $this->toInt(Arr::get($plugins, 'total')),
-            'site_agent.updates_pending' => $this->toInt(Arr::get($updates, 'total')),
-            'site_agent.updates_core' => $this->toInt(Arr::get($updates, 'core')),
+            // WordPress can list the same release more than once (another language, a minor
+            // branch): there is at most ONE core update to install.
+            'site_agent.updates_pending' => min(1, $this->toInt(Arr::get($updates, 'core'))) + $this->toInt(Arr::get($updates, 'plugins')) + $this->toInt(Arr::get($updates, 'themes')),
+            'site_agent.updates_core' => min(1, $this->toInt(Arr::get($updates, 'core'))),
             'site_agent.updates_plugins' => $this->toInt(Arr::get($updates, 'plugins')),
             'site_agent.updates_themes' => $this->toInt(Arr::get($updates, 'themes')),
             // Updates applied (from the agent's local history). Null when the installed agent

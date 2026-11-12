@@ -54,7 +54,7 @@ final class DatabaseConnector implements DataSourceConnector
             new ConfigField('database', 'Database', ConfigFieldType::Text, help: 'Nombre de la base de datos (o ruta del archivo en sqlite).'),
             new ConfigField('username', 'Username', ConfigFieldType::Text, required: false, help: 'Usuario de SOLO LECTURA.'),
             new ConfigField('password', 'Password', ConfigFieldType::Password, required: false, secret: true, help: 'Contraseña del usuario de solo lectura.'),
-            new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: 'JSON con tus métricas. Solo consultas SELECT/WITH (agregadas en origen): [{"key","label","type":"scalar|series|table","sql":"SELECT …"}].'),
+            new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: 'JSON con tus métricas. Solo consultas SELECT/WITH (agregadas en origen): [{"key","label","type":"scalar|series|table","sql":"SELECT …"}]. Usa :start y :end en el WHERE (p. ej. «WHERE created_at BETWEEN :start AND :end») para que cada reporte cuente solo su periodo; sin ellos la consulta devuelve lo mismo en todos los meses.'),
         ];
     }
 
@@ -104,8 +104,15 @@ final class DatabaseConnector implements DataSourceConnector
             }
 
             try {
-                $rows = $connection->select($metric['sql']);
-                $metrics["database.{$metric['key']}"] = $this->shape($metric['type'], $rows);
+                $rows = $connection->select($metric['sql'], $this->periodBindings($metric['sql'], $period));
+                $value = $this->shape($metric['type'], $rows);
+                if ($value === null) {
+                    // No row at all: nothing measured, so the block hides instead of showing 0.
+                    $errors[] = "{$metric['key']}: la consulta no devolvió ninguna fila.";
+
+                    continue;
+                }
+                $metrics["database.{$metric['key']}"] = $value;
             } catch (Throwable $e) {
                 $errors[] = "{$metric['key']}: ".$e->getMessage();
             }
@@ -203,6 +210,26 @@ final class DatabaseConnector implements DataSourceConnector
     }
 
     /**
+     * The report period for a query that asks for it with `:start` / `:end` (bound, never
+     * pasted into the SQL). Only the names the query uses are passed: PDO rejects extras.
+     *
+     * @return array<string, string>
+     */
+    private function periodBindings(string $sql, Period $period): array
+    {
+        $stripped = preg_replace(['/\'(?:\'\'|\\\\.|[^\'\\\\])*\'/s', '/"(?:""|\\\\.|[^"\\\\])*"/s'], ' ', $sql) ?? $sql;
+        $bindings = [];
+        if (preg_match('/:start\b/', $stripped) === 1) {
+            $bindings['start'] = $period->start->startOfDay()->format('Y-m-d H:i:s');
+        }
+        if (preg_match('/:end\b/', $stripped) === 1) {
+            $bindings['end'] = $period->end->endOfDay()->format('Y-m-d H:i:s');
+        }
+
+        return $bindings;
+    }
+
+    /**
      * @param  array<array-key, mixed>  $rows
      */
     private function shape(string $type, array $rows): mixed
@@ -221,16 +248,21 @@ final class DatabaseConnector implements DataSourceConnector
     /**
      * @param  array<array-key, mixed>  $rows
      */
-    private function scalar(array $rows): int|float
+    private function scalar(array $rows): int|float|null
     {
         $first = $rows[0] ?? null;
 
         if ($first === null) {
-            return 0;
+            return null;
         }
 
         $values = array_values((array) $first);
+        $value = $values[0] ?? null;
+        if ($value !== null && ! is_numeric($value)) {
+            throw new RuntimeException('la consulta devolvió un valor que no es un número.');
+        }
 
-        return $this->toNumber($values[0] ?? 0);
+        // NULL is what SUM() gives over no matching rows: nothing happened, so 0.
+        return $this->toNumber($value ?? 0);
     }
 }

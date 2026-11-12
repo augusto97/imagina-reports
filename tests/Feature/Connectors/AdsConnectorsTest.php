@@ -354,6 +354,36 @@ class AdsConnectorsTest extends TestCase
             && $request->hasHeader('Authorization', 'Bearer meta-token'));
     }
 
+    public function test_facebook_ads_reads_every_page_of_the_daily_series(): void
+    {
+        Http::fake(function (Request $request) {
+            $url = $request->url();
+            if (! str_contains($url, '/insights')) {
+                return Http::response(['account_id' => '1234567890']);
+            }
+            if (str_contains($url, 'after=page2')) {
+                return Http::response(['data' => [['date_start' => '2026-06-30', 'clicks' => '9', 'impressions' => '90', 'spend' => '9.00']]]);
+            }
+            if (str_contains($url, 'time_increment')) {
+                return Http::response([
+                    'data' => [['date_start' => '2026-06-01', 'clicks' => '1', 'impressions' => '10', 'spend' => '1.00']],
+                    'paging' => ['next' => 'https://graph.facebook.com/v21.0/act_1234567890/insights?time_increment=1&after=page2'],
+                ]);
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        $set = (new FacebookAdsConnector)->fetch(
+            $this->source(DataSourceType::FacebookAds, ['ad_account_id' => '1234567890'], ['access_token' => 'meta-token']),
+            $this->period(),
+            ['facebook_ads.clicks_by_date'],
+        );
+
+        // The last days of the month live on the next page: they're there.
+        $this->assertCount(2, $set->get('facebook_ads.clicks_by_date'));
+    }
+
     public function test_facebook_ads_reports_failed_on_api_error(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'Invalid token']], 401)]);

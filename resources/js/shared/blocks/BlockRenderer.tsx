@@ -1,4 +1,4 @@
-import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, CheckCircle2, Clock, Eye, Lightbulb, type LucideIcon, Mail, MousePointerClick, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldAlert, ShieldCheck, ShoppingBag, Target, Users, Wallet } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, CheckCircle2, Clock, Eye, Lightbulb, type LucideIcon, Mail, MousePointerClick, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldCheck, ShoppingBag, Target, Users, Wallet } from 'lucide-react';
 import { Component as ReactComponent, type CSSProperties, type ErrorInfo, type ReactElement, type ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import {
     Area,
@@ -150,6 +150,12 @@ const HUMAN_LABELS: Record<string, string> = {
     mobile: 'Móvil', desktop: 'Escritorio', tablet: 'Tablet',
     'organic search': 'Búsqueda orgánica', direct: 'Directo', 'organic social': 'Redes sociales', referral: 'Referencias',
     'paid search': 'Búsqueda de pago', email: 'Email', 'paid social': 'Redes (pago)', display: 'Display', unassigned: 'Sin asignar', '(not set)': 'Sin dato',
+    // Ad platforms hand back their own enums (Google Ads channel/device, Meta placement/device/gender).
+    search: 'Búsqueda', shopping: 'Shopping', video: 'Video', performance_max: 'Performance Max', demand_gen: 'Demand Gen',
+    discovery: 'Discovery', smart: 'Inteligente', local: 'Local', multi_channel: 'Multicanal', hotel: 'Hoteles', travel: 'Viajes',
+    connected_tv: 'TV conectada', other: 'Otros', unknown: 'Desconocido', unspecified: 'Sin dato',
+    facebook: 'Facebook', instagram: 'Instagram', audience_network: 'Audience Network', messenger: 'Messenger', threads: 'Threads',
+    mobile_app: 'App móvil', mobile_web: 'Web móvil', male: 'Hombres', female: 'Mujeres',
 };
 
 function humanLabel(value: string): string {
@@ -157,7 +163,7 @@ function humanLabel(value: string): string {
 }
 
 /** Metrics where going DOWN is the good news (the trend pill turns green on a drop). */
-const LOWER_IS_BETTER = /position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|malware|out_of_stock|cron_overdue|last_backup|lcp|fcp|tbt|cls|inp|reviews_unanswered/;
+const LOWER_IS_BETTER = /position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|out_of_stock|cron_overdue|last_backup|lcp|fcp|tbt|cls|inp|reviews_unanswered/;
 
 /** A recognisable icon per kind of metric, so a row of KPIs reads at a glance. */
 function metricIcon(metric: string): LucideIcon {
@@ -589,6 +595,8 @@ function HealthScoreBlock({ block, data }: BlockComponentProps): ReactElement {
 interface Kpi {
     value: number;
     changePercent: number | null;
+    /** For rates: the change in percentage points (40 % → 42 % is +2 pts). */
+    changePoints: number | null;
     previous: number | null;
     series: number[];
 }
@@ -598,16 +606,18 @@ function asKpi(data: unknown): Kpi {
         const record = data as Record<string, unknown>;
         const change = record.change_percent;
         const previous = record.previous;
+        const points = record.change_points;
 
         return {
             value: typeof record.value === 'number' ? record.value : Number(record.value) || 0,
             changePercent: typeof change === 'number' ? change : null,
+            changePoints: typeof points === 'number' ? points : null,
             previous: typeof previous === 'number' ? previous : null,
             series: Array.isArray(record.series) ? record.series.filter((point): point is number => typeof point === 'number') : [],
         };
     }
 
-    return { value: typeof data === 'number' ? data : Number(data) || 0, changePercent: null, previous: null, series: [] };
+    return { value: typeof data === 'number' ? data : Number(data) || 0, changePercent: null, changePoints: null, previous: null, series: [] };
 }
 
 /** A tiny trend line under a KPI: a number + a mini visual (§11.5). Pure SVG, prints crisp. */
@@ -638,7 +648,7 @@ function Sparkline({ points, id }: { points: number[]; id: string }): ReactEleme
 }
 
 /** A compact trend pill: tinted green/red arrow + signed percent vs the previous period. */
-function TrendBadge({ percent, invert = false }: { percent: number; invert?: boolean }): ReactElement {
+function TrendBadge({ percent, invert = false, points = false }: { percent: number; invert?: boolean; points?: boolean }): ReactElement {
     const up = percent >= 0;
     const good = invert ? !up : up;
     const Arrow = up ? ArrowUpRight : ArrowDownRight;
@@ -648,13 +658,14 @@ function TrendBadge({ percent, invert = false }: { percent: number; invert?: boo
         <span className={cn('ir-inline-flex ir-w-fit ir-items-center ir-gap-0.5 ir-rounded-full ir-px-1.5 ir-py-0.5 ir-text-xs ir-font-semibold ir-tabular-nums', tone)}>
             <Arrow className="ir-size-3" />
             {up ? '+' : ''}
-            {percent.toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })}%
+            {percent.toLocaleString(FALLBACK_LOCALE, { maximumFractionDigits: 1 })}
+            {points ? ' pts' : '%'}
         </span>
     );
 }
 
 function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
-    const { value, changePercent, previous, series } = asKpi(data);
+    const { value, changePercent, changePoints, previous, series } = asKpi(data);
     const settings = useContext(ReportSettingsContext);
     const metric = `${block.binding?.source ?? ''}.${block.binding?.metric ?? ''}`.toLowerCase();
     const Icon = metricIcon(metric);
@@ -676,9 +687,9 @@ function KpiBlock({ block, data }: BlockComponentProps): ReactElement {
                     <p className="ir-kpi-value ir-font-bold ir-leading-none ir-tracking-tight ir-tabular-nums" style={{ color: 'var(--ir-r-kpi-value)' }}>
                         {formatNumber(value, format, settings)}
                     </p>
-                    {changePercent !== null && (
+                    {(changePercent !== null || changePoints !== null) && (
                         <div className="ir-flex ir-min-w-0 ir-items-center ir-gap-1.5">
-                            <TrendBadge percent={changePercent} invert={LOWER_IS_BETTER.test(metric)} />
+                            <TrendBadge percent={changePoints ?? changePercent ?? 0} points={changePoints !== null} invert={LOWER_IS_BETTER.test(metric)} />
                             {/* The plain sentence: what it was before, not just a percentage. */}
                             <span className="ir-truncate ir-text-[11px] ir-text-muted-foreground">
                                 {previous !== null ? `antes: ${formatNumber(previous, format, settings)}` : 'vs. periodo anterior'}
@@ -1258,25 +1269,26 @@ function AdvisoryBlock({ block, data }: BlockComponentProps): ReactElement | nul
 const SECURITY_STATS: { key: string; label: string }[] = [
     { key: 'threats_blocked', label: 'Amenazas bloqueadas' },
     { key: 'attacks_blocked', label: 'Ataques bloqueados' },
-    { key: 'malware_found', label: 'Malware detectado' },
+    { key: 'scans', label: 'Escaneos antimalware' },
 ];
 
 function SecurityShieldBlock({ block, data }: BlockComponentProps): ReactElement {
     const stats = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : {};
     const tiles = SECURITY_STATS.filter((stat) => typeof stats[stat.key] === 'number');
-    const malware = Number(stats.malware_found) || 0;
-    const clean = malware === 0;
+    // No source reports malware FOUND (Virusdie counts the scans it ran), so the shield never
+    // claims a threat; it only says what was blocked and checked.
+    const blocking = typeof stats.threats_blocked === 'number' || typeof stats.attacks_blocked === 'number';
 
     return (
         <Section title={str(prop(block, 'title'), 'Seguridad')} style={block.style}>
             <div className="ir-flex ir-h-full ir-flex-col ir-gap-3">
-                <div className={cn('ir-flex ir-items-center ir-gap-3 ir-rounded-xl ir-px-3 ir-py-2.5', clean ? 'ir-bg-success/10' : 'ir-bg-danger/10')}>
-                    <span className={cn('ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full', clean ? 'ir-bg-success ir-text-white' : 'ir-bg-danger ir-text-white')}>
-                        {clean ? <ShieldCheck className="ir-size-5" /> : <ShieldAlert className="ir-size-5" />}
+                <div className="ir-flex ir-items-center ir-gap-3 ir-rounded-xl ir-bg-success/10 ir-px-3 ir-py-2.5">
+                    <span className="ir-flex ir-size-9 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-bg-success ir-text-white">
+                        <ShieldCheck className="ir-size-5" />
                     </span>
                     <div className="ir-min-w-0">
-                        <p className="ir-text-sm ir-font-semibold">{clean ? 'Tu sitio está protegido' : 'Detectamos una amenaza'}</p>
-                        <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{clean ? 'Vigilado 24/7: cada ataque se bloqueó.' : 'Ya la estamos tratando.'}</p>
+                        <p className="ir-text-sm ir-font-semibold">Tu sitio está protegido</p>
+                        <p className="ir-truncate ir-text-xs ir-text-muted-foreground">{blocking ? 'Vigilado 24/7: cada ataque se bloqueó.' : 'Vigilado y revisado este mes.'}</p>
                     </div>
                 </div>
                 {tiles.length > 0 && (

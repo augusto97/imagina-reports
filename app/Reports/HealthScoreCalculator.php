@@ -13,7 +13,7 @@ namespace App\Reports;
  * Signals (weight · how it's scored · where it comes from):
  * - Disponibilidad   25 % · 99,9 % up → 98, 99 % → 80, 95 % or less → 0          · Better Stack
  * - Actualizaciones  20 % · −5 per pending update                                 · MainWP or the Agent
- * - Seguridad        20 % · malware → 40 max; −15 per vulnerability; −10 per abandoned plugin · MainWP / Agent
+ * - Seguridad        20 % · −15 per known vulnerability; −10 per abandoned plugin · MainWP / Agent
  * - Certificado SSL  10 % · ≥ 30 days 100; 14–29: 70; 7–13: 40; < 7: 0            · MainWP or the Agent
  * - Respaldos        10 % · last backup ≤ 1 day 100; ≤ 7: 90; ≤ 14: 60; ≤ 30: 30; older: 0 · the Agent
  * - Rendimiento      15 % · Google's 0–100 speed score on a phone; else % served from Cloudflare's cache · PageSpeed / Cloudflare
@@ -101,25 +101,21 @@ final class HealthScoreCalculator
      */
     private function security(array $bags): ?array
     {
-        $malware = $this->metric($bags, ['mainwp.malware_found']);
+        // No source reports malware FOUND (Virusdie's count is scans run), so it isn't scored here.
         $vulnerabilities = $this->metric($bags, ['mainwp.vulnerabilities_count']);
         $abandoned = $this->metric($bags, ['site_agent.abandoned_count']);
-        if ($malware === null && $vulnerabilities === null && $abandoned === null) {
+        if ($vulnerabilities === null && $abandoned === null) {
             return null;
         }
 
         $score = 100 - (int) ($vulnerabilities ?? 0) * 15 - (int) ($abandoned ?? 0) * 10;
-        if (($malware ?? 0) > 0) {
-            $score = min($score, 40);
-        }
 
         $issues = array_filter([
-            ($malware ?? 0) > 0 ? 'malware detectado' : null,
             ($vulnerabilities ?? 0) > 0 ? (int) $vulnerabilities.' '.((int) $vulnerabilities === 1 ? 'vulnerabilidad' : 'vulnerabilidades') : null,
             ($abandoned ?? 0) > 0 ? (int) $abandoned.' '.((int) $abandoned === 1 ? 'plugin abandonado' : 'plugins abandonados') : null,
         ]);
 
-        return $this->signal('security', 'Seguridad', $issues === [] ? 'Sin malware ni puntos débiles conocidos' : ucfirst(implode(', ', $issues)), $score, 20);
+        return $this->signal('security', 'Seguridad', $issues === [] ? 'Sin vulnerabilidades ni plugins abandonados' : ucfirst(implode(', ', $issues)), $score, 20);
     }
 
     /**

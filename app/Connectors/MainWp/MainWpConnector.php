@@ -135,7 +135,9 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             // counts MainWP-managed backups, never third-party plugins (WPvivid/UpdraftPlus)
             // that back up independently on the child, so it would always mislead with 0.
             new MetricDefinition('mainwp.maintenance_count', 'Tareas de mantenimiento', MetricType::Scalar, 'count', description: 'Limpiezas y optimizaciones ejecutadas este mes con la herramienta de mantenimiento de MainWP.'),
-            new MetricDefinition('mainwp.malware_found', 'Malware detectado (Virusdie)', MetricType::Scalar, 'count', description: 'Amenazas que encontró Virusdie al revisar el sitio este mes, leídas a través de MainWP. Lo normal es 0.'),
+            // Virusdie extension (Pro Reports `virusdie`, action=scan). Its count token is the number
+            // of scans RUN, not threats found: it used to be shown as «malware detectado», wrongly.
+            new MetricDefinition('mainwp.virusdie_scans', 'Escaneos antimalware (Virusdie)', MetricType::Scalar, 'count', description: 'Veces que Virusdie revisó el sitio en busca de malware este mes, leídas a través de MainWP.'),
             // MainWP per-site security/hardening checklist (/sites/{id}/security).
             new MetricDefinition('mainwp.security_issues_count', 'Puntos de seguridad por revisar', MetricType::Scalar, 'count', description: 'Comprobaciones de seguridad de MainWP que no están en verde (versión de WordPress y PHP, SSL, depuración, plugins sin usar…).'),
             new MetricDefinition('mainwp.security_checklist', 'Estado de seguridad', MetricType::Table, dimensions: ['comprobacion'], description: 'Comprobaciones de seguridad de MainWP y su estado: WordPress y PHP al día, SSL, errores ocultos, plugins y temas sin usar.'),
@@ -174,7 +176,11 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             $idDomain = $this->toInt(Arr::get($site, 'id'));
             $history = $this->fetchWorkLog($source, $idDomain !== 0 ? (string) $idDomain : $target, $period);
             $metrics['mainwp.work_log'] = $history;
-            $metrics['mainwp.updates_applied'] = count($history);
+            // Without MainWP Child Reports on the site there is no activity log to count: an
+            // empty one then means «not recorded», not «we updated nothing» — leave it out.
+            if ($history !== [] || ($metrics['mainwp.child_reports_active'] ?? null) !== 0) {
+                $metrics['mainwp.updates_applied'] = count($history);
+            }
         }
 
         // SSL / domain expiry live in dedicated extension endpoints — only fetch them
@@ -193,10 +199,10 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
             $metrics = array_merge($metrics, $this->fetchWordfence($source, $this->idDomain($site, $target), $period));
         }
 
-        // Simple Pro Reports counters (backups created, maintenance tasks run).
+        // Simple Pro Reports counters (maintenance tasks run, Virusdie scans run).
         foreach ([
             'mainwp.maintenance_count' => ['maintenance', 'process', '[maintenance.process.count]'],
-            'mainwp.malware_found' => ['virusdie', 'scan', '[virusdie.scan.count]'],
+            'mainwp.virusdie_scans' => ['virusdie', 'scan', ['[virusdie.scans.count]', '[virusdie.scan.count]']],
         ] as $metric => [$endpoint, $action, $token]) {
             if ($this->wants($requestedMetrics, $metric)) {
                 $count = $this->proReportCount($source, $this->idDomain($site, $target), $endpoint, $action, $token, $period);
@@ -397,14 +403,16 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
      * A single Pro Reports counter token (e.g. `[maintenance.process.count]`). These
      * endpoints all return `data.other_tokens_data` with one count token. Returns null
      * on any failure or a missing token so the bound block hides gracefully.
+     *
+     * @param  string|list<string>  $token  The token, or its spellings in order of preference.
      */
-    private function proReportCount(DataSource $source, string $idDomain, string $endpoint, string $action, string $token, Period $period): ?int
+    private function proReportCount(DataSource $source, string $idDomain, string $endpoint, string $action, string|array $token, Period $period): ?int
     {
         try {
             $response = $this->client($source)->get("/pro-reports/{$idDomain}/{$endpoint}", [
                 'action' => $action,
-                'start' => $period->start->format('Y-m-d'),
-                'end' => $period->end->format('Y-m-d'),
+                'start_date' => $period->start->format('Y-m-d'),
+                'end_date' => $period->end->format('Y-m-d'),
             ]);
         } catch (Throwable) {
             return null;
@@ -416,11 +424,16 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
 
         $tokens = $response->json('data.other_tokens_data');
 
-        if (! is_array($tokens) || ! array_key_exists($token, $tokens)) {
+        if (! is_array($tokens)) {
             return null;
         }
+        foreach ((array) $token as $name) {
+            if (array_key_exists($name, $tokens)) {
+                return $this->toInt($tokens[$name]);
+            }
+        }
 
-        return $this->toInt($tokens[$token]);
+        return null;
     }
 
     /**
@@ -519,8 +532,8 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
         try {
             $response = $this->client($source)->get("/pro-reports/{$idDomain}/wordfence", [
                 'action' => 'scan',
-                'start' => $period->start->format('Y-m-d'),
-                'end' => $period->end->format('Y-m-d'),
+                'start_date' => $period->start->format('Y-m-d'),
+                'end_date' => $period->end->format('Y-m-d'),
             ]);
         } catch (Throwable) {
             return [];
@@ -577,8 +590,8 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
     {
         try {
             $response = $this->client($source)->get("/pro-reports/{$idDomain}/vulnerable", [
-                'start' => $period->start->format('Y-m-d'),
-                'end' => $period->end->format('Y-m-d'),
+                'start_date' => $period->start->format('Y-m-d'),
+                'end_date' => $period->end->format('Y-m-d'),
             ]);
         } catch (Throwable) {
             return [];
@@ -642,8 +655,8 @@ final class MainWpConnector implements DataSourceConnector, ProvidesSetupGuide
     {
         $params = [
             'action' => 'updated',
-            'start' => $period->start->format('Y-m-d'),
-            'end' => $period->end->format('Y-m-d'),
+            'start_date' => $period->start->format('Y-m-d'),
+            'end_date' => $period->end->format('Y-m-d'),
         ];
 
         /** @var list<array{utime: string, row: array{Fecha: string, Tipo: string, Elemento: string, Versión: string}}> $entries */

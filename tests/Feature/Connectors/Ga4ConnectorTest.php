@@ -90,16 +90,32 @@ class Ga4ConnectorTest extends TestCase
         Http::fake([self::RUN_REPORT => Http::response([
             'rows' => [
                 ['dimensionValues' => [['value' => '20260601']], 'metricValues' => [['value' => '40']]],
-                ['dimensionValues' => [['value' => '20260602']], 'metricValues' => [['value' => '55']]],
+                ['dimensionValues' => [['value' => '20260603']], 'metricValues' => [['value' => '55']]],
             ],
         ])]);
 
         $set = $this->connector()->fetch($this->source(), $this->period(), ['ga4.sessions_by_date']);
+        $series = $set->get('ga4.sessions_by_date');
 
+        // GA4 leaves out days without visits: every day of the month is there, the gap at 0.
+        $this->assertIsArray($series);
+        $this->assertCount(30, $series);
         $this->assertSame([
             ['date' => '20260601', 'value' => 40],
-            ['date' => '20260602', 'value' => 55],
-        ], $set->get('ga4.sessions_by_date'));
+            ['date' => '20260602', 'value' => 0],
+            ['date' => '20260603', 'value' => 55],
+        ], array_slice($series, 0, 3));
+        $this->assertSame(['date' => '20260630', 'value' => 0], $series[29]);
+    }
+
+    public function test_it_asks_for_key_events_not_the_retired_conversions_metric(): void
+    {
+        Http::fake([self::RUN_REPORT => Http::response(['rows' => [['metricValues' => [['value' => '7']]]]])]);
+
+        $set = $this->connector()->fetch($this->source(), $this->period(), ['ga4.conversions']);
+
+        $this->assertSame(7, $set->get('ga4.conversions'));
+        Http::assertSent(fn ($request) => ($request->data()['metrics'][0]['name'] ?? null) === 'keyEvents');
     }
 
     public function test_fetch_parses_a_table_metric(): void

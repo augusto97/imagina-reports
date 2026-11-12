@@ -145,10 +145,18 @@ final readonly class BlockResolver
                 return $this->engine->shape($value, $query, $this->pageFiltersFor($filtersByPage, $block->page));
             }
 
+            // A chart bound to a dataset without saying how to cut it (an older layout, or a key
+            // that became a dataset, like `ga4.devices`) would draw nothing: cut it by its first
+            // dimension and first measure, the way the dataset reads by default.
+            $implicit = $block->type === BlockType::Chart ? $this->implicitQuery($value, $query) : null;
+            if ($implicit !== null && is_array($value)) {
+                return $this->engine->shape($value, $implicit, $this->pageFiltersFor($filtersByPage, $block->page));
+            }
+
             $compare = $binding['compare'] ?? null;
 
             if ($compare === 'prev_period' && is_numeric($value)) {
-                $resolved = $this->withComparison($value, $previousBags[$source][$key] ?? null);
+                $resolved = $this->withComparison($value, $previousBags[$source][$key] ?? null, $this->units->units()[$key] ?? null);
 
                 // The day-by-day series behind the number, when the source has one: the KPI
                 // card draws it as a sparkline (a number + a mini visual, §11.5).
@@ -171,6 +179,39 @@ final readonly class BlockResolver
             BlockType::WorklogTimeline => [], // populated from ir_report_work_logs later
             default => null,
         };
+    }
+
+    /**
+     * The default cut for dataset rows (`{device, browser, sessions…}`) a chart received
+     * without a breakdown: their first text column by their first number column. Null for
+     * anything already in chart shape (`{label|date|name, value}`).
+     */
+    private function implicitQuery(mixed $value, DatasetQuery $query): ?DatasetQuery
+    {
+        if (! is_array($value) || $value === [] || ! array_is_list($value) || ! is_array($value[0])) {
+            return null;
+        }
+        $first = $value[0];
+        if (array_key_exists('label', $first) || array_key_exists('date', $first) || array_key_exists('name', $first) || array_key_exists('value', $first)) {
+            return null;
+        }
+
+        $breakdown = null;
+        $measure = null;
+        foreach ($first as $key => $cell) {
+            if (! is_string($key)) {
+                continue;
+            }
+            if ($breakdown === null && is_string($cell) && ! is_numeric($cell)) {
+                $breakdown = $key;
+            } elseif ($measure === null && (is_int($cell) || is_float($cell))) {
+                $measure = $key;
+            }
+        }
+
+        return $breakdown !== null && $measure !== null
+            ? new DatasetQuery($query->filters, $breakdown, $measure, $query->sortBy, $query->sortDir, $query->limit ?? 10)
+            : null;
     }
 
     /**
@@ -223,7 +264,7 @@ final readonly class BlockResolver
         $wanted = [
             'threats_blocked' => 'cloudflare.threats_blocked',
             'attacks_blocked' => 'crowdsec.attacks_blocked',
-            'malware_found' => 'mainwp.malware_found',
+            'scans' => 'mainwp.virusdie_scans',
         ];
 
         $out = [];
@@ -282,9 +323,9 @@ final readonly class BlockResolver
     }
 
     /**
-     * @return array{value: mixed, previous: int|float|null, change_percent: float|null}
+     * @return array{value: mixed, previous: int|float|null, change_percent: float|null, change_points?: float}
      */
-    private function withComparison(mixed $value, mixed $previous): array
+    private function withComparison(mixed $value, mixed $previous, ?string $unit = null): array
     {
         $current = is_numeric($value) ? (float) $value : 0.0;
         $previousValue = is_numeric($previous) ? $previous + 0 : null;
@@ -293,10 +334,17 @@ final readonly class BlockResolver
             ? round((($current - (float) $previousValue) / abs((float) $previousValue)) * 100, 1)
             : null;
 
-        return [
+        $resolved = [
             'value' => $value,
             'previous' => $previousValue,
             'change_percent' => $changePercent,
         ];
+
+        // A rate moves in POINTS: a bounce rate from 40 % to 42 % is «+2 pts», not «+5 %».
+        if ($unit === 'percent' && $previousValue !== null) {
+            $resolved['change_points'] = round($current - (float) $previousValue, 1);
+        }
+
+        return $resolved;
     }
 }

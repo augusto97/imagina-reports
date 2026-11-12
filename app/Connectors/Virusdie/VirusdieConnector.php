@@ -24,11 +24,12 @@ use Illuminate\Support\Facades\Http;
 use Throwable;
 
 /**
- * Virusdie connector (CLAUDE.md §9). Reads malware scan results via the **MainWP
+ * Virusdie connector (CLAUDE.md §9). Reads Virusdie's scans via the **MainWP
  * Virusdie extension** on the MainWP dashboard (same dashboard_url + token as MainWP).
  * Per-site: it calls the Pro Reports endpoint `/pro-reports/{id_domain}/virusdie?
- * action=scan` (validated against the live dashboard), which exposes the malware count
- * in `data.other_tokens_data['[virusdie.scan.count]']`.
+ * action=scan` (validated against the live dashboard), which exposes the count in
+ * `data.other_tokens_data['[virusdie.scan.count]']` (MainWP documents it as
+ * `[virusdie.scans.count]`, «number of scans performed»): scans RUN, not threats found.
  */
 final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
 {
@@ -57,7 +58,8 @@ final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
     public function metricCatalog(DataSource $source): MetricCatalog
     {
         return new MetricCatalog(
-            new MetricDefinition('virusdie.malware_found', 'Malware detectado', MetricType::Scalar, 'count', description: 'Amenazas que encontró Virusdie al revisar el sitio este mes, leídas a través de la extensión de MainWP. Lo normal es 0.'),
+            // The count token is the number of scans RUN, not threats found.
+            new MetricDefinition('virusdie.scans', 'Escaneos antimalware', MetricType::Scalar, 'count', description: 'Veces que Virusdie revisó el sitio en busca de malware este mes, leídas a través de la extensión de MainWP.'),
         );
     }
 
@@ -102,8 +104,8 @@ final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
         try {
             $response = $this->client($source)->get("/pro-reports/{$idDomain}/virusdie", [
                 'action' => 'scan',
-                'start' => $period->start->format('Y-m-d'),
-                'end' => $period->end->format('Y-m-d'),
+                'start_date' => $period->start->format('Y-m-d'),
+                'end_date' => $period->end->format('Y-m-d'),
             ]);
         } catch (Throwable $e) {
             return MetricSet::failed('Virusdie request error: '.$e->getMessage());
@@ -115,9 +117,12 @@ final class VirusdieConnector implements DataSourceConnector, ProvidesSetupGuide
 
         $tokens = $this->arrayOf($response->json('data.other_tokens_data'));
 
-        return MetricSet::ok([
-            'virusdie.malware_found' => $this->toInt($tokens['[virusdie.scan.count]'] ?? 0),
-        ]);
+        $count = $tokens['[virusdie.scans.count]'] ?? $tokens['[virusdie.scan.count]'] ?? null;
+        if (! is_numeric($count)) {
+            return MetricSet::partial([], 'Virusdie no devolvió el número de escaneos del periodo.');
+        }
+
+        return MetricSet::ok(['virusdie.scans' => $this->toInt($count)]);
     }
 
     /**

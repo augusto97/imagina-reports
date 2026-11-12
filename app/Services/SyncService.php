@@ -64,6 +64,20 @@ final readonly class SyncService
 
     private function store(DataSource $source, Period $period, MetricSet $metricSet): MetricSnapshot
     {
+        // A failed re-sync must not wipe what an earlier one stored (§3.1: a failing API never
+        // breaks a report — it uses the last snapshot). The source still shows the error.
+        if ($metricSet->isFailed()) {
+            $existing = MetricSnapshot::query()
+                ->where('data_source_id', $source->id)
+                ->where('period_start', $period->start)
+                ->where('period_end', $period->end)
+                ->first();
+            $kept = $existing !== null ? ($existing->payload['metrics'] ?? []) : [];
+            if ($existing !== null && is_array($kept) && $kept !== []) {
+                return $existing;
+            }
+        }
+
         return MetricSnapshot::query()->updateOrCreate(
             [
                 'data_source_id' => $source->id,

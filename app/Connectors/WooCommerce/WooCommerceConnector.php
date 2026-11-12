@@ -68,9 +68,9 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
             new MetricDefinition('woocommerce.tax', 'Impuestos cobrados', MetricType::Scalar, 'currency', description: 'Impuestos incluidos en las ventas del periodo.'),
             new MetricDefinition('woocommerce.shipping', 'Envíos cobrados', MetricType::Scalar, 'currency', description: 'Lo que pagaron los clientes por el envío de sus pedidos en el periodo.'),
             new MetricDefinition('woocommerce.discount', 'Descuentos aplicados', MetricType::Scalar, 'currency', description: 'Dinero descontado con cupones y rebajas en el periodo.'),
-            new MetricDefinition('woocommerce.refunds', 'Reembolsos', MetricType::Scalar, 'count', description: 'Cuántos pedidos se devolvieron (reembolsaron) en el periodo.'),
+            new MetricDefinition('woocommerce.refunds', 'Reembolsado', MetricType::Scalar, 'currency', description: 'Dinero devuelto a los clientes (reembolsos) en el periodo.'),
             new MetricDefinition('woocommerce.new_customers', 'Clientes nuevos', MetricType::Scalar, 'count', description: 'Clientes que crearon su cuenta en la tienda durante el periodo.'),
-            new MetricDefinition('woocommerce.revenue_by_date', 'Ventas por día', MetricType::Series, 'currency', description: 'Cuánto se vendió cada día del periodo, para ver los días fuertes y flojos.'),
+            new MetricDefinition('woocommerce.revenue_by_date', 'Ventas por día', MetricType::Series, 'currency', description: 'Cuánto se vendió cada día del periodo (antes de reembolsos), para ver los días fuertes y flojos.'),
             new MetricDefinition('woocommerce.orders_by_date', 'Pedidos por día', MetricType::Series, 'count', description: 'Cuántos pedidos llegaron cada día del periodo.'),
             new MetricDefinition('woocommerce.top_products', 'Productos más vendidos', MetricType::Table, description: 'Los productos que más unidades vendieron en el periodo, de más a menos.'),
         );
@@ -239,7 +239,8 @@ final class WooCommerceConnector implements DataSourceConnector, ProvidesSetupGu
             'woocommerce.tax' => $this->toFloat(Arr::get($report, 'total_tax')),
             'woocommerce.shipping' => $this->toFloat(Arr::get($report, 'total_shipping')),
             'woocommerce.discount' => $this->toFloat(Arr::get($report, 'total_discount')),
-            'woocommerce.refunds' => $this->toInt(Arr::get($report, 'total_refunds')),
+            // The sales report's total_refunds is the AMOUNT refunded, not a number of orders.
+            'woocommerce.refunds' => $this->toFloat(Arr::get($report, 'total_refunds')),
             'woocommerce.new_customers' => $this->toInt(Arr::get($report, 'total_customers')),
             'woocommerce.revenue_by_date' => $this->series(Arr::get($report, 'totals'), 'sales'),
             'woocommerce.orders_by_date' => $this->series(Arr::get($report, 'totals'), 'orders'),

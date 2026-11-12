@@ -258,25 +258,56 @@ final class FacebookAdsConnector implements DataSourceConnector, ListsConnectabl
     private function collectSeries(PendingRequest $client, string $url, Period $period, array &$metrics, array &$errors): void
     {
         try {
-            $response = $client->get($url, [
+            // Insights pages 25 rows by default: a month by day would stop at the 25th.
+            $rows = $this->allRows($client, $url, [
                 'fields' => 'clicks,impressions,spend',
                 'time_range' => $this->timeRange($period),
                 'time_increment' => 1,
-            ]);
+                'limit' => 500,
+            ], 'series', $errors);
 
-            if ($response->failed()) {
-                $errors[] = 'series: HTTP '.$response->status();
-
+            if ($rows === null) {
                 return;
             }
-
-            $rows = $this->listOf($response->json('data'));
             $metrics['facebook_ads.clicks_by_date'] = $this->series($rows, 'clicks', 'int');
             $metrics['facebook_ads.impressions_by_date'] = $this->series($rows, 'impressions', 'int');
             $metrics['facebook_ads.spend_by_date'] = $this->series($rows, 'spend', 'float');
         } catch (Throwable $e) {
             $errors[] = 'series: '.$e->getMessage();
         }
+    }
+
+    /**
+     * Every row of an Insights request, following `paging.next` (bounded) so a long list
+     * isn't cut at the first page. Null when the first page fails.
+     *
+     * @param  array<string, mixed>  $query
+     * @param  list<string>  $errors
+     * @return list<array<array-key, mixed>>|null
+     */
+    private function allRows(PendingRequest $client, string $url, array $query, string $label, array &$errors): ?array
+    {
+        $response = $client->get($url, $query);
+        if ($response->failed()) {
+            $errors[] = $label.': HTTP '.$response->status();
+
+            return null;
+        }
+
+        $rows = $this->listOf($response->json('data'));
+        for ($page = 1; $page < 10; $page++) {
+            $next = $response->json('paging.next');
+            if (! is_string($next) || ! str_starts_with($next, self::API_BASE.'/')) {
+                break;
+            }
+            $response = $client->get($next);
+            if ($response->failed()) {
+                break;
+            }
+            array_push($rows, ...$this->listOf($response->json('data')));
+        }
+
+        return $rows;
     }
 
     /**

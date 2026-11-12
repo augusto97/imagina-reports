@@ -126,15 +126,20 @@ final class TikTokAdsConnector implements DataSourceConnector, ProvidesSetupGuid
     private function collectSeries(DataSource $source, Period $period, array &$metrics, array &$errors): void
     {
         try {
-            $response = $this->report($source, 'AUCTION_ADVERTISER', ['stat_time_day'], $period);
+            // A daily report may span 30 days at most: a 31-day month is read in two parts.
+            $rows = [];
+            for ($from = $period->start->startOfDay(); $from->lessThanOrEqualTo($period->end); $from = $from->addDays(30)) {
+                $window = new Period($from, $from->addDays(29)->min($period->end->startOfDay()));
+                $response = $this->report($source, 'AUCTION_ADVERTISER', ['stat_time_day'], $window);
 
-            if (! $this->ok($response)) {
-                $errors[] = 'series: '.$this->apiError($response->json());
+                if (! $this->ok($response)) {
+                    $errors[] = 'series: '.$this->apiError($response->json());
 
-                return;
+                    return;
+                }
+                array_push($rows, ...$this->listOf(Arr::get($this->arrayOf($response->json()), 'data.list')));
             }
 
-            $rows = $this->listOf(Arr::get($this->arrayOf($response->json()), 'data.list'));
             $metrics['tiktok_ads.spend_by_date'] = $this->series($rows, 'spend', 'float');
             $metrics['tiktok_ads.clicks_by_date'] = $this->series($rows, 'clicks', 'int');
         } catch (Throwable $e) {
@@ -149,7 +154,8 @@ final class TikTokAdsConnector implements DataSourceConnector, ProvidesSetupGuid
     private function collectTopCampaigns(DataSource $source, Period $period, array &$metrics, array &$errors): void
     {
         try {
-            $response = $this->report($source, 'AUCTION_CAMPAIGN', ['campaign_id'], $period, ['campaign_name']);
+            // Ordered by spend at the source, so the first page holds the campaigns that matter.
+            $response = $this->report($source, 'AUCTION_CAMPAIGN', ['campaign_id'], $period, ['campaign_name'], ['order_field' => 'spend', 'order_type' => 'DESC']);
 
             if (! $this->ok($response)) {
                 $errors[] = 'campaigns: '.$this->apiError($response->json());
@@ -177,10 +183,11 @@ final class TikTokAdsConnector implements DataSourceConnector, ProvidesSetupGuid
      *
      * @param  list<string>  $dimensions
      * @param  list<string>  $extraMetrics
+     * @param  array<string, string>  $extra
      */
-    private function report(DataSource $source, string $dataLevel, array $dimensions, Period $period, array $extraMetrics = []): Response
+    private function report(DataSource $source, string $dataLevel, array $dimensions, Period $period, array $extraMetrics = [], array $extra = []): Response
     {
-        return $this->client($source)->get('/report/integrated/get/', [
+        return $this->client($source)->get('/report/integrated/get/', [...$extra,
             'advertiser_id' => $this->toStr(Arr::get($source->config ?? [], 'advertiser_id')),
             'report_type' => 'BASIC',
             'data_level' => $dataLevel,
@@ -198,10 +205,14 @@ final class TikTokAdsConnector implements DataSourceConnector, ProvidesSetupGuid
      */
     private function series(array $rows, string $field, string $cast): array
     {
-        return array_map(fn (array $row): array => [
-            'date' => $this->toStr(Arr::get($row, 'dimensions.stat_time_day')),
+        // TikTok stamps each day as «2026-06-01 00:00:00» and doesn't promise an order.
+        $series = array_map(fn (array $row): array => [
+            'date' => substr($this->toStr(Arr::get($row, 'dimensions.stat_time_day')), 0, 10),
             'value' => $cast === 'int' ? $this->toInt(Arr::get($row, "metrics.{$field}")) : $this->toFloat(Arr::get($row, "metrics.{$field}")),
         ], $rows);
+        usort($series, static fn (array $a, array $b): int => strcmp($a['date'], $b['date']));
+
+        return $series;
     }
 
     private function client(DataSource $source): PendingRequest

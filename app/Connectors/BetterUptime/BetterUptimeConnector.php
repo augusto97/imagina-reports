@@ -19,6 +19,7 @@ use App\Connectors\Support\ParsesValues;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -61,8 +62,8 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             new MetricDefinition('betteruptime.total_downtime', 'Tiempo total caído', MetricType::Scalar, 'duration', description: 'Suma del tiempo que el sitio estuvo caído este mes, en segundos: usa el formato «duración» para verlo en minutos u horas.'),
             new MetricDefinition('betteruptime.longest_incident', 'Caída más larga', MetricType::Scalar, 'duration', description: 'Lo que duró la caída más larga del mes, en segundos: con el formato «duración» se ve en minutos u horas.'),
             new MetricDefinition('betteruptime.average_incident', 'Duración media de las caídas', MetricType::Scalar, 'duration', description: 'Lo que duró en promedio cada caída del mes, en segundos: con el formato «duración» se ve en minutos u horas.'),
-            new MetricDefinition('betteruptime.avg_response_time', 'Tiempo de respuesta (ms)', MetricType::Scalar, 'ms', description: 'Lo que tarda en promedio el servidor en responder a los chequeos de Better Stack, en milisegundos. Menos es mejor.'),
-            new MetricDefinition('betteruptime.response_times', 'Tiempo de respuesta por día (ms)', MetricType::Series, dimensions: ['date'], description: 'Tiempo medio de respuesta del servidor cada día, en milisegundos. Los picos indican días con el sitio más lento.'),
+            new MetricDefinition('betteruptime.avg_response_time', 'Tiempo de respuesta, últimas 24 h (ms)', MetricType::Scalar, 'ms', description: 'Lo que tardó en promedio el servidor en responder a los chequeos de Better Stack en las últimas 24 horas antes de la sincronización, en milisegundos (Better Stack no guarda más historia). Menos es mejor.'),
+            new MetricDefinition('betteruptime.response_times', 'Tiempo de respuesta, últimas 24 h (ms)', MetricType::Series, 'ms', dimensions: ['date'], description: 'Tiempo medio de respuesta del servidor en las últimas 24 horas antes de la sincronización, en milisegundos (Better Stack no guarda más historia).'),
             new MetricDefinition('betteruptime.incidents_list', 'Caídas del mes (detalle)', MetricType::Table, description: 'Cada caída del mes con su inicio, duración, causa y estado.'),
             new MetricDefinition('betteruptime.uptime_by_date', 'Disponibilidad por día (%)', MetricType::Series, dimensions: ['date'], description: 'Porcentaje de tiempo en línea de cada día, calculado a partir de las caídas. 100 % significa que ese día no hubo caídas.'),
         );
@@ -118,8 +119,9 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
         ];
 
         // The response-times chart lives in a separate endpoint — only fetch it when a
-        // report asks for it. A failure there must not sink the SLA metrics above.
-        if ($this->wantsResponseTimes($requestedMetrics)) {
+        // report asks for it. A failure there must not sink the SLA metrics above. It only
+        // ever covers the last 24 h, so a past month never gets today's numbers.
+        if ($this->wantsResponseTimes($requestedMetrics) && $period->end->endOfDay()->greaterThanOrEqualTo(CarbonImmutable::now()->subDay())) {
             $metrics += $this->responseTimeMetrics($source, $period);
         }
 
@@ -149,18 +151,25 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
      */
     private function fetchIncidents(DataSource $source, Period $period): array
     {
+        // 50 per page at most: follow `pagination.next` so a bad month isn't cut at 50.
+        $rows = [];
         try {
             $response = $this->incidents($source, $period);
+            for ($page = 0; $page < 20 && $response->successful(); $page++) {
+                $json = $this->arrayOf($response->json());
+                array_push($rows, ...$this->listOf(Arr::get($json, 'data')));
+                $next = Arr::get($json, 'pagination.next');
+                if (! is_string($next) || ! str_starts_with($next, 'https://uptime.betterstack.com/')) {
+                    break;
+                }
+                $response = $this->authed($source)->get($next);
+            }
         } catch (Throwable) {
-            return [];
-        }
-
-        if ($response->failed()) {
-            return [];
+            // Keep what was read; a failure never sinks the set.
         }
 
         $incidents = [];
-        foreach ($this->listOf(Arr::get($this->arrayOf($response->json()), 'data')) as $incident) {
+        foreach ($rows as $incident) {
             $attributes = $this->arrayOf(Arr::get($incident, 'attributes'));
             $startedAt = $this->toStr(Arr::get($attributes, 'started_at'));
             if ($startedAt === '' || ! $period->contains(substr($startedAt, 0, 10))) {
@@ -296,21 +305,24 @@ final class BetterUptimeConnector implements DataSourceConnector, ProvidesSetupG
             : intdiv($minutes, 60).' h '.$restMinutes.' min';
     }
 
+    private function authed(DataSource $source): PendingRequest
+    {
+        return Http::withToken($this->toStr(Arr::get($source->credentials ?? [], 'api_token')))
+            ->acceptJson()
+            ->timeout(20);
+    }
+
     private function incidents(DataSource $source, Period $period): Response
     {
         $config = $source->config ?? [];
-        $credentials = $source->credentials ?? [];
         $monitorId = $this->toStr(Arr::get($config, 'monitor_id'));
 
-        return Http::withToken($this->toStr(Arr::get($credentials, 'api_token')))
-            ->acceptJson()
-            ->timeout(20)
-            ->get(self::API_BASE.'/incidents', [
-                'monitor_id' => $monitorId,
-                'from' => $period->start->toDateString(),
-                'to' => $period->end->toDateString(),
-                'per_page' => 50,
-            ]);
+        return $this->authed($source)->get(self::API_BASE.'/incidents', [
+            'monitor_id' => $monitorId,
+            'from' => $period->start->toDateString(),
+            'to' => $period->end->toDateString(),
+            'per_page' => 50,
+        ]);
     }
 
     /**

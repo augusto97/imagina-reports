@@ -12,7 +12,7 @@ namespace App\Reports;
 final class ReportHighlights
 {
     /** Metrics where a drop is the good news (mirrors the renderer's LOWER_IS_BETTER). */
-    private const LOWER_IS_BETTER = '/position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|malware|out_of_stock/';
+    private const LOWER_IS_BETTER = '/position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|out_of_stock/';
 
     /**
      * @param  array<array-key, mixed>  $resolved  The report's resolved_blocks.

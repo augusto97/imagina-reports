@@ -8,6 +8,7 @@ use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
 use App\Models\MetricSnapshot;
+use Carbon\CarbonImmutable;
 
 /**
  * Loads the source-key → metric-bag map for a site over a period from the stored
@@ -47,12 +48,15 @@ final readonly class MetricBagLoader
                 ->where('period_start', '<=', $period->end)
                 ->where('period_end', '>=', $period->start);
 
+            // The fallback takes a snapshot of about the same length, or one inside the period
+            // (the daily syncs the maintenance delta compares) — never a LONGER one: a
+            // quarter's numbers must not be shown under a month's label.
             $snapshot = (clone $overlapping)
                 ->whereDate('period_start', $period->start->toDateString())
                 ->whereDate('period_end', $period->end->toDateString())
                 ->orderByDesc('captured_at')
                 ->first()
-                ?? $overlapping->orderByDesc('period_end')->first();
+                ?? $overlapping->orderByDesc('period_end')->get()->first(fn (MetricSnapshot $candidate): bool => $this->sameLength($candidate, $period) || $this->inside($candidate, $period));
 
             if ($snapshot === null) {
                 continue;
@@ -63,6 +67,7 @@ final readonly class MetricBagLoader
             if (! is_array($metrics)) {
                 continue;
             }
+            $metrics = self::withoutMisleading($metrics);
 
             if ($source->type === DataSourceType::MainWp) {
                 // The connector now reports the real applied-updates count from the Pro
@@ -87,37 +92,99 @@ final readonly class MetricBagLoader
     }
 
     /**
-     * The metric bags of the most recent snapshot that ended strictly before this
-     * period — the basis for "vs previous period" comparisons (§11.5). Robust to
-     * months of different lengths (the previous calendar period is whatever snapshot
-     * precedes the current one), unlike a fixed-length shift.
+     * The metric bags of the period just before this one — the basis for "vs previous period"
+     * comparisons (§11.5). The previous calendar month for a whole month (so June compares with
+     * May whatever their lengths), else the same number of days right before. Falls back to the
+     * latest earlier snapshot of about the same length that has data; never to a period of a
+     * different length (a quarter compared with one month read as +200 %).
      *
      * @return Bags
      */
     public function previousForSite(int $siteId, Period $period): array
     {
         $bags = [];
+        $previous = self::previousPeriod($period);
 
         $sources = DataSource::query()->where('site_id', $siteId)->get();
 
         foreach ($sources as $source) {
-            $snapshot = MetricSnapshot::query()
+            $earlier = MetricSnapshot::query()
                 ->where('data_source_id', $source->id)
-                ->where('period_end', '<', $period->start)
-                ->orderByDesc('period_end')
-                ->first();
+                ->where('period_end', '<', $period->start);
+
+            $snapshot = (clone $earlier)
+                ->whereDate('period_start', $previous->start->toDateString())
+                ->whereDate('period_end', $previous->end->toDateString())
+                ->orderByDesc('captured_at')
+                ->first()
+                ?? $earlier->orderByDesc('period_end')->limit(12)->get()->first(
+                    fn (MetricSnapshot $candidate): bool => $this->sameLength($candidate, $period) && $this->metricsOf($candidate) !== [],
+                );
 
             if ($snapshot === null) {
                 continue;
             }
 
-            $metrics = $snapshot->payload['metrics'] ?? [];
-
-            if (is_array($metrics)) {
+            $metrics = $this->metricsOf($snapshot);
+            if ($metrics !== []) {
                 $bags[$source->type->value] = $metrics;
             }
         }
 
         return $bags;
+    }
+
+    /** The previous calendar month for a whole month; otherwise the same span right before. */
+    public static function previousPeriod(Period $period): Period
+    {
+        $start = $period->start->startOfDay();
+        $end = $period->end->startOfDay();
+        if ($start->day === 1 && $end->isSameDay($start->endOfMonth())) {
+            $before = $start->subMonthNoOverflow();
+
+            return new Period($before->startOfMonth(), $before->endOfMonth());
+        }
+
+        return $period->previous();
+    }
+
+    /** A snapshot that starts and ends within the period. */
+    private function inside(MetricSnapshot $snapshot, Period $period): bool
+    {
+        return CarbonImmutable::parse($snapshot->period_start)->startOfDay()->greaterThanOrEqualTo($period->start->startOfDay())
+            && CarbonImmutable::parse($snapshot->period_end)->startOfDay()->lessThanOrEqualTo($period->end->startOfDay());
+    }
+
+    /** Spans within three days of each other count as «the same kind of period». */
+    private function sameLength(MetricSnapshot $snapshot, Period $period): bool
+    {
+        $span = (int) round(abs(CarbonImmutable::parse($snapshot->period_start)->startOfDay()->diffInDays(CarbonImmutable::parse($snapshot->period_end)->startOfDay())));
+        $wanted = (int) round(abs($period->start->startOfDay()->diffInDays($period->end->startOfDay())));
+
+        return abs($span - $wanted) <= 3;
+    }
+
+    /**
+     * @return array<array-key, mixed>
+     */
+    private function metricsOf(MetricSnapshot $snapshot): array
+    {
+        $metrics = $snapshot->payload['metrics'] ?? [];
+
+        return is_array($metrics) ? self::withoutMisleading($metrics) : [];
+    }
+
+    /**
+     * Drop values older versions stored under a misleading meaning: «malware found» was really
+     * the number of Virusdie SCANS (the MainWP token counts scans), so it must not reach a report.
+     *
+     * @param  array<array-key, mixed>  $metrics
+     * @return array<array-key, mixed>
+     */
+    public static function withoutMisleading(array $metrics): array
+    {
+        unset($metrics['mainwp.malware_found'], $metrics['virusdie.malware_found']);
+
+        return $metrics;
     }
 }

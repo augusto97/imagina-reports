@@ -80,7 +80,7 @@ const goal = (source: string, metric: string, label: string, layout: BlockLayout
 const healthscore = (layout: BlockLayout, page = 0, title = 'Estado general'): Block =>
     spec({ type: 'healthscore', props: { title }, layout, page });
 
-/** The security shield visual (threats/attacks/malware reassurance). */
+/** The security shield visual (threats/attacks blocked + antimalware scans). */
 const shield = (layout: BlockLayout, page = 0, title = 'Tu sitio, protegido'): Block =>
     spec({ type: 'security_shield', props: { title }, layout, page });
 
@@ -147,7 +147,7 @@ export const GALLERY: GalleryTemplate[] = [
             header('Seguridad y protección', { x: 0, y: 0, w: 12, h: 2 }, 2),
             shield({ x: 0, y: 2, w: 8, h: 5 }, 2),
             kpi('cloudflare', 'threats_blocked', 'Amenazas (Cloudflare)', { x: 8, y: 2, w: 4, h: 5 }, {}, 2),
-            kpi('mainwp', 'malware_found', 'Malware detectado', { x: 0, y: 7, w: 3, h: 4 }, {}, 2),
+            kpi('mainwp', 'virusdie_scans', 'Escaneos antimalware', { x: 0, y: 7, w: 3, h: 4 }, {}, 2),
             kpi('mainwp', 'vulnerabilities_count', 'Vulnerabilidades', { x: 3, y: 7, w: 3, h: 4 }, {}, 2),
             kpi('mainwp', 'wordfence_scans_count', 'Escaneos Wordfence', { x: 6, y: 7, w: 3, h: 4 }, {}, 2),
             kpi('cloudflare', 'cache_ratio', 'Contenido servido desde caché', { x: 9, y: 7, w: 3, h: 4 }, { format: 'percent' }, 2),
@@ -424,7 +424,7 @@ export const GALLERY: GalleryTemplate[] = [
             healthscore({ x: 0, y: 2, w: 4, h: 7 }),
             shield({ x: 4, y: 2, w: 8, h: 7 }),
             kpi('cloudflare', 'threats_blocked', 'Amenazas bloqueadas', { x: 0, y: 9, w: 3, h: 4 }),
-            kpi('mainwp', 'malware_found', 'Malware detectado', { x: 3, y: 9, w: 3, h: 4 }),
+            kpi('mainwp', 'vulnerabilities_count', 'Vulnerabilidades', { x: 3, y: 9, w: 3, h: 4 }),
             kpi('mainwp', 'updates_applied', 'Updates aplicadas', { x: 6, y: 9, w: 3, h: 4 }),
             kpi('betteruptime', 'uptime_percent', 'Disponibilidad', { x: 9, y: 9, w: 3, h: 4 }, { format: 'percent' }),
             chart('cloudflare', 'threats_by_date', 'bar', 'Amenazas por día', { x: 0, y: 13, w: 6, h: 7 }),
@@ -554,10 +554,10 @@ export const GALLERY: GalleryTemplate[] = [
     {
         key: 'virusdie',
         name: 'Antimalware (VirusDie)',
-        description: 'Malware detectado y eliminado, escudo de protección y el trabajo de limpieza realizado.',
+        description: 'Escaneos antimalware del mes, escudo de protección y el trabajo de limpieza realizado.',
         build: () => [
             header('Protección antimalware'),
-            kpi('mainwp', 'malware_found', 'Malware detectado', { x: 0, y: 2, w: 4, h: 4 }),
+            kpi('mainwp', 'virusdie_scans', 'Escaneos antimalware', { x: 0, y: 2, w: 4, h: 4 }),
             shield({ x: 4, y: 2, w: 8, h: 4 }),
             summary({ x: 0, y: 6, w: 12, h: 4 }),
             worklog({ x: 0, y: 10, w: 12, h: 7 }),

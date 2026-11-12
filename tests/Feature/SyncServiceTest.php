@@ -99,4 +99,20 @@ class SyncServiceTest extends TestCase
         $this->assertSame(DataSourceStatus::Error, $source->status);
         $this->assertSame('auth rejected', $source->last_error);
     }
+
+    public function test_a_failed_resync_keeps_the_numbers_an_earlier_sync_stored(): void
+    {
+        $this->registerConnector(MetricSet::ok(['fake.visits' => 100]));
+        $source = $this->dataSource();
+        $period = Period::make('2026-06-01', '2026-06-30');
+        app(SyncService::class)->sync($source, $period);
+
+        // The API goes down on the next run: the report keeps June's real numbers.
+        $this->registerConnector(MetricSet::failed('timeout'));
+        app(SyncService::class)->sync($source->refresh(), $period);
+
+        $snapshot = MetricSnapshot::query()->where('data_source_id', $source->id)->sole();
+        $this->assertSame(['fake.visits' => 100], $snapshot->payload['metrics']);
+        $this->assertSame(DataSourceStatus::Error, $source->refresh()->status);
+    }
 }

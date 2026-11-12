@@ -61,7 +61,7 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             new MetricDefinition('cloudflare.threats_blocked', 'Amenazas bloqueadas', MetricType::Scalar, 'count', description: 'Solicitudes peligrosas (ataques, bots maliciosos) que el firewall de Cloudflare frenó antes de llegar al sitio.'),
             new MetricDefinition('cloudflare.page_views', 'Páginas vistas', MetricType::Scalar, 'count', description: 'Páginas completas que se abrieron, según Cloudflare (no cuenta imágenes ni archivos sueltos).'),
             new MetricDefinition('cloudflare.encrypted_requests', 'Solicitudes seguras (HTTPS)', MetricType::Scalar, 'count', description: 'Solicitudes que viajaron cifradas con HTTPS (el candado del navegador).'),
-            new MetricDefinition('cloudflare.unique_visitors', 'Visitantes únicos', MetricType::Scalar, 'count', description: 'Direcciones IP distintas que visitaron el sitio en el periodo, según Cloudflare.'),
+            new MetricDefinition('cloudflare.unique_visitors', 'Visitantes únicos (suma diaria)', MetricType::Scalar, 'count', description: 'Suma de las direcciones IP distintas de cada día, según Cloudflare: quien vuelve otro día cuenta otra vez, así que es más alto que los visitantes únicos del mes.'),
             new MetricDefinition('cloudflare.cache_ratio', 'Contenido servido desde caché', MetricType::Scalar, 'percent', description: 'Porcentaje de solicitudes que Cloudflare respondió desde su caché: cuanto más alto, más rápido carga y menos trabaja el servidor.'),
             new MetricDefinition('cloudflare.bandwidth', 'Datos transferidos', MetricType::Scalar, 'bytes', description: 'Cantidad de datos que el sitio envió a los visitantes en el periodo (ancho de banda).'),
             new MetricDefinition('cloudflare.requests_by_date', 'Solicitudes por día', MetricType::Series, 'count', description: 'Cuántas solicitudes recibió el sitio cada día del periodo.'),
@@ -131,7 +131,9 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
         $error = $this->graphqlError($response->json());
         $groups = $this->groups($response->json());
 
+        $full = true;
         if ($groups === [] && $error !== null) {
+            $full = false;
             try {
                 $response = $this->query($source, $period, full: false);
             } catch (Throwable $e) {
@@ -184,21 +186,30 @@ final class CloudflareConnector implements DataSourceConnector, ProvidesSetupGui
             }
         }
 
-        return MetricSet::ok([
+        $metrics = [
             'cloudflare.requests' => $requests,
             'cloudflare.cached_requests' => $cached,
             'cloudflare.threats_blocked' => $threats,
-            'cloudflare.page_views' => $pageViews,
-            'cloudflare.encrypted_requests' => $encrypted,
-            'cloudflare.unique_visitors' => $uniques,
             'cloudflare.cache_ratio' => $requests > 0 ? round($cached / $requests * 100, 2) : 0.0,
             'cloudflare.bandwidth' => $bytes,
             'cloudflare.requests_by_date' => $requestsByDate,
             'cloudflare.threats_by_date' => $threatsByDate,
             'cloudflare.bandwidth_by_date' => $bandwidthByDate,
-            'cloudflare.threats_by_country' => $this->topTable($threatsByCountry),
-            'cloudflare.requests_by_country' => $this->topTable($requestsByCountry),
-        ]);
+        ];
+
+        // The core query (the plan rejected the full one) never asked for these: leave them
+        // out so their blocks hide, instead of storing zeros that read as real.
+        if ($full) {
+            $metrics += [
+                'cloudflare.page_views' => $pageViews,
+                'cloudflare.encrypted_requests' => $encrypted,
+                'cloudflare.unique_visitors' => $uniques,
+                'cloudflare.threats_by_country' => $this->topTable($threatsByCountry),
+                'cloudflare.requests_by_country' => $this->topTable($requestsByCountry),
+            ];
+        }
+
+        return MetricSet::ok($metrics);
     }
 
     /**

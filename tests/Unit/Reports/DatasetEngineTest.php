@@ -44,6 +44,21 @@ class DatasetEngineTest extends TestCase
         ], $result);
     }
 
+    public function test_an_average_measure_is_averaged_not_added_up(): void
+    {
+        $rows = [
+            ['category' => 'Ropa', 'product' => 'Camisa', 'avg_order_value' => 40.0, 'orders_count' => 3],
+            ['category' => 'Ropa', 'product' => 'Pantalón', 'avg_order_value' => 60.0, 'orders_count' => 2],
+        ];
+        $engine = new DatasetEngine;
+
+        // Two products at 40 € and 60 € don't make a 100 € ticket.
+        $this->assertSame([['label' => 'Ropa', 'value' => 50.0]], $engine->shape($rows, new DatasetQuery(breakdown: 'category', measure: 'avg_order_value')));
+        $this->assertSame(50.0, $engine->shape($rows, new DatasetQuery(measure: 'avg_order_value')));
+        // A count still adds up.
+        $this->assertSame(5, $engine->shape($rows, new DatasetQuery(measure: 'orders_count')));
+    }
+
     public function test_no_breakdown_aggregates_to_a_scalar(): void
     {
         // "Sesiones de México" KPI: filter to a value, no breakdown → single number.

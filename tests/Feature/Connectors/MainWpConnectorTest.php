@@ -316,23 +316,30 @@ class MainWpConnectorTest extends TestCase
         );
     }
 
-    public function test_fetch_reads_maintenance_and_malware_counters(): void
+    public function test_fetch_reads_maintenance_and_virusdie_scan_counters(): void
     {
         Http::fake([
             'dash.test/wp-json/mainwp/v2/pro-reports/*/maintenance*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[maintenance.process.count]' => 5]]]),
-            'dash.test/wp-json/mainwp/v2/pro-reports/*/virusdie*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[virusdie.scan.count]' => 2]]]),
+            'dash.test/wp-json/mainwp/v2/pro-reports/*/virusdie*' => Http::response(['success' => 1, 'data' => ['sections_data' => [[]], 'other_tokens_data' => ['[virusdie.scans.count]' => 30]]]),
             'dash.test/wp-json/mainwp/v2/sites' => Http::response($this->sitesPayload()),
         ]);
 
         $set = (new MainWpConnector)->fetch(
             $this->source(),
             Period::make('2026-06-01', '2026-06-30'),
-            ['mainwp.maintenance_count', 'mainwp.malware_found'],
+            ['mainwp.maintenance_count', 'mainwp.virusdie_scans'],
         );
 
         $this->assertTrue($set->isOk());
         $this->assertSame(5, $set->get('mainwp.maintenance_count'));
-        $this->assertSame(2, $set->get('mainwp.malware_found')); // Virusdie folded into MainWP
+        // Virusdie's count is the scans it RAN, never shown as malware found.
+        $this->assertSame(30, $set->get('mainwp.virusdie_scans'));
+        $this->assertFalse($set->has('mainwp.malware_found'));
+
+        // MainWP reads the range as start_date/end_date (anything else falls back to the last year).
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/virusdie')
+            && str_contains($request->url(), 'start_date=2026-06-01')
+            && str_contains($request->url(), 'end_date=2026-06-30'));
     }
 
     public function test_fetch_builds_the_security_checklist(): void

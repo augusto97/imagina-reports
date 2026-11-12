@@ -7,6 +7,31 @@
 ---
 
 ## Where I left off (read me first)
+**📏 AUDITORÍA DE MÉTRICAS Y GRÁFICOS (2026-11-12, v1.44.0):** el owner pidió buscar fallas de visualización y de medición. Tres
+revisores leyeron todos los conectores y el motor; se corrigió lo confirmado. **Visualización** (commit 2f86ade): `MetricUnits` llena
+`style.format` según la unidad del catálogo cuando el bloque no tiene uno (kpi/chart/sales_summary/goal/table); formatos nuevos en el
+renderer (ms, días, bytes, MB, posición, ratio, sí/no) y ejes Y con formato; países por código o nombre en inglés → nombre en español
+(`countries.ts`); el inspector elige entre 13 formatos con «Automático según el dato». **Medición:** (1) **Virusdie contaba escaneos, no
+malware** (la doc de MainWP: `[virusdie.scans.count]` = «número de escaneos realizados»): `mainwp.malware_found`/`virusdie.malware_found`
+pasan a `mainwp.virusdie_scans`/`virusdie.scans` («Escaneos antimalware»), salen del health score y del escudo (que ya no dice «Detectamos
+una amenaza»), `MetricBagLoader::withoutMisleading` descarta los valores viejos y la migración `2026_11_12_000100` reasigna los bloques
+guardados. (2) MainWP/Virusdie mandaban `start`/`end`; la API lee `start_date`/`end_date` (sin ellas usa el último año). (3) La comparación
+«vs periodo anterior» usa el mes calendario anterior (o el mismo número de días justo antes) y nunca un periodo de otra duración; un mes
+tampoco toma datos de un trimestre (sí acepta instantáneas dentro del periodo, las que compara `MaintenanceDeltaCalculator`). (4) Una
+sincronización fallida ya no borra los datos que guardó la anterior. (5) Las tasas comparan en puntos («+2 pts», `change_points`). (6) GA4:
+`conversions`→`keyEvents`, `purchaserConversionRate`→`purchaserRate` (verificado en el esquema oficial), series diarias con los días sin
+datos en 0 hasta hoy. (7) Un gráfico ligado a un dataset sin corte (p. ej. `ga4.devices`) se agrupa por su primera dimensión y medida.
+(8) Instagram pide cada métrica aparte (una retirada no tumba las demás), en tramos de 30 días, y fecha bien cada día (`end_time` − 1 día).
+(9) Meta Ads sigue `paging.next` (antes se cortaba en el día 25); TikTok normaliza «AAAA-MM-DD HH:MM:SS», ordena, parte en 30 días y ordena
+campañas por gasto. (10) Woo `refunds` es dinero; Mailchimp calcula tasas sobre entregados con personas únicas. (11) CrowdSec: el script
+envía todas las alertas (`--limit 0`; hay que volver a copiarlo en cada VPS), LAPI con duraciones y `limit=0`, tipos de ataque en palabras.
+(12) Better Stack: tiempo de respuesta = últimas 24 h (la API no da más; solo para el periodo actual) e incidentes paginados. (13) Cloudflare:
+si cae a la consulta básica no guarda ceros de lo que no pidió; «Visitantes únicos (suma diaria)». (14) Agente: logins solo con Wordfence,
+núcleo cuenta 1, nota de spam. (15) DatasetEngine promedia medidas que son promedios/tasas. (16) Database `:start`/`:end` y Endpoint
+`{start}`/`{end}` + CSV con «;» y coma decimal; sin filas o sin número = no medido (no 0). (17) MainWP no da «0 actualizaciones» si falta
+Child Reports. **Sigue pendiente (limitación conocida):** valores de «estado actual» (seguidores, inventario MainWP) copiados a meses
+pasados en un backfill; DatasetEngine suma usuarios entre filas (aprox.); la serie de tiempo de respuesta de Better Stack no acumula días.
+
 **🤖 VISITAS QUE LLEGAN DESDE IA (2026-11-12, v1.43.0):** de las opciones para medir «visibilidad en IA», el owner eligió solo la gratuita:
 lo que Google Analytics ya registra. `Ga4Connector` suma métricas filtradas por `sessionSource` con un `dimensionFilter`
 (`stringFilter`, `PARTIAL_REGEXP`, sin mayúsculas, constante `AI_SOURCES`: chatgpt/openai, perplexity, gemini/bard, copilot, claude, deepseek,
@@ -2776,6 +2801,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-12) Un número que no se midió no se guarda como 0: si la API rechaza una métrica, una consulta no devuelve filas o falta el dato, el bloque se oculta (con diagnóstico). Un 0 inventado se lee como un hecho («nadie te escribió», «sin malware»). Por lo mismo, el conteo de escaneos de Virusdie dejó de llamarse «malware detectado» y una sincronización fallida conserva lo último bueno.
+- (2026-11-12) «Vs periodo anterior» compara con un periodo del mismo tipo (mes calendario anterior, o los mismos días justo antes); si no existe, no compara. Las tasas cambian en puntos, no en %.
 - (2026-11-12) «Visibilidad en IA» se mide solo con datos reales y gratis (visitas de GA4 cuya fuente es un asistente de IA), no preguntándole a las IAs por API: el owner no quiere el costo y una muestra de respuestas no es un dato real.
 - (2026-11-12) Las mediciones «en vivo» (PageSpeed) solo se guardan para el periodo actual o uno que cerró hace ≤7 días (`MeasuresOnlyNow`): inventar historia con la medición de hoy sería engañar al cliente. Perfil de Empresa se conecta solo por OAuth (no hay cuentas de servicio útiles) con `business.manage`, el único scope que ofrece Google.
 - (2026-11-11) Los avisos de conexiones son por persona (campana + correo opcional + filtro de sitios), no por agencia: el owner quiere enterarse solo de los sitios que lleva. «Conectada» se avisa cuando la conexión queda lista (si falta elegir la propiedad, al elegirla) y nunca a quien la hizo; «volvió a funcionar» solo cierra una caída que sí se avisó, para no hacer ruido.
@@ -2972,8 +2999,10 @@ start-from-default-template. Needs a release to reach the live VPS.
 ## Open questions / blockers
 - (2026-11-12) Perfil de Empresa depende de que Google apruebe el proyecto de la plataforma (formulario «Application for Basic API Access»). Sin probar contra la API real: las formas de respuesta salen de la documentación oficial; verificar con la primera ficha conectada.
 - (2026-11-12) PageSpeed: el parser se escribió con la referencia oficial (no se pudo hacer una llamada real: sin clave Google devolvió 429). Verificar con la primera medición real que `numericValue`, los `percentile` de CrUX y `overallSavingsMs` llegan como se espera.
-- (2026-11-05) ¿`[virusdie.scan.count]` (Pro Reports) cuenta infecciones o escaneos? `mainwp.malware_found` lo usa como malware encontrado; si son escaneos, el health score y el escudo marcarían malware falso. Pendiente de que el owner lo vea en un sitio real.
-- (2026-11-05) `ga4.devices` se usa como clave de una tabla y de un dataset a la vez (entrada duplicada en el catálogo). Sin impacto visible hoy; revisar al tocar GA4.
+- ~~(2026-11-05) ¿`[virusdie.scan.count]` cuenta infecciones o escaneos?~~ **RESUELTO (2026-11-12):** escaneos (doc de MainWP); ahora es `virusdie_scans`.
+- (2026-11-05) `ga4.devices` es clave de una tabla y de un dataset a la vez (gana el dataset). **Mitigado (2026-11-12):** un gráfico sin corte se agrupa solo por la primera dimensión.
+- (2026-11-12) Instagram: la referencia actual de Meta ya no lista `profile_views`, `website_clicks` ni `follower_count` (sí `reach`, `views`, `profile_links_taps`, `follows_and_unfollows`). Se piden aparte y, si Meta los rechaza, se ocultan. Confirmar con una cuenta real y, si fallan, pasar a las métricas nuevas.
+- (2026-11-12) CrowdSec por envío: los VPS con el script viejo siguen mandando solo 50 alertas hasta que se copie el script nuevo.
 - (2026-11-05) ¿Automatizar el alta de dominios de agencias (alias + SSL) con la API de ServerAvatar? Hoy es manual desde el aviso del superadmin.
 - ~~`release.yml` no fija `target_commitish`~~ **RESUELTO (2026-08-05):** la etiqueta ya se ancla a `github.sha` (el commit desde el
   que se construye el ZIP), no a `main`. Se incluyó en la tanda del rediseño móvil del editor, como el owner pidió.

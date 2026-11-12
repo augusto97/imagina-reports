@@ -431,7 +431,7 @@ export function Inspector({
                             <ul className="ir-flex ir-flex-col ir-gap-1 ir-text-muted-foreground">
                                 <li><strong className="ir-text-foreground">Disponibilidad (25 %)</strong> · tiempo en línea, de Better Stack. 99,9 % ≈ 98 puntos; 99 % ≈ 80.</li>
                                 <li><strong className="ir-text-foreground">Actualizaciones (20 %)</strong> · cada actualización pendiente resta 5 (MainWP o el Agente).</li>
-                                <li><strong className="ir-text-foreground">Seguridad (20 %)</strong> · malware, vulnerabilidades y plugins abandonados (MainWP o el Agente).</li>
+                                <li><strong className="ir-text-foreground">Seguridad (20 %)</strong> · vulnerabilidades conocidas y plugins abandonados (MainWP o el Agente).</li>
                                 <li><strong className="ir-text-foreground">Certificado SSL (10 %)</strong> · días para que venza; menos de 30 empieza a restar.</li>
                                 <li><strong className="ir-text-foreground">Respaldos (10 %)</strong> · días desde el último respaldo (Agente).</li>
                                 <li><strong className="ir-text-foreground">Rendimiento (15 %)</strong> · la nota de velocidad de Google en celular (Velocidad del sitio); si no la hay, cuánto se sirve desde la caché de Cloudflare.</li>

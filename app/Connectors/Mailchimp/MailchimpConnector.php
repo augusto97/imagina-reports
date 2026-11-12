@@ -55,12 +55,12 @@ final class MailchimpConnector implements DataSourceConnector, ProvidesSetupGuid
     {
         return new MetricCatalog(
             new MetricDefinition('mailchimp.campaigns_sent', 'Campañas enviadas', MetricType::Scalar, 'count', description: 'Cuántos correos masivos (campañas) se enviaron en el periodo.'),
-            new MetricDefinition('mailchimp.emails_sent', 'Correos enviados', MetricType::Scalar, 'count', description: 'Total de correos entregados a los suscriptores sumando todas las campañas del periodo.'),
+            new MetricDefinition('mailchimp.emails_sent', 'Correos enviados', MetricType::Scalar, 'count', description: 'Total de correos enviados a los suscriptores sumando todas las campañas del periodo.'),
             new MetricDefinition('mailchimp.opens', 'Personas que abrieron', MetricType::Scalar, 'count', description: 'Cuántos suscriptores abrieron al menos una vez cada campaña (cada persona cuenta una vez por campaña).'),
             new MetricDefinition('mailchimp.clicks', 'Clics en los correos', MetricType::Scalar, 'count', description: 'Clics totales en los enlaces de las campañas del periodo (una persona puede sumar varios).'),
             new MetricDefinition('mailchimp.unsubscribes', 'Bajas de la lista', MetricType::Scalar, 'count', description: 'Suscriptores que se dieron de baja de la lista desde las campañas del periodo.'),
-            new MetricDefinition('mailchimp.open_rate', 'Tasa de apertura', MetricType::Scalar, 'percent', description: 'De cada 100 correos enviados, cuántos se abrieron: mide si el asunto interesa.'),
-            new MetricDefinition('mailchimp.click_rate', 'Tasa de clics', MetricType::Scalar, 'percent', description: 'Clics por cada 100 correos enviados: mide si el contenido mueve a la acción.'),
+            new MetricDefinition('mailchimp.open_rate', 'Tasa de apertura', MetricType::Scalar, 'percent', description: 'De cada 100 correos entregados, cuántos abrió al menos una persona (como lo calcula Mailchimp): mide si el asunto interesa.'),
+            new MetricDefinition('mailchimp.click_rate', 'Tasa de clics', MetricType::Scalar, 'percent', description: 'De cada 100 correos entregados, en cuántos se hizo clic (como lo calcula Mailchimp): mide si el contenido mueve a la acción.'),
             new MetricDefinition('mailchimp.top_campaigns', 'Campañas del periodo', MetricType::Table, description: 'Cada campaña enviada con sus correos, su tasa de apertura y su tasa de clics, de la más grande a la más pequeña.'),
         );
     }
@@ -107,6 +107,10 @@ final class MailchimpConnector implements DataSourceConnector, ProvidesSetupGuid
         $reports = $this->listOf(Arr::get($this->arrayOf($response->json()), 'reports'));
 
         $emailsSent = 0;
+        // Mailchimp's rates are over DELIVERED mail (sent − bounces), with each person counted
+        // once: unique opens, and subscribers who clicked (not total clicks).
+        $delivered = 0;
+        $uniqueClickers = 0;
         $opens = 0;
         $clicks = 0;
         $unsubscribes = 0;
@@ -117,9 +121,15 @@ final class MailchimpConnector implements DataSourceConnector, ProvidesSetupGuid
             $uniqueOpens = $this->toInt(Arr::get($report, 'opens.unique_opens'));
             $totalClicks = $this->toInt(Arr::get($report, 'clicks.clicks_total'));
 
+            $bounced = $this->toInt(Arr::get($report, 'bounces.hard_bounces'))
+                + $this->toInt(Arr::get($report, 'bounces.soft_bounces'))
+                + $this->toInt(Arr::get($report, 'bounces.syntax_errors'));
+
             $emailsSent += $sent;
+            $delivered += max(0, $sent - $bounced);
             $opens += $uniqueOpens;
             $clicks += $totalClicks;
+            $uniqueClickers += $this->toInt(Arr::get($report, 'clicks.unique_subscriber_clicks'));
             $unsubscribes += $this->toInt(Arr::get($report, 'unsubscribed'));
 
             $campaigns[] = [
@@ -138,8 +148,8 @@ final class MailchimpConnector implements DataSourceConnector, ProvidesSetupGuid
             'mailchimp.opens' => $opens,
             'mailchimp.clicks' => $clicks,
             'mailchimp.unsubscribes' => $unsubscribes,
-            'mailchimp.open_rate' => $emailsSent > 0 ? round($opens / $emailsSent * 100, 1) : 0.0,
-            'mailchimp.click_rate' => $emailsSent > 0 ? round($clicks / $emailsSent * 100, 1) : 0.0,
+            'mailchimp.open_rate' => $delivered > 0 ? round(min($opens, $delivered) / $delivered * 100, 1) : 0.0,
+            'mailchimp.click_rate' => $delivered > 0 ? round(min($uniqueClickers, $delivered) / $delivered * 100, 1) : 0.0,
             'mailchimp.top_campaigns' => array_slice($campaigns, 0, 10),
         ]);
     }

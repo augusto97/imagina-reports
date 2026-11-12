@@ -121,7 +121,8 @@ function PushInstallPanel({ source }: { source: DataSourceDto }): ReactElement |
                 <li>
                     Copia el script <code className="ir-rounded ir-bg-muted ir-px-1">scripts/crowdsec-push.sh</code> (incluido en el
                     paquete) a <code className="ir-rounded ir-bg-muted ir-px-1">/usr/local/bin/imagina-crowdsec-push.sh</code> en el
-                    VPS del cliente y hazlo ejecutable (<code className="ir-rounded ir-bg-muted ir-px-1">chmod +x</code>).
+                    VPS del cliente y hazlo ejecutable (<code className="ir-rounded ir-bg-muted ir-px-1">chmod +x</code>). Si ya lo
+                    tenías instalado, vuelve a copiarlo: la versión actual envía todas las alertas del mes, no solo las 50 primeras.
                 </li>
                 <li>
                     <div className="ir-mb-1 ir-flex ir-items-center ir-justify-between ir-gap-2">

@@ -38,16 +38,19 @@ final class DatasetEngine
         }
 
         $grouped = [];
+        $counts = [];
         foreach ($filtered as $row) {
             $label = array_key_exists($query->breakdown, $row) && is_scalar($row[$query->breakdown])
                 ? (string) $row[$query->breakdown]
                 : '—';
             $grouped[$label] = ($grouped[$label] ?? 0) + $this->measureValue($row, $query->measure);
+            $counts[$label] = ($counts[$label] ?? 0) + 1;
         }
 
+        $average = self::isAverage($query->measure);
         $out = [];
         foreach ($grouped as $label => $value) {
-            $out[] = ['label' => (string) $label, 'value' => $value];
+            $out[] = ['label' => (string) $label, 'value' => $average ? round($value / max(1, $counts[$label]), 2) : $value];
         }
 
         usort($out, function (array $a, array $b) use ($query): int {
@@ -111,7 +114,21 @@ final class DatasetEngine
             $sum += $this->measureValue($row, $measure);
         }
 
-        return $sum;
+        return self::isAverage($measure) && $rows !== [] ? round($sum / count($rows), 2) : $sum;
+    }
+
+    /**
+     * A measure that is already an average or a rate (ticket medio, CTR, posición, rebote…):
+     * adding it up across rows gives nonsense (three products at 50 € don't average 150 €),
+     * so grouped rows are averaged instead.
+     */
+    public static function isAverage(?string $measure): bool
+    {
+        if ($measure === null) {
+            return false;
+        }
+
+        return preg_match('/avg|average|mean|rate|ratio|ctr|position|percent|(^|_)(share|pct|cpc|cpm|cpa|roas|aov)$/', strtolower($measure)) === 1;
     }
 
     /**

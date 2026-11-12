@@ -100,6 +100,29 @@ class EndpointConnectorTest extends TestCase
         ], $set->get('endpoint.rows'));
     }
 
+    public function test_a_spanish_spreadsheet_with_semicolons_and_decimal_commas_reads_right(): void
+    {
+        Http::fake(['*' => Http::response("país;ventas\nES;1.234,50\nPT;20\n")]);
+
+        $source = $this->source([
+            'url' => 'https://api.test/export.csv?desde={start}&hasta={end}',
+            'format' => 'csv',
+            'metrics' => [
+                ['key' => 'ventas', 'label' => 'Ventas', 'type' => 'series', 'label_field' => 'país', 'value_field' => 'ventas'],
+                ['key' => 'missing', 'label' => 'Falta', 'type' => 'scalar', 'value_field' => 'no_existe'],
+            ],
+        ]);
+
+        $set = (new EndpointConnector)->fetch($source, $this->period(), []);
+
+        $this->assertSame([['label' => 'ES', 'value' => 1234.5], ['label' => 'PT', 'value' => 20]], $set->get('endpoint.ventas'));
+        // A missing number is «not measured», never a silent 0.
+        $this->assertTrue($set->isPartial());
+        $this->assertFalse($set->has('endpoint.missing'));
+        // The period's dates go into the URL.
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'desde=2026-06-01&hasta=2026-06-30'));
+    }
+
     public function test_a_failed_http_response_yields_a_failed_set(): void
     {
         Http::fake(['*' => Http::response('error', 500)]);

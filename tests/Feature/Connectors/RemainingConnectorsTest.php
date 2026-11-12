@@ -206,7 +206,19 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame(650, $set->get('cloudflare.threats_blocked'));
         $this->assertSame(164758298, $set->get('cloudflare.bandwidth'));
         $this->assertSame(19.56, $set->get('cloudflare.cache_ratio')); // 1285/6571
-        $this->assertSame(0, $set->get('cloudflare.unique_visitors')); // extra not in core
+        // The core query never asked for these: left out (their blocks hide), not stored as 0.
+        $this->assertFalse($set->has('cloudflare.unique_visitors'));
+        $this->assertFalse($set->has('cloudflare.threats_by_country'));
+    }
+
+    public function test_crowdsec_names_attack_types_in_plain_words(): void
+    {
+        $this->assertSame('Fuerza bruta contra el acceso de WordPress', CrowdSecConnector::attackType('crowdsecurity/http-bf-wordpress_bf'));
+        $this->assertSame('Intento de inyección SQL', CrowdSecConnector::attackType('crowdsecurity/http-sqli-probing'));
+        $this->assertSame('Búsqueda de paneles de administración', CrowdSecConnector::attackType('crowdsecurity/http-admin-interface-probing'));
+        $this->assertSame('Intento de explotar una vulnerabilidad conocida', CrowdSecConnector::attackType('crowdsecurity/CVE-2021-41773'));
+        $this->assertSame('Bots maliciosos', CrowdSecConnector::attackType('crowdsecurity/http-crawl-non_statics'));
+        $this->assertSame('Mi escenario', CrowdSecConnector::attackType('acme/mi-escenario'));
     }
 
     public function test_crowdsec_counts_alerts_and_decisions(): void
@@ -226,7 +238,8 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame(3, $set->get('crowdsec.attacks_blocked'));
         $this->assertSame(10, $set->get('crowdsec.events'));
         $this->assertSame(2, $set->get('crowdsec.unique_ips'));
-        $this->assertSame([['label' => 'ssh-bf', 'value' => 2]], $set->get('crowdsec.attack_types'));
+        // Scenario codes read in words a client understands.
+        $this->assertSame([['label' => 'Fuerza bruta por SSH', 'value' => 2]], $set->get('crowdsec.attack_types'));
         $this->assertSame([['label' => 'CN', 'value' => 2]], $set->get('crowdsec.attacks_by_country'));
     }
 
@@ -246,7 +259,7 @@ class RemainingConnectorsTest extends TestCase
         $this->assertSame(1, $set->get('crowdsec.attacks_blocked'));
         $this->assertSame(7, $set->get('crowdsec.events'));
         $this->assertSame(1, $set->get('crowdsec.unique_ips'));
-        $this->assertSame([['label' => 'http-probing', 'value' => 2]], $set->get('crowdsec.attack_types'));
+        $this->assertSame([['label' => 'Escaneo del sitio', 'value' => 2]], $set->get('crowdsec.attack_types'));
     }
 
     public function test_crowdsec_accepts_a_bare_alerts_array_too(): void
@@ -288,6 +301,8 @@ class RemainingConnectorsTest extends TestCase
 
     public function test_better_uptime_builds_a_daily_response_time_series_in_ms(): void
     {
+        // Better Stack only keeps the last 24 h: read while June is the current month.
+        $this->travelTo('2026-06-02 12:00:00');
         Http::fake([
             '*/response-times*' => Http::response(['data' => ['attributes' => ['regions' => [[
                 'region' => 'us',
@@ -315,6 +330,43 @@ class RemainingConnectorsTest extends TestCase
         );
         // Overall mean of the 3 points: (20+40+100)/3 = 53.3 ms.
         $this->assertSame(53.3, $set->get('betteruptime.avg_response_time'));
+    }
+
+    public function test_better_uptime_never_stamps_todays_response_times_on_a_past_month(): void
+    {
+        $this->travelTo('2026-08-15 12:00:00');
+        Http::fake([
+            '*/sla*' => Http::response(['data' => ['attributes' => ['availability' => 99.9, 'number_of_incidents' => 0]]]),
+            '*' => Http::response(['data' => []]),
+        ]);
+
+        $set = (new BetterUptimeConnector)->fetch(
+            $this->source(DataSourceType::BetterUptime, ['monitor_id' => '123'], ['api_token' => 't']),
+            $this->period(),
+            [],
+        );
+
+        $this->assertFalse($set->has('betteruptime.avg_response_time'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'response-times'));
+    }
+
+    public function test_better_uptime_reads_every_page_of_incidents(): void
+    {
+        $incident = fn (string $day): array => ['attributes' => ['started_at' => "2026-06-{$day}T10:00:00Z", 'resolved_at' => "2026-06-{$day}T10:05:00Z", 'cause' => 'Timeout']];
+        Http::fake([
+            '*/sla*' => Http::response(['data' => ['attributes' => ['availability' => 99.0, 'number_of_incidents' => 2]]]),
+            '*/incidents?*page=2*' => Http::response(['data' => [$incident('20')], 'pagination' => ['next' => null]]),
+            '*/incidents*' => Http::response(['data' => [$incident('10')], 'pagination' => ['next' => 'https://uptime.betterstack.com/api/v2/incidents?monitor_id=123&page=2']]),
+            '*' => Http::response(['data' => []]),
+        ]);
+
+        $set = (new BetterUptimeConnector)->fetch(
+            $this->source(DataSourceType::BetterUptime, ['monitor_id' => '123'], ['api_token' => 't']),
+            $this->period(),
+            ['betteruptime.incidents_list'],
+        );
+
+        $this->assertCount(2, $set->get('betteruptime.incidents_list'));
     }
 
     public function test_better_uptime_builds_an_incidents_table(): void
@@ -422,11 +474,13 @@ class RemainingConnectorsTest extends TestCase
         $set = (new VirusdieConnector)->fetch($source, $this->period(), []);
 
         $this->assertTrue($set->isOk());
-        $this->assertSame(4, $set->get('virusdie.malware_found'));
+        $this->assertSame(4, $set->get('virusdie.scans'));
 
-        // The endpoint path uses the site domain (scheme/www/slash-insensitive).
+        // The endpoint path uses the site domain (scheme/www/slash-insensitive), and the range
+        // goes as start_date/end_date, the names MainWP reads.
         Http::assertSent(fn ($request) => str_contains($request->url(), '/pro-reports/comercializadoraomicron.com/virusdie')
-            && str_contains($request->url(), 'action=scan'));
+            && str_contains($request->url(), 'action=scan')
+            && str_contains($request->url(), 'start_date='));
     }
 
     public function test_virusdie_fails_without_a_site_url(): void

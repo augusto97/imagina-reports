@@ -72,6 +72,31 @@ class DatabaseConnectorTest extends TestCase
         $this->assertCount(3, $set->get('database.rows'));
     }
 
+    public function test_a_query_counts_only_the_report_period_with_start_and_end(): void
+    {
+        $path = (string) tempnam(sys_get_temp_dir(), 'ir_db_');
+        $this->dbPath = $path;
+        $connection = DB::build(['driver' => 'sqlite', 'database' => $path]);
+        $connection->statement('CREATE TABLE orders (id integer primary key, created_at text, total real)');
+        $connection->insert("INSERT INTO orders (created_at, total) VALUES ('2026-05-31 23:00:00', 100), ('2026-06-01 08:00:00', 10), ('2026-06-30 22:00:00', 5), ('2026-07-01 00:30:00', 50)");
+
+        $source = $this->source([
+            'driver' => 'sqlite',
+            'database' => $path,
+            'metrics' => [
+                ['key' => 'june', 'label' => 'Ventas', 'type' => 'scalar', 'sql' => 'SELECT SUM(total) FROM orders WHERE created_at BETWEEN :start AND :end'],
+                ['key' => 'nothing', 'label' => 'Nada', 'type' => 'scalar', 'sql' => "SELECT total FROM orders WHERE created_at = 'never'"],
+            ],
+        ]);
+
+        $set = (new DatabaseConnector)->fetch($source, Period::make('2026-06-01', '2026-06-30'), []);
+
+        $this->assertSame(15.0, $set->get('database.june'));
+        // No row at all is «not measured», never a silent 0.
+        $this->assertTrue($set->isPartial());
+        $this->assertFalse($set->has('database.nothing'));
+    }
+
     public function test_it_exposes_a_dynamic_catalog_from_config(): void
     {
         $source = $this->source([

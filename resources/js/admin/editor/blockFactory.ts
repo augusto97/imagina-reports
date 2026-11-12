@@ -293,13 +293,13 @@ export function sampleData(block: Block): unknown {
                 signals: [
                     { key: 'uptime', label: 'Disponibilidad', detail: '99,9 % del tiempo en línea', score: 98, weight: 25 },
                     { key: 'updates', label: 'Actualizaciones', detail: '2 actualizaciones pendientes', score: 90, weight: 20 },
-                    { key: 'security', label: 'Seguridad', detail: 'Sin malware ni puntos débiles conocidos', score: 100, weight: 20 },
+                    { key: 'security', label: 'Seguridad', detail: 'Sin vulnerabilidades ni plugins abandonados', score: 100, weight: 20 },
                     { key: 'ssl', label: 'Certificado SSL', detail: 'Vence en 21 días', score: 70, weight: 10 },
                     { key: 'performance', label: 'Rendimiento', detail: '62 % servido desde la caché (carga más rápido)', score: 62, weight: 15 },
                 ],
             };
         case 'security_shield':
-            return { threats_blocked: 1840, attacks_blocked: 96, malware_found: 0 };
+            return { threats_blocked: 1840, attacks_blocked: 96, scans: 30 };
         case 'chart': {
             // Hours of the day and days of the week preview with the same labels the report uses.
             const metric = typeof block.binding?.metric === 'string' ? block.binding.metric : '';

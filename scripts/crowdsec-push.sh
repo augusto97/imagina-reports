@@ -35,8 +35,9 @@ month_start_epoch="$(date -d "$(date +%Y-%m-01) 00:00:00" +%s)"
 hours_this_month="$(( ( $(date +%s) - month_start_epoch ) / 3600 + 1 ))"
 
 # Already aggregated at the source (CLAUDE.md §3.3): cscli returns a compact JSON array
-# of this month's alerts — never raw logs.
-alerts_json="$(cscli alerts list --since "${hours_this_month}h" -o json 2>/dev/null || echo '[]')"
+# of this month's alerts — never raw logs. `--limit 0` sends all of them (cscli stops at
+# 50 by default, which undercounted busy months).
+alerts_json="$(cscli alerts list --since "${hours_this_month}h" --limit 0 -o json 2>/dev/null || echo '[]')"
 
 # Wrap as { "alerts": [...] }; the connector accepts either shape.
 curl -fsS --max-time 30 \

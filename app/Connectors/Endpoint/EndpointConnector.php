@@ -47,7 +47,7 @@ final class EndpointConnector implements DataSourceConnector
     public function configSchema(): array
     {
         return [
-            new ConfigField('url', 'URL', ConfigFieldType::Url, help: 'URL que devuelve los datos YA agregados (JSON o CSV).'),
+            new ConfigField('url', 'URL', ConfigFieldType::Url, help: 'URL que devuelve los datos YA agregados (JSON o CSV). Si la URL lleva {start} y {end}, se cambian por las fechas del periodo (AAAA-MM-DD) para que cada reporte pida solo su mes.'),
             new ConfigField('format', 'Format', ConfigFieldType::Text, required: false, help: 'json (por defecto) o csv.'),
             new ConfigField('token', 'Bearer token', ConfigFieldType::Password, required: false, secret: true, help: 'Token Bearer opcional para autenticar la petición.'),
             new ConfigField('metrics', 'Metrics (JSON)', ConfigFieldType::Json, help: 'JSON con el mapeo: [{"key","label","type":"scalar|series|table","path","label_field","value_field"}].'),
@@ -86,7 +86,7 @@ final class EndpointConnector implements DataSourceConnector
     public function fetch(DataSource $source, Period $period, array $requestedMetrics): MetricSet
     {
         try {
-            $response = $this->request($source);
+            $response = $this->request($source, $period);
         } catch (Throwable $e) {
             return MetricSet::failed('Endpoint request error: '.$e->getMessage());
         }
@@ -100,14 +100,24 @@ final class EndpointConnector implements DataSourceConnector
         $json = $isCsv ? [] : $this->arrayOf($response->json());
 
         $metrics = [];
+        $errors = [];
 
         foreach ($this->metricDefs($source) as $metric) {
-            $metrics["endpoint.{$metric['key']}"] = $isCsv
-                ? $this->shapeCsv($metric, $rows)
-                : $this->shapeJson($metric, $json);
+            $value = $isCsv ? $this->shapeCsv($metric, $rows) : $this->shapeJson($metric, $json);
+            if ($value === null) {
+                // Missing or not a number: «not measured» (the block hides), never a silent 0.
+                $errors[] = "{$metric['key']}: no se encontró un número en la respuesta.";
+
+                continue;
+            }
+            $metrics["endpoint.{$metric['key']}"] = $value;
         }
 
-        return MetricSet::ok($metrics);
+        if ($metrics === [] && $errors !== []) {
+            return MetricSet::failed(implode('; ', $errors));
+        }
+
+        return $errors === [] ? MetricSet::ok($metrics) : MetricSet::partial($metrics, implode('; ', $errors));
     }
 
     /**
@@ -136,7 +146,7 @@ final class EndpointConnector implements DataSourceConnector
         return $defs;
     }
 
-    private function request(DataSource $source): Response
+    private function request(DataSource $source, ?Period $period = null): Response
     {
         $config = $source->config ?? [];
         $credentials = $source->credentials ?? [];
@@ -148,7 +158,13 @@ final class EndpointConnector implements DataSourceConnector
             $request = $request->withToken($token);
         }
 
-        return $request->get($this->toStr(Arr::get($config, 'url')));
+        $url = $this->toStr(Arr::get($config, 'url'));
+        $period ??= new Period(now()->startOfMonth(), now()->endOfMonth());
+
+        return $request->get(strtr($url, [
+            '{start}' => rawurlencode($period->start->toDateString()),
+            '{end}' => rawurlencode($period->end->toDateString()),
+        ]));
     }
 
     private function format(DataSource $source): string
@@ -167,7 +183,7 @@ final class EndpointConnector implements DataSourceConnector
         return match ($metric['type']) {
             'series' => $this->series($this->listOf($value), $metric['label_field'], $metric['value_field']),
             'table' => array_map(fn (mixed $row): array => $this->arrayOf($row), $this->listOf($value)),
-            default => $this->toNumber($value),
+            default => is_numeric($value) ? $this->toNumber($value) : null,
         };
     }
 
@@ -180,7 +196,7 @@ final class EndpointConnector implements DataSourceConnector
         return match ($metric['type']) {
             'series' => $this->series($rows, $metric['label_field'], $metric['value_field']),
             'table' => $rows,
-            default => $this->toNumber($this->cell($rows[0] ?? [], $metric['value_field'])),
+            default => is_numeric($cell = $this->cell($rows[0] ?? [], $metric['value_field'])) ? $this->toNumber($cell) : null,
         };
     }
 
@@ -225,7 +241,21 @@ final class EndpointConnector implements DataSourceConnector
             return [];
         }
 
-        $headers = array_map($this->toStr(...), str_getcsv((string) array_shift($lines), ',', '"', '\\'));
+        $header = (string) array_shift($lines);
+        // Spreadsheets in Spanish save with «;» (the comma is the decimal mark), others with
+        // «,» or a tab: use whichever the header line is split by.
+        $counts = ['semicolon' => substr_count($header, ';'), 'tab' => substr_count($header, "\t"), 'comma' => substr_count($header, ',')];
+        arsort($counts);
+        $delimiter = match (array_key_first($counts)) {
+            'semicolon' => ';',
+            'tab' => "\t",
+            default => ',',
+        };
+        if (max($counts) === 0) {
+            $delimiter = ',';
+        }
+
+        $headers = array_map($this->toStr(...), str_getcsv($header, $delimiter, '"', '\\'));
         $rows = [];
 
         foreach ($lines as $line) {
@@ -233,11 +263,16 @@ final class EndpointConnector implements DataSourceConnector
                 continue;
             }
 
-            $cells = str_getcsv($line, ',', '"', '\\');
+            $cells = str_getcsv($line, $delimiter, '"', '\\');
             $row = [];
 
-            foreach ($headers as $index => $header) {
-                $row[$header] = $cells[$index] ?? null;
+            foreach ($headers as $index => $name) {
+                $cell = $cells[$index] ?? null;
+                // «1.234,56» from a «;» file is 1234.56.
+                if ($delimiter === ';' && is_string($cell) && preg_match('/^-?\d{1,3}(\.\d{3})*(,\d+)?$|^-?\d+,\d+$/', trim($cell)) === 1) {
+                    $cell = str_replace(['.', ','], ['', '.'], trim($cell));
+                }
+                $row[$name] = $cell;
             }
 
             $rows[] = $row;

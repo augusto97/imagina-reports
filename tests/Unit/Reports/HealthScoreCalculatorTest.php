@@ -29,11 +29,19 @@ class HealthScoreCalculatorTest extends TestCase
         ]));
     }
 
-    public function test_detected_malware_lowers_the_security_signal(): void
+    public function test_known_vulnerabilities_lower_the_security_signal(): void
     {
-        $this->assertSame(40, $this->calculator->calculate([
-            'mainwp' => ['mainwp.malware_found' => 2],
+        $this->assertSame(70, $this->calculator->calculate([
+            'mainwp' => ['mainwp.vulnerabilities_count' => 2],
         ]));
+    }
+
+    public function test_virusdie_scans_never_count_as_malware(): void
+    {
+        // A scan count says the site was checked, not that it was infected: no security signal.
+        $this->assertSame([], $this->calculator->breakdown([
+            'mainwp' => ['mainwp.virusdie_scans' => 30],
+        ])['signals']);
     }
 
     public function test_it_reweights_over_only_the_present_signals(): void
@@ -51,7 +59,7 @@ class HealthScoreCalculatorTest extends TestCase
     {
         $score = $this->calculator->calculate([
             'betteruptime' => ['betteruptime.uptime_percent' => 100],
-            'mainwp' => ['mainwp.updates_available' => 0, 'mainwp.malware_found' => 0, 'mainwp.ssl_days_remaining' => 80],
+            'mainwp' => ['mainwp.updates_available' => 0, 'mainwp.vulnerabilities_count' => 0, 'mainwp.ssl_days_remaining' => 80],
             'cloudflare' => ['cloudflare.cache_ratio' => 100],
         ]);
 
