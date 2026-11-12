@@ -24,12 +24,13 @@ Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoin
 | Google Analytics (GA4) | `https://reports.imagina.cloud/api/v1/connect/callback/ga4` |
 | Search Console (GSC) | `https://reports.imagina.cloud/api/v1/connect/callback/gsc` |
 | Google Ads | `https://reports.imagina.cloud/api/v1/connect/callback/google_ads` |
+| Perfil de Empresa de Google | `https://reports.imagina.cloud/api/v1/connect/callback/google_business` |
 | Facebook / Instagram Ads | `https://reports.imagina.cloud/api/v1/connect/callback/facebook_ads` |
 | Instagram (perfil/insights) | `https://reports.imagina.cloud/api/v1/connect/callback/instagram` |
 
 ---
 
-## 1. Google (cubre GA4 + Search Console + Google Ads con un solo login)
+## 1. Google (cubre GA4, Search Console, Google Ads y Perfil de Empresa con un solo login)
 
 > **Nota sobre la consola nueva (2025):** Google renombró la pantalla de consentimiento a
 > **"Google Auth Platform"** y repartió las opciones en el menú izquierdo. El mapa es:
@@ -47,6 +48,12 @@ Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoin
    - **Google Analytics Data API** y **Google Analytics Admin API** (para GA4 + el selector de propiedad).
    - **Google Search Console API** (para GSC).
    - **Google Ads API** (para Google Ads).
+   - **PageSpeed Insights API** (para «Velocidad del sitio»; crea también una **clave de API** y pégala
+     en el panel → Integraciones → Google: sin clave propia Google responde 429, la cuota compartida
+     está agotada).
+   - Para **Perfil de Empresa de Google**: **My Business Account Management API**, **My Business
+     Business Information API**, **Business Profile Performance API** y **Google My Business API**
+     (reseñas). Además Google tiene que **aprobar el acceso** (ver 1.4).
 3. **Google Auth Platform → Audience**: tipo de usuario **External** y **«Publish app»** para pasarla
    a **In production**. En modo *Testing* solo conectan los usuarios de prueba y Google **caduca las
    conexiones a los 7 días**.
@@ -59,9 +66,10 @@ Los **redirect URIs** (URLs de retorno) que registrarás apuntan a estos endpoin
    - `https://www.googleapis.com/auth/analytics.readonly`
    - `https://www.googleapis.com/auth/webmasters.readonly`
    - `https://www.googleapis.com/auth/adwords`
+   - `https://www.googleapis.com/auth/business.manage` (Perfil de Empresa; no existe uno de solo lectura)
    - Luego **Update → Save**.
 6. **Google Auth Platform → Clients → Create client**: tipo **Web application**.
-   - En **Authorized redirect URIs** añade los de la tabla de arriba (ga4, gsc, google_ads).
+   - En **Authorized redirect URIs** añade los de la tabla de arriba (ga4, gsc, google_ads, google_business).
    - Copia el **Client ID** y el **Client secret**.
 
 ### 1.2 Verificación de la app (importante)
@@ -111,6 +119,16 @@ GOOGLE_ADS_LOGIN_CUSTOMER_ID=1234567890   # opcional (MCC), sin guiones
 ```
 
 ---
+
+### 1.5 Perfil de Empresa de Google — solicitud de acceso
+Las APIs de Perfil de Empresa responden con **cuota 0** hasta que Google aprueba el proyecto
+(<https://developers.google.com/my-business/content/prereqs>):
+1. Activa las cuatro APIs, el scope `business.manage` y el redirect URI `.../callback/google_business`.
+2. Llena el formulario de acceso y elige **«Application for Basic API Access»**. Pide el **número del
+   proyecto** y un email propietario/administrador de una ficha **verificada y activa hace más de 60
+   días**, con sitio web.
+3. Aprobado = la cuota de *Business Profile Performance API* pasa de 0 a 300 consultas por minuto.
+   Hasta entonces la fuente dice que falta la aprobación de Google, en vez de un error genérico.
 
 ## 2. Meta (Facebook / Instagram Ads)
 

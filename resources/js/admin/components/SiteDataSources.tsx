@@ -594,7 +594,7 @@ export function SiteDataSources({ siteId, siteName, clientEmail = null }: { site
                                                             <Icon className="ir-size-4" />
                                                         </span>
                                                         <span className="ir-min-w-0">
-                                                            <span className="ir-block ir-truncate ir-text-sm ir-font-medium">{item.label}</span>
+                                                            <span className="ir-line-clamp-2 ir-block ir-text-sm ir-font-medium ir-leading-snug">{item.label}</span>
                                                             <span className="ir-block ir-truncate ir-text-xs ir-text-muted-foreground">
                                                                 {already ? 'Ya conectada' : meta?.blurb ?? (item.connect != null ? 'Conexión con un clic' : 'Con claves de acceso')}
                                                             </span>

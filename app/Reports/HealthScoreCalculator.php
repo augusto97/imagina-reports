@@ -16,7 +16,7 @@ namespace App\Reports;
  * - Seguridad        20 % · malware → 40 max; −15 per vulnerability; −10 per abandoned plugin · MainWP / Agent
  * - Certificado SSL  10 % · ≥ 30 days 100; 14–29: 70; 7–13: 40; < 7: 0            · MainWP or the Agent
  * - Respaldos        10 % · last backup ≤ 1 day 100; ≤ 7: 90; ≤ 14: 60; ≤ 30: 30; older: 0 · the Agent
- * - Rendimiento      15 % · % of requests served from Cloudflare's cache (0–100)    · Cloudflare
+ * - Rendimiento      15 % · Google's 0–100 speed score on a phone; else % served from Cloudflare's cache · PageSpeed / Cloudflare
  *
  * With no signal at all there is nothing to measure: the score stays 100 (so nothing reads as
  * a problem) but `signals` comes back empty and the block says so instead of claiming «excelente».
@@ -168,14 +168,23 @@ final class HealthScoreCalculator
     }
 
     /**
-     * Cloudflare's cache ratio as a performance proxy. The connector stores it as a percentage
-     * (0–100), not a fraction — reading it as 0–1 made any ratio of 1 % or more score 100.
+     * How fast the site is: Google's own speed score on a phone (PageSpeed, 0–100) when the site
+     * measures it — the real thing; otherwise Cloudflare's cache ratio as a proxy. The connector
+     * stores the ratio as a percentage (0–100), not a fraction — reading it as 0–1 made any ratio
+     * of 1 % or more score 100.
      *
      * @param  MetricBags  $bags
      * @return Signal|null
      */
     private function performance(array $bags): ?array
     {
+        $speed = $this->metric($bags, ['pagespeed.score_mobile']);
+        if ($speed !== null) {
+            $speed = $this->clamp($speed, 0, 100);
+
+            return $this->signal('performance', 'Rendimiento', 'Nota de velocidad de Google en celular: '.$this->number($speed, 0).'/100', $speed, 15);
+        }
+
         $ratio = $this->metric($bags, ['cloudflare.cache_ratio']);
         if ($ratio === null) {
             return null;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Connectors\ConnectorRegistry;
+use App\Connectors\Contracts\MeasuresOnlyNow;
 use App\Connectors\MetricSet;
 use App\Connectors\Period;
 use App\Enums\DataSourceStatus;
@@ -30,9 +31,15 @@ final readonly class SyncService
      * @param  list<string>  $requestedMetrics  Metric keys referenced by active report
      *                                          definitions; empty lets the connector decide.
      */
-    public function sync(DataSource $source, Period $period, array $requestedMetrics = []): MetricSnapshot
+    public function sync(DataSource $source, Period $period, array $requestedMetrics = []): ?MetricSnapshot
     {
         $connector = $this->registry->for($source);
+
+        // A live measurement (e.g. a speed test) can't be taken for a month long gone: skip it
+        // rather than write today's result into the past (or wipe what was measured back then).
+        if ($connector instanceof MeasuresOnlyNow && $period->end->lt(Date::now()->subDays(MeasuresOnlyNow::GRACE_DAYS)->startOfDay())) {
+            return null;
+        }
 
         // Connectors catch their own API errors and return partial/failed sets (§7),
         // so a single failing source never breaks the pipeline.

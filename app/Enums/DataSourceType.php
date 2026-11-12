@@ -27,6 +27,8 @@ enum DataSourceType: string
     case Database = 'database';
     case Endpoint = 'endpoint';
     case SiteAgent = 'site_agent';
+    case PageSpeed = 'pagespeed';
+    case GoogleBusiness = 'google_business';
 
     public function label(): string
     {
@@ -47,6 +49,8 @@ enum DataSourceType: string
             self::Database => 'Database',
             self::Endpoint => 'Endpoint / CSV',
             self::SiteAgent => 'Agente Imagina (sitio)',
+            self::PageSpeed => 'Velocidad del sitio',
+            self::GoogleBusiness => 'Perfil de Empresa de Google',
         };
     }
 }

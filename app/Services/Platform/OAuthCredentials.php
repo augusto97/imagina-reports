@@ -25,6 +25,9 @@ final class OAuthCredentials
 
     public const GOOGLE_ADS_LOGIN_CUSTOMER_ID = 'google_ads_login_customer_id';
 
+    /** Google PageSpeed Insights API key: optional, but without one Google rations the tests. */
+    public const GOOGLE_PAGESPEED_KEY = 'google_pagespeed_api_key';
+
     public const META_APP_ID = 'meta_oauth_app_id';
 
     public const META_APP_SECRET = 'meta_oauth_app_secret';
@@ -49,6 +52,11 @@ final class OAuthCredentials
     public function googleAdsLoginCustomerId(): string
     {
         return $this->plain(self::GOOGLE_ADS_LOGIN_CUSTOMER_ID, 'services.google_oauth.ads_login_customer_id');
+    }
+
+    public function googlePageSpeedKey(): string
+    {
+        return $this->secret(self::GOOGLE_PAGESPEED_KEY, 'services.google_oauth.pagespeed_key');
     }
 
     public function metaAppId(): string

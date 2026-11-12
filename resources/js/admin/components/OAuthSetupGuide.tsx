@@ -9,6 +9,7 @@ const GOOGLE_SCOPES = [
     'https://www.googleapis.com/auth/analytics.readonly',
     'https://www.googleapis.com/auth/webmasters.readonly',
     'https://www.googleapis.com/auth/adwords',
+    'https://www.googleapis.com/auth/business.manage',
 ];
 
 /** What to paste in Google's verification form, one per scope (Google reviews in English). */
@@ -24,6 +25,10 @@ const GOOGLE_JUSTIFICATIONS: { scope: string; text: string }[] = [
     {
         scope: 'adwords',
         text: 'We read Google Ads reporting data (impressions, clicks, cost, conversions, top campaigns) for the account the user selects, to show advertising results in the monthly client report. We only call reporting endpoints and never create or modify campaigns. Google offers no narrower read-only scope for the Google Ads API.',
+    },
+    {
+        scope: 'business.manage',
+        text: 'We read Business Profile performance (views on Search and Maps, calls, direction requests, website clicks), search keywords and reviews for the single location the user selects, to show local visibility in the monthly client report. We never edit the profile or reply to reviews. Google offers no read-only scope for the Business Profile APIs.',
     },
 ];
 
@@ -127,6 +132,15 @@ export function GoogleSetupGuide({ setup }: { setup: Setup }): ReactElement {
                         <li><Link href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com">Google Analytics Admin API</Link> — lista de propiedades para el desplegable.</li>
                         <li><Link href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com">Google Search Console API</Link>.</li>
                         <li><Link href="https://console.cloud.google.com/apis/library/googleads.googleapis.com">Google Ads API</Link> — solo si ofreces Google Ads.</li>
+                        <li><Link href="https://console.cloud.google.com/apis/library/pagespeedonline.googleapis.com">PageSpeed Insights API</Link> — para «Velocidad del sitio».</li>
+                        <li>
+                            Para «Perfil de Empresa de Google» (las cuatro):{' '}
+                            <Link href="https://console.cloud.google.com/apis/library/mybusinessaccountmanagement.googleapis.com">My Business Account Management API</Link>,{' '}
+                            <Link href="https://console.cloud.google.com/apis/library/mybusinessbusinessinformation.googleapis.com">My Business Business Information API</Link>,{' '}
+                            <Link href="https://console.cloud.google.com/apis/library/businessprofileperformance.googleapis.com">Business Profile Performance API</Link> y{' '}
+                            <Link href="https://console.cloud.google.com/apis/library/mybusiness.googleapis.com">Google My Business API</Link> (reseñas). Además hay que
+                            pedir el acceso (ver la guía de Perfil de Empresa más abajo).
+                        </li>
                     </ul>
                     <p>Si falta alguna, la conexión se completa pero «Probar» o el escaneo de cuentas fallan.</p>
                 </Step>
@@ -155,17 +169,17 @@ export function GoogleSetupGuide({ setup }: { setup: Setup }): ReactElement {
                 </Step>
 
                 <Step n={5} title="Data Access: los permisos">
-                    <p>Pulsa «Add or remove scopes» y añade estos tres (si alguno no aparece en el buscador, pégalo en «Manually add scopes»):</p>
+                    <p>Pulsa «Add or remove scopes» y añade estos (si alguno no aparece en el buscador, pégalo en «Manually add scopes»):</p>
                     {GOOGLE_SCOPES.map((scope) => (
                         <CopyValue key={scope} value={scope} />
                     ))}
-                    <p>Pulsa «Update» y luego «Save». El de Google Ads solo hace falta si lo ofreces.</p>
+                    <p>Pulsa «Update» y luego «Save». El de Google Ads y el de Perfil de Empresa (business.manage) solo hacen falta si los ofreces.</p>
                 </Step>
 
                 <Step n={6} title="Clients: el cliente OAuth">
                     <p>
-                        <strong>Create client</strong> → tipo <strong>Web application</strong>. En «Authorized redirect URIs» añade estas tres URLs,
-                        exactamente así:
+                        <strong>Create client</strong> → tipo <strong>Web application</strong>. En «Authorized redirect URIs» añade estas URLs,
+                        exactamente así (si ya tenías el cliente creado, agrega las que falten):
                     </p>
                     {setup.google_redirect_uris.map((uri) => (
                         <CopyValue key={uri} value={uri} />
@@ -208,6 +222,36 @@ export function GoogleSetupGuide({ setup }: { setup: Setup }): ReactElement {
                     <p>
                         En Clientes → un sitio → Fuentes de datos → añade GA4 → «Conectar con Google». Al volver, la app te dice qué propiedad eligió o te
                         muestra el desplegable. Si algo falla, el mensaje indica la causa exacta (permiso sin marcar, URL de retorno sin registrar…).
+                    </p>
+                </Step>
+            </ol>
+        </Guide>
+    );
+}
+
+/** Business Profile's own extra step: Google must approve the project before it answers (quota 0 until then). */
+export function GoogleBusinessSetupGuide(): ReactElement {
+    return (
+        <Guide title="Cómo habilitar «Perfil de Empresa de Google» (Google tiene que aprobar el acceso)">
+            <ol className="ir-flex ir-flex-col ir-gap-5">
+                <Step n={1} title="Activa las cuatro APIs y el permiso">
+                    <p>
+                        En la guía de Google de arriba: las cuatro APIs de Perfil de Empresa (paso 2), el permiso <strong>business.manage</strong> (paso 5) y
+                        la URL de retorno de Perfil de Empresa (paso 6).
+                    </p>
+                </Step>
+                <Step n={2} title="Pide el acceso a Google">
+                    <p>
+                        Google solo responde a proyectos aprobados: hasta entonces la cuota es 0 y la conexión dirá que falta la aprobación. Llena el{' '}
+                        <Link href="https://developers.google.com/my-business/content/prereqs">formulario de acceso de Perfil de Empresa</Link> y elige
+                        «Application for Basic API Access». Pide el <strong>número del proyecto</strong> (tarjeta «Project info» del panel de Google Cloud)
+                        y un email que sea propietario o administrador de una ficha verificada y activa desde hace más de 60 días, con sitio web.
+                    </p>
+                </Step>
+                <Step n={3} title="Cuando lo aprueben">
+                    <p>
+                        En Google Cloud → APIs y servicios → Business Profile Performance API → Cuotas, el límite pasa de 0 a 300 consultas por minuto. Desde
+                        ese momento tus agencias y sus clientes pueden pulsar «Conectar con Google» en la fuente «Perfil de Empresa de Google».
                     </p>
                 </Step>
             </ol>

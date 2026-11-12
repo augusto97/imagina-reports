@@ -29,7 +29,7 @@ final class PlatformIntegrationsController extends Controller
     private const PLAIN = [OAuthCredentials::GOOGLE_CLIENT_ID, OAuthCredentials::GOOGLE_ADS_LOGIN_CUSTOMER_ID, OAuthCredentials::META_APP_ID];
 
     /** The secret fields, only ever reported as "configured" booleans. */
-    private const SECRETS = [OAuthCredentials::GOOGLE_CLIENT_SECRET, OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN, OAuthCredentials::META_APP_SECRET];
+    private const SECRETS = [OAuthCredentials::GOOGLE_CLIENT_SECRET, OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN, OAuthCredentials::GOOGLE_PAGESPEED_KEY, OAuthCredentials::META_APP_SECRET];
 
     public function show(): JsonResponse
     {
@@ -43,6 +43,7 @@ final class PlatformIntegrationsController extends Controller
             OAuthCredentials::GOOGLE_CLIENT_SECRET => ['sometimes', 'nullable', 'string'],
             OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN => ['sometimes', 'nullable', 'string'],
             OAuthCredentials::GOOGLE_ADS_LOGIN_CUSTOMER_ID => ['sometimes', 'nullable', 'string'],
+            OAuthCredentials::GOOGLE_PAGESPEED_KEY => ['sometimes', 'nullable', 'string', 'max:200'],
             OAuthCredentials::META_APP_ID => ['sometimes', 'nullable', 'string'],
             OAuthCredentials::META_APP_SECRET => ['sometimes', 'nullable', 'string'],
             // Claude for every agency without its own key (falls back to .env).
@@ -135,6 +136,7 @@ final class PlatformIntegrationsController extends Controller
             // Secrets: only whether they're saved in the panel.
             'google_oauth_client_secret_set' => $settings->hasSecret(OAuthCredentials::GOOGLE_CLIENT_SECRET),
             'google_ads_developer_token_set' => $settings->hasSecret(OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN),
+            'google_pagespeed_key_set' => $settings->hasSecret(OAuthCredentials::GOOGLE_PAGESPEED_KEY),
             'meta_oauth_app_secret_set' => $settings->hasSecret(OAuthCredentials::META_APP_SECRET),
             // Whether the connect button will actually show (panel OR .env provides the pair).
             'google_connect_ready' => $googleConfigured,
@@ -171,6 +173,7 @@ final class PlatformIntegrationsController extends Controller
                 $callback(DataSourceType::Ga4),
                 $callback(DataSourceType::Gsc),
                 $callback(DataSourceType::GoogleAds),
+                $callback(DataSourceType::GoogleBusiness),
             ],
             'meta_redirect_uris' => [
                 $callback(DataSourceType::FacebookAds),

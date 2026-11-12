@@ -61,7 +61,7 @@ export function CanvasBlock({
         block.binding?.source === 'mainwp' && block.binding?.metric === 'work_log'
             ? 'Sin historial. Instala el plugin «MainWP Child Reports» en el sitio para registrar las actualizaciones aplicadas.'
             : block.type === 'healthscore'
-              ? 'Ninguna fuente de este sitio mide la salud todavía. Se calcula con la disponibilidad (Better Stack), las actualizaciones y la seguridad (MainWP o el Agente), el SSL, los respaldos (Agente) y el rendimiento (Cloudflare). En el informe del cliente se oculta hasta tener datos.'
+              ? 'Ninguna fuente de este sitio mide la salud todavía. Se calcula con la disponibilidad (Better Stack), las actualizaciones y la seguridad (MainWP o el Agente), el SSL, los respaldos (Agente) y la velocidad (Velocidad del sitio o Cloudflare). En el informe del cliente se oculta hasta tener datos.'
               : 'Sin datos para este periodo';
 
     return (

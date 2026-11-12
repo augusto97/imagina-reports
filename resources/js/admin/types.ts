@@ -85,6 +85,7 @@ export interface PlatformIntegrationsSettings {
     meta_oauth_app_id: string;
     google_oauth_client_secret_set: boolean;
     google_ads_developer_token_set: boolean;
+    google_pagespeed_key_set: boolean;
     meta_oauth_app_secret_set: boolean;
     google_connect_ready: boolean;
     meta_connect_ready: boolean;

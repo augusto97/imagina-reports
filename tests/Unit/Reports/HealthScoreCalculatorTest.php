@@ -81,6 +81,17 @@ class HealthScoreCalculatorTest extends TestCase
         $this->assertSame(82, $result['score']);
     }
 
+    public function test_googles_speed_score_is_the_performance_signal_when_measured(): void
+    {
+        $breakdown = $this->calculator->breakdown([
+            'pagespeed' => ['pagespeed.score_mobile' => 64],
+            'cloudflare' => ['cloudflare.cache_ratio' => 95],
+        ]);
+
+        $this->assertSame(64, $breakdown['score']);
+        $this->assertSame('Nota de velocidad de Google en celular: 64/100', $breakdown['signals'][0]['detail']);
+    }
+
     public function test_without_any_signal_the_breakdown_is_empty(): void
     {
         $this->assertSame(['score' => 100, 'signals' => []], $this->calculator->breakdown(['ga4' => ['ga4.sessions' => 10]]));

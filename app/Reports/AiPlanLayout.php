@@ -358,6 +358,7 @@ final class AiPlanLayout
             'currency' => 'currency',
             'percent' => 'percent',
             'duration' => 'duration',
+            'seconds' => 'seconds',
             default => null,
         };
     }

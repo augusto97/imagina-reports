@@ -21,10 +21,12 @@ use App\Connectors\Ga4\Ga4Connector;
 use App\Connectors\Google\GoogleTokenProvider;
 use App\Connectors\Google\ServiceAccountTokenProvider;
 use App\Connectors\GoogleAds\GoogleAdsConnector;
+use App\Connectors\GoogleBusiness\GoogleBusinessConnector;
 use App\Connectors\Gsc\GscConnector;
 use App\Connectors\Instagram\InstagramConnector;
 use App\Connectors\Mailchimp\MailchimpConnector;
 use App\Connectors\MainWp\MainWpConnector;
+use App\Connectors\PageSpeed\PageSpeedConnector;
 use App\Connectors\SiteAgent\SiteAgentConnector;
 use App\Connectors\TikTokAds\TikTokAdsConnector;
 use App\Connectors\Virusdie\VirusdieConnector;
@@ -68,6 +70,8 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             $registry->register(new DatabaseConnector);
             $registry->register(new EndpointConnector);
             $registry->register(new SiteAgentConnector);
+            $registry->register(new PageSpeedConnector);
+            $registry->register(new GoogleBusinessConnector);
 
             return $registry;
         });
@@ -86,6 +90,8 @@ class ConnectorServiceProvider extends ServiceProvider implements DeferrableProv
             if ($google->isConfigured()) {
                 $registry->register(new GoogleConnect($google, DataSourceType::Ga4->value, 'Conectar con Google', ['https://www.googleapis.com/auth/analytics.readonly']));
                 $registry->register(new GoogleConnect($google, DataSourceType::Gsc->value, 'Conectar con Google', ['https://www.googleapis.com/auth/webmasters.readonly']));
+                // Business Profile has no read-only scope: business.manage is the one Google offers.
+                $registry->register(new GoogleConnect($google, DataSourceType::GoogleBusiness->value, 'Conectar con Google', ['https://www.googleapis.com/auth/business.manage']));
                 // Ads also needs the platform developer token: without it the connection would
                 // "succeed" and then every call would fail.
                 if ((new OAuthCredentials)->googleAdsDeveloperToken() !== '') {

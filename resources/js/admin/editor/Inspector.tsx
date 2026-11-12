@@ -155,6 +155,9 @@ function BackgroundControl({ style, setStyle }: { style: Record<string, unknown>
     );
 }
 
+/** Number format implied by a catalog unit (the rest read fine as plain numbers). */
+const UNIT_FORMATS: Record<string, string> = { percent: 'percent', currency: 'currency', duration: 'duration', seconds: 'seconds' };
+
 /** Visual chart-type gallery (CLAUDE.md §11.3) — every option renders for single-series data. */
 const CHART_TYPES: { type: string; label: string; Icon: LucideIcon }[] = [
     { type: 'line', label: 'Línea', Icon: LineChart },
@@ -355,14 +358,18 @@ export function Inspector({
                     catalog={catalog}
                     blockType={block.type}
                     value={block.binding != null ? { source: block.binding.source, metric: block.binding.metric } : null}
-                    onPick={(entry) =>
+                    onPick={(entry) => {
+                        // The metric's unit says how to read it (a %, money, seconds): set that
+                        // format so the number shows right without a trip to «Estilo».
+                        const unitFormat = UNIT_FORMATS[entry.unit ?? ''];
                         onChange({
                             ...block,
                             // A different metric invalidates the old measure/breakdown/filters,
                             // which referenced dimensions that may not exist here.
                             binding: { source: entry.source, metric: entry.metric, compare: block.binding?.compare },
-                        })
-                    }
+                            ...(unitFormat !== undefined ? { style: { ...block.style, format: unitFormat } } : {}),
+                        });
+                    }}
                     onClose={() => setPickerOpen(false)}
                 />
             )}
@@ -412,7 +419,7 @@ export function Inspector({
                                 <li><strong className="ir-text-foreground">Seguridad (20 %)</strong> · malware, vulnerabilidades y plugins abandonados (MainWP o el Agente).</li>
                                 <li><strong className="ir-text-foreground">Certificado SSL (10 %)</strong> · días para que venza; menos de 30 empieza a restar.</li>
                                 <li><strong className="ir-text-foreground">Respaldos (10 %)</strong> · días desde el último respaldo (Agente).</li>
-                                <li><strong className="ir-text-foreground">Rendimiento (15 %)</strong> · cuánto se sirve desde la caché de Cloudflare.</li>
+                                <li><strong className="ir-text-foreground">Rendimiento (15 %)</strong> · la nota de velocidad de Google en celular (Velocidad del sitio); si no la hay, cuánto se sirve desde la caché de Cloudflare.</li>
                             </ul>
                             <p className="ir-mt-2 ir-text-muted-foreground">El bloque muestra al cliente el detalle de cada punto. Si ninguna fuente mide la salud, en el informe se oculta.</p>
                         </div>
@@ -845,6 +852,7 @@ export function Inspector({
                                     { value: 'percent', label: '95%' },
                                     { value: 'currency', label: '$' },
                                     { value: 'duration', label: '1 h 30 min' },
+                                    { value: 'seconds', label: '2,5 s' },
                                 ]}
                             />
                         </Section>

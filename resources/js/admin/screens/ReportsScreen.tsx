@@ -182,6 +182,8 @@ const SOURCE_LABELS: Record<string, string> = {
     cloudflare: 'Cloudflare',
     crowdsec: 'CrowdSec',
     betteruptime: 'Uptime',
+    pagespeed: 'Velocidad',
+    google_business: 'Perfil de Empresa',
     calc: 'Calculada',
 };
 

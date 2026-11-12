@@ -7,6 +7,30 @@
 ---
 
 ## Where I left off (read me first)
+**⚡ VELOCIDAD DEL SITIO + PERFIL DE EMPRESA DE GOOGLE (2026-11-12, v1.42.0):** el owner eligió de la lista de mejoras frente a la
+competencia el punto 2 (velocidad real) y el 4 (Perfil de Empresa); el 1 (visibilidad en IA) quedó en duda y se le explicó cómo se obtiene.
+**Conector `pagespeed`** (`App\Connectors\PageSpeed\PageSpeedConnector`, label «Velocidad del sitio»): PageSpeed Insights v5 `runPagespeed`
+(category=performance, locale=es), sin cuentas del cliente; config opcional `url` (por defecto la del sitio). Corre celular y, si se piden
+métricas de computador, también escritorio. Métricas: `score_mobile/desktop` (0–100), `lcp/fcp` en segundos, `tbt` ms, `cls`, datos de
+visitantes reales de Chrome (`loadingExperience`, si no `originLoadingExperience`): `field_lcp/inp/cls` (CLS llega ×100 como entero), tabla
+`vitals` (Indicador/Resultado/Estado Bueno-Mejorable-Malo/Medido con) y `opportunities` (auditorías con `details.overallSavingsMs` o
+`metricSavings.LCP` ≥100 ms y score <0,9). **Clave de API obligatoria en la práctica:** una llamada real sin clave devolvió 429 (cuota diaria
+compartida agotada); se guarda en superadmin → Integraciones → Google (`google_pagespeed_api_key`, cifrada; respaldo
+`services.google_oauth.pagespeed_key`) y el error sin clave lo dice. Nuevo contrato `MeasuresOnlyNow`: `SyncService::sync()` devuelve null y no
+toca nada si el periodo terminó hace más de 7 días (un backfill no copia la velocidad de hoy al pasado). Health score: «Rendimiento» usa
+`pagespeed.score_mobile` si existe, si no el ratio de caché de Cloudflare. **Conector `google_business`** («Perfil de Empresa de Google»,
+OAuth `business.manage` vía `GoogleConnect`; redirect URI nuevo `.../connect/callback/google_business` en la guía): elige la ficha
+(`accounts/{a}/locations/{l}`) listando Account Management + Business Information (`readMask` obligatorio). Lee Performance API
+`fetchMultiDailyMetricsTimeSeries` (impresiones búsqueda/maps, llamadas, cómo llegar, clics web, mensajes, reservas; valor ausente = 0;
+rango recortado a hoy y 540 días), `searchkeywords/impressions/monthly` (sin las filas «threshold») y reseñas v4 (`averageRating`,
+`totalReviewCount`, nuevas/sin responder del periodo, tabla de últimas 10). Google exige **aprobación del proyecto** (cuota 0 hasta
+entonces): 429/«Quota exceeded» y 403 «API disabled» se explican en palabras. Guía nueva en el panel (`GoogleBusinessSetupGuide`) y en
+`docs/oauth-connect-setup.md` §1.5. Frontend: formato `seconds` («2,4 s», también al elegir una métrica con esa unidad: el inspector ahora
+pone el formato según la unidad), celdas Bueno/Mejorable/Malo como chips de color, `LOWER_IS_BETTER` incluye lcp/fcp/tbt/cls/inp y reseñas
+sin responder, plantillas de galería «Velocidad del sitio (Google)» y «Perfil de Empresa de Google», datos de ejemplo creíbles. Tests:
+PageSpeedConnectorTest (5), GoogleBusinessConnectorTest (5), HealthScoreCalculatorTest (+1). **Pendiente del owner:** crear la clave de
+PageSpeed y pegarla en el panel; para Perfil de Empresa, activar las 4 APIs, el scope, el redirect URI y pedir el acceso a Google.
+
 **🔔 AVISOS DE FUENTES POR PERSONA (2026-11-11, v1.41.0):** el owner pidió recibir avisos cuando alguien de su cuenta conecta
 una fuente, solo de los sitios que lleva, y cuando una se desconecta. Ahora cada persona del equipo tiene una **campana** (barra lateral,
 «Avisos», contador de no leídos; el panel se renderiza en un portal porque el sidebar usa `transform`) y elige en **Ajustes → Avisos** qué
@@ -2742,6 +2766,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-12) Las mediciones «en vivo» (PageSpeed) solo se guardan para el periodo actual o uno que cerró hace ≤7 días (`MeasuresOnlyNow`): inventar historia con la medición de hoy sería engañar al cliente. Perfil de Empresa se conecta solo por OAuth (no hay cuentas de servicio útiles) con `business.manage`, el único scope que ofrece Google.
 - (2026-11-11) Los avisos de conexiones son por persona (campana + correo opcional + filtro de sitios), no por agencia: el owner quiere enterarse solo de los sitios que lleva. «Conectada» se avisa cuando la conexión queda lista (si falta elegir la propiedad, al elegirla) y nunca a quien la hizo; «volvió a funcionar» solo cierra una caída que sí se avisó, para no hacer ruido.
 - (2026-11-05) Las series por hora y por día de la semana se ordenan y nombran al resolver el informe (no en el conector): así también se arreglan las instantáneas ya guardadas y el idioma sale del informe. El health score solo usa señales que alguna fuente mide y cada una se explica en una frase: un número sin explicación no le sirve al cliente.
 - (2026-11-05) La IA de diseño corre en la cola (no en la petición web) y con streaming: un informe grande puede tardar minutos y los límites de PHP/servidor cortaban la respuesta. «Pedir cambios» reutiliza los bloques que la IA deja igual (vía `ref`) para no perder ajustes manuales.
@@ -2934,6 +2959,8 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Open questions / blockers
+- (2026-11-12) Perfil de Empresa depende de que Google apruebe el proyecto de la plataforma (formulario «Application for Basic API Access»). Sin probar contra la API real: las formas de respuesta salen de la documentación oficial; verificar con la primera ficha conectada.
+- (2026-11-12) PageSpeed: el parser se escribió con la referencia oficial (no se pudo hacer una llamada real: sin clave Google devolvió 429). Verificar con la primera medición real que `numericValue`, los `percentile` de CrUX y `overallSavingsMs` llegan como se espera.
 - (2026-11-05) ¿`[virusdie.scan.count]` (Pro Reports) cuenta infecciones o escaneos? `mainwp.malware_found` lo usa como malware encontrado; si son escaneos, el health score y el escudo marcarían malware falso. Pendiente de que el owner lo vea en un sitio real.
 - (2026-11-05) `ga4.devices` se usa como clave de una tabla y de un dataset a la vez (entrada duplicada en el catálogo). Sin impacto visible hoy; revisar al tocar GA4.
 - (2026-11-05) ¿Automatizar el alta de dominios de agencias (alias + SSL) con la API de ServerAvatar? Hoy es manual desde el aviso del superadmin.

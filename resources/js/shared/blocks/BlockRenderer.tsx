@@ -131,7 +131,7 @@ function humanLabel(value: string): string {
 }
 
 /** Metrics where going DOWN is the good news (the trend pill turns green on a drop). */
-const LOWER_IS_BETTER = /position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|malware|out_of_stock|cron_overdue|last_backup/;
+const LOWER_IS_BETTER = /position|bounce|response_time|downtime|incident|cpc|cpa|cost_per|unsubscribe|vulnerab|malware|out_of_stock|cron_overdue|last_backup|lcp|fcp|tbt|cls|inp|reviews_unanswered/;
 
 /** A recognisable icon per kind of metric, so a row of KPIs reads at a glance. */
 function metricIcon(metric: string): LucideIcon {
@@ -367,6 +367,9 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
             return `${value.toLocaleString(locale, { maximumFractionDigits: value >= 99.95 && value < 100 ? 2 : 1 })}%`;
         case 'currency':
             return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+        case 'seconds':
+            // Short timings (page load): «2,4 s», keeping the decimal that matters.
+            return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
         case 'duration': {
             // A value in seconds rendered human-friendly: "30 s", "45 min", "1 h 30 min".
             const seconds = Math.max(0, Math.round(value));
@@ -791,6 +794,13 @@ function ChartBlock({ block, data }: BlockComponentProps): ReactElement {
     );
 }
 
+/** Verdict words a source writes in a table cell (speed checks), shown as colored chips. */
+const STATUS_TONE: Record<string, string> = {
+    Bueno: 'ir-bg-success/10 ir-text-success',
+    Mejorable: 'ir-bg-warning/15 ir-text-warning',
+    Malo: 'ir-bg-danger/10 ir-text-danger',
+};
+
 function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
     const rows = useFilteredRows(asRecords(data));
     // Interactive sort/search/paginate for the portal. A predefined order (set in the editor
@@ -951,6 +961,10 @@ function TableBlock({ block, data }: BlockComponentProps): ReactElement | null {
                                         </span>
                                     ) : numeric.has(col) ? (
                                         formatColumnValue(col, Number(row[col]), FALLBACK_LOCALE) ?? Number(row[col]).toLocaleString(FALLBACK_LOCALE)
+                                    ) : STATUS_TONE[String(row[col] ?? '')] !== undefined ? (
+                                        <span className={cn('ir-inline-flex ir-rounded-full ir-px-2 ir-py-0.5 ir-text-xs ir-font-medium', STATUS_TONE[String(row[col] ?? '')])}>
+                                            {String(row[col] ?? '')}
+                                        </span>
                                     ) : (
                                         humanLabel(String(row[col] ?? ''))
                                     )}

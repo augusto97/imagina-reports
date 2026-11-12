@@ -33,7 +33,7 @@ import {
     useTestPlatformAi,
     useUpdatePlatformMailSettings,
 } from '../api';
-import { GoogleAdsSetupGuide, GoogleSetupGuide, MercadoPagoWebhookGuide, MetaSetupGuide, PayPalWebhookGuide } from '../components/OAuthSetupGuide';
+import { GoogleAdsSetupGuide, GoogleBusinessSetupGuide, GoogleSetupGuide, MercadoPagoWebhookGuide, MetaSetupGuide, PayPalWebhookGuide } from '../components/OAuthSetupGuide';
 import { AiModelFields } from '../components/AiModelFields';
 import { SystemUpdatePanel } from '../components/SystemUpdatePanel';
 
@@ -1073,6 +1073,7 @@ function IntegrationsTab(): ReactElement {
     const [gSecret, setGSecret] = useState('');
     const [gDev, setGDev] = useState('');
     const [gMcc, setGMcc] = useState('');
+    const [gPsi, setGPsi] = useState('');
     const [mId, setMId] = useState('');
     const [mSecret, setMSecret] = useState('');
     const [savedWhat, setSavedWhat] = useState<'google' | 'meta' | null>(null);
@@ -1084,6 +1085,7 @@ function IntegrationsTab(): ReactElement {
                 setGSecret('');
                 setGDev('');
                 setGMcc('');
+                setGPsi('');
                 setMId('');
                 setMSecret('');
                 setSavedWhat(what);
@@ -1093,7 +1095,7 @@ function IntegrationsTab(): ReactElement {
 
     // Only the fields that were typed: empty means "keep what's saved".
     const pick = (fields: Record<string, string>): Record<string, string> => Object.fromEntries(Object.entries(fields).filter(([, value]) => value.trim() !== ''));
-    const googlePayload = pick({ google_oauth_client_id: gId, google_oauth_client_secret: gSecret, google_ads_developer_token: gDev, google_ads_login_customer_id: gMcc });
+    const googlePayload = pick({ google_oauth_client_id: gId, google_oauth_client_secret: gSecret, google_ads_developer_token: gDev, google_ads_login_customer_id: gMcc, google_pagespeed_api_key: gPsi });
     const metaPayload = pick({ meta_oauth_app_id: mId, meta_oauth_app_secret: mSecret });
 
     return (
@@ -1106,7 +1108,7 @@ function IntegrationsTab(): ReactElement {
             <div className="ir-flex ir-max-w-5xl ir-flex-col ir-gap-6">
                 <SettingsRow
                     title="Google"
-                    description="Una sola app de Google Cloud cubre Analytics 4, Search Console y Google Ads."
+                    description="Una sola app de Google Cloud cubre Analytics 4, Search Console, Google Ads, Perfil de Empresa y la velocidad (PageSpeed)."
                     status={
                         <div className="ir-flex ir-flex-wrap ir-gap-2">
                             <ConfigChip ready={settings?.google_connect_ready ?? false} note={settings?.google_from_env === true ? '(de la instalación)' : undefined} />
@@ -1135,6 +1137,19 @@ function IntegrationsTab(): ReactElement {
                                 </Field>
                             </div>
                             <GoogleAdsSetupGuide />
+                        </div>
+                        <div className="ir-flex ir-flex-col ir-gap-3 ir-border-t ir-pt-4">
+                            <p className="ir-text-xs ir-font-medium ir-text-muted-foreground">Solo para «Velocidad del sitio» (PageSpeed)</p>
+                            <Field
+                                label="Clave de API de PageSpeed Insights"
+                                hint="Necesaria: sin clave propia Google rechaza las pruebas (la cuota gratuita compartida está agotada). Créala en Google Cloud → APIs y servicios → Credenciales → Crear credenciales → Clave de API, y habilita «PageSpeed Insights API»."
+                            >
+                                <Input type="password" autoComplete="off" value={gPsi} onChange={(e) => setGPsi(e.target.value)} placeholder={settings?.google_pagespeed_key_set ? '•••••••• (déjalo vacío para conservarla)' : 'AIza…'} />
+                            </Field>
+                        </div>
+                        <div className="ir-flex ir-flex-col ir-gap-3 ir-border-t ir-pt-4">
+                            <p className="ir-text-xs ir-font-medium ir-text-muted-foreground">Solo para «Perfil de Empresa de Google»</p>
+                            <GoogleBusinessSetupGuide />
                         </div>
                         <SaveBar onSave={() => save(googlePayload, 'google')} disabled={Object.keys(googlePayload).length === 0} busy={update.isPending} saved={savedWhat === 'google'} />
                     </div>

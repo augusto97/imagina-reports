@@ -21,6 +21,8 @@ const SOURCE_LABELS: Record<string, string> = {
     virusdie: 'VirusDie',
     betteruptime: 'Disponibilidad',
     site_agent: 'Agente del sitio',
+    pagespeed: 'Velocidad del sitio',
+    google_business: 'Perfil de Empresa',
     database: 'Base de datos',
     calc: 'Métricas calculadas',
     worklog: 'Trabajo realizado',

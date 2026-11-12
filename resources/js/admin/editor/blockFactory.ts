@@ -222,6 +222,19 @@ function sampleKpi(block: Block): number {
     if (metric.includes('position')) {
         return 12.4;
     }
+    if (metric.includes('score_')) {
+        return metric.includes('desktop') ? 94 : 78;
+    }
+    if (format === 'seconds' || /lcp|fcp/.test(metric)) {
+        return 2.4;
+    }
+    if (metric === 'rating') {
+        return 4.7;
+    }
+    // A local business gets dozens of calls, not thousands.
+    if (block.binding?.source === 'google_business' && !metric.startsWith('views')) {
+        return 12 + ([...metric].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 48);
+    }
     if (format === 'currency' || /revenue|cost|spend|sales/.test(metric)) {
         return 4820;
     }
@@ -286,6 +299,22 @@ export function sampleData(block: Block): unknown {
         case 'chart': {
             // Hours of the day and days of the week preview with the same labels the report uses.
             const metric = typeof block.binding?.metric === 'string' ? block.binding.metric : '';
+            // A donut splits a whole into categories, never days.
+            if (block.props?.chartType === 'donut') {
+                return metric === 'actions_breakdown'
+                    ? [
+                          { label: 'Clics a la web', value: 46 },
+                          { label: 'Cómo llegar', value: 31 },
+                          { label: 'Llamadas', value: 24 },
+                          { label: 'Mensajes', value: 9 },
+                      ]
+                    : [
+                          { label: 'Búsqueda orgánica', value: 48 },
+                          { label: 'Directo', value: 27 },
+                          { label: 'Redes sociales', value: 15 },
+                          { label: 'Referidos', value: 10 },
+                      ];
+            }
             if (metric.endsWith('_by_hour')) {
                 const curve = [3, 2, 1, 1, 1, 2, 5, 9, 14, 18, 21, 22, 20, 19, 21, 22, 20, 18, 16, 15, 14, 12, 9, 6];
 
@@ -312,6 +341,32 @@ export function sampleData(block: Block): unknown {
                     { Fecha: '21/06/2026', Tipo: 'Plugin', Elemento: 'Rank Math SEO', 'Versión': '1.0.271 → 1.0.272' },
                     { Fecha: '18/06/2026', Tipo: 'Tema', Elemento: 'Astra', 'Versión': '4.0 → 4.6' },
                     { Fecha: '14/06/2026', Tipo: 'WordPress', Elemento: 'Núcleo de WordPress', 'Versión': '6.4.2 → 6.5' },
+                ];
+            }
+            if (metric === 'vitals') {
+                return [
+                    { Indicador: 'Carga del contenido principal (LCP)', Resultado: '2,4 s', Estado: 'Bueno', 'Medido con': 'Visitantes reales (28 días)' },
+                    { Indicador: 'Respuesta al tocar (INP)', Resultado: '240 ms', Estado: 'Mejorable', 'Medido con': 'Visitantes reales (28 días)' },
+                    { Indicador: 'Estabilidad visual (CLS)', Resultado: '0,05', Estado: 'Bueno', 'Medido con': 'Visitantes reales (28 días)' },
+                ];
+            }
+            if (metric === 'opportunities') {
+                return [
+                    { Mejora: 'Elimina los recursos que bloquean el renderizado', 'Ahorro estimado': '1,3 s' },
+                    { Mejora: 'Usa formatos de imagen modernos', 'Ahorro estimado': '0,8 s' },
+                ];
+            }
+            if (metric === 'search_keywords') {
+                return [
+                    { label: 'nombre de tu negocio', value: 310 },
+                    { label: 'tu servicio en tu ciudad', value: 140 },
+                    { label: 'tu servicio cerca de mí', value: 95 },
+                ];
+            }
+            if (metric === 'recent_reviews') {
+                return [
+                    { Fecha: '22/06/2026', Autor: 'Laura Gómez', Estrellas: 5, Comentario: 'Excelente atención, muy puntuales.', Respondida: 'Sí' },
+                    { Fecha: '15/06/2026', Autor: 'Carlos Ruiz', Estrellas: 4, Comentario: 'Muy buen servicio.', Respondida: 'No' },
                 ];
             }
             if (metric === 'pending_updates') {
