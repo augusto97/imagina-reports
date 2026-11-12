@@ -126,6 +126,31 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
      *
      * @var array<string, string>
      */
+    /**
+     * Session sources that are AI assistants. ChatGPT, Perplexity, Copilot and the rest send
+     * their visitors with these hosts (often tagged utm_source=chatgpt.com), so GA4 records them
+     * as the session source. Partial, case-insensitive match.
+     */
+    private const AI_SOURCES = 'chatgpt|openai|perplexity|gemini\\.google|bard\\.google|copilot\\.microsoft|claude\\.ai|deepseek|grok\\.com|meta\\.ai|you\\.com|phind\\.com|mistral\\.ai';
+
+    /** Readable assistant names for the session sources above. @var array<string, string> */
+    private const AI_NAMES = [
+        '/chatgpt|openai/' => 'ChatGPT',
+        '/perplexity/' => 'Perplexity',
+        '/gemini|bard/' => 'Gemini',
+        '/copilot/' => 'Copilot',
+        '/claude/' => 'Claude',
+        '/deepseek/' => 'DeepSeek',
+        '/grok/' => 'Grok',
+        '/meta\\.ai/' => 'Meta AI',
+        '/you\\.com/' => 'You.com',
+        '/phind/' => 'Phind',
+        '/mistral/' => 'Le Chat (Mistral)',
+    ];
+
+    /** Derived: % of all visits that came from an AI assistant. */
+    private const AI_SHARE = 'ga4.ai_share';
+
     private const DESCRIPTIONS = [
         'ga4.sessions' => 'Número de visitas a tu web en el periodo; una misma persona puede hacer varias visitas.',
         'ga4.users' => 'Personas distintas que visitaron tu web en el periodo.',
@@ -164,6 +189,12 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
         'ga4.by_age' => 'Visitantes por rango de edad; requiere Google Signals activado en Analytics (si no, el bloque se oculta).',
         'ga4.sessions_by_hour' => 'A qué horas del día llegan más visitas (según la zona horaria de tu Google Analytics).',
         'ga4.sessions_by_weekday' => 'Qué días de la semana llegan más visitas.',
+        'ga4.ai_sessions' => 'Visitas que llegaron a tu web desde un asistente de inteligencia artificial (ChatGPT, Perplexity, Gemini, Copilot, Claude…), según Google Analytics.',
+        'ga4.ai_share' => 'De cada 100 visitas a tu web, cuántas llegaron desde un asistente de inteligencia artificial.',
+        'ga4.ai_conversions' => 'Conversiones (formularios, compras…) de las visitas que llegaron desde un asistente de inteligencia artificial.',
+        'ga4.ai_sessions_by_date' => 'Visitas desde asistentes de inteligencia artificial cada día del periodo.',
+        'ga4.ai_sources' => 'Desde qué asistente de inteligencia artificial llegaron las visitas (ChatGPT, Perplexity, Gemini…).',
+        'ga4.ai_landing_pages' => 'Las páginas de tu web a las que más llegan las visitas que vienen de un asistente de inteligencia artificial.',
         'ga4.geo' => 'Visitas y usuarios por país, región y ciudad; puedes filtrar y elegir cómo desglosarlo.',
         'ga4.traffic' => 'Visitas, usuarios y conversiones según el canal, la fuente y el medio por el que llegan.',
         'ga4.pages' => 'Vistas y visitas por página o por página de entrada; puedes filtrar y elegir el desglose.',
@@ -176,6 +207,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
         foreach ($this->specs() as $key => $spec) {
             $definitions[] = new MetricDefinition($key, $spec['label'], $spec['type'], $spec['unit'], $spec['dimensions'], self::DESCRIPTIONS[$key] ?? null);
         }
+        $definitions[] = new MetricDefinition(self::AI_SHARE, 'Porcentaje de visitas desde IA', MetricType::Scalar, 'percent', [], self::DESCRIPTIONS[self::AI_SHARE]);
 
         // Datasets (multi-dimension, multi-measure) expose their filterable dimensions and
         // pickable measures so the editor can model blocks like Looker (§10 dashboards).
@@ -290,13 +322,13 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
 
         $specs = $this->specs();
         $datasets = $this->allDatasetSpecs($source);
-        $allKeys = array_merge(array_keys($specs), array_keys($datasets));
+        $allKeys = array_merge(array_keys($specs), array_keys($datasets), [self::AI_SHARE]);
         $keys = $requestedMetrics === [] ? $allKeys : array_values(array_intersect($requestedMetrics, $allKeys));
 
         $metrics = [];
         $errors = [];
 
-        foreach ($keys as $key) {
+        foreach (array_diff($keys, [self::AI_SHARE]) as $key) {
             try {
                 $isDataset = isset($datasets[$key]);
                 $body = $isDataset ? $this->datasetBody($datasets[$key], $period) : $this->body($specs[$key], $period);
@@ -314,8 +346,21 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
                 $metrics[$key] = $isDataset
                     ? $this->parseDataset($datasets[$key], $response->json())
                     : $this->parse($specs[$key], $response->json());
+
+                if ($key === 'ga4.ai_sources' && is_array($metrics[$key])) {
+                    $metrics[$key] = $this->assistants($metrics[$key]);
+                }
             } catch (Throwable $e) {
                 $errors[] = "{$key}: ".$e->getMessage();
+            }
+        }
+
+        // Share of all visits that came from an AI assistant (two totals: filtered and not).
+        if (in_array(self::AI_SHARE, $keys, true)) {
+            $fromAi = $metrics['ga4.ai_sessions'] ?? $this->total($token, $propertyId, $specs['ga4.ai_sessions'], $period);
+            $all = $metrics['ga4.sessions'] ?? $this->total($token, $propertyId, $specs['ga4.sessions'], $period);
+            if (is_numeric($fromAi) && is_numeric($all) && $all > 0) {
+                $metrics[self::AI_SHARE] = round((float) $fromAi / (float) $all * 100, 1);
             }
         }
 
@@ -326,6 +371,59 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
         return $errors === []
             ? MetricSet::ok($metrics)
             : MetricSet::partial($metrics, implode('; ', $errors));
+    }
+
+    /**
+     * One scalar report (used for the AI share when its parts weren't requested on their own).
+     *
+     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int, ai?: bool}  $spec
+     */
+    private function total(string $token, string $propertyId, array $spec, Period $period): int|float|null
+    {
+        try {
+            $response = Http::withToken($token)->acceptJson()->post(self::API_BASE."/properties/{$propertyId}:runReport", $this->body($spec, $period));
+        } catch (Throwable) {
+            return null;
+        }
+        if ($response->failed()) {
+            return null;
+        }
+
+        $value = $this->parse($spec, $response->json());
+
+        return is_array($value) ? null : $value;
+    }
+
+    /**
+     * «chatgpt.com», «chat.openai.com» → «ChatGPT», merged and biggest first.
+     *
+     * @param  array<array-key, mixed>  $rows
+     * @return list<array{label: string, value: int}>
+     */
+    private function assistants(array $rows): array
+    {
+        $totals = [];
+        foreach ($rows as $row) {
+            if (! is_array($row) || ! is_string($row['label'] ?? null) || ! is_numeric($row['value'] ?? null)) {
+                continue;
+            }
+            $name = $row['label'];
+            foreach (self::AI_NAMES as $pattern => $label) {
+                if (preg_match($pattern.'i', $row['label']) === 1) {
+                    $name = $label;
+                    break;
+                }
+            }
+            $totals[$name] = ($totals[$name] ?? 0) + (int) $row['value'];
+        }
+        arsort($totals);
+
+        $out = [];
+        foreach ($totals as $name => $value) {
+            $out[] = ['label' => (string) $name, 'value' => $value];
+        }
+
+        return $out;
     }
 
     private function propertyId(DataSource $source): string
@@ -464,7 +562,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
      * bound blocks hide gracefully (§10.4). `cast` controls int vs. 2-decimal output and
      * `scale` turns GA4's 0–1 ratios into 0–100 percentages.
      *
-     * @return array<string, array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int}>
+     * @return array<string, array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int, ai?: bool}>
      */
     private function specs(): array
     {
@@ -517,6 +615,13 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             // ---- By time-of-day / weekday ----
             'ga4.sessions_by_hour' => ['label' => 'Visitas por hora del día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['hour'], 'limit' => 24, 'cast' => 'int', 'scale' => 1],
             'ga4.sessions_by_weekday' => ['label' => 'Visitas por día de la semana', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['dayOfWeek'], 'limit' => 7, 'cast' => 'int', 'scale' => 1],
+
+            // ---- Visits from AI assistants (filtered by session source, see AI_SOURCES) ----
+            'ga4.ai_sessions' => ['label' => 'Visitas que llegan desde IA', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1, 'ai' => true],
+            'ga4.ai_conversions' => ['label' => 'Conversiones de visitas desde IA', 'type' => MetricType::Scalar, 'unit' => 'count', 'metrics' => ['conversions'], 'dimensions' => [], 'limit' => 1, 'cast' => 'int', 'scale' => 1, 'ai' => true],
+            'ga4.ai_sessions_by_date' => ['label' => 'Visitas desde IA por día', 'type' => MetricType::Series, 'unit' => 'count', 'metrics' => ['sessions'], 'dimensions' => ['date'], 'limit' => 400, 'cast' => 'int', 'scale' => 1, 'ai' => true],
+            'ga4.ai_sources' => ['label' => 'Asistentes de IA que te envían visitas', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['sessionSource'], 'limit' => 50, 'cast' => 'int', 'scale' => 1, 'ai' => true],
+            'ga4.ai_landing_pages' => ['label' => 'Páginas a las que llegan desde IA', 'type' => MetricType::Table, 'unit' => null, 'metrics' => ['sessions'], 'dimensions' => ['landingPage'], 'limit' => 10, 'cast' => 'int', 'scale' => 1, 'ai' => true],
         ];
     }
 
@@ -758,7 +863,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
     }
 
     /**
-     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int}  $spec
+     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int, ai?: bool}  $spec
      * @return array<string, mixed>
      */
     private function body(array $spec, Period $period): array
@@ -771,6 +876,14 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
             'metrics' => array_map(static fn (string $m): array => ['name' => $m], $spec['metrics']),
             'limit' => $spec['limit'],
         ];
+
+        // Only the visits whose source is an AI assistant (Data API FilterExpression).
+        if (($spec['ai'] ?? false) === true) {
+            $body['dimensionFilter'] = ['filter' => [
+                'fieldName' => 'sessionSource',
+                'stringFilter' => ['matchType' => 'PARTIAL_REGEXP', 'value' => self::AI_SOURCES, 'caseSensitive' => false],
+            ]];
+        }
 
         if ($spec['dimensions'] !== []) {
             $body['dimensions'] = array_map(static fn (string $d): array => ['name' => $d], $spec['dimensions']);
@@ -785,7 +898,7 @@ final class Ga4Connector implements DataSourceConnector, ListsConnectableResourc
     }
 
     /**
-     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int}  $spec
+     * @param  array{label: string, type: MetricType, unit: string|null, metrics: list<string>, dimensions: list<string>, limit: int, cast: 'int'|'float', scale: int, ai?: bool}  $spec
      * @return int|float|list<array{label: string, value: int|float}>|list<array{date: string, value: int|float}>
      */
     private function parse(array $spec, mixed $json): int|float|array

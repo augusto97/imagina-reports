@@ -9,6 +9,7 @@ use App\Connectors\MetricType;
 use App\Connectors\Period;
 use App\Enums\DataSourceType;
 use App\Models\DataSource;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\Support\Connectors\FakeGoogleTokenProvider;
@@ -284,5 +285,51 @@ class Ga4ConnectorTest extends TestCase
         $this->assertTrue($set->isFailed());
         $this->assertNotNull($set->error);
         Http::assertNothingSent();
+    }
+
+    public function test_visits_from_ai_assistants_are_read_with_a_source_filter(): void
+    {
+        Http::fake(function (Request $request) {
+            $body = $request->data();
+            $filtered = isset($body['dimensionFilter']);
+            $dimension = $body['dimensions'][0]['name'] ?? null;
+
+            return Http::response(match (true) {
+                $dimension === 'sessionSource' => ['rows' => [
+                    ['dimensionValues' => [['value' => 'chatgpt.com']], 'metricValues' => [['value' => '40']]],
+                    ['dimensionValues' => [['value' => 'perplexity.ai']], 'metricValues' => [['value' => '12']]],
+                    ['dimensionValues' => [['value' => 'chat.openai.com']], 'metricValues' => [['value' => '5']]],
+                    ['dimensionValues' => [['value' => 'gemini.google.com']], 'metricValues' => [['value' => '3']]],
+                ]],
+                $filtered => ['rows' => [['metricValues' => [['value' => '60']]]]],
+                default => ['rows' => [['metricValues' => [['value' => '2400']]]]],
+            });
+        });
+
+        $set = $this->connector()->fetch($this->source(), $this->period(), ['ga4.ai_sessions', 'ga4.ai_sources', 'ga4.ai_share']);
+
+        $this->assertSame(60, $set->get('ga4.ai_sessions'));
+        // Hosts become assistant names; chatgpt.com + chat.openai.com are both ChatGPT.
+        $this->assertSame([
+            ['label' => 'ChatGPT', 'value' => 45],
+            ['label' => 'Perplexity', 'value' => 12],
+            ['label' => 'Gemini', 'value' => 3],
+        ], $set->get('ga4.ai_sources'));
+        // 60 of 2.400 visits.
+        $this->assertSame(2.5, $set->get('ga4.ai_share'));
+        $this->assertFalse($set->has('ga4.sessions'));
+
+        Http::assertSent(function (Request $request): bool {
+            $filter = $request->data()['dimensionFilter']['filter'] ?? null;
+
+            return is_array($filter)
+                && $filter['fieldName'] === 'sessionSource'
+                && $filter['stringFilter']['matchType'] === 'PARTIAL_REGEXP'
+                && $filter['stringFilter']['caseSensitive'] === false
+                && preg_match('/'.$filter['stringFilter']['value'].'/i', 'chatgpt.com') === 1
+                && preg_match('/'.$filter['stringFilter']['value'].'/i', 'google') === 0
+                && preg_match('/'.$filter['stringFilter']['value'].'/i', 'youtube.com') === 0;
+        });
+        $this->assertTrue($this->connector()->metricCatalog($this->source())->has('ga4.ai_share'));
     }
 }

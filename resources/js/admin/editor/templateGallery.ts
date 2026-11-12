@@ -458,6 +458,23 @@ export const GALLERY: GalleryTemplate[] = [
         ],
     },
     {
+        key: 'ai_traffic',
+        name: 'Visitas desde inteligencia artificial',
+        description: 'Cuántas visitas llegan desde ChatGPT, Perplexity, Gemini y otros asistentes, qué parte del total son, a qué páginas llegan y si convierten (Google Analytics).',
+        build: () => [
+            header('Visitas que llegan desde la IA'),
+            kpi('ga4', 'ai_sessions', 'Visitas desde IA', { x: 0, y: 2, w: 4, h: 4 }),
+            kpi('ga4', 'ai_share', 'De cada 100 visitas, desde IA', { x: 4, y: 2, w: 4, h: 4 }, { format: 'percent' }),
+            kpi('ga4', 'ai_conversions', 'Conversiones desde IA', { x: 8, y: 2, w: 4, h: 4 }),
+            chart('ga4', 'ai_sessions_by_date', 'bar', 'Visitas desde IA por día', { x: 0, y: 6, w: 8, h: 7 }),
+            donut('ga4', 'ai_sources', 'Desde qué asistente llegan', { x: 8, y: 6, w: 4, h: 7 }),
+            table('ga4', 'ai_landing_pages', 'Páginas a las que llegan desde IA', { x: 0, y: 13, w: 12, h: 6 }),
+            summary({ x: 0, y: 19, w: 12, h: 4 }),
+            comments({ x: 0, y: 23, w: 12, h: 4 }),
+            cta(27),
+        ],
+    },
+    {
         key: 'pagespeed',
         name: 'Velocidad del sitio (Google)',
         description: 'La nota de velocidad de Google en celular y computador, los Core Web Vitals con su estado y qué haría más rápida la web.',

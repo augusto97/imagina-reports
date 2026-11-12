@@ -231,6 +231,10 @@ function sampleKpi(block: Block): number {
     if (metric === 'rating') {
         return 4.7;
     }
+    // Visits from AI assistants are a small slice of the traffic.
+    if (metric.startsWith('ai_')) {
+        return metric.includes('conversions') ? 4 : 86;
+    }
     // A local business gets dozens of calls, not thousands.
     if (block.binding?.source === 'google_business' && !metric.startsWith('views')) {
         return 12 + ([...metric].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 48);
@@ -301,6 +305,14 @@ export function sampleData(block: Block): unknown {
             const metric = typeof block.binding?.metric === 'string' ? block.binding.metric : '';
             // A donut splits a whole into categories, never days.
             if (block.props?.chartType === 'donut') {
+                if (metric === 'ai_sources') {
+                    return [
+                        { label: 'ChatGPT', value: 58 },
+                        { label: 'Perplexity', value: 14 },
+                        { label: 'Gemini', value: 9 },
+                        { label: 'Copilot', value: 5 },
+                    ];
+                }
                 return metric === 'actions_breakdown'
                     ? [
                           { label: 'Clics a la web', value: 46 },
@@ -328,7 +340,8 @@ export function sampleData(block: Block): unknown {
 
             return Array.from({ length: 30 }, (_, day) => ({
                 date: `202606${String(day + 1).padStart(2, '0')}`,
-                value: Math.round(220 + 60 * Math.sin(day / 3) + (day % 7) * 9),
+                // Visits from AI assistants are a trickle (matches the KPI sample of ~86 a month).
+                value: metric.startsWith('ai_') ? Math.max(0, Math.round(3 + 2 * Math.sin(day / 3) + (day % 4))) : Math.round(220 + 60 * Math.sin(day / 3) + (day % 7) * 9),
             }));
         }
         case 'table': {

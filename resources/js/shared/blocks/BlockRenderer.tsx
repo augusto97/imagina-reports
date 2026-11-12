@@ -368,8 +368,12 @@ function formatNumber(value: number, format: string, settings: ReportSettings = 
         case 'currency':
             return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
         case 'seconds':
-            // Short timings (page load): «2,4 s», keeping the decimal that matters.
-            return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
+            // Short timings (page load): «2,4 s», keeping the decimal that matters. From a minute
+            // up (a visit's average length) it reads like a duration: «4 min».
+            if (Math.abs(value) < 60) {
+                return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
+            }
+            return formatNumber(value, 'duration', settings);
         case 'duration': {
             // A value in seconds rendered human-friendly: "30 s", "45 min", "1 h 30 min".
             const seconds = Math.max(0, Math.round(value));

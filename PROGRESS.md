@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🤖 VISITAS QUE LLEGAN DESDE IA (2026-11-12, v1.43.0):** de las opciones para medir «visibilidad en IA», el owner eligió solo la gratuita:
+lo que Google Analytics ya registra. `Ga4Connector` suma métricas filtradas por `sessionSource` con un `dimensionFilter`
+(`stringFilter`, `PARTIAL_REGEXP`, sin mayúsculas, constante `AI_SOURCES`: chatgpt/openai, perplexity, gemini/bard, copilot, claude, deepseek,
+grok, meta.ai, you.com, phind, mistral): `ga4.ai_sessions`, `ga4.ai_conversions`, `ga4.ai_sessions_by_date`, `ga4.ai_sources` (hosts → nombre
+del asistente con `AI_NAMES`, fusionados: chatgpt.com + chat.openai.com = ChatGPT), `ga4.ai_landing_pages` y la derivada `ga4.ai_share`
+(% de visitas desde IA = visitas IA / visitas totales; si no se pidieron las partes, hace los dos totales). Plantilla de galería «Visitas desde
+inteligencia artificial» y datos de ejemplo coherentes. Además: el formato `seconds` pasa a «4 min» desde 60 s (el «Tiempo medio por visita» de
+GA4 también usa la unidad `seconds` y se veía «245 s»). Test nuevo en Ga4ConnectorTest. **No incluye** consultar a ChatGPT/Gemini por
+API (tiene costo; el owner no lo quiere).
+
 **⚡ VELOCIDAD DEL SITIO + PERFIL DE EMPRESA DE GOOGLE (2026-11-12, v1.42.0):** el owner eligió de la lista de mejoras frente a la
 competencia el punto 2 (velocidad real) y el 4 (Perfil de Empresa); el 1 (visibilidad en IA) quedó en duda y se le explicó cómo se obtiene.
 **Conector `pagespeed`** (`App\Connectors\PageSpeed\PageSpeedConnector`, label «Velocidad del sitio»): PageSpeed Insights v5 `runPagespeed`
@@ -2766,6 +2776,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-12) «Visibilidad en IA» se mide solo con datos reales y gratis (visitas de GA4 cuya fuente es un asistente de IA), no preguntándole a las IAs por API: el owner no quiere el costo y una muestra de respuestas no es un dato real.
 - (2026-11-12) Las mediciones «en vivo» (PageSpeed) solo se guardan para el periodo actual o uno que cerró hace ≤7 días (`MeasuresOnlyNow`): inventar historia con la medición de hoy sería engañar al cliente. Perfil de Empresa se conecta solo por OAuth (no hay cuentas de servicio útiles) con `business.manage`, el único scope que ofrece Google.
 - (2026-11-11) Los avisos de conexiones son por persona (campana + correo opcional + filtro de sitios), no por agencia: el owner quiere enterarse solo de los sitios que lleva. «Conectada» se avisa cuando la conexión queda lista (si falta elegir la propiedad, al elegirla) y nunca a quien la hizo; «volvió a funcionar» solo cierra una caída que sí se avisó, para no hacer ruido.
 - (2026-11-05) Las series por hora y por día de la semana se ordenan y nombran al resolver el informe (no en el conector): así también se arreglan las instantáneas ya guardadas y el idioma sale del informe. El health score solo usa señales que alguna fuente mide y cada una se explica en una frase: un número sin explicación no le sirve al cliente.
