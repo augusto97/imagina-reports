@@ -11,6 +11,8 @@ return [
     // GitHub repo polled by `system:check-updates` to register the latest release
     // (its .zip bundle + .sha256 checksum) so the in-app updater can offer it.
     'github_repo' => env('UPDATER_GITHUB_REPO', 'augusto97/imagina-reports'),
+    // Fallback for the read-only token the super-admin saves in Sistema (private repositories).
+    'github_token' => env('UPDATER_GITHUB_TOKEN', ''),
 
     // Atomic release layout (CLAUDE.md §12.2). `base` holds releases/, shared/ and
     // the `current` symlink (OLS webroot points at current/public). The running app

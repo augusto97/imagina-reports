@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Update;
 
+use App\Console\Commands\CheckUpdatesCommand;
 use App\Models\AppRelease;
 use Illuminate\Support\Facades\Cache;
 
@@ -88,7 +89,7 @@ final readonly class UpdateManager
     }
 
     /**
-     * @return array{current: string, available: string|null, update_available: bool, worker_version: string|null, worker_checked_at: string|null, last_run: RunState}
+     * @return array{current: string, available: string|null, update_available: bool, worker_version: string|null, worker_checked_at: string|null, last_run: RunState, check_error: string|null}
      */
     public function status(): array
     {
@@ -103,6 +104,7 @@ final readonly class UpdateManager
             'worker_version' => $worker['version'],
             'worker_checked_at' => $worker['at'],
             'last_run' => $this->lastRun(),
+            'check_error' => is_string($error = Cache::get(CheckUpdatesCommand::ERROR_KEY)) ? $error : null,
         ];
     }
 

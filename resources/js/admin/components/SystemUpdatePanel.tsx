@@ -2,6 +2,7 @@ import { ArrowUpCircle, CheckCircle2, Cpu, History, RefreshCw, Server, TriangleA
 import { type ReactElement } from 'react';
 
 import { useCheckUpdates, useRestartWorkers, useRollback, useRunUpdate, useUpdateStatus } from '../api';
+import { GithubAccessCard } from './GithubAccessCard';
 import { ActionMenu, Button, Card, StatCard } from './ui';
 
 function version(value: string | null | undefined): string {
@@ -27,6 +28,7 @@ export function SystemUpdatePanel(): ReactElement {
     const inFlight = run.status === 'queued' || run.status === 'running';
     const workerBehind = status.worker_version !== null && status.worker_version !== status.current;
 
+    const checkError = status.check_error ?? null;
     const onUpdate = (): void => {
         if (window.confirm('¿Actualizar a la versión disponible? Se hace un respaldo y, si el health check falla, se revierte solo.')) {
             runUpdate.mutate();
@@ -51,12 +53,18 @@ export function SystemUpdatePanel(): ReactElement {
                 </span>
                 <div className="ir-min-w-0 ir-flex-1">
                     <p className="ir-text-[15px] ir-font-semibold ir-tracking-tight">
-                        {status.update_available ? `Hay una versión nueva: ${version(status.available)}` : 'La plataforma está al día'}
+                        {status.update_available
+                            ? `Hay una versión nueva: ${version(status.available)}`
+                            : checkError !== null
+                              ? 'No se pudo comprobar si hay versiones nuevas'
+                              : 'La plataforma está al día'}
                     </p>
-                    <p className="ir-mt-0.5 ir-text-[13px] ir-text-muted-foreground">
+                    <p className={`ir-mt-0.5 ir-text-[13px] ${checkError !== null && !status.update_available ? 'ir-text-warning' : 'ir-text-muted-foreground'}`}>
                         {status.update_available
                             ? 'Se hace un respaldo, se instala al lado de la actual y se cambia en un instante. Si algo falla, vuelve sola a la anterior.'
-                            : `Estás en ${version(status.current)}. Busca de nuevo cuando publiques una versión.`}
+                            : checkError !== null
+                              ? `Estás en ${version(status.current)}. ${checkError}`
+                              : `Estás en ${version(status.current)}. Busca de nuevo cuando publiques una versión.`}
                     </p>
                 </div>
                 <div className="ir-flex ir-items-center ir-gap-2">
@@ -117,6 +125,8 @@ export function SystemUpdatePanel(): ReactElement {
             {runUpdate.isError && <p className="ir-text-xs ir-text-danger">No se pudo encolar la actualización.</p>}
             {rollback.isSuccess && <p className="ir-text-xs ir-text-success">Se volvió a la versión anterior.</p>}
             {restartWorkers.isSuccess && <p className="ir-text-xs ir-text-success">Trabajadores reiniciados.</p>}
+
+            <GithubAccessCard />
         </div>
     );
 }

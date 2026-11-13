@@ -7,6 +7,16 @@
 ---
 
 ## Where I left off (read me first)
+**🔑 ACTUALIZAR CON EL REPOSITORIO PRIVADO (2026-11-13, v1.44.4):** el owner tenía el repositorio privado y «Buscar actualizaciones»
+seguía diciendo «al día» (la consulta a GitHub daba 404 y se callaba). Ahora: (1) si la consulta falla, Sistema dice «No se pudo comprobar…» y
+por qué (`CheckUpdatesCommand::ERROR_KEY` en caché 1 día, `status().check_error`): privado sin token, token sin acceso, límite de GitHub o
+sin conexión. (2) Tarjeta «Acceso a GitHub» en Sistema (`GithubAccessCard`) para guardar un token fine-grained de solo lectura
+(`OAuthCredentials::GITHUB_UPDATER_TOKEN` = `github_updater_token`, cifrado en PlatformSetting vía `/platform/integrations`; respaldo
+silencioso `updater.github_token`/`UPDATER_GITHUB_TOKEN`), con los pasos para crearlo. Con token, la consulta lo envía y el paquete se
+registra por su URL de API (`assets/{id}`) y se descarga con `Accept: application/octet-stream` + token (`CheckUpdatesCommand::github()`, usado
+también por `SymlinkDeployer`); Guzzle quita el token al seguir la redirección al enlace firmado. **El owner debe instalar la 1.44.4 con el
+repo aún público, guardar el token y recién entonces volverlo privado.**
+
 **⌄ BARRA DE IA OCULTABLE (2026-11-13, v1.44.3):** al owner la barra fija de IA bajo el lienzo le quitaba espacio y no se podía ocultar.
 Ahora tiene una flecha ⌄ que la oculta del todo (no deja espacio); se recuerda en ese navegador (`localStorage` `ir.editor.aiBar` = `hidden`,
 con try/catch). La IA sigue en el botón «IA» de arriba, y su ventana muestra «Mostrar la barra de IA bajo el lienzo» cuando está oculta.
@@ -2818,6 +2828,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-13) El actualizador funciona con repositorio privado mediante un token de GitHub de solo lectura guardado en Sistema (no en .env): todo se configura desde el admin. Una consulta fallida se muestra con su motivo; «al día» solo se dice cuando GitHub respondió.
 - (2026-11-13) La IA del editor deja de estar escondida: el owner la usa para cambiar informes y no la encontraba. Se revierte la decisión anterior de dejarla como botón discreto dentro de «Plantillas»; ahora tiene botón propio (acento) y una barra de pedido siempre visible bajo el lienzo.
 - (2026-11-12) Un número que no se midió no se guarda como 0: si la API rechaza una métrica, una consulta no devuelve filas o falta el dato, el bloque se oculta (con diagnóstico). Un 0 inventado se lee como un hecho («nadie te escribió», «sin malware»). Por lo mismo, el conteo de escaneos de Virusdie dejó de llamarse «malware detectado» y una sincronización fallida conserva lo último bueno.
 - (2026-11-12) «Vs periodo anterior» compara con un periodo del mismo tipo (mes calendario anterior, o los mismos días justo antes); si no existe, no compara. Las tasas cambian en puntos, no en %.

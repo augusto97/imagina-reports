@@ -29,7 +29,7 @@ final class PlatformIntegrationsController extends Controller
     private const PLAIN = [OAuthCredentials::GOOGLE_CLIENT_ID, OAuthCredentials::GOOGLE_ADS_LOGIN_CUSTOMER_ID, OAuthCredentials::META_APP_ID];
 
     /** The secret fields, only ever reported as "configured" booleans. */
-    private const SECRETS = [OAuthCredentials::GOOGLE_CLIENT_SECRET, OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN, OAuthCredentials::GOOGLE_PAGESPEED_KEY, OAuthCredentials::META_APP_SECRET];
+    private const SECRETS = [OAuthCredentials::GOOGLE_CLIENT_SECRET, OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN, OAuthCredentials::GOOGLE_PAGESPEED_KEY, OAuthCredentials::META_APP_SECRET, OAuthCredentials::GITHUB_UPDATER_TOKEN];
 
     public function show(): JsonResponse
     {
@@ -46,6 +46,7 @@ final class PlatformIntegrationsController extends Controller
             OAuthCredentials::GOOGLE_PAGESPEED_KEY => ['sometimes', 'nullable', 'string', 'max:200'],
             OAuthCredentials::META_APP_ID => ['sometimes', 'nullable', 'string'],
             OAuthCredentials::META_APP_SECRET => ['sometimes', 'nullable', 'string'],
+            OAuthCredentials::GITHUB_UPDATER_TOKEN => ['sometimes', 'nullable', 'string', 'max:255'],
             // Claude for every agency without its own key (falls back to .env).
             AiSettings::PLATFORM_KEY => ['sometimes', 'nullable', 'string', 'max:255'],
             AiSettings::PLATFORM_MODEL => ['sometimes', 'nullable', 'string', 'max:100', static function (string $attribute, mixed $value, \Closure $fail): void {
@@ -138,6 +139,7 @@ final class PlatformIntegrationsController extends Controller
             'google_ads_developer_token_set' => $settings->hasSecret(OAuthCredentials::GOOGLE_ADS_DEVELOPER_TOKEN),
             'google_pagespeed_key_set' => $settings->hasSecret(OAuthCredentials::GOOGLE_PAGESPEED_KEY),
             'meta_oauth_app_secret_set' => $settings->hasSecret(OAuthCredentials::META_APP_SECRET),
+            'github_updater_token_set' => $settings->hasSecret(OAuthCredentials::GITHUB_UPDATER_TOKEN),
             // Whether the connect button will actually show (panel OR .env provides the pair).
             'google_connect_ready' => $googleConfigured,
             'meta_connect_ready' => $metaConfigured,

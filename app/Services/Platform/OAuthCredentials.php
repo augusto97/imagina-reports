@@ -28,6 +28,9 @@ final class OAuthCredentials
     /** Google PageSpeed Insights API key: optional, but without one Google rations the tests. */
     public const GOOGLE_PAGESPEED_KEY = 'google_pagespeed_api_key';
 
+    /** Read-only GitHub token so the self-updater can see and download releases of a PRIVATE repository. */
+    public const GITHUB_UPDATER_TOKEN = 'github_updater_token';
+
     public const META_APP_ID = 'meta_oauth_app_id';
 
     public const META_APP_SECRET = 'meta_oauth_app_secret';
@@ -57,6 +60,11 @@ final class OAuthCredentials
     public function googlePageSpeedKey(): string
     {
         return $this->secret(self::GOOGLE_PAGESPEED_KEY, 'services.google_oauth.pagespeed_key');
+    }
+
+    public function githubUpdaterToken(): string
+    {
+        return trim($this->secret(self::GITHUB_UPDATER_TOKEN, 'updater.github_token'));
     }
 
     public function metaAppId(): string

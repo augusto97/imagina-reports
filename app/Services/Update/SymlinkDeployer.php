@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Update;
 
+use App\Console\Commands\CheckUpdatesCommand;
 use App\Models\AppRelease;
+use App\Services\Platform\OAuthCredentials;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
@@ -91,7 +93,11 @@ final class SymlinkDeployer implements Deployer
         @mkdir($dir, 0775, true);
         $zip = $dir.'.zip';
 
-        $response = Http::timeout(600)->sink($zip)->get($url);
+        // A private repository's bundle is registered by its API asset URL: download it with
+        // the read-only token saved in Sistema.
+        $response = str_starts_with($url, 'https://api.github.com/')
+            ? CheckUpdatesCommand::github(app(OAuthCredentials::class)->githubUpdaterToken(), true)->sink($zip)->get($url)
+            : Http::timeout(600)->sink($zip)->get($url);
 
         if ($response->failed()) {
             throw new RuntimeException('Failed to download release bundle: HTTP '.$response->status());

@@ -87,6 +87,8 @@ export interface PlatformIntegrationsSettings {
     google_ads_developer_token_set: boolean;
     google_pagespeed_key_set: boolean;
     meta_oauth_app_secret_set: boolean;
+    /** A read-only GitHub token is saved for the self-updater (private repository). */
+    github_updater_token_set?: boolean;
     google_connect_ready: boolean;
     meta_connect_ready: boolean;
     google_from_env: boolean;
@@ -617,6 +619,8 @@ export interface UpdateStatus {
     worker_version: string | null;
     worker_checked_at: string | null;
     last_run: UpdateRunState;
+    /** Why the last «Buscar actualizaciones» couldn't read GitHub (null when it could). */
+    check_error?: string | null;
 }
 
 export interface AuditLogEntry {
