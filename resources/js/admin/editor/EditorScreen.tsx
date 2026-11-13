@@ -192,6 +192,7 @@ import { apiErrorMessage } from "@shared/lib/api";
 import { SyncStatus } from "./SyncStatus";
 import { TemplatePicker } from "./TemplatePicker";
 import { AiGenerateModal } from "./AiGenerateModal";
+import { AiCommandBar } from "./AiCommandBar";
 import { ClientPreview } from "./ClientPreview";
 
 import { Button, Field } from "../components/ui";
@@ -623,6 +624,17 @@ export function EditorScreen(): ReactElement {
                 },
             },
         );
+    };
+
+    // The bar under the canvas: a change to the report on the canvas (told which page is open,
+    // so «en esta página» means something), or the whole report when the canvas is empty.
+    const askAi = (text: string): void => {
+        if (blocks.length > 1) {
+            const page = pageNames[currentPage]?.trim() || `Página ${currentPage + 1}`;
+            adjustWithAi(pageCount > 1 ? `${text}\n\n(En el editor está abierta la página «${page}»: si digo «esta página», es esa.)` : text);
+        } else {
+            generateWithAi(text);
+        }
     };
 
     const undoAi = (): void => {
@@ -1554,10 +1566,6 @@ export function EditorScreen(): ReactElement {
                             {editingTemplateId !== null ? "Editando" : "Borrador"}
                         </span>
 
-                        {/* The two ways to START a report, side by side. Both plain ghost
-                            buttons: the AI one used to be accent-filled and shouted at
-                            people who don't want AI in their workflow — being an option is
-                            not the same as being the recommended one. */}
                         {/* One entry for models, own templates and AI — two buttons that both
                             meant "start from something" made the bar busier than it had to be. */}
                         <Button
@@ -1569,6 +1577,19 @@ export function EditorScreen(): ReactElement {
                         >
                             <LayoutTemplate className="ir-size-4" />
                             Plantillas
+                        </Button>
+
+                        {/* The AI has its own button (and a bar under the canvas): hidden inside
+                            «Plantillas» people didn't find it to ask for changes. */}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ir-shrink-0 ir-border-accent/40 ir-bg-accent/10 ir-font-semibold ir-text-accent hover:ir-bg-accent/15"
+                            onClick={() => setAiOpen(true)}
+                            title="Pedirle a la IA un informe, una sección o cambios al actual"
+                        >
+                            <Sparkles className="ir-size-4" />
+                            IA
                         </Button>
 
                         <Button
@@ -2331,6 +2352,16 @@ export function EditorScreen(): ReactElement {
                             </div>
                         </div>
                     </div>
+
+                    <AiCommandBar
+                        siteReady={siteId !== null}
+                        hasReport={blocks.length > 1}
+                        pending={ai.isPending || aiAdjust.isPending || aiSection.isPending}
+                        error={aiError}
+                        onSubmit={askAi}
+                        onMore={() => setAiOpen(true)}
+                        compact={isCompact}
+                    />
                 </div>
 
                 {/* ---- Right panel (collapsible): block settings · report settings ---- */}

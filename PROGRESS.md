@@ -7,6 +7,13 @@
 ---
 
 ## Where I left off (read me first)
+**✨ IA A LA VISTA EN EL EDITOR (2026-11-13, v1.44.2):** el owner casi no encontraba cómo pedirle cambios a la IA (en escritorio solo se
+llegaba desde «Plantillas»). Ahora: botón «IA» violeta (color de acento) en la barra superior que abre la ventana completa, y una barra fija
+bajo el lienzo (`AiCommandBar`) donde se escribe el pedido y se envía con Enter: con un informe en el lienzo es «Pedir cambios» (se le dice a
+la IA qué página está abierta, para que «en esta página» funcione); con el lienzo vacío arma el informe. Muestra «La IA está trabajando… 0:42»,
+conserva el texto si falló y se limpia al aplicarse; «Más opciones» abre la ventana (informe completo, añadir sección, ideas). Sin sitio
+elegido la barra lo pide. `useElapsed` pasó a su propio archivo (lo usan la barra y la ventana).
+
 **↔️ REORDENAR PÁGINAS DEL REPORTE (2026-11-12, v1.44.1):** el owner no encontraba cómo cambiar el orden de las pestañas en el editor (no
 existía). Ahora una pestaña se arrastra sobre otra para mover la página entera (sus bloques, su nombre y sus filtros de página), y la pestaña
 abierta tiene flechas ‹ › para moverla un paso (sirve también en pantallas táctiles). Lógica pura en `resources/js/admin/editor/pageOrder.ts`
@@ -2807,6 +2814,7 @@ start-from-default-template. Needs a release to reach the live VPS.
 ---
 
 ## Decisions log
+- (2026-11-13) La IA del editor deja de estar escondida: el owner la usa para cambiar informes y no la encontraba. Se revierte la decisión anterior de dejarla como botón discreto dentro de «Plantillas»; ahora tiene botón propio (acento) y una barra de pedido siempre visible bajo el lienzo.
 - (2026-11-12) Un número que no se midió no se guarda como 0: si la API rechaza una métrica, una consulta no devuelve filas o falta el dato, el bloque se oculta (con diagnóstico). Un 0 inventado se lee como un hecho («nadie te escribió», «sin malware»). Por lo mismo, el conteo de escaneos de Virusdie dejó de llamarse «malware detectado» y una sincronización fallida conserva lo último bueno.
 - (2026-11-12) «Vs periodo anterior» compara con un periodo del mismo tipo (mes calendario anterior, o los mismos días justo antes); si no existe, no compara. Las tasas cambian en puntos, no en %.
 - (2026-11-12) «Visibilidad en IA» se mide solo con datos reales y gratis (visitas de GA4 cuya fuente es un asistente de IA), no preguntándole a las IAs por API: el owner no quiere el costo y una muestra de respuestas no es un dato real.

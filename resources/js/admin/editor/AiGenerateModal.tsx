@@ -1,9 +1,10 @@
 import { Loader2, Sparkles, X } from 'lucide-react';
-import { type ReactElement, useEffect, useState } from 'react';
+import { type ReactElement, useState } from 'react';
 
 import { cn } from '@shared/lib/utils';
 
 import { Button } from '../components/ui';
+import { useElapsed } from './useElapsed';
 
 /** Ready-made requests: a starting point the person edits, not a fixed menu. */
 const EXAMPLES: { label: string; text: string }[] = [
@@ -37,22 +38,6 @@ const CHANGES: { label: string; text: string }[] = [
     { label: 'Lo importante primero', text: 'Pon las cifras más importantes al principio de cada página y deja el detalle al final.' },
     { label: 'Más compacto', text: 'Hazlo más corto: quita los bloques que repiten información y deja solo lo que más le interesa al cliente.' },
 ];
-
-/** «0:42» since the run started, while the AI works. */
-function useElapsed(running: boolean): string {
-    const [seconds, setSeconds] = useState(0);
-    useEffect(() => {
-        if (!running) {
-            setSeconds(0);
-            return;
-        }
-        const started = Date.now();
-        const timer = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
-        return () => clearInterval(timer);
-    }, [running]);
-
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
 
 /**
  * «Generar con IA»: describe the report the way you'd ask someone on your team. The full-report
