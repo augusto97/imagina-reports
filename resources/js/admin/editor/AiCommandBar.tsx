@@ -1,4 +1,4 @@
-import { ArrowUp, Loader2, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { ArrowUp, ChevronDown, Loader2, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { cn } from '@shared/lib/utils';
@@ -8,7 +8,8 @@ import { useElapsed } from './useElapsed';
 /**
  * The AI, always at hand under the canvas: type a change («agrega un gráfico de ventas por día»)
  * and press Enter. With a report on the canvas it asks for changes; on an empty one it builds the
- * report. «Más opciones» opens the full window (whole report, add a section, ideas).
+ * report. «Más opciones» opens the full window (whole report, add a section, ideas). It can be
+ * hidden for good (the «IA» button on the top bar stays, and its window can bring the bar back).
  */
 export function AiCommandBar({
     siteReady,
@@ -17,6 +18,7 @@ export function AiCommandBar({
     error,
     onSubmit,
     onMore,
+    onHide,
     compact = false,
 }: {
     siteReady: boolean;
@@ -26,6 +28,7 @@ export function AiCommandBar({
     error: string | null;
     onSubmit: (text: string) => void;
     onMore: () => void;
+    onHide: () => void;
     compact?: boolean;
 }): ReactElement {
     const [text, setText] = useState('');
@@ -63,7 +66,7 @@ export function AiCommandBar({
           : 'Describe el informe que quieres y la IA lo arma con tus datos…';
 
     return (
-        <div className="ir-shrink-0 ir-border-t ir-bg-background/80 ir-px-3 ir-py-2.5 ir-backdrop-blur lg:ir-px-6">
+        <div className="ir-shrink-0 ir-border-t ir-bg-background/80 ir-px-3 ir-py-2 ir-backdrop-blur lg:ir-px-6">
             <form onSubmit={submit} className="ir-mx-auto ir-flex ir-max-w-3xl ir-items-center ir-gap-2">
                 <div
                     className={cn(
@@ -111,6 +114,15 @@ export function AiCommandBar({
                 >
                     <SlidersHorizontal className="ir-size-3.5" />
                     <span className={cn(compact && 'ir-sr-only')}>Más opciones</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={onHide}
+                    title="Ocultar esta barra. La IA sigue en el botón «IA» de arriba, y desde ahí puedes volver a mostrarla."
+                    aria-label="Ocultar la barra de IA"
+                    className="ir-flex ir-size-8 ir-shrink-0 ir-items-center ir-justify-center ir-rounded-full ir-text-muted-foreground hover:ir-bg-muted hover:ir-text-foreground"
+                >
+                    <ChevronDown className="ir-size-4" />
                 </button>
             </form>
         </div>

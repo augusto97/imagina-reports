@@ -55,6 +55,8 @@ export function AiGenerateModal({
     onFull,
     onSection,
     onAdjust,
+    barHidden = false,
+    onShowBar,
 }: {
     onClose: () => void;
     siteReady: boolean;
@@ -67,6 +69,9 @@ export function AiGenerateModal({
     onFull: (prompt: string) => void;
     onSection: (prompt: string) => void;
     onAdjust: (prompt: string) => void;
+    /** The quick bar under the canvas was hidden: offer to bring it back. */
+    barHidden?: boolean;
+    onShowBar?: () => void;
 }): ReactElement {
     // With a report on the canvas, asking for changes is the likely next step.
     const [mode, setMode] = useState<'full' | 'section' | 'adjust'>(replacing ? 'adjust' : 'full');
@@ -225,9 +230,16 @@ export function AiGenerateModal({
                         {error}
                     </p>
                 )}
-                <p className="ir-mt-4 ir-text-[11px] ir-text-muted-foreground">
-                    ¿Prefieres partir de una plantilla? Pulsa <strong>«Plantillas»</strong> en la barra superior.
-                </p>
+                <div className="ir-mt-4 ir-flex ir-flex-wrap ir-items-center ir-justify-between ir-gap-2 ir-text-[11px] ir-text-muted-foreground">
+                    <p>
+                        ¿Prefieres partir de una plantilla? Pulsa <strong>«Plantillas»</strong> en la barra superior.
+                    </p>
+                    {barHidden && onShowBar !== undefined && (
+                        <button type="button" onClick={onShowBar} className="ir-font-medium ir-text-accent hover:ir-underline">
+                            Mostrar la barra de IA bajo el lienzo
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );

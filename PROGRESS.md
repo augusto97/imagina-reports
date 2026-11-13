@@ -7,6 +7,10 @@
 ---
 
 ## Where I left off (read me first)
+**⌄ BARRA DE IA OCULTABLE (2026-11-13, v1.44.3):** al owner la barra fija de IA bajo el lienzo le quitaba espacio y no se podía ocultar.
+Ahora tiene una flecha ⌄ que la oculta del todo (no deja espacio); se recuerda en ese navegador (`localStorage` `ir.editor.aiBar` = `hidden`,
+con try/catch). La IA sigue en el botón «IA» de arriba, y su ventana muestra «Mostrar la barra de IA bajo el lienzo» cuando está oculta.
+
 **✨ IA A LA VISTA EN EL EDITOR (2026-11-13, v1.44.2):** el owner casi no encontraba cómo pedirle cambios a la IA (en escritorio solo se
 llegaba desde «Plantillas»). Ahora: botón «IA» violeta (color de acento) en la barra superior que abre la ventana completa, y una barra fija
 bajo el lienzo (`AiCommandBar`) donde se escribe el pedido y se envía con Enter: con un informe en el lienzo es «Pedir cambios» (se le dice a

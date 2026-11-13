@@ -147,6 +147,9 @@ function SheetAction({
 }
 
 /** Left-panel sections, in panel order — also what the collapsed icon rail offers. */
+/** Where this browser remembers that the quick AI bar under the canvas was hidden. */
+const AI_BAR_KEY = "ir.editor.aiBar";
+
 /** One undo step: the blocks with the page names and page filters they were laid out with. */
 interface CanvasSnapshot {
     blocks: Block[];
@@ -362,6 +365,26 @@ export function EditorScreen(): ReactElement {
     // Which left-panel tab is showing. The collapsed icon rail selects it directly.
     const [leftTab, setLeftTab] = useState<"blocks" | "layers">("blocks");
     const [aiOpen, setAiOpen] = useState(false);
+    // The quick AI bar under the canvas can be hidden; the choice stays in this browser.
+    const [aiBarHidden, setAiBarHidden] = useState<boolean>(() => {
+        try {
+            return window.localStorage.getItem(AI_BAR_KEY) === "hidden";
+        } catch {
+            return false;
+        }
+    });
+    const toggleAiBar = (hidden: boolean): void => {
+        setAiBarHidden(hidden);
+        try {
+            if (hidden) {
+                window.localStorage.setItem(AI_BAR_KEY, "hidden");
+            } else {
+                window.localStorage.removeItem(AI_BAR_KEY);
+            }
+        } catch {
+            // Private mode or blocked storage: it stays hidden for this visit only.
+        }
+    };
     // Starts closed: nothing is selected yet, so the inspector would only be showing
     // "select a block" while eating 288px of canvas.
     const [rightOpen, setRightOpen] = useState(false);
@@ -2353,15 +2376,18 @@ export function EditorScreen(): ReactElement {
                         </div>
                     </div>
 
-                    <AiCommandBar
-                        siteReady={siteId !== null}
-                        hasReport={blocks.length > 1}
-                        pending={ai.isPending || aiAdjust.isPending || aiSection.isPending}
-                        error={aiError}
-                        onSubmit={askAi}
-                        onMore={() => setAiOpen(true)}
-                        compact={isCompact}
-                    />
+                    {!aiBarHidden && (
+                        <AiCommandBar
+                            siteReady={siteId !== null}
+                            hasReport={blocks.length > 1}
+                            pending={ai.isPending || aiAdjust.isPending || aiSection.isPending}
+                            error={aiError}
+                            onSubmit={askAi}
+                            onMore={() => setAiOpen(true)}
+                            onHide={() => toggleAiBar(true)}
+                            compact={isCompact}
+                        />
+                    )}
                 </div>
 
                 {/* ---- Right panel (collapsible): block settings · report settings ---- */}
@@ -2651,6 +2677,11 @@ export function EditorScreen(): ReactElement {
                     onFull={generateWithAi}
                     onSection={generateSectionWithAi}
                     onAdjust={adjustWithAi}
+                    barHidden={aiBarHidden}
+                    onShowBar={() => {
+                        toggleAiBar(false);
+                        setAiOpen(false);
+                    }}
                 />
             )}
 
